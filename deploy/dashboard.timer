@@ -1,11 +1,21 @@
 [Unit]
-Description=Run Home Dashboard every 30 minutes (06:00–22:59)
+Description=Run Home Dashboard every 5 minutes (06:00–22:59)
 
 [Timer]
 OnBootSec=1min
 OnCalendar=*-*-* *:00:00
+OnCalendar=*-*-* *:05:00
+OnCalendar=*-*-* *:10:00
+OnCalendar=*-*-* *:15:00
+OnCalendar=*-*-* *:20:00
+OnCalendar=*-*-* *:25:00
 OnCalendar=*-*-* *:30:00
-AccuracySec=30s
+OnCalendar=*-*-* *:35:00
+OnCalendar=*-*-* *:40:00
+OnCalendar=*-*-* *:45:00
+OnCalendar=*-*-* *:50:00
+OnCalendar=*-*-* *:55:00
+AccuracySec=10s
 
 [Install]
 WantedBy=timers.target
