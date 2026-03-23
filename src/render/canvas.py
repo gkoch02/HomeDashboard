@@ -5,7 +5,7 @@ from src.data.models import DashboardData
 from src.config import DisplayConfig
 from src.render.components import (
     header, week_view, weather_panel, birthday_bar, info_panel, today_view, qotd_panel,
-    weather_full as weather_full_comp,
+    weather_full as weather_full_comp, fuzzyclock_panel,
 )
 from src.render.theme import Theme, default_theme
 
@@ -93,6 +93,16 @@ def render_dashboard(
         "weather_full": lambda: weather_full_comp.draw_weather_full(
             draw, data.weather, today,
             region=layout.weather_full,
+            style=style,
+        ),
+        "fuzzyclock": lambda: fuzzyclock_panel.draw_fuzzyclock(
+            draw, now,
+            region=layout.fuzzyclock,
+            style=style,
+        ),
+        "fuzzyclock_weather": lambda: qotd_panel.draw_qotd_weather(
+            draw, data.weather, today,
+            region=layout.weather,
             style=style,
         ),
     }

@@ -72,8 +72,12 @@ logging:
 # title: "Home Dashboard"
 
 # UI theme — controls overall layout, proportions, and visual style.
-# Options: default, minimalist, terminal, old_fashioned, today, fantasy, qotd
+# Options: default, minimalist, terminal, old_fashioned, today, fantasy, qotd, fuzzyclock
 # Set to "random" to rotate themes daily (see random_theme below).
+# Note: the fuzzyclock theme displays the time as a natural-language phrase
+# ("half past seven"). For accurate time display, run the cron / systemd timer
+# every 5 minutes. The image-hash check ensures the eInk panel is only
+# physically refreshed when the phrase actually changes.
 # theme: default
 
 # Daily random theme rotation — only relevant when theme is "random".

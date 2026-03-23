@@ -72,6 +72,11 @@ class ThemeLayout:
     weather_full: ComponentRegion = field(
         default_factory=lambda: ComponentRegion(0, 0, 800, 480, visible=False)
     )
+    # Used by the ``fuzzyclock`` theme for the full-canvas clock face area.
+    # Hidden by default so existing themes are not affected.
+    fuzzyclock: ComponentRegion = field(
+        default_factory=lambda: ComponentRegion(0, 0, 800, 400, visible=False)
+    )
     draw_order: list[str] = field(
         default_factory=lambda: ["header", "week_view", "weather", "birthdays", "info"]
     )
@@ -172,7 +177,7 @@ class Theme:
 AVAILABLE_THEMES: frozenset[str] = frozenset(
     {
         "default", "terminal", "minimalist", "old_fashioned", "today",
-        "fantasy", "qotd", "weather", "random",
+        "fantasy", "qotd", "weather", "fuzzyclock", "random",
     }
 )
 
@@ -236,6 +241,9 @@ def load_theme(name: str) -> Theme:
     if name == "weather":
         from src.render.themes.weather import weather_theme
         return weather_theme()
+    if name == "fuzzyclock":
+        from src.render.themes.fuzzyclock import fuzzyclock_theme
+        return fuzzyclock_theme()
     raise ValueError(
         f"Unknown theme: {name!r}. Available: {', '.join(sorted(AVAILABLE_THEMES))}"
     )
