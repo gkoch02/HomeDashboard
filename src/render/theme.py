@@ -67,6 +67,11 @@ class ThemeLayout:
     qotd: ComponentRegion = field(
         default_factory=lambda: ComponentRegion(0, 0, 800, 400, visible=False)
     )
+    # Used by the ``weather`` theme for the full-screen weather display.
+    # Hidden by default so existing themes are not affected.
+    weather_full: ComponentRegion = field(
+        default_factory=lambda: ComponentRegion(0, 0, 800, 480, visible=False)
+    )
     draw_order: list[str] = field(
         default_factory=lambda: ["header", "week_view", "weather", "birthdays", "info"]
     )
@@ -167,7 +172,7 @@ class Theme:
 AVAILABLE_THEMES: frozenset[str] = frozenset(
     {
         "default", "terminal", "minimalist", "old_fashioned", "today",
-        "fantasy", "qotd", "lcars", "random",
+        "fantasy", "qotd", "lcars", "weather", "random",
     }
 )
 
@@ -231,6 +236,9 @@ def load_theme(name: str) -> Theme:
     if name == "lcars":
         from src.render.themes.lcars import lcars_theme
         return lcars_theme()
+    if name == "weather":
+        from src.render.themes.weather import weather_theme
+        return weather_theme()
     raise ValueError(
         f"Unknown theme: {name!r}. Available: {', '.join(sorted(AVAILABLE_THEMES))}"
     )
