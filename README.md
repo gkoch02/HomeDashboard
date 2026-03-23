@@ -76,7 +76,7 @@ Reports errors (must fix) and warnings (may cause issues) in your configuration.
 Switch the entire dashboard layout and visual style with one line in `config.yaml`:
 
 ```yaml
-theme: terminal   # default | terminal | minimalist | old_fashioned | today | fantasy | qotd | weather | random
+theme: terminal   # default | terminal | minimalist | old_fashioned | today | fantasy | qotd | weather | fuzzyclock | random
 ```
 
 Or override it from the command line without editing your config:
@@ -125,7 +125,7 @@ random_theme:
 ```
 
 - `include` is applied first; `exclude` is applied after.
-- If both are empty, all 9 themes are eligible.
+- If both are empty, all 10 themes are eligible.
 - If the pool is empty after filtering, the dashboard falls back to `"default"`.
 - Run `make check` to catch invalid theme names in either list.
 
@@ -218,6 +218,21 @@ components (header, calendar, birthdays, quote) are hidden — the display is we
 Font: DM Sans throughout.
 
 ![Weather theme](output/theme_weather.png)
+
+#### fuzzyclock
+
+Natural-language clock. The current time is expressed as a human-readable phrase —
+"half past seven", "quarter to nine", "twenty five past eleven" — rendered large and
+centred in DM Sans Bold. The day name and date sit below in smaller regular weight. A
+compact full-width weather banner fills the bottom 80px (identical to the `qotd` strip:
+current conditions, hi/lo, feels-like, wind, 3-day forecast, moon phase). The calendar,
+birthdays, and quote panels are hidden entirely.
+
+Time phrases snap to the nearest 5-minute boundary, so the display changes at most twelve
+times per hour. The default systemd timer runs every 5 minutes; the image-hash check
+ensures no eInk refresh occurs when the phrase hasn't changed.
+
+![Fuzzyclock theme](output/theme_fuzzyclock.png)
 
 ### Creating your own theme
 
@@ -343,7 +358,7 @@ Your existing config is fully compatible. These are opt-in additions:
 | Feature | How to enable |
 |---|---|
 | **Versioning** (`--version` flag) | Run `python -m src.main --version` or `make version` to print the current version |
-| **Themes** (8 built-in layouts) | Add `theme: terminal` (or `minimalist`, `old_fashioned`, `today`, `fantasy`, `qotd`, `weather`) to `config.yaml`, or pass `--theme THEME` on the command line |
+| **Themes** (9 built-in layouts) | Add `theme: terminal` (or `minimalist`, `old_fashioned`, `today`, `fantasy`, `qotd`, `weather`, `fuzzyclock`) to `config.yaml`, or pass `--theme THEME` on the command line |
 | **Random daily theme rotation** | Set `theme: random`; optionally add a `random_theme:` block to include/exclude specific themes |
 | **Event filtering** | Add a `filters:` block — hide events by calendar name, keyword, or all-day status |
 | **Configurable cache TTLs** | Add a `cache:` block to tune per-source TTL and fetch intervals |
@@ -507,13 +522,13 @@ make install
 ssh pi@raspberrypi.local "systemctl status dashboard.timer"
 ```
 
-The timer fires every 30 minutes. The app handles scheduling internally:
+The timer fires every 5 minutes. The app handles scheduling internally:
 
 | Time window | Behaviour |
 |---|---|
 | `quiet_hours_start` to `quiet_hours_end` | Process exits immediately -- no fetch, render, or display write |
 | First run after quiet hours end | Forces a full eInk refresh |
-| All other active hours | Partial refresh every 30 min (full every 6 partials, ~3 hours) |
+| All other active hours | eInk refreshed only when image content changes (hash check); API calls gated by per-source fetch intervals |
 
 Configure quiet hours:
 
@@ -603,7 +618,7 @@ schedule:
 
 timezone: "local"                  # IANA name or "local"
 title: "Home Dashboard"            # text shown in the header bar
-theme: "default"                   # default | terminal | minimalist | old_fashioned | today | fantasy | qotd | weather | random
+theme: "default"                   # default | terminal | minimalist | old_fashioned | today | fantasy | qotd | weather | fuzzyclock | random
 
 random_theme:                      # only used when theme: random
   include: []                      # allowlist (empty = all themes eligible)
@@ -713,7 +728,7 @@ to `output/calendar_sync_state.json`.
 | `--dry-run` | Save to PNG instead of writing to display |
 | `--dummy` | Use built-in dummy data (no API calls needed) |
 | `--config PATH` | Config file path (default: `config/config.yaml`) |
-| `--theme THEME` | Override the theme set in `config.yaml`. Choices: `default`, `terminal`, `minimalist`, `old_fashioned`, `today`, `fantasy`, `qotd`, `weather`, `random` |
+| `--theme THEME` | Override the theme set in `config.yaml`. Choices: `default`, `terminal`, `minimalist`, `old_fashioned`, `today`, `fantasy`, `qotd`, `weather`, `fuzzyclock`, `random` |
 | `--date YYYY-MM-DD` | Override today's date for the dry-run preview (requires `--dry-run`) |
 | `--force-full-refresh` | Force full eInk refresh; bypasses fetch intervals and circuit breaker |
 | `--check-config` | Validate config and exit |
@@ -745,7 +760,7 @@ Dashboard-v4/
 ├── credentials/                  # Git-ignored -- Google service account JSON
 ├── deploy/
 │   ├── dashboard.service         # Systemd service unit
-│   └── dashboard.timer           # Systemd timer (fires every 30 min)
+│   └── dashboard.timer           # Systemd timer (fires every 5 min)
 ├── fonts/                        # Bundled TTF fonts
 ├── output/                       # Mostly git-ignored
 │   └── latest.png                # Latest dry-run preview (tracked)
@@ -782,7 +797,8 @@ Dashboard-v4/
 │       │   ├── today.py
 │       │   ├── fantasy.py
 │       │   ├── qotd.py
-│       │   └── weather.py
+│       │   ├── weather.py
+│       │   └── fuzzyclock.py
 │       └── components/           # One file per UI region
 │           ├── header.py
 │           ├── week_view.py
@@ -791,7 +807,8 @@ Dashboard-v4/
 │           ├── birthday_bar.py
 │           ├── today_view.py
 │           ├── info_panel.py
-│           └── qotd_panel.py
+│           ├── qotd_panel.py
+│           └── fuzzyclock_panel.py
 ├── tests/                        # 32 test files, 800 tests
 ├── Makefile
 ├── requirements.txt              # Core dependencies
@@ -810,7 +827,7 @@ Dashboard-v4/
 | Maratype | `terminal` theme — dashboard title, day column headers, quote body |
 | UESC Display | `terminal` theme — month band, section labels, quote attribution |
 | Synthetic Genesis | `terminal` theme — large today date numeral |
-| [DM Sans](https://fonts.google.com/specimen/DM+Sans) | `minimalist` theme; `weather` theme |
+| [DM Sans](https://fonts.google.com/specimen/DM+Sans) | `minimalist` theme; `weather` theme; `fuzzyclock` theme |
 | [Playfair Display](https://fonts.google.com/specimen/Playfair+Display) | `old_fashioned` theme; `qotd` quote text |
 | [Cinzel](https://fonts.google.com/specimen/Cinzel) | `fantasy` theme |
 

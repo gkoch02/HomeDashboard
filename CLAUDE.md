@@ -55,8 +55,8 @@ src/
     ├── icons.py               # OWM icon code → Weather Icons glyph
     ├── moon.py                # Moon phase calculator
     ├── primitives.py          # Shared draw utilities (truncation, wrapping, colors, fmt_time, events_for_day, deg_to_compass)
-    ├── themes/                # 8 themes: default, terminal, minimalist, old_fashioned, today, fantasy, qotd, weather
-    └── components/            # One file per UI region (header, week_view, weather_panel, weather_full, birthday_bar, today_view, info_panel)
+    ├── themes/                # 9 themes: default, terminal, minimalist, old_fashioned, today, fantasy, qotd, weather, fuzzyclock
+    └── components/            # One file per UI region (header, week_view, weather_panel, weather_full, birthday_bar, today_view, info_panel, qotd_panel, fuzzyclock_panel)
 
 config/
 ├── config.example.yaml        # Template (copy to config.yaml)
@@ -130,7 +130,7 @@ Components are pure functions: `draw_*(draw, data, region, style) -> None`. No g
 | `Maratype.otf` | `maratype` | `terminal` — dashboard title, day column headers, quote body |
 | `UESC Display.otf` | `uesc_display` | `terminal` — month band, section labels, quote attribution |
 | `Synthetic Genesis.otf` | `synthetic_genesis` | `terminal` — large today date numeral |
-| `DMSans.ttf` | `dm_regular/medium/semibold/bold` | `minimalist`, `weather` |
+| `DMSans.ttf` | `dm_regular/medium/semibold/bold` | `minimalist`, `weather`, `fuzzyclock` |
 | `PlayfairDisplay-*.ttf` | `playfair_regular/medium/semibold/bold` | `old_fashioned`, `qotd` |
 | `Cinzel.ttf` | `cinzel_regular/semibold/bold/black` | `fantasy`, `old_fashioned` section labels |
 | `NuCore.otf` / `NuCore Condensed.otf` | *(unused — available for new themes)* | — |
@@ -166,3 +166,5 @@ default to `None` and fall back gracefully so adding a new field never breaks ex
 - `dashboard.service` contains hardcoded `/home/pi/home-dashboard` paths that must be edited manually for non-default setups
 - Service account credentials are cached for the process lifetime; tokens auto-refresh via google-auth (safe for the hourly cron use case)
 - Weather forecast parsing skips malformed OWM slots (missing `"main"` key or empty `"weather"` array) rather than crashing
+- `fuzzyclock` theme: time phrases snap to the nearest 5-minute bucket; the default systemd timer runs every 5 minutes; the image-hash check prevents eInk refreshes when the phrase hasn't changed
+- `fuzzyclock` component uses `style.font_bold` / `style.font_medium` for the phrase / date — font-agnostic so the theme can be re-skinned by swapping the style callables
