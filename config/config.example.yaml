@@ -1,0 +1,85 @@
+display:
+  # Waveshare display model — sets native resolution automatically.
+  # Supported models: epd7in5 (640x384), epd7in5_V2 (800x480), epd7in5_V3 (800x480),
+  #   epd7in5b_V2 (800x480), epd7in5_HD (880x528), epd9in7 (1200x825), epd13in3k (1600x1200)
+  model: "epd7in5_V2"
+  # width/height are derived automatically from `model`. Override here only if needed.
+  # width: 800
+  # height: 480
+  enable_partial_refresh: false
+  max_partials_before_full: 6
+  week_days: 7
+  show_weather: true
+  show_birthdays: true
+  show_info_panel: true
+
+google:
+  service_account_path: "credentials/service_account.json"
+  calendar_id: "your-calendar-id@group.calendar.google.com"
+  additional_calendars: []
+  # Required when birthdays.source is "contacts".
+  # The service account must have domain-wide delegation enabled in Google
+  # Workspace Admin with the People API scope granted, and this field must
+  # be set to the email of the user whose contacts should be read.
+  # contacts_email: "you@yourdomain.com"
+
+weather:
+  api_key: "YOUR_OPENWEATHERMAP_API_KEY"
+  latitude: 40.7128
+  longitude: -74.0060
+  units: "imperial"  # "imperial" or "metric"
+
+birthdays:
+  source: "file"  # "file", "calendar", or "contacts"
+  file_path: "config/birthdays.json"   # used when source is "file"
+  calendar_keyword: "Birthday"          # used when source is "calendar"
+  lookahead_days: 30
+
+schedule:
+  # Hour (0-23) when the display goes quiet — no refreshes until quiet_hours_end.
+  quiet_hours_start: 23
+  # Hour (0-23) when the display wakes up. The first run triggers a full refresh.
+  quiet_hours_end: 6
+
+# IANA timezone name for the display location.
+# Use "local" to follow the system clock, or set explicitly (e.g. "America/Los_Angeles").
+timezone: "local"
+
+output:
+  dry_run_dir: "output"
+
+logging:
+  level: "INFO"
+
+# Cache TTL — controls how long cached data is considered usable after a fetch failure.
+# Data older than 4x the TTL is discarded entirely (EXPIRED).
+# cache:
+#   weather_ttl_minutes: 60       # 1 hour
+#   events_ttl_minutes: 120       # 2 hours
+#   birthdays_ttl_minutes: 1440   # 24 hours
+#   # Fetch intervals — skip API calls when cached data is younger than this
+#   weather_fetch_interval: 30    # 30 minutes
+#   events_fetch_interval: 120    # 2 hours
+#   birthdays_fetch_interval: 1440  # 24 hours
+
+# Event filtering — hide events from the display without removing them from cache.
+# filters:
+#   exclude_calendars: ["Holidays", "Spam Calendar"]
+#   exclude_keywords: ["OOO", "Block", "Focus Time"]
+#   exclude_all_day: false
+
+# Dashboard title displayed in the header bar.
+# title: "Home Dashboard"
+
+# UI theme — controls overall layout, proportions, and visual style.
+# Options: default, minimalist, terminal, old_fashioned, today, fantasy, qotd
+# Set to "random" to rotate themes daily (see random_theme below).
+# theme: default
+
+# Daily random theme rotation — only relevant when theme is "random".
+# The theme is chosen once per day at the first refresh after midnight and
+# persisted in output/random_theme_state.json for the rest of the day.
+# random_theme:
+#   include: []  # Allowlist: only rotate among these themes (empty = all themes)
+#   exclude: []  # Denylist: never use these themes
+#                # Example: exclude: ["fantasy", "qotd"]

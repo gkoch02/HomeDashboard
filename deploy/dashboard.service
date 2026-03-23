@@ -1,0 +1,14 @@
+[Unit]
+Description=Home Dashboard eInk renderer
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+# Customize User and WorkingDirectory for your Pi setup.
+# Default assumes user "pi" with the repo at ~/home-dashboard.
+User=pi
+WorkingDirectory=/home/pi/home-dashboard
+ExecStart=/home/pi/home-dashboard/venv/bin/python -m src.main --config config/config.yaml
+StandardOutput=append:/home/pi/home-dashboard/output/dashboard.log
+StandardError=append:/home/pi/home-dashboard/output/dashboard.log

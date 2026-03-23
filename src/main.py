@@ -1,0 +1,627 @@
+import argparse
+import logging
+import zoneinfo
+from concurrent.futures import ThreadPoolExecutor, Future
+from datetime import datetime, timedelta, timezone, tzinfo
+from pathlib import Path
+
+from src.config import load_config, validate_config, print_validation_report
+from src.filters import filter_events
+from src.data.models import (
+    DashboardData, CalendarEvent, StalenessLevel, WeatherData,
+    DayForecast, WeatherAlert, Birthday,
+)
+from src.fetchers.cache import check_staleness, load_cached_source, save_source
+from src.fetchers.circuit_breaker import CircuitBreaker
+from src.fetchers.quota_tracker import QuotaTracker
+from src.fetchers.calendar import fetch_events, fetch_birthdays
+from src.fetchers.weather import fetch_weather
+from src.render.canvas import render_dashboard
+from src.render.theme import load_theme
+from src.display.driver import DryRunDisplay, image_changed
+
+
+logger = logging.getLogger(__name__)
+
+
+def _resolve_tz(tz_name: str) -> tzinfo:
+    """Return a tzinfo for the given IANA name, or the system local timezone for 'local'."""
+    if tz_name == "local":
+        return datetime.now().astimezone().tzinfo
+    return zoneinfo.ZoneInfo(tz_name)
+
+
+def _retry_fetch(label: str, fn):
+    """Attempt fn() twice immediately to handle transient network errors."""
+    try:
+        return fn()
+    except Exception as exc:
+        logger.warning("%s failed, retrying: %s", label, exc)
+    return fn()  # let the exception propagate on second failure
+
+
+def _in_quiet_hours(now: datetime, start_hour: int, end_hour: int) -> bool:
+    """Return True if `now` falls in the quiet window [start_hour, end_hour).
+
+    Handles windows that cross midnight (e.g. start=23, end=6).
+    """
+    h = now.hour
+    if start_hour > end_hour:  # crosses midnight
+        return h >= start_hour or h < end_hour
+    return start_hour <= h < end_hour
+
+
+def _is_morning_startup(now: datetime, quiet_hours_end: int) -> bool:
+    """Return True on the first 30-minute run after quiet hours end.
+
+    Triggers a forced full refresh to start the day with a clean display.
+    """
+    return now.hour == quiet_hours_end and now.minute < 30
+
+
+def generate_dummy_data(tz: tzinfo | None = None, now: datetime | None = None) -> DashboardData:
+    """Create realistic dummy data for development/testing.
+
+    *now* overrides the current datetime (useful for dry-run with --date).
+    When omitted, ``datetime.now(tz)`` is used.
+    """
+    if now is None:
+        now = datetime.now(tz) if tz is not None else datetime.now()
+    today = now.date()
+
+    # Find Monday of this week — matches the week_view rendering which is also Monday-based
+    week_start = today - timedelta(days=today.weekday())
+
+    def _at(day_offset: int, hour: int, minute: int = 0) -> datetime:
+        return datetime.combine(
+            week_start + timedelta(days=day_offset),
+            datetime.min.time().replace(hour=hour, minute=minute),
+        )
+
+    events = [
+        # Monday (col 0) — Normal weekday (2 events, threshold ≤4)
+        CalendarEvent(
+            summary="Team Standup",
+            start=_at(0, 9), end=_at(0, 9, 30),
+            location="Zoom",
+        ),
+        CalendarEvent(
+            summary="1:1 with Alex",
+            start=_at(0, 14), end=_at(0, 14, 30),
+            location="Conference Room B",
+        ),
+        # Tuesday (col 1) — Compact weekday (6 events, threshold 5–7)
+        CalendarEvent(
+            summary="Morning Standup",
+            start=_at(1, 9), end=_at(1, 9, 15),
+        ),
+        CalendarEvent(
+            summary="Dentist Appointment",
+            start=_at(1, 10), end=_at(1, 11),
+            location="123 Main St, Suite 4",
+        ),
+        CalendarEvent(
+            summary="Sprint Review",
+            start=_at(1, 11), end=_at(1, 12),
+        ),
+        CalendarEvent(
+            summary="Lunch with Team",
+            start=_at(1, 12), end=_at(1, 13),
+            location="Tartine Manufactory",
+        ),
+        CalendarEvent(
+            summary="Design Sync",
+            start=_at(1, 15, 30), end=_at(1, 16),
+        ),
+        CalendarEvent(
+            summary="Code Review",
+            start=_at(1, 16, 30), end=_at(1, 17, 30),
+        ),
+        # Wednesday–Friday: multi-day conference (spanning bar)
+        CalendarEvent(
+            summary="Tech Conference",
+            start=datetime.combine(week_start + timedelta(days=2), datetime.min.time()),
+            end=datetime.combine(week_start + timedelta(days=5), datetime.min.time()),
+            is_all_day=True,
+        ),
+        CalendarEvent(
+            summary="Yoga",
+            start=_at(2, 17, 30), end=_at(2, 18, 30),
+            location="Studio 12",
+        ),
+        # Thursday (col 3) — Dense weekday (8 events, threshold ≥8)
+        CalendarEvent(
+            summary="Morning Standup",
+            start=_at(3, 9), end=_at(3, 9, 15),
+        ),
+        CalendarEvent(
+            summary="Project Planning",
+            start=_at(3, 10), end=_at(3, 11, 30),
+        ),
+        CalendarEvent(
+            summary="Architecture Review",
+            start=_at(3, 11, 30), end=_at(3, 12, 30),
+            location="Conf Room A",
+        ),
+        CalendarEvent(
+            summary="HR Check-in",
+            start=_at(3, 13), end=_at(3, 13, 30),
+        ),
+        CalendarEvent(
+            summary="Stakeholder Briefing",
+            start=_at(3, 13, 30), end=_at(3, 14, 30),
+            location="Board Room",
+        ),
+        CalendarEvent(
+            summary="Coffee with Sam",
+            start=_at(3, 15), end=_at(3, 15, 45),
+            location="Blue Bottle, Market St",
+        ),
+        CalendarEvent(
+            summary="Bug Triage",
+            start=_at(3, 15, 45), end=_at(3, 16, 15),
+        ),
+        CalendarEvent(
+            summary="Sprint Retro",
+            start=_at(3, 16, 30), end=_at(3, 17, 30),
+        ),
+        # Friday (col 4)
+        CalendarEvent(
+            summary="Demo Day",
+            start=_at(4, 14), end=_at(4, 15),
+            location="Main Auditorium",
+        ),
+        # Friday (col 4) — extra events
+        CalendarEvent(
+            summary="Weekly Wrap-up",
+            start=_at(4, 9), end=_at(4, 9, 30),
+        ),
+        CalendarEvent(
+            summary="Lunch & Learn",
+            start=_at(4, 12), end=_at(4, 13),
+            location="Rooftop Lounge",
+        ),
+        # Saturday (col 5) — Normal weekend
+        CalendarEvent(
+            summary="Farmers Market",
+            start=_at(5, 9), end=_at(5, 11),
+        ),
+        CalendarEvent(
+            summary="Bike Ride",
+            start=_at(5, 12), end=_at(5, 14),
+            location="Golden Gate Park",
+        ),
+        CalendarEvent(
+            summary="Dinner Party",
+            start=_at(5, 19), end=_at(5, 22),
+            location="Chris & Dana's",
+        ),
+        # Sunday (col 6)
+        CalendarEvent(
+            summary="Weekend",
+            start=datetime.combine(week_start + timedelta(days=6), datetime.min.time()),
+            end=datetime.combine(week_start + timedelta(days=7), datetime.min.time()),
+            is_all_day=True,
+        ),
+        CalendarEvent(
+            summary="Morning Run",
+            start=_at(6, 7, 30), end=_at(6, 8, 15),
+            location="Embarcadero",
+        ),
+        CalendarEvent(
+            summary="Brunch",
+            start=_at(6, 10), end=_at(6, 12),
+            location="The Griddle Cafe",
+        ),
+    ]
+
+    dummy_tz = tz if tz is not None else timezone.utc
+    weather = WeatherData(
+        current_temp=42.0,
+        current_icon="02d",
+        current_description="partly cloudy",
+        high=48.0,
+        low=35.0,
+        humidity=65,
+        forecast=[
+            DayForecast(
+                date=today + timedelta(days=1), high=45.0, low=33.0,
+                icon="10d", description="rain", precip_chance=0.80,
+            ),
+            DayForecast(
+                date=today + timedelta(days=2), high=50.0, low=38.0,
+                icon="01d", description="clear", precip_chance=0.05,
+            ),
+            DayForecast(
+                date=today + timedelta(days=3), high=47.0, low=36.0,
+                icon="04d", description="cloudy", precip_chance=0.30,
+            ),
+            DayForecast(
+                date=today + timedelta(days=4), high=52.0, low=40.0,
+                icon="02d", description="partly cloudy",
+            ),
+            DayForecast(
+                date=today + timedelta(days=5), high=55.0, low=42.0,
+                icon="09d", description="drizzle", precip_chance=0.60,
+            ),
+        ],
+        alerts=[WeatherAlert(event="Dense Fog Advisory")],
+        feels_like=38.0,
+        wind_speed=12.0,
+        wind_deg=315.0,
+        pressure=1013.0,
+        uv_index=5.0,
+        sunrise=datetime.combine(
+            today, datetime.min.time().replace(hour=6, minute=24)
+        ).replace(tzinfo=dummy_tz),
+        sunset=datetime.combine(
+            today, datetime.min.time().replace(hour=19, minute=51)
+        ).replace(tzinfo=dummy_tz),
+    )
+
+    birthdays = [
+        Birthday(name="Mom", date=today + timedelta(days=3)),
+        Birthday(name="Jake", date=today + timedelta(days=7), age=30),
+        Birthday(name="Alice", date=today + timedelta(days=12), age=25),
+        Birthday(name="Bob", date=today + timedelta(days=18)),
+    ]
+
+    return DashboardData(
+        events=events, weather=weather, birthdays=birthdays,
+        fetched_at=now, is_stale=False,
+    )
+
+
+def fetch_live_data(
+    cfg, cache_dir: str, tz: tzinfo | None = None,
+    force_refresh: bool = False,
+) -> DashboardData:
+    """Fetch live data from all APIs in parallel, falling back to per-source cache on failure.
+
+    When *force_refresh* is True, fetch intervals are bypassed and all sources
+    are fetched fresh.
+    """
+    events: list[CalendarEvent] = []
+    weather: WeatherData | None = None
+    birthdays: list[Birthday] = []
+
+    stale_sources: list[str] = []
+    source_staleness: dict[str, StalenessLevel] = {}
+    fetched_at = datetime.now(tz) if tz is not None else datetime.now()
+
+    cache_cfg = cfg.cache
+    quota = QuotaTracker(state_dir=cache_dir)
+    breaker = CircuitBreaker(
+        max_failures=cache_cfg.max_failures,
+        cooldown_minutes=cache_cfg.cooldown_minutes,
+        state_dir=cache_dir,
+    )
+    ttl_map = {
+        "events": cache_cfg.events_ttl_minutes,
+        "weather": cache_cfg.weather_ttl_minutes,
+        "birthdays": cache_cfg.birthdays_ttl_minutes,
+    }
+    interval_map = {
+        "events": cache_cfg.events_fetch_interval,
+        "weather": cache_cfg.weather_fetch_interval,
+        "birthdays": cache_cfg.birthdays_fetch_interval,
+    }
+
+    def _use_cache(source: str):
+        """Try to load cached data; apply TTL-based staleness check."""
+        cached = load_cached_source(source, cache_dir)
+        if cached is None:
+            return None
+        data, cached_at = cached
+        level = check_staleness(cached_at, ttl_map[source], now=fetched_at)
+        if level == StalenessLevel.EXPIRED:
+            logger.warning("Cached %s is expired (>%dx TTL), discarding",
+                           source, 4)
+            return None
+        source_staleness[source] = level
+        stale_sources.append(source)
+        return data
+
+    def _cache_is_recent(source: str) -> tuple:
+        """Check if cached data is young enough to skip fetching.
+
+        Returns ``(data, True)`` when the source can be reused, or
+        ``(None, False)`` when a fresh fetch is needed.
+        """
+        if force_refresh:
+            return None, False
+        cached = load_cached_source(source, cache_dir)
+        if cached is None:
+            return None, False
+        data, cached_at = cached
+        age_minutes = (fetched_at - cached_at).total_seconds() / 60
+        interval = interval_map[source]
+        if age_minutes < interval:
+            logger.info(
+                "%s data is %.0fm old (interval: %dm), skipping fetch",
+                source, age_minutes, interval,
+            )
+            source_staleness[source] = StalenessLevel.FRESH
+            return data, True
+        return None, False
+
+    # Check fetch intervals and circuit breaker — skip sources as needed
+    def _should_skip(source: str) -> tuple:
+        """Determine if a source should be skipped (interval or breaker).
+
+        Returns ``(data, True)`` to skip, ``(None, False)`` to fetch.
+        """
+        # Check fetch interval first
+        data, recent = _cache_is_recent(source)
+        if recent:
+            return data, True
+        # Check circuit breaker
+        if not breaker.should_attempt(source):
+            logger.info("Circuit breaker OPEN for %s, using cache", source)
+            cached_data = _use_cache(source)
+            return cached_data, True
+        return None, False
+
+    events_cached, events_skip = _should_skip("events")
+    weather_cached, weather_skip = _should_skip("weather")
+    birthdays_cached, birthdays_skip = _should_skip("birthdays")
+
+    if events_skip:
+        events = events_cached
+    if weather_skip:
+        weather = weather_cached
+    if birthdays_skip:
+        birthdays = birthdays_cached
+
+    # Launch fetchers only for sources that need refreshing
+    events_future: Future | None = None
+    weather_future: Future | None = None
+    birthdays_future: Future | None = None
+
+    needs_fetch = not events_skip or not weather_skip or not birthdays_skip
+    if needs_fetch:
+        with ThreadPoolExecutor(max_workers=3) as pool:
+            if not events_skip:
+                events_future = pool.submit(
+                    _retry_fetch, "Calendar",
+                    lambda: fetch_events(cfg.google, tz=tz, cache_dir=cache_dir),
+                )
+            if not weather_skip:
+                weather_future = pool.submit(
+                    _retry_fetch, "Weather",
+                    lambda: fetch_weather(cfg.weather, tz=tz),
+                )
+            if not birthdays_skip:
+                birthdays_future = pool.submit(
+                    _retry_fetch, "Birthdays",
+                    lambda: fetch_birthdays(cfg.google, cfg.birthdays, tz=tz),
+                )
+
+    # --- Calendar events ---
+    if events_future is not None:
+        try:
+            events = events_future.result(timeout=120)
+            save_source("events", events, fetched_at, cache_dir)
+            source_staleness["events"] = StalenessLevel.FRESH
+            breaker.record_success("events")
+            quota.record_call("events")
+            logger.info("Fetched %d calendar events", len(events))
+        except Exception as exc:
+            logger.error("Calendar fetch failed: %s", exc)
+            breaker.record_failure("events")
+            cached_data = _use_cache("events")
+            if cached_data is not None:
+                events = cached_data
+                logger.warning("Using cached events (%s)",
+                               source_staleness["events"].value)
+
+    # --- Weather ---
+    if weather_future is not None:
+        try:
+            weather = weather_future.result(timeout=120)
+            save_source("weather", weather, fetched_at, cache_dir)
+            source_staleness["weather"] = StalenessLevel.FRESH
+            breaker.record_success("weather")
+            quota.record_call("weather")
+            logger.info("Fetched weather: %.1f°", weather.current_temp)
+        except Exception as exc:
+            logger.error("Weather fetch failed: %s", exc)
+            breaker.record_failure("weather")
+            cached_data = _use_cache("weather")
+            if cached_data is not None:
+                weather = cached_data
+                logger.warning("Using cached weather (%s)",
+                               source_staleness["weather"].value)
+
+    # --- Birthdays ---
+    if birthdays_future is not None:
+        try:
+            birthdays = birthdays_future.result(timeout=120)
+            save_source("birthdays", birthdays, fetched_at, cache_dir)
+            source_staleness["birthdays"] = StalenessLevel.FRESH
+            breaker.record_success("birthdays")
+            quota.record_call("birthdays")
+            logger.info("Fetched %d upcoming birthdays", len(birthdays))
+        except Exception as exc:
+            logger.error("Birthday fetch failed: %s", exc)
+            breaker.record_failure("birthdays")
+            cached_data = _use_cache("birthdays")
+            if cached_data is not None:
+                birthdays = cached_data
+                logger.warning("Using cached birthdays (%s)",
+                               source_staleness["birthdays"].value)
+
+    # Check quota warnings
+    quota_threshold = cfg.google.daily_quota_warning
+    for src in ("events", "weather", "birthdays"):
+        quota.check_warning(src, quota_threshold)
+
+    return DashboardData(
+        events=events,
+        weather=weather,
+        birthdays=birthdays,
+        fetched_at=fetched_at,
+        is_stale=bool(stale_sources),
+        stale_sources=stale_sources,
+        source_staleness=source_staleness,
+    )
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Home Dashboard for eInk display")
+    parser.add_argument(
+        "--dry-run", action="store_true", help="Render to PNG instead of display",
+    )
+    parser.add_argument(
+        "--config", default="config/config.yaml", help="Path to config file",
+    )
+    parser.add_argument(
+        "--force-full-refresh", action="store_true", help="Force a full display refresh",
+    )
+    parser.add_argument(
+        "--dummy", action="store_true",
+        help="Use dummy data instead of fetching from APIs",
+    )
+    parser.add_argument(
+        "--check-config", action="store_true",
+        help="Validate config and exit without rendering",
+    )
+    parser.add_argument(
+        "--date",
+        default=None,
+        metavar="YYYY-MM-DD",
+        help=(
+            "Override 'today' for the dry-run preview (e.g. 2025-12-25). "
+            "Only meaningful with --dry-run."
+        ),
+    )
+    parser.add_argument(
+        "--theme",
+        choices=["default", "fantasy", "minimalist", "old_fashioned", "qotd",
+                 "random", "terminal", "today"],
+        default=None,
+        metavar="THEME",
+        help=(
+            "Override the theme from config. "
+            "Choices: default, fantasy, minimalist, old_fashioned, qotd, random, terminal, today"
+        ),
+    )
+    args = parser.parse_args()
+
+    # Validate --date usage early so we can give a clear error message.
+    if args.date is not None and not args.dry_run:
+        parser.error("--date requires --dry-run")
+
+    # Configure logging before load_config so any import-time or config-loading
+    # log records are formatted correctly (fix: logging order).
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
+
+    cfg = load_config(args.config)
+    logging.getLogger().setLevel(getattr(logging, cfg.log_level, logging.INFO))
+
+    # --- Config validation ---
+    errors, warnings = validate_config(cfg, config_path=args.config)
+    if args.check_config:
+        print_validation_report(errors, warnings)
+        raise SystemExit(1 if errors else 0)
+    if errors:
+        print_validation_report(errors, warnings)
+        logger.error("Config has fatal errors — fix them or run with --check-config for details.")
+        raise SystemExit(1)
+    if warnings and not args.dummy:
+        print_validation_report(errors, warnings)
+
+    tz = _resolve_tz(cfg.timezone)
+    logger.info("Using timezone: %s", tz)
+
+    # Quiet hours — skip refresh entirely between quiet_hours_start and quiet_hours_end
+    now = datetime.now(tz)
+
+    # --date: override the current date for dry-run previews
+    if args.date is not None:
+        try:
+            from datetime import date as _date
+            override_date = _date.fromisoformat(args.date)
+        except ValueError:
+            parser.error(f"--date must be in YYYY-MM-DD format, got: {args.date!r}")
+        now = datetime.combine(override_date, now.timetz())
+        logger.info("Dry-run date overridden to: %s", now.date())
+
+    if not args.dry_run and _in_quiet_hours(now, cfg.schedule.quiet_hours_start, cfg.schedule.quiet_hours_end):
+        logger.info(
+            "Quiet hours (%02d:00–%02d:00) — skipping refresh",
+            cfg.schedule.quiet_hours_start,
+            cfg.schedule.quiet_hours_end,
+        )
+        return
+
+    # Force a full refresh on the first run of the active day (morning wake-up)
+    force_full = args.force_full_refresh or _is_morning_startup(now, cfg.schedule.quiet_hours_end)
+    if force_full and not args.force_full_refresh:
+        logger.info("Morning startup — forcing full refresh")
+
+    # Fetch data
+    if args.dummy:
+        logger.info("Using dummy data")
+        data = generate_dummy_data(tz=tz, now=now)
+    else:
+        data = fetch_live_data(
+            cfg, cache_dir=cfg.output_dir, tz=tz,
+            force_refresh=force_full,
+        )
+
+    # Apply event filters
+    if cfg.filters.exclude_calendars or cfg.filters.exclude_keywords or cfg.filters.exclude_all_day:
+        original_count = len(data.events)
+        data.events = filter_events(data.events, cfg.filters)
+        logger.info("Filtered events: %d -> %d", original_count, len(data.events))
+
+    # Resolve "random" to a concrete theme name for today
+    theme_name = args.theme if args.theme is not None else cfg.theme
+    if theme_name == "random":
+        from src.render.random_theme import pick_random_theme
+        theme_name = pick_random_theme(
+            include=cfg.random_theme.include,
+            exclude=cfg.random_theme.exclude,
+            output_dir=cfg.output_dir,
+        )
+        logger.info("Random theme resolved to: %s", theme_name)
+
+    # Render
+    logger.info("Rendering dashboard")
+    theme = load_theme(theme_name)
+    image = render_dashboard(data, cfg.display, title=cfg.title, theme=theme)
+
+    # Conditional refresh — skip display update when the image hasn't changed.
+    # Always write in dry-run mode (useful for dev); skip hardware refresh on
+    # identical images to extend eInk display lifespan and save power.
+    if args.dry_run:
+        display = DryRunDisplay(output_dir=cfg.output_dir)
+        display.show(image)
+    elif not image_changed(image, cfg.output_dir) and not force_full:
+        logger.info("Image unchanged — skipping display refresh")
+    else:
+        from src.display.driver import WaveshareDisplay
+        display = WaveshareDisplay(
+            model=cfg.display.model,
+            enable_partial=cfg.display.enable_partial_refresh,
+            max_partials=cfg.display.max_partials_before_full,
+        )
+        display.show(image, force_full=force_full)
+
+    # Write health marker so external monitoring can detect a stuck display
+    try:
+        marker = Path(cfg.output_dir) / "last_success.txt"
+        marker.parent.mkdir(parents=True, exist_ok=True)
+        marker.write_text(datetime.now(tz).isoformat() + "\n")
+    except Exception as exc:
+        logger.warning("Could not write last_success.txt: %s", exc)
+
+    logger.info("Done")
+
+
+if __name__ == "__main__":
+    main()
