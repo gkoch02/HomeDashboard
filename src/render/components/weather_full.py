@@ -25,6 +25,7 @@ from src.render.icons import OWM_ICON_MAP, FALLBACK_ICON
 from src.render.moon import moon_phase_glyph, moon_phase_name
 from src.render.primitives import (
     draw_text_truncated, filled_rect, hline, text_height, text_width,
+    fmt_time as _fmt_time, deg_to_compass,
 )
 from src.render.theme import ComponentRegion, ThemeStyle
 
@@ -168,11 +169,7 @@ def _draw_metric_cards(draw, weather, x0, y0, W, H, style):
     if weather.wind_speed is not None:
         wind_val = f"{weather.wind_speed:.0f}"
         if weather.wind_deg is not None:
-            try:
-                from src.fetchers.weather import deg_to_compass
-                wind_val += f" {deg_to_compass(weather.wind_deg)}"
-            except ImportError:
-                pass
+            wind_val += f" {deg_to_compass(weather.wind_deg)}"
         cards.append((_GLYPH_WIND, wind_val, "Wind mph"))
     else:
         cards.append((_GLYPH_WIND, "—", "Wind"))
@@ -418,9 +415,3 @@ def _draw_unavailable(draw, region, style):
         (region.x + (region.w - mw) // 2, region.y + (region.h - mh) // 2),
         msg, font=font, fill=style.fg,
     )
-
-
-def _fmt_time(dt) -> str:
-    """Format a datetime as a compact am/pm string, e.g. '6:24a'."""
-    s = dt.strftime("%-I:%M%p").lower().replace(":00", "")
-    return s.replace("am", "a").replace("pm", "p")

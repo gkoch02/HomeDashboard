@@ -4,7 +4,7 @@ Renders a large date panel on the left and a spacious event list on the right,
 showcasing today's schedule in a comfortable, large-format layout.
 """
 
-from datetime import date, datetime
+from datetime import date
 
 from PIL import ImageDraw
 
@@ -12,6 +12,7 @@ from src.data.models import CalendarEvent, DayForecast
 from src.render.primitives import (
     filled_rect, vline,
     draw_text_truncated, draw_text_wrapped, text_height, text_width,
+    fmt_time as _fmt_time, events_for_day as _events_for_today,
 )
 from src.render.theme import ComponentRegion, ThemeStyle
 
@@ -92,28 +93,6 @@ def draw_today(
         events_x + PAD, y0, events_w - PAD * 2, total_h,
         style,
     )
-
-
-def _events_for_today(events: list[CalendarEvent], today: date) -> list[CalendarEvent]:
-    """Return events that fall on today, sorted all-day first then by start time."""
-    result = []
-    for e in events:
-        if e.is_all_day:
-            start_d = e.start.date() if isinstance(e.start, datetime) else e.start
-            end_d = e.end.date() if isinstance(e.end, datetime) else e.end
-            if start_d <= today < end_d:
-                result.append(e)
-        else:
-            if e.start.date() == today:
-                result.append(e)
-    result.sort(key=lambda e: (not e.is_all_day, e.start))
-    return result
-
-
-def _fmt_time(dt: datetime) -> str:
-    """Format a datetime as a compact am/pm string, e.g. '9:30a', '2p'."""
-    s = dt.strftime("%-I:%M%p").lower().replace(":00", "")
-    return s.replace("am", "a").replace("pm", "p")
 
 
 def _draw_event_list(

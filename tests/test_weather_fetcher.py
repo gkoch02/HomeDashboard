@@ -6,7 +6,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from src.config import WeatherConfig
-from src.fetchers.weather import deg_to_compass, fetch_weather, _pick_midday
+from src.fetchers.weather import fetch_weather, _pick_midday
+from src.render.primitives import deg_to_compass
 
 
 # ---------------------------------------------------------------------------

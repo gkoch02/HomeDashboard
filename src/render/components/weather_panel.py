@@ -7,10 +7,10 @@ from src.render import layout as L
 from src.render.fonts import bold, regular, medium, semibold, weather_icon as weather_icon_font
 from src.render.primitives import (
     BLACK, WHITE, draw_text_truncated, filled_rect, hline, text_width, vline,
+    fmt_time as _fmt_time, deg_to_compass,
 )
 from src.render.icons import draw_weather_icon
 from src.render.moon import moon_phase_glyph
-from src.fetchers.weather import deg_to_compass
 from src.render.theme import ComponentRegion, ThemeStyle
 
 
@@ -203,12 +203,6 @@ def draw_weather(
         # Column separators
         if i < n_cols - 1 and style.show_borders:
             vline(draw, cx + col_w, forecast_top, y0 + h, fill=style.fg)
-
-
-def _fmt_time(dt) -> str:
-    """Format a datetime as a compact am/pm string, e.g. '6:24a'."""
-    s = dt.strftime("%-I:%M%p").lower().replace(":00", "")
-    return s.replace("am", "a").replace("pm", "p")
 
 
 def _draw_alert_column(

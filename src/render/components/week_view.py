@@ -9,6 +9,7 @@ from src.render.fonts import (
 from src.render.primitives import (
     BLACK, WHITE, hline, vline, dashed_vline, filled_rect,
     draw_text_truncated, draw_text_wrapped, text_height, text_width,
+    fmt_time as _fmt_time, events_for_day as _events_for_day, wrap_lines,
 )
 from src.render.theme import ComponentRegion, ThemeStyle
 
@@ -66,12 +67,6 @@ def _fonts_for_tier(tier: str, style: ThemeStyle | None = None) -> tuple:
         style.font_semibold(13),
         max(1, int(6 * scale)), 2, True, 6,
     )
-
-
-def _fmt_time(dt: datetime) -> str:
-    """Format a datetime as a compact am/pm string, e.g. '9:30a', '2p'."""
-    s = dt.strftime("%-I:%M%p").lower().replace(":00", "")
-    return s.replace("am", "a").replace("pm", "p")
 
 
 def draw_week(
@@ -308,23 +303,9 @@ def draw_week(
     draw.text((dn_x, dn_y), dn_text, font=date_section_font, fill=style.fg)
 
 
-
 def _wrap_line_count(draw: ImageDraw.ImageDraw, text: str, font, max_w: int) -> int:
     """Return how many lines text would wrap into at the given font/width."""
-    lines, current_line = 0, ""
-    for word in text.split():
-        candidate = f"{current_line} {word}".strip()
-        bbox = draw.textbbox((0, 0), candidate, font=font)
-        w = bbox[2] - bbox[0]
-        if w <= max_w:
-            current_line = candidate
-        else:
-            if current_line:
-                lines += 1
-            current_line = word
-    if current_line:
-        lines += 1
-    return lines
+    return len(wrap_lines(text, font, max_w))
 
 
 def _autofit_font(
@@ -390,23 +371,6 @@ def _collect_spanning_events(
         last_col = (vis_end - week_start).days - 1  # inclusive
         result.append((e, first_col, last_col))
     result.sort(key=lambda t: (t[1], t[0].summary))
-    return result
-
-
-def _events_for_day(events: list[CalendarEvent], day: date) -> list[CalendarEvent]:
-    """Filter events that fall on the given day."""
-    result = []
-    for e in events:
-        if e.is_all_day:
-            event_date = e.start.date() if isinstance(e.start, datetime) else e.start
-            end_date = e.end.date() if isinstance(e.end, datetime) else e.end
-            if event_date <= day < end_date:
-                result.append(e)
-        else:
-            if e.start.date() == day:
-                result.append(e)
-    # Sort: all-day first, then by start time
-    result.sort(key=lambda e: (not e.is_all_day, e.start))
     return result
 
 

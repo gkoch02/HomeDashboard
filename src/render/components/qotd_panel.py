@@ -24,7 +24,7 @@ from src.render.fonts import (
 )
 from src.render.icons import draw_weather_icon, OWM_ICON_MAP, FALLBACK_ICON
 from src.render.moon import moon_phase_glyph
-from src.render.primitives import text_height
+from src.render.primitives import text_height, wrap_lines as _wrap_lines
 from src.render.theme import ComponentRegion, ThemeStyle
 
 
@@ -39,24 +39,6 @@ def _icon_width(draw, owm_code: str, size: int) -> int:
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
-def _wrap_lines(text: str, font, max_width: int) -> list[str]:
-    """Word-wrap *text* into lines that each fit within *max_width* pixels."""
-    words = text.split()
-    lines: list[str] = []
-    current = ""
-    for word in words:
-        test = f"{current} {word}".strip()
-        if font.getlength(test) <= max_width:
-            current = test
-        else:
-            if current:
-                lines.append(current)
-            current = word
-    if current:
-        lines.append(current)
-    return lines
-
 
 # ---------------------------------------------------------------------------
 # Main quote panel
@@ -259,7 +241,7 @@ def draw_qotd_weather(
     if weather.feels_like is not None:
         detail_parts.append(f"Feels {weather.feels_like:.0f}°")
     if weather.wind_speed is not None:
-        from src.fetchers.weather import deg_to_compass
+        from src.render.primitives import deg_to_compass
         wind_str = f"Wind {weather.wind_speed:.0f}mph"
         if weather.wind_deg is not None:
             wind_str += f" {deg_to_compass(weather.wind_deg)}"

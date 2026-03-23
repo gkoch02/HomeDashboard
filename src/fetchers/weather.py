@@ -180,16 +180,6 @@ def _fetch_alerts_and_uv(
     return alerts, uv_index
 
 
-def deg_to_compass(deg: float) -> str:
-    """Convert wind direction in degrees to a compass abbreviation.
-
-    Uses 8 sectors of 45° each, centred on each cardinal/intercardinal direction.
-    """
-    directions = ("N", "NE", "E", "SE", "S", "SW", "W", "NW")
-    idx = round(deg % 360 / 45) % 8
-    return directions[idx]
-
-
 def _pick_midday(slots: list[dict], tz: tzinfo | None = None) -> dict | None:
     """Return the slot closest to noon local time, or None if list is empty."""
     slot_tz = tz if tz is not None else timezone.utc

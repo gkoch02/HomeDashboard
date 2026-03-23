@@ -1,3 +1,4 @@
+from datetime import date, datetime
 from functools import lru_cache
 
 from PIL import ImageDraw, ImageFont
@@ -154,3 +155,53 @@ def inverted_text(
     tx = x0 + (x1 - x0 - tw) // 2
     ty = y0 + (y1 - y0 - th) // 2
     draw.text((tx, ty), text, font=font, fill=WHITE)
+
+
+def fmt_time(dt: datetime) -> str:
+    """Format a datetime as a compact am/pm string, e.g. '9:30a', '2p'."""
+    s = dt.strftime("%-I:%M%p").lower().replace(":00", "")
+    return s.replace("am", "a").replace("pm", "p")
+
+
+def wrap_lines(text: str, font, max_width: int) -> list[str]:
+    """Word-wrap *text* into lines that each fit within *max_width* pixels."""
+    words = text.split()
+    lines: list[str] = []
+    current = ""
+    for word in words:
+        test = f"{current} {word}".strip()
+        if font.getlength(test) <= max_width:
+            current = test
+        else:
+            if current:
+                lines.append(current)
+            current = word
+    if current:
+        lines.append(current)
+    return lines
+
+
+def events_for_day(events: list, day: date) -> list:
+    """Filter events that fall on the given day, sorted all-day first then by start time."""
+    result = []
+    for e in events:
+        if e.is_all_day:
+            event_date = e.start.date() if isinstance(e.start, datetime) else e.start
+            end_date = e.end.date() if isinstance(e.end, datetime) else e.end
+            if event_date <= day < end_date:
+                result.append(e)
+        else:
+            if e.start.date() == day:
+                result.append(e)
+    result.sort(key=lambda e: (not e.is_all_day, e.start))
+    return result
+
+
+def deg_to_compass(deg: float) -> str:
+    """Convert wind direction in degrees to a compass abbreviation.
+
+    Uses 8 sectors of 45 degrees each, centred on each cardinal/intercardinal direction.
+    """
+    directions = ("N", "NE", "E", "SE", "S", "SW", "W", "NW")
+    idx = round(deg % 360 / 45) % 8
+    return directions[idx]

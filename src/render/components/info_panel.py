@@ -7,7 +7,7 @@ from PIL import ImageDraw
 
 from src.render import layout as L
 from src.render.fonts import bold, semibold, regular
-from src.render.primitives import BLACK, hline, draw_text_wrapped
+from src.render.primitives import BLACK, hline, draw_text_wrapped, wrap_lines
 from src.render.theme import ComponentRegion, ThemeStyle
 
 QUOTES_FILE = Path(__file__).parent.parent.parent.parent / "config" / "quotes.json"
@@ -72,18 +72,7 @@ def _quote_for_today(today: date) -> dict:
 
 def _count_lines(text: str, font, max_width: int) -> int:
     """Count lines produced by word-wrapping text at max_width (no drawing)."""
-    words = text.split()
-    lines, current = 0, ""
-    for word in words:
-        test = f"{current} {word}".strip()
-        if font.getlength(test) <= max_width:
-            current = test
-        else:
-            lines += 1
-            current = word
-    if current:
-        lines += 1
-    return lines
+    return len(wrap_lines(text, font, max_width))
 
 
 def draw_info(
