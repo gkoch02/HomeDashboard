@@ -110,55 +110,52 @@ def _draw_lcars_overlay(
     # TOP ELBOW — horizontal bar + cap + inner sweep
     # ==================================================================
 
-    # Horizontal bar across the full width (rounded right end)
+    # Horizontal bar across the full width (rounded right end, square left end
+    # since the cap covers the left portion).
     draw.rounded_rectangle(
         [0, 0, W - 6, _HBAR_H - 1], radius=_HBAR_H // 2, fill=fg,
     )
-    # Square off the left end (it merges into the cap)
-    draw.rectangle([0, 0, _HBAR_H, _HBAR_H - 1], fill=fg)
+    draw.rectangle([0, 0, _HBAR_H, _HBAR_H - 1], fill=fg)  # square left end
 
-    # Cap: large rounded rectangle extending below the bar on the left
-    draw.rounded_rectangle(
-        [0, 0, _CAP_W, _TOP_CAP_H - 1], radius=_OUTER_R, fill=fg,
-    )
-    # Square off the cap's right side (only the left corners should be rounded)
-    draw.rectangle(
-        [_CAP_W - _OUTER_R, 0, _CAP_W, _TOP_CAP_H - 1], fill=fg,
-    )
+    # Cap: plain rectangle — no rounding at the display left edge.
+    # (rounded_rectangle at x=0 creates visible black notches at the corners.)
+    draw.rectangle([0, 0, _CAP_W, _TOP_CAP_H - 1], fill=fg)
 
-    # Inner sweep: carve out the interior of the elbow to create the
-    # characteristic LCARS curve.  The rounded_rectangle extends past the cap
-    # edges so that only the top-left corner (the sweep) is visible.
-    draw.rounded_rectangle(
-        [_VBAR_W, _HBAR_H,
-         _CAP_W + _INNER_R, _TOP_CAP_H + _INNER_R],
-        radius=_INNER_R, fill=bg,
-    )
+    # Black interior of the elbow (right of spine, below hbar, within cap bounds)
+    draw.rectangle([_VBAR_W, _HBAR_H, _CAP_W, _TOP_CAP_H - 1], fill=bg)
+
+    # LCARS sweep: white quarter-circle at the inner corner, curving from the
+    # bottom of the hbar (y=HBAR_H) to the right of the spine (x=VBAR_W).
+    # Pieslice centre: (VBAR_W + R, HBAR_H + R); top-left quadrant (180°→270°).
+    _R = _INNER_R
+    _cx = _VBAR_W + _R    # 42
+    _cy = _HBAR_H + _R    # 36
+    draw.pieslice([_cx - _R, _cy - _R, _cx + _R, _cy + _R],
+                  start=180, end=270, fill=fg)
 
     # ==================================================================
     # BOTTOM ELBOW — mirror of the top
     # ==================================================================
 
-    # Horizontal bar across the full width (rounded right end)
+    # Horizontal bar across the full width (rounded right end, square left end)
     draw.rounded_rectangle(
         [0, H - _HBAR_H, W - 6, H - 1], radius=_HBAR_H // 2, fill=fg,
     )
     draw.rectangle([0, H - _HBAR_H, _HBAR_H, H - 1], fill=fg)
 
-    # Cap: rounded rectangle extending above the bar on the left
-    draw.rounded_rectangle(
-        [0, _BOT_ELBOW_Y, _CAP_W, H - 1], radius=_OUTER_R, fill=fg,
-    )
-    draw.rectangle(
-        [_CAP_W - _OUTER_R, _BOT_ELBOW_Y, _CAP_W, H - 1], fill=fg,
-    )
+    # Cap: plain rectangle — no rounding at the display left edge.
+    draw.rectangle([0, _BOT_ELBOW_Y, _CAP_W, H - 1], fill=fg)
 
-    # Inner sweep for bottom elbow (bottom-left corner is the sweep)
-    draw.rounded_rectangle(
-        [_VBAR_W, _BOT_ELBOW_Y - _INNER_R,
-         _CAP_W + _INNER_R, H - _HBAR_H],
-        radius=_INNER_R, fill=bg,
-    )
+    # Black interior (right of spine, above hbar, strictly within cap bounds —
+    # must NOT extend above _BOT_ELBOW_Y or it damages sidebar content).
+    draw.rectangle([_VBAR_W, _BOT_ELBOW_Y, _CAP_W, H - _HBAR_H - 1], fill=bg)
+
+    # LCARS sweep: white quarter-circle at the inner corner.
+    # Pieslice centre: (VBAR_W + R, H - HBAR_H - R); bottom-left quadrant (90°→180°).
+    _cx2 = _VBAR_W + _R         # 42
+    _cy2 = H - _HBAR_H - _R     # 444
+    draw.pieslice([_cx2 - _R, _cy2 - _R, _cx2 + _R, _cy2 + _R],
+                  start=90, end=180, fill=fg)
 
     # ==================================================================
     # LEFT VERTICAL BAR (spine connecting the two elbows)
