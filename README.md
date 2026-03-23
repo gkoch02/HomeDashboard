@@ -700,7 +700,7 @@ to `output/calendar_sync_state.json`.
 |---|---|
 | `make setup` | Create venv, install dependencies, create config from template |
 | `make dry` | Render with dummy data to `output/latest.png` |
-| `make test` | Run `pytest tests/ -v` (789 tests across 31 files) |
+| `make test` | Run `pytest tests/ -v` (800 tests across 32 files) |
 | `make check` | Validate config file and exit |
 | `make version` | Print the current version (e.g. `main.py 3.0.0`) |
 | `make deploy` | rsync project to Raspberry Pi (`PI_USER`, `PI_HOST`, `PI_DIR` configurable) |
@@ -753,6 +753,7 @@ Dashboard-v4/
 │   ├── main.py                   # CLI entry point + fetcher orchestration
 │   ├── _version.py               # Version constant (__version__ = "3.0.0")
 │   ├── config.py                 # YAML -> typed Config dataclass + validation
+│   ├── dummy_data.py             # Realistic dummy data for --dummy / dev previews
 │   ├── filters.py                # Event filtering (calendar, keyword, all-day)
 │   ├── data/
 │   │   └── models.py             # Pure dataclasses (no I/O)
@@ -773,7 +774,7 @@ Dashboard-v4/
 │       ├── fonts.py              # Font loader with @lru_cache
 │       ├── icons.py              # OWM icon code -> Weather Icons glyph
 │       ├── moon.py               # Pure-math moon phase calculator
-│       ├── primitives.py         # Shared draw helpers (truncation, wrapping)
+│       ├── primitives.py         # Shared draw helpers (truncation, wrapping, fmt_time, events_for_day, deg_to_compass)
 │       ├── themes/               # Built-in theme factories
 │       │   ├── terminal.py
 │       │   ├── minimalist.py
@@ -791,7 +792,7 @@ Dashboard-v4/
 │           ├── today_view.py
 │           ├── info_panel.py
 │           └── qotd_panel.py
-├── tests/                        # 31 test files, 775 tests
+├── tests/                        # 32 test files, 800 tests
 ├── Makefile
 ├── requirements.txt              # Core dependencies
 └── requirements-pi.txt           # Raspberry Pi hardware dependencies

@@ -8,7 +8,7 @@ Python eInk dashboard for Raspberry Pi. Displays a weekly calendar (Google Calen
 
 ```bash
 make setup          # Create venv, install deps, copy config template
-make test           # Run pytest (775 tests across 31 files)
+make test           # Run pytest (800 tests across 32 files)
 make dry            # Preview with dummy data → output/latest.png
 make check          # Validate config/config.yaml
 make version        # Print current version (e.g. main.py 3.0.0)
@@ -34,6 +34,7 @@ src/
 ├── main.py                    # CLI entry point + orchestration
 ├── _version.py                # Single source of truth: __version__ = "3.0.0"
 ├── config.py                  # YAML → typed dataclasses
+├── dummy_data.py              # Realistic dummy data for --dummy / dev previews
 ├── filters.py                 # Event filtering (calendar, keyword, all-day)
 ├── data/models.py             # Pure dataclasses (CalendarEvent, WeatherData, Birthday, DashboardData)
 ├── display/
@@ -53,7 +54,7 @@ src/
     ├── fonts.py               # Font loader (@lru_cache)
     ├── icons.py               # OWM icon code → Weather Icons glyph
     ├── moon.py                # Moon phase calculator
-    ├── primitives.py          # Shared draw utilities (truncation, wrapping, colors)
+    ├── primitives.py          # Shared draw utilities (truncation, wrapping, colors, fmt_time, events_for_day, deg_to_compass)
     ├── themes/                # 8 themes: default, terminal, minimalist, old_fashioned, today, fantasy, qotd, weather
     └── components/            # One file per UI region (header, week_view, weather_panel, weather_full, birthday_bar, today_view, info_panel)
 
@@ -61,7 +62,7 @@ config/
 ├── config.example.yaml        # Template (copy to config.yaml)
 └── quotes.json                # Bundled daily quotes
 
-tests/                         # 31 test files, extensive mocking
+tests/                         # 32 test files, extensive mocking
 fonts/                         # Bundled TTF fonts
 deploy/                        # Systemd service + timer
 output/                        # Generated PNGs + cache files (git-ignored except latest.png)
