@@ -569,19 +569,19 @@ class TestLcarsTheme:
     def test_lcars_week_view_starts_past_sidebar(self):
         """Week view x-position is past the sidebar pill right edge."""
         t = load_theme("lcars")
-        assert t.layout.week_view.x == 192
+        assert t.layout.week_view.x == 196
 
     def test_lcars_sidebar_panels_within_pill_bounds(self):
         """Sidebar component regions must not extend past the pill right edge."""
         t = load_theme("lcars")
         for region in (t.layout.weather, t.layout.birthdays, t.layout.info):
-            assert region.x + region.w <= 185
+            assert region.x + region.w <= 190
 
     def test_lcars_sidebar_panels_right_of_spine(self):
-        """Sidebar component regions start to the right of the 24px spine bar."""
+        """Sidebar component regions start to the right of the 36px spine bar."""
         t = load_theme("lcars")
         for region in (t.layout.weather, t.layout.birthdays, t.layout.info):
-            assert region.x >= 24
+            assert region.x >= 36
 
     def test_lcars_panels_fit_within_canvas(self):
         """All sidebar content fits within the canvas height."""
