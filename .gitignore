@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtual environment
+venv/
+.venv/
+
+# Output (except latest.png which is tracked)
+output/*.png
+!output/latest.png
+output/*.json
+output/*.txt
+
+# Config and credentials (user-specific, sensitive)
+config/config.yaml
+credentials/
+
+# Misc
+*.egg-info/
+dist/
+build/
+.DS_Store
