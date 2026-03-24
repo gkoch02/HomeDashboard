@@ -2,7 +2,7 @@ from datetime import date
 
 from PIL import ImageDraw
 
-from src.data.models import WeatherData
+from src.data.models import AirQualityData, WeatherData
 from src.render import layout as L
 from src.render.fonts import bold, regular, medium, semibold, weather_icon as weather_icon_font
 from src.render.primitives import (
@@ -19,6 +19,7 @@ def draw_weather(
     weather: WeatherData | None,
     today: date | None = None,
     *,
+    air_quality: AirQualityData | None = None,
     region: ComponentRegion | None = None,
     style: ThemeStyle | None = None,
 ):
@@ -150,11 +151,18 @@ def draw_weather(
     if n_alerts >= 2:
         n_forecast_cols = min(len(forecast_items), 1)
         n_cols = 2 + n_forecast_cols
+        show_aqi_col = False
     elif n_alerts == 1:
         n_forecast_cols = min(len(forecast_items), 2)
         n_cols = 1 + n_forecast_cols
+        show_aqi_col = False
+    elif air_quality is not None:
+        n_forecast_cols = min(len(forecast_items), 2)
+        n_cols = n_forecast_cols + 1  # last col is AQI
+        show_aqi_col = True
     else:
         n_cols = min(len(forecast_items), 3)
+        show_aqi_col = False
 
     if n_cols == 0:
         return
@@ -176,6 +184,8 @@ def draw_weather(
             _draw_alert_column(
                 draw, weather.alerts[0].event, cx, forecast_top, col_w, forecast_h, style,
             )
+        elif show_aqi_col and i == n_cols - 1:
+            _draw_aqi_column(draw, air_quality, cx, forecast_top, col_w, forecast_h, style)
         else:
             if forecast_idx < len(forecast_items):
                 fc = forecast_items[forecast_idx]
@@ -203,6 +213,70 @@ def draw_weather(
         # Column separators
         if i < n_cols - 1 and style.show_borders:
             vline(draw, cx + col_w, forecast_top, y0 + h, fill=style.fg)
+
+
+_GLYPH_AQI = "\uf062"  # wi-smoke (same glyph used by weather_full AQI card)
+
+
+def _draw_aqi_column(
+    draw: ImageDraw.ImageDraw,
+    air_quality: AirQualityData,
+    cx: int,
+    top: int,
+    col_w: int,
+    col_h: int,
+    style: ThemeStyle,
+) -> None:
+    """Draw a compact AQI summary filling one forecast column."""
+    icon_font = weather_icon_font(14)
+    val_font = style.font_semibold(11)
+    lbl_font = style.font_regular(10)
+
+    icon_bbox = draw.textbbox((0, 0), _GLYPH_AQI, font=icon_font)
+    icon_h = icon_bbox[3] - icon_bbox[1]
+
+    val_str = f"AQI {air_quality.aqi}"
+    val_bbox = draw.textbbox((0, 0), val_str, font=val_font)
+    val_h = val_bbox[3] - val_bbox[1]
+
+    # Truncate category to fit the column width minus padding
+    max_w = col_w - L.PAD * 2
+    category = air_quality.category
+    lbl_bbox = draw.textbbox((0, 0), category, font=lbl_font)
+    while len(category) > 1 and lbl_bbox[2] - lbl_bbox[0] > max_w:
+        category = category[:-1]
+        lbl_bbox = draw.textbbox((0, 0), category + "…", font=lbl_font)
+    if category != air_quality.category:
+        category = category + "…"
+    lbl_bbox = draw.textbbox((0, 0), category, font=lbl_font)
+    lbl_h = lbl_bbox[3] - lbl_bbox[1]
+
+    gap = 2
+    total_h = icon_h + gap + val_h + gap + lbl_h
+    ty = top + (col_h - total_h) // 2
+
+    # Icon centered in column
+    icon_w = icon_bbox[2] - icon_bbox[0]
+    draw.text(
+        (cx + (col_w - icon_w) // 2 - icon_bbox[0], ty - icon_bbox[1]),
+        _GLYPH_AQI, font=icon_font, fill=style.fg,
+    )
+    ty += icon_h + gap
+
+    # AQI value
+    val_w = val_bbox[2] - val_bbox[0]
+    draw.text(
+        (cx + (col_w - val_w) // 2 - val_bbox[0], ty - val_bbox[1]),
+        val_str, font=val_font, fill=style.fg,
+    )
+    ty += val_h + gap
+
+    # Category label
+    lbl_w = lbl_bbox[2] - lbl_bbox[0]
+    draw.text(
+        (cx + (col_w - lbl_w) // 2 - lbl_bbox[0], ty - lbl_bbox[1]),
+        category, font=lbl_font, fill=style.fg,
+    )
 
 
 def _draw_alert_column(

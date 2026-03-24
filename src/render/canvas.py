@@ -61,6 +61,7 @@ def render_dashboard(
         ),
         "weather": lambda: weather_panel.draw_weather(
             draw, data.weather, today=today,
+            air_quality=data.air_quality,
             region=layout.weather,
             style=style,
         ),
