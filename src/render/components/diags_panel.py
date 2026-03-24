@@ -1,7 +1,7 @@
 """Diagnostics (diags) component — full-canvas text readout of all data sources.
 
 Two-column layout:
-  Left:  WEATHER (all fields) + HOST SYSTEM + FORECAST strip
+  Left:  WEATHER (all fields) + FORECAST strip + HOST SYSTEM
   Right: CALENDAR (per-day event counts, Mon–Sun) + AIR QUALITY + BIRTHDAYS + STATUS
 """
 
@@ -80,9 +80,9 @@ def draw_diags(
     ly = content_y
     ly = _weather_section(draw, lx, ly, _L_W, data.weather, style)
     ly = _sep(draw, lx, ly, _L_W, fg)
-    ly = _host_section(draw, lx, ly, _L_W, data.host_data, style)
+    ly = _forecast_section(draw, lx, ly, _L_W, data.weather, style)
     ly = _sep(draw, lx, ly, _L_W, fg)
-    _forecast_section(draw, lx, ly, _L_W, data.weather, style)
+    _host_section(draw, lx, ly, _L_W, data.host_data, style)
 
     # Version number pinned to bottom of left column
     ver_font = style.font_regular(_DATA_SIZE - 1)
