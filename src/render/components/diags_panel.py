@@ -11,6 +11,7 @@ from datetime import date, datetime, timedelta
 
 from PIL import ImageDraw
 
+from src._version import __version__
 from src.data.models import AirQualityData, DashboardData, StalenessLevel
 from src.render.primitives import (
     deg_to_compass, draw_text_truncated, fmt_time,
@@ -80,6 +81,12 @@ def draw_diags(
     ly = _weather_section(draw, lx, ly, _L_W, data.weather, style)
     ly += _SECTION_GAP
     _forecast_section(draw, lx, ly, _L_W, data.weather, style)
+
+    # Version number pinned to bottom of left column
+    ver_font = style.font_regular(_DATA_SIZE - 1)
+    ver_str = f"v{__version__}"
+    ver_y = ry + region.h - text_height(ver_font) - 4
+    draw.text((lx, ver_y), ver_str, font=ver_font, fill=fg)
 
     # ── Right column ──
     rcx = rx + _R_X
