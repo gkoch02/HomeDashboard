@@ -12,7 +12,7 @@ dry: _check-venv
 	$(VENV) -m src.main --dry-run --dummy
 
 previews: _check-venv
-	@for theme in default fantasy minimalist old_fashioned qotd terminal today; do \
+	@for theme in default fantasy fuzzyclock minimalist old_fashioned qotd terminal today weather; do \
 		echo "Generating preview for theme: $$theme"; \
 		$(VENV) -m src.main --dry-run --dummy --theme $$theme; \
 		cp output/latest.png output/theme_$$theme.png; \

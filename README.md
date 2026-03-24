@@ -737,7 +737,7 @@ to `output/calendar_sync_state.json`.
 | `make dry` | Render with dummy data to `output/latest.png` |
 | `make test` | Run `pytest tests/ -v` (850+ tests across 34 files) |
 | `make check` | Validate config file and exit |
-| `make version` | Print the current version (e.g. `main.py 3.0.0`) |
+| `make version` | Print the current version (e.g. `main.py 4.1.0`) |
 | `make deploy` | rsync project to Raspberry Pi (`PI_USER`, `PI_HOST`, `PI_DIR` configurable) |
 | `make install` | Copy systemd timer/service to Pi and enable |
 
@@ -786,7 +786,7 @@ Dashboard-v4/
 │   └── latest.png                # Latest dry-run preview (tracked)
 ├── src/
 │   ├── main.py                   # CLI entry point + fetcher orchestration
-│   ├── _version.py               # Version constant (__version__ = "3.0.0")
+│   ├── _version.py               # Version constant (__version__ = "4.1.0")
 │   ├── config.py                 # YAML -> typed Config dataclass + validation
 │   ├── dummy_data.py             # Realistic dummy data for --dummy / dev previews
 │   ├── filters.py                # Event filtering (calendar, keyword, all-day)
