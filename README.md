@@ -39,11 +39,16 @@ weather:
   longitude: -74.0060
   units: "imperial"             # "imperial" (F) or "metric" (C)
 
+purpleair:                      # optional — adds AQI card to the weather theme
+  api_key: "your-purpleair-key" # free key at develop.purpleair.com
+  sensor_id: 12345              # find at map.purpleair.com (click sensor → URL)
+
 timezone: "America/New_York"    # IANA timezone, or "local" for system clock
 ```
 
 See [Google Calendar Setup](#google-calendar-setup) for how to get a service account and
 calendar ID. Get a free weather API key at [openweathermap.org](https://openweathermap.org/api).
+Get a free PurpleAir API key at [develop.purpleair.com](https://develop.purpleair.com).
 
 ### 3. Preview with dummy data
 
