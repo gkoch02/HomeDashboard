@@ -212,11 +212,12 @@ a glance — an 80px weather icon, hero temperature in bold 72px DM Sans, descri
 hi/lo line. Below the hero sits a row of metric cards: feels-like, wind speed and direction,
 humidity, UV index, and — when a PurpleAir sensor is configured — an AQI card showing the
 EPA air quality index and category (Good / Moderate / Unhealthy / etc.). A details bar spans
-the full width with sunrise/sunset times, barometric pressure, and moon phase. If an active
-weather alert is present it appears as a prominent inverted full-width banner. The lower
-third shows a clean five-day forecast grid with icon, hi/lo temperatures, and precipitation
-probability for each day. All standard components (header, calendar, birthdays, quote) are
-hidden — the display is weather only. Font: DM Sans throughout.
+the full width with sunrise/sunset times, barometric pressure, and moon phase; when a
+PurpleAir sensor is present this bar also shows a PM1 · PM2.5 · PM10 µg/m³ breakdown. If an
+active weather alert is present it appears as a prominent inverted full-width banner. The
+lower third shows a clean five-day forecast grid with icon, hi/lo temperatures, and
+precipitation probability for each day. All standard components (header, calendar, birthdays,
+quote) are hidden — the display is weather only. Font: DM Sans throughout.
 
 ![Weather theme](output/theme_weather.png)
 
@@ -358,7 +359,7 @@ Your existing config is fully compatible. These are opt-in additions:
 
 | Feature | How to enable |
 |---|---|
-| **PurpleAir air quality** | Add `purpleair.api_key` and `purpleair.sensor_id` to `config.yaml`; an AQI metric card appears in the `weather` theme |
+| **PurpleAir air quality** | Add `purpleair.api_key` and `purpleair.sensor_id` to `config.yaml`; an AQI card (EPA index from 60-minute PM2.5 average) appears in the `weather` theme metric row, and a PM1 · PM2.5 · PM10 µg/m³ breakdown appears in the detail strip |
 
 ### What's new in v4
 
@@ -798,7 +799,7 @@ Dashboard-v4/
 │   ├── fetchers/
 │   │   ├── calendar.py           # Google Calendar + incremental sync + birthdays
 │   │   ├── weather.py            # OpenWeatherMap (current + forecast + alerts + UV)
-│   │   ├── purpleair.py          # PurpleAir sensor → PM2.5 / AQI
+│   │   ├── purpleair.py          # PurpleAir sensor → PM1 / PM2.5 / PM10 / AQI
 │   │   ├── cache.py              # Per-source JSON cache with TTL staleness
 │   │   ├── circuit_breaker.py    # Per-source circuit breaker
 │   │   └── quota_tracker.py      # Daily API call counter

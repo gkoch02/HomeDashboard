@@ -223,6 +223,7 @@ def generate_dummy_data(tz: tzinfo | None = None, now: datetime | None = None) -
         pm25=9.8,
         pm10=14.2,
         sensor_id=99999,
+        pm1=6.1,
     )
 
     return DashboardData(

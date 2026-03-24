@@ -43,7 +43,7 @@ src/
 ├── fetchers/
 │   ├── calendar.py            # Google Calendar API + incremental sync + birthdays
 │   ├── weather.py             # OpenWeatherMap (current + forecast + alerts)
-│   ├── purpleair.py           # PurpleAir sensor → PM2.5 / EPA AQI
+│   ├── purpleair.py           # PurpleAir sensor → PM1 / PM2.5 / PM10 / EPA AQI
 │   ├── cache.py               # Multi-source JSON cache with per-source TTL
 │   ├── circuit_breaker.py     # Per-source circuit breaker
 │   └── quota_tracker.py       # Daily API call counter
@@ -171,5 +171,5 @@ default to `None` and fall back gracefully so adding a new field never breaks ex
 - `fuzzyclock` component uses `style.font_bold` / `style.font_medium` for the phrase / date — font-agnostic so the theme can be re-skinned by swapping the style callables
 - Theme preview PNGs (`output/theme_*.png`) are git-ignored by `.gitignore` (`output/*.png`) but tracked as exceptions; use `git add -f output/theme_<name>.png` when adding a new one
 - PurpleAir AQI card only appears in the `weather` theme; other themes have access to `DashboardData.air_quality` for future use
-- `_pm25_to_aqi()` in `purpleair.py` implements the EPA NowCast piecewise linear formula with standard breakpoints; the result is stored on `AirQualityData.aqi` at fetch time
+- `_pm25_to_aqi()` in `purpleair.py` implements the EPA AQI piecewise linear formula with standard breakpoints; it is applied to the 60-minute PM2.5 average (`pm2.5_60minute`) for a smoother, less noisy reading — the result is stored on `AirQualityData.aqi` at fetch time; `AirQualityData` also carries `pm1` (PM1.0) and `pm10` (PM10) for display in the `weather` theme detail strip
 - When `purpleair.api_key` or `purpleair.sensor_id` is `0`/`""`, the source is skipped silently (no circuit breaker entry, no cache miss); validation emits warnings only when one is set without the other

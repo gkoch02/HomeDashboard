@@ -18,13 +18,16 @@ def cfg():
     return PurpleAirConfig(api_key="test-key", sensor_id=12345)
 
 
-def _make_response(pm25: float = 8.5, pm10: float = 12.2, status: int = 200) -> MagicMock:
+def _make_response(
+    pm25: float = 8.5, pm10: float = 12.2, pm1: float = 5.0, status: int = 200
+) -> MagicMock:
     resp = MagicMock()
     resp.status_code = status
     resp.json.return_value = {
         "sensor": {
             "sensor_index": 12345,
-            "pm2.5_atm": pm25,
+            "pm2.5_60minute": pm25,
+            "pm1.0_atm": pm1,
             "pm10.0_atm": pm10,
         }
     }
@@ -116,6 +119,7 @@ class TestFetchAirQuality:
         assert isinstance(result, AirQualityData)
         assert result.pm25 == 8.5
         assert result.pm10 == 12.2
+        assert result.pm1 == 5.0
         assert result.sensor_id == cfg.sensor_id
         assert result.aqi == 35   # AQI for 8.5 µg/m³
         assert result.category == "Good"
@@ -123,7 +127,7 @@ class TestFetchAirQuality:
     def test_fetch_without_pm10(self, cfg):
         resp = MagicMock()
         resp.status_code = 200
-        resp.json.return_value = {"sensor": {"pm2.5_atm": 20.0}}
+        resp.json.return_value = {"sensor": {"pm2.5_60minute": 20.0}}
         with patch("src.fetchers.purpleair.requests.Session") as mock_session_cls:
             mock_session = MagicMock()
             mock_session_cls.return_value.__enter__.return_value = mock_session
@@ -166,4 +170,5 @@ class TestFetchAirQuality:
         call_kwargs = mock_session.get.call_args
         assert "12345" in call_kwargs[0][0]
         assert call_kwargs[1]["headers"]["X-API-Key"] == "test-key"
-        assert "pm2.5_atm" in call_kwargs[1]["params"]["fields"]
+        assert "pm2.5_60minute" in call_kwargs[1]["params"]["fields"]
+        assert "pm1.0_atm" in call_kwargs[1]["params"]["fields"]

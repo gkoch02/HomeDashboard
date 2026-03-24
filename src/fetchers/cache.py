@@ -370,6 +370,7 @@ def _ser_air_quality(aq: AirQualityData) -> dict:
         "pm25": aq.pm25,
         "pm10": aq.pm10,
         "sensor_id": aq.sensor_id,
+        "pm1": aq.pm1,
     }
 
 
@@ -380,4 +381,5 @@ def _deser_air_quality(d: dict) -> AirQualityData:
         pm25=d["pm25"],
         pm10=d.get("pm10"),
         sensor_id=d.get("sensor_id"),
+        pm1=d.get("pm1"),
     )

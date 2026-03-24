@@ -86,7 +86,8 @@ def draw_weather_full(
     # ── Draw each zone ───────────────────────────────────────────────
     _draw_hero(draw, weather, x0, hero_top, W, hero_h, style)
     _draw_metric_cards(draw, weather, x0, cards_top, W, cards_h, style, air_quality=air_quality)
-    _draw_detail_strip(draw, weather, today, x0, detail_top, W, detail_h, style)
+    _draw_detail_strip(draw, weather, today, x0, detail_top, W, detail_h, style,
+                       air_quality=air_quality)
 
     if has_alerts and alert_top is not None:
         _draw_alert_banner(draw, weather, x0, alert_top, W, alert_h, style)
@@ -247,7 +248,7 @@ def _draw_metric_cards(draw, weather, x0, y0, W, H, style, *, air_quality=None):
         draw.text((label_x, label_y), label, font=label_font, fill=fg)
 
 
-def _draw_detail_strip(draw, weather, today, x0, y0, W, H, style):
+def _draw_detail_strip(draw, weather, today, x0, y0, W, H, style, *, air_quality=None):
     """Single centred line: sunrise/sunset · pressure · moon phase."""
     fg = style.fg
     cx = x0 + W // 2
@@ -268,6 +269,16 @@ def _draw_detail_strip(draw, weather, today, x0, y0, W, H, style):
     # Pressure (if not already shown in cards — i.e. when UV is available)
     if weather.pressure is not None and weather.uv_index is not None:
         parts.append(f"{weather.pressure:.0f} hPa")
+
+    # Particulate matter breakdown (PM1 / PM2.5 / PM10) when AQI data is present
+    if air_quality is not None:
+        pm_segs = []
+        if air_quality.pm1 is not None:
+            pm_segs.append(f"PM1 {air_quality.pm1:.1f}")
+        pm_segs.append(f"PM2.5 {air_quality.pm25:.1f}")
+        if air_quality.pm10 is not None:
+            pm_segs.append(f"PM10 {air_quality.pm10:.1f}")
+        parts.append("  ·  ".join(pm_segs) + " µg/m³")
 
     # Moon phase
     if today is not None:

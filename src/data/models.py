@@ -68,9 +68,10 @@ class Birthday:
 class AirQualityData:
     aqi: int                          # 0–500 EPA AQI computed from PM2.5
     category: str                     # "Good" / "Moderate" / "Unhealthy for Sensitive Groups" / ...
-    pm25: float                       # Raw PM2.5 µg/m³ from sensor
+    pm25: float                       # PM2.5 60-minute average µg/m³ (used for AQI computation)
     pm10: Optional[float] = None      # PM10 µg/m³ (may be absent)
     sensor_id: Optional[int] = None   # PurpleAir sensor_index
+    pm1: Optional[float] = None       # PM1.0 µg/m³ (may be absent)
 
 
 @dataclass
