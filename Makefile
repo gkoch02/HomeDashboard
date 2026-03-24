@@ -1,4 +1,5 @@
-.PHONY: dry test deploy setup install check previews version
+.PHONY: dry test deploy setup install check previews version \
+        pi-install pi-enable pi-status pi-logs configure
 
 VENV = venv/bin/python
 
@@ -45,6 +46,75 @@ install:
 		sudo systemctl enable --now dashboard.timer && \
 		echo 'Timer enabled. Status:' && \
 		sudo systemctl status dashboard.timer --no-pager"
+
+pi-install:
+	@echo "==> Installing system dependencies..."
+	@if ! grep -q "Raspberry Pi" /proc/device-tree/model 2>/dev/null; then \
+		echo "WARNING: This does not appear to be a Raspberry Pi. Continuing anyway."; \
+	fi
+	sudo apt-get update -qq
+	sudo apt-get install -y python3-dev python3-venv libopenjp2-7 libtiff5 git swig liblgpio-dev
+	@echo ""
+	@echo "==> Enabling SPI interface..."
+	sudo raspi-config nonint do_spi 0
+	@echo ""
+	@echo "==> Creating Python virtual environment..."
+	python3 -m venv venv
+	venv/bin/pip install --quiet --upgrade pip
+	venv/bin/pip install -r requirements.txt -r requirements-pi.txt
+	@echo ""
+	@echo "==> Installing Waveshare EPD library..."
+	git clone --depth=1 https://github.com/waveshare/e-Paper /tmp/waveshare-epd
+	venv/bin/pip install --quiet /tmp/waveshare-epd/RaspberryPi_JetsonNano/python/
+	rm -rf /tmp/waveshare-epd
+	venv/bin/python -c "import waveshare_epd; print('  Waveshare EPD: OK')"
+	@echo ""
+	@mkdir -p credentials output
+	@if [ ! -f config/config.yaml ]; then \
+		cp config/config.example.yaml config/config.yaml; \
+	fi
+	@echo "============================================"
+	@echo "  pi-install complete!"
+	@echo ""
+	@echo "  NOTE: If SPI was just enabled for the first"
+	@echo "  time, reboot before running on real hardware:"
+	@echo "    sudo reboot"
+	@echo ""
+	@echo "  Next steps:"
+	@echo "    make configure   -- fill in your API keys"
+	@echo "    make dry         -- preview with dummy data"
+	@echo "    make pi-enable   -- start the refresh timer"
+	@echo "============================================"
+
+pi-enable:
+	@echo "==> Installing systemd units with current paths..."
+	@INSTALL_DIR="$$(pwd)"; USER_NAME="$$(whoami)"; \
+	sed -e "s|__INSTALL_DIR__|$$INSTALL_DIR|g" \
+	    -e "s|__USER__|$$USER_NAME|g" \
+	    deploy/dashboard.service | sudo tee /etc/systemd/system/dashboard.service > /dev/null; \
+	sudo cp deploy/dashboard.timer /etc/systemd/system/dashboard.timer; \
+	sudo systemctl daemon-reload; \
+	sudo systemctl enable --now dashboard.timer
+	@echo ""
+	@$(MAKE) pi-status
+
+pi-status:
+	@echo "=== Timer ==="
+	@sudo systemctl status dashboard.timer --no-pager || true
+	@echo ""
+	@echo "=== Last service run ==="
+	@sudo systemctl status dashboard.service --no-pager || true
+	@if [ -f output/dashboard.log ]; then \
+		echo ""; \
+		echo "=== Recent log (last 20 lines) ==="; \
+		tail -20 output/dashboard.log; \
+	fi
+
+pi-logs:
+	tail -f output/dashboard.log
+
+configure:
+	@deploy/configure.sh
 
 setup:
 	python3 -m venv venv

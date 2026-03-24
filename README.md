@@ -10,69 +10,50 @@ display.
 
 ## Quick Start
 
-### 1. Clone and install
+SSH into your Pi, then run these commands from the project directory:
 
 ```bash
-git clone https://github.com/gkoch02/Dashboard-v4.git
-cd Dashboard-v4
-make setup
+git clone https://github.com/gkoch02/Dashboard-v4.git ~/home-dashboard
+cd ~/home-dashboard
+make pi-install    # apt deps, SPI, Python venv, Waveshare drivers — all in one
+make configure     # interactive prompts fill in your API keys and settings
+make dry           # render a preview with dummy data — no hardware needed
+make pi-enable     # install and start the systemd refresh timer
+make pi-status     # confirm the timer is active and healthy
 ```
 
-This creates a virtual environment, installs dependencies, and copies the config template
-to `config/config.yaml`.
+That's it. The dashboard starts refreshing every 5 minutes automatically.
 
-### 2. Configure
+> **Note:** `make pi-install` enables SPI via `raspi-config`. If SPI was not previously
+> enabled on your Pi, reboot once before running on real hardware (`sudo reboot`).
+> `make configure` and `make dry` work fine before the reboot.
 
-Open `config/config.yaml` and fill in the required fields:
+---
 
-```yaml
-display:
-  model: "epd7in5_V2"          # your Waveshare model (see supported list below)
+## make configure
 
-google:
-  service_account_path: "credentials/service_account.json"
-  calendar_id: "abc123@group.calendar.google.com"
+`make configure` is an interactive wizard that writes your settings directly into
+`config/config.yaml`. Run it after `make pi-install`.
 
-weather:
-  api_key: "your-openweathermap-key"
-  latitude: 40.7128
-  longitude: -74.0060
-  units: "imperial"             # "imperial" (F) or "metric" (C)
-
-purpleair:                      # optional — adds AQI card to the weather theme
-  api_key: "your-purpleair-key" # free key at develop.purpleair.com
-  sensor_id: 12345              # find at map.purpleair.com (click sensor → URL)
-
-timezone: "America/New_York"    # IANA timezone, or "local" for system clock
+```
+Display model [epd7in5_V2]:
+OpenWeatherMap API key:
+Latitude:
+Longitude:
+Units (imperial/metric) [imperial]:
+Google Calendar ID:
+Timezone [America/New_York]:
+PurpleAir API key (optional, press Enter to skip):
+PurpleAir sensor ID (optional, press Enter to skip):
 ```
 
-See [Google Calendar Setup](#google-calendar-setup) for how to get a service account and
-calendar ID. Get a free weather API key at [openweathermap.org](https://openweathermap.org/api).
-Get a free PurpleAir API key at [develop.purpleair.com](https://develop.purpleair.com).
+Existing values are shown as defaults — it is safe to re-run at any time to change a
+setting. The wizard ends by running `make check` to validate your configuration.
 
-### 3. Preview with dummy data
-
-```bash
-make dry
-```
-
-Opens `output/latest.png` with realistic dummy data. No API keys or hardware needed.
-
-### 4. Preview with live data
-
-```bash
-venv/bin/python -m src.main --dry-run --config config/config.yaml
-```
-
-Fetches real calendar/weather data and renders to `output/latest.png`.
-
-### 5. Validate your config
-
-```bash
-make check
-```
-
-Reports errors (must fix) and warnings (may cause issues) in your configuration.
+**Google service account JSON** cannot be fetched automatically — it requires a
+one-time browser download from Google Cloud Console. The wizard guides you through
+placing it at `credentials/service_account.json` and links to the
+[Google Calendar Setup](#google-calendar-setup) instructions.
 
 ---
 
@@ -521,63 +502,59 @@ birthdays:
 
 ---
 
-## Raspberry Pi Deployment
+## Raspberry Pi Reference
+
+> The steps below are what `make pi-install`, `make configure`, and `make pi-enable` do
+> under the hood. Use this section for troubleshooting or if you prefer a manual setup.
 
 ### Step 1 -- Enable SPI
 
 ```bash
-sudo raspi-config
-# Interface Options > SPI > Yes > reboot
+sudo raspi-config nonint do_spi 0
+sudo reboot
 ```
 
-### Step 2 -- Deploy the project
+Or interactively: **Interface Options > SPI > Yes > reboot**.
 
-From your development machine:
+### Step 2 -- System dependencies
 
 ```bash
-make deploy
+sudo apt-get install -y python3-dev python3-venv libopenjp2-7 libtiff5 git swig liblgpio-dev
 ```
 
-Rsyncs to `~/home-dashboard/` on `pi@raspberrypi.local` by default. Override
-the target via Make variables:
+### Step 3 -- Python environment
 
 ```bash
-make deploy PI_USER=myuser PI_HOST=mypi.local PI_DIR=~/dashboard
+python3 -m venv venv
+venv/bin/pip install -r requirements.txt -r requirements-pi.txt
 ```
 
-### Step 3 -- Set up on the Pi
+### Step 4 -- Waveshare display drivers
 
 ```bash
-sudo apt install swig liblgpio-dev
-cd ~/home-dashboard
-make setup
-venv/bin/pip install -r requirements-pi.txt
-```
-
-### Step 4 -- Install Waveshare display drivers
-
-```bash
-git clone https://github.com/waveshare/e-Paper ~/e-Paper
-cd ~/home-dashboard
-venv/bin/pip install ~/e-Paper/RaspberryPi_JetsonNano/python/
+git clone --depth=1 https://github.com/waveshare/e-Paper /tmp/waveshare-epd
+venv/bin/pip install /tmp/waveshare-epd/RaspberryPi_JetsonNano/python/
 venv/bin/python -c "import waveshare_epd; print('OK')"
 ```
 
-### Step 5 -- Test
+### Step 5 -- Configure and test
 
 ```bash
+cp config/config.example.yaml config/config.yaml
+# edit config/config.yaml and place credentials/service_account.json
+make check
+make dry
 venv/bin/python -m src.main --config config/config.yaml
 ```
 
 ### Step 6 -- Install the systemd timer
 
-> **Note:** The `deploy/dashboard.service` file contains hardcoded paths
-> (`/home/pi/home-dashboard`). Edit them if your Pi user or install directory
-> differs from the defaults.
+`make pi-enable` generates the service file with the correct paths for your user and
+install directory automatically:
 
 ```bash
-make install
-ssh pi@raspberrypi.local "systemctl status dashboard.timer"
+make pi-enable
+make pi-status
 ```
 
 The timer fires every 5 minutes. The app handles scheduling internally:
@@ -595,6 +572,18 @@ schedule:
   quiet_hours_start: 23   # 11 PM
   quiet_hours_end: 6      # 6 AM
 ```
+
+### Remote deploy (dev machine → Pi)
+
+If you prefer to develop on a separate machine and push to the Pi via rsync:
+
+```bash
+make deploy                                          # rsync to pi@raspberrypi.local:~/home-dashboard
+make deploy PI_USER=myuser PI_HOST=mypi.local        # override target
+```
+
+After deploying, SSH to the Pi and run `make pi-install` once to install system
+dependencies, then `make pi-enable` to start the timer.
 
 ---
 
@@ -780,6 +769,18 @@ to `output/calendar_sync_state.json`.
 
 ### Makefile targets
 
+#### On-Pi targets
+
+| Command | What it does |
+|---|---|
+| `make pi-install` | apt deps, SPI enable, Python venv, Waveshare drivers — full Pi setup in one command |
+| `make configure` | Interactive wizard: fills `config/config.yaml` with your API keys and settings |
+| `make pi-enable` | Generate and install systemd service (with correct paths) + enable timer |
+| `make pi-status` | Show timer status, last service run, and recent log tail |
+| `make pi-logs` | `tail -f output/dashboard.log` |
+
+#### Dev targets
+
 | Command | What it does |
 |---|---|
 | `make setup` | Create venv, install dependencies, create config from template |
@@ -788,7 +789,7 @@ to `output/calendar_sync_state.json`.
 | `make check` | Validate config file and exit |
 | `make version` | Print the current version (e.g. `main.py 4.1.0`) |
 | `make deploy` | rsync project to Raspberry Pi (`PI_USER`, `PI_HOST`, `PI_DIR` configurable) |
-| `make install` | Copy systemd timer/service to Pi and enable |
+| `make install` | Copy systemd timer/service to Pi and enable (legacy remote path) |
 
 ### CLI flags
 
@@ -828,8 +829,9 @@ Dashboard-v4/
 │   └── quotes.json               # Daily quote pool (125 entries)
 ├── credentials/                  # Git-ignored -- Google service account JSON
 ├── deploy/
-│   ├── dashboard.service         # Systemd service unit
-│   └── dashboard.timer           # Systemd timer (fires every 5 min)
+│   ├── dashboard.service         # Systemd service template (paths filled by make pi-enable)
+│   ├── dashboard.timer           # Systemd timer (fires every 5 min)
+│   └── configure.sh              # Interactive config wizard (invoked by make configure)
 ├── fonts/                        # Bundled TTF fonts
 ├── output/                       # Mostly git-ignored
 │   └── latest.png                # Latest dry-run preview (tracked)

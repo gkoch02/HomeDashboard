@@ -5,10 +5,10 @@ Wants=network-online.target
 
 [Service]
 Type=oneshot
-# Customize User and WorkingDirectory for your Pi setup.
-# Default assumes user "pi" with the repo at ~/home-dashboard.
-User=pi
-WorkingDirectory=/home/pi/home-dashboard
-ExecStart=/home/pi/home-dashboard/venv/bin/python -m src.main --config config/config.yaml
-StandardOutput=append:/home/pi/home-dashboard/output/dashboard.log
-StandardError=append:/home/pi/home-dashboard/output/dashboard.log
+# These values are filled in automatically by `make pi-enable`.
+# __USER__ and __INSTALL_DIR__ are substituted with the current user and repo path.
+User=__USER__
+WorkingDirectory=__INSTALL_DIR__
+ExecStart=__INSTALL_DIR__/venv/bin/python -m src.main --config config/config.yaml
+StandardOutput=append:__INSTALL_DIR__/output/dashboard.log
+StandardError=append:__INSTALL_DIR__/output/dashboard.log
