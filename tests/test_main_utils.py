@@ -19,20 +19,26 @@ class TestRetryFetch:
         assert fn.call_count == 1
 
     def test_retries_on_first_failure(self):
-        fn = MagicMock(side_effect=[ValueError("oops"), 99])
+        fn = MagicMock(side_effect=[Exception("oops"), 99])
         result = _retry_fetch("test", fn)
         assert result == 99
         assert fn.call_count == 2
 
     def test_raises_on_second_failure(self):
-        fn = MagicMock(side_effect=ValueError("always fails"))
-        with pytest.raises(ValueError, match="always fails"):
+        fn = MagicMock(side_effect=Exception("always fails"))
+        with pytest.raises(Exception, match="always fails"):
             _retry_fetch("test", fn)
         assert fn.call_count == 2
 
+    def test_does_not_retry_on_runtime_error(self):
+        fn = MagicMock(side_effect=RuntimeError("permanent failure"))
+        with pytest.raises(RuntimeError, match="permanent failure"):
+            _retry_fetch("test", fn)
+        assert fn.call_count == 1
+
     def test_label_included_in_warning_log(self, caplog):
         import logging
-        fn = MagicMock(side_effect=[RuntimeError("boom"), "ok"])
+        fn = MagicMock(side_effect=[Exception("boom"), "ok"])
         with caplog.at_level(logging.WARNING, logger="src.main"):
             _retry_fetch("MyLabel", fn)
         assert "MyLabel" in caplog.text

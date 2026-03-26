@@ -13,6 +13,7 @@ API reference: https://community.purpleair.com/t/making-api-calls/180
 """
 
 import logging
+import math
 from typing import Any
 
 import requests
@@ -62,7 +63,7 @@ _AQI_CATEGORIES = [
 
 def _pm25_to_aqi(pm25: float) -> tuple[int, str]:
     """Compute EPA AQI integer and category string from a PM2.5 µg/m³ reading."""
-    pm25 = round(pm25, 1)  # EPA truncates to 1 decimal place before lookup
+    pm25 = math.floor(pm25 * 10) / 10  # EPA truncates to 1 decimal place before lookup
     for c_lo, c_hi, i_lo, i_hi in _PM25_BP:
         if c_lo <= pm25 <= c_hi:
             aqi = round((i_hi - i_lo) / (c_hi - c_lo) * (pm25 - c_lo) + i_lo)

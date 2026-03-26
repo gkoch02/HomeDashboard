@@ -68,10 +68,12 @@ class TestPm25ToAqi:
 
     def test_truncates_to_one_decimal(self):
         # EPA requires truncation to 1dp before lookup
-        aqi1, _ = _pm25_to_aqi(12.049)  # rounds to 12.0 → Good
-        aqi2, _ = _pm25_to_aqi(12.099)  # rounds to 12.1 → Moderate
+        aqi1, _ = _pm25_to_aqi(12.049)  # truncates to 12.0 → Good
+        aqi2, _ = _pm25_to_aqi(12.099)  # truncates to 12.0 → Good
+        aqi3, _ = _pm25_to_aqi(12.199)  # truncates to 12.1 → Moderate
         assert aqi1 == 50
-        assert aqi2 == 51
+        assert aqi2 == 50
+        assert aqi3 == 51
 
 
 class TestAqiCategory:

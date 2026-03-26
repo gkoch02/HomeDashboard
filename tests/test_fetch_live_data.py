@@ -283,6 +283,29 @@ class TestCircuitBreakerOpenPath:
         # Cached weather should have been used
         assert data.weather is not None and data.weather.current_temp == 55.0
 
+    def test_ignore_breakers_fetches_even_when_open(self):
+        from src.fetchers.circuit_breaker import CircuitBreaker
+        cfg = Config()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            _make_cached(tmpdir)
+            breaker = CircuitBreaker(
+                max_failures=3,
+                cooldown_minutes=60,
+                state_dir=tmpdir,
+            )
+            for source in ("events", "weather", "birthdays"):
+                for _ in range(3):
+                    breaker.record_failure(source)
+
+            with patch("src.main.fetch_events", return_value=[]) as mock_events, \
+                 patch("src.main.fetch_weather", return_value=_make_weather()) as mock_weather, \
+                 patch("src.main.fetch_birthdays", return_value=[]) as mock_bdays:
+                fetch_live_data(cfg, tmpdir, ignore_breakers=True)
+
+        mock_events.assert_called_once()
+        mock_weather.assert_called_once()
+        mock_bdays.assert_called_once()
+
 
 # ---------------------------------------------------------------------------
 # Birthday cache fallback — lines 421-422

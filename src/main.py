@@ -35,10 +35,12 @@ def _resolve_tz(tz_name: str) -> tzinfo:
 
 
 def _retry_fetch(label: str, fn):
-    """Attempt fn() twice immediately to handle transient network errors."""
+    """Attempt fn() twice only for likely transient failures."""
     try:
         return fn()
     except Exception as exc:
+        if isinstance(exc, (RuntimeError, ValueError, TypeError, KeyError)):
+            raise
         logger.warning("%s failed, retrying: %s", label, exc)
     return fn()  # let the exception propagate on second failure
 
@@ -65,6 +67,7 @@ def _is_morning_startup(now: datetime, quiet_hours_end: int) -> bool:
 def fetch_live_data(
     cfg, cache_dir: str, tz: tzinfo | None = None,
     force_refresh: bool = False,
+    ignore_breakers: bool = False,
 ) -> DashboardData:
     """Fetch live data from all APIs in parallel, falling back to per-source cache on failure.
 
@@ -149,7 +152,7 @@ def fetch_live_data(
         if recent:
             return data, True
         # Check circuit breaker
-        if not breaker.should_attempt(source):
+        if not ignore_breakers and not breaker.should_attempt(source):
             logger.info("Circuit breaker OPEN for %s, using cache", source)
             cached_data = _use_cache(source)
             return cached_data, True
@@ -317,6 +320,11 @@ def main():
         "--force-full-refresh", action="store_true", help="Force a full display refresh",
     )
     parser.add_argument(
+        "--ignore-breakers",
+        action="store_true",
+        help="Ignore circuit breaker OPEN state for this run and attempt fetches anyway",
+    )
+    parser.add_argument(
         "--dummy", action="store_true",
         help="Use dummy data instead of fetching from APIs",
     )
@@ -413,6 +421,7 @@ def main():
         data = fetch_live_data(
             cfg, cache_dir=cfg.output_dir, tz=tz,
             force_refresh=force_full,
+            ignore_breakers=args.ignore_breakers,
         )
 
     # Apply event filters

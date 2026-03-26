@@ -277,6 +277,22 @@ class TestMainLiveDataPath:
         mock_fetch.assert_called_once()
         assert (tmp_path / "latest.png").exists()
 
+    def test_ignore_breakers_flag_passed_to_fetch_live_data(self, tmp_path):
+        config_path = tmp_path / "config.yaml"
+        _write_minimal_config(config_path)
+
+        from src.main import generate_dummy_data
+        fake_data = generate_dummy_data()
+
+        with patch("sys.argv", [
+            "main", "--dry-run", "--ignore-breakers", "--config", str(config_path),
+        ]):
+            from src.main import main
+            with patch("src.main.fetch_live_data", return_value=fake_data) as mock_fetch:
+                main()
+
+        assert mock_fetch.call_args.kwargs["ignore_breakers"] is True
+
     def test_image_unchanged_skips_hardware_refresh(self, tmp_path):
         """When image_changed returns False, the display refresh is skipped (lines 528-529)."""
         import yaml
