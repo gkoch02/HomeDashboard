@@ -9,6 +9,7 @@ Type=oneshot
 # __USER__ and __INSTALL_DIR__ are substituted with the current user and repo path.
 User=__USER__
 WorkingDirectory=__INSTALL_DIR__
+Environment=GPIOZERO_PIN_FACTORY=lgpio
 ExecStart=__INSTALL_DIR__/venv/bin/python -m src.main --config config/config.yaml
 StandardOutput=append:__INSTALL_DIR__/output/dashboard.log
 StandardError=append:__INSTALL_DIR__/output/dashboard.log

@@ -1,2 +1,3 @@
 RPi.GPIO>=0.7
 spidev>=3.5
+lgpio>=0.2
