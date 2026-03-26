@@ -1,6 +1,7 @@
 """Tests for src/render/components/week_view.py."""
 
 from datetime import date, datetime, timedelta
+from unittest.mock import patch
 
 from PIL import Image, ImageDraw
 
@@ -141,6 +142,30 @@ class TestDrawWeek:
         ]
         draw_week(draw, events, today)
         assert img.getbbox() is not None
+
+    def test_location_newlines_are_normalized_before_truncation(self):
+        img, draw = self._make_draw()
+        today = date(2024, 3, 15)
+        events = [
+            CalendarEvent(
+                summary="Client Meeting",
+                start=datetime.combine(today, datetime.min.time().replace(hour=9)),
+                end=datetime.combine(today, datetime.min.time().replace(hour=10)),
+                location="123 Main St\nSuite 200, Springfield",
+            ),
+        ]
+        seen_texts: list[str] = []
+
+        def _capture_text(*args, **kwargs):
+            # signature: (draw, xy, text, font, max_width, fill=...)
+            seen_texts.append(args[2])
+            return 0
+
+        with patch("src.render.components.week_view.draw_text_truncated", side_effect=_capture_text):
+            draw_week(draw, events, today)
+
+        assert any("Suite 200" in t for t in seen_texts)
+        assert all("\n" not in t for t in seen_texts)
 
     def test_smoke_with_all_day_event(self):
         img, draw = self._make_draw()

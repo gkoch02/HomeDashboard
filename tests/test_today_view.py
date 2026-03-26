@@ -1,6 +1,7 @@
 """Tests for src/render/components/today_view.py."""
 
 from datetime import date, datetime, timedelta
+from unittest.mock import patch
 
 import pytest
 from PIL import Image, ImageDraw
@@ -232,6 +233,22 @@ class TestDrawToday:
         evt = _timed(TODAY, 9, 10, "Doctor Visit", location="123 Medical Center, Suite 4")
         draw_today(draw, [evt], TODAY)
         assert img.getbbox() is not None
+
+    def test_location_newlines_are_normalized_before_truncation(self):
+        img, draw = _make_draw()
+        evt = _timed(TODAY, 9, 10, "Visit", location="123 Main St\nSuite 200, Springfield")
+        seen_texts: list[str] = []
+
+        def _capture_text(*args, **kwargs):
+            # signature: (draw, xy, text, font, max_width, fill=...)
+            seen_texts.append(args[2])
+            return 0
+
+        with patch("src.render.components.today_view.draw_text_truncated", side_effect=_capture_text):
+            draw_today(draw, [evt], TODAY)
+
+        assert any("Suite 200" in t for t in seen_texts)
+        assert all("\n" not in t for t in seen_texts)
 
     def test_smoke_event_with_long_title(self):
         img, draw = _make_draw()

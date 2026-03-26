@@ -181,7 +181,9 @@ def _draw_event_list(
 
             # Location (first segment only)
             if event.location:
-                loc_text = event.location.split(",")[0].strip()
+                # Normalize location to a single visual line (collapse newlines/extra spaces)
+                # so y-advance stays consistent with measured single-line font height.
+                loc_text = " ".join(event.location.split(",")[0].split())
                 if loc_text and y + text_height(loc_font) <= bottom:
                     y += 2
                     draw_text_truncated(draw, (x, y), loc_text, loc_font, max_w, fill=style.fg)
