@@ -8,6 +8,27 @@ display.
 
 ---
 
+## Choose Your Path
+
+- **First install on a Raspberry Pi:** start with [Quick Start](#quick-start), then finish
+  [Google Calendar Setup](#google-calendar-setup) if you use calendar/birthdays.
+- **Upgrading from an older release:** go to [Upgrading from v3](#upgrading-from-v3).
+- **Local dev / preview only:** jump to [Development](#development) and run `make setup`
+  + `make dry` (no hardware required).
+
+## Table of Contents
+
+- [Quick Start](#quick-start)
+- [Google Calendar Setup](#google-calendar-setup)
+- [Raspberry Pi Reference](#raspberry-pi-reference)
+- [Themes](#themes)
+- [Advanced Configuration](#advanced-configuration)
+- [Troubleshooting and Recovery](#troubleshooting-and-recovery)
+- [Development](#development)
+- [Upgrading from v3](#upgrading-from-v3)
+
+---
+
 ## Quick Start
 
 SSH into your Pi, then run these commands from the project directory:
@@ -27,6 +48,9 @@ That's it. The dashboard starts refreshing every 5 minutes automatically.
 > **Note:** `make pi-install` enables SPI via `raspi-config`. If SPI was not previously
 > enabled on your Pi, reboot once before running on real hardware (`sudo reboot`).
 > `make configure` and `make dry` work fine before the reboot.
+>
+> **Next:** if you use Google Calendar or Google Contacts birthdays, complete
+> [Google Calendar Setup](#google-calendar-setup) before your first live run.
 
 ---
 
@@ -58,6 +82,9 @@ placing it at `credentials/service_account.json` and links to the
 ---
 
 ## Themes
+
+If you're still setting up APIs/credentials, finish [Google Calendar Setup](#google-calendar-setup)
+first and come back here for customization.
 
 Switch the entire dashboard layout and visual style with one line in `config.yaml`:
 
@@ -404,7 +431,8 @@ Your existing config is fully compatible. These are opt-in additions:
 | **Circuit breaker tuning** | `cache.max_failures` and `cache.cooldown_minutes` |
 | **API quota warnings** | `google.daily_quota_warning: 500` logs a warning when calls exceed the threshold |
 | **`--check-config` flag** | Validate config and exit without running the dashboard |
-| **`--force-full-refresh` flag** | Bypass fetch intervals and circuit breaker for a one-off forced refresh |
+| **`--force-full-refresh` flag** | Bypass fetch intervals and force a full eInk refresh for a one-off run |
+| **`--ignore-breakers` flag** | Ignore OPEN circuit breakers for one run and attempt live fetches anyway |
 
 ---
 
@@ -743,6 +771,7 @@ incremental sync correctness -- they are only hidden at render time.
 After 3 consecutive failures (configurable), a source is "tripped" and goes straight to
 cache on subsequent runs. After the cooldown period, a single probe request is sent. If it
 succeeds, normal fetching resumes.
+Use `--ignore-breakers` to bypass OPEN breaker state for one run.
 
 ### Conditional display refresh
 
@@ -756,6 +785,31 @@ refresh is skipped entirely. This extends display lifespan and saves power.
 After the first full sync, subsequent fetches download only changed events using Google
 Calendar sync tokens. This dramatically reduces API quota usage. Sync state is persisted
 to `output/calendar_sync_state.json`.
+
+---
+
+## Troubleshooting and Recovery
+
+### Fast checks
+
+- Validate config only: `make check`
+- See recent logs on Pi: `make pi-status` and `make pi-logs`
+- Render without hardware: `make dry`
+
+### Force a live refresh now
+
+- `--force-full-refresh` bypasses fetch intervals and forces a full display refresh.
+- If a source is blocked by an OPEN circuit breaker, also pass `--ignore-breakers`.
+
+```bash
+venv/bin/python -m src.main --dry-run --theme diags --force-full-refresh --ignore-breakers
+```
+
+### Circuit breaker behavior
+
+- Repeated failures open the breaker for that source and fallback to cache.
+- After cooldown, one probe request is allowed (`HALF_OPEN`).
+- `--ignore-breakers` bypasses OPEN state for one run only; breaker state still persists.
 
 ---
 
@@ -785,7 +839,7 @@ to `output/calendar_sync_state.json`.
 |---|---|
 | `make setup` | Create venv, install dependencies, create config from template |
 | `make dry` | Render with dummy data to `output/latest.png` |
-| `make test` | Run `pytest tests/ -v` (850+ tests across 34 files) |
+| `make test` | Run `pytest tests/ -v` across the full suite |
 | `make check` | Validate config file and exit |
 | `make version` | Print the current version (e.g. `main.py 4.1.0`) |
 | `make deploy` | rsync project to Raspberry Pi (`PI_USER`, `PI_HOST`, `PI_DIR` configurable) |
@@ -800,7 +854,8 @@ to `output/calendar_sync_state.json`.
 | `--config PATH` | Config file path (default: `config/config.yaml`) |
 | `--theme THEME` | Override the theme set in `config.yaml`. Choices: `default`, `terminal`, `minimalist`, `old_fashioned`, `today`, `fantasy`, `qotd`, `weather`, `fuzzyclock`, `diags`, `random` |
 | `--date YYYY-MM-DD` | Override today's date for the dry-run preview (requires `--dry-run`) |
-| `--force-full-refresh` | Force full eInk refresh; bypasses fetch intervals and circuit breaker |
+| `--force-full-refresh` | Force full eInk refresh and bypass fetch intervals |
+| `--ignore-breakers` | Ignore OPEN circuit breakers for this run and attempt fetches anyway |
 | `--check-config` | Validate config and exit |
 | `--version` | Print version and exit |
 
@@ -883,7 +938,7 @@ Dashboard-v4/
 │           ├── qotd_panel.py
 │           ├── fuzzyclock_panel.py
 │           └── diags_panel.py
-├── tests/                        # 34 test files, 850+ tests
+├── tests/                        # Full test suite
 ├── Makefile
 ├── requirements.txt              # Core dependencies
 └── requirements-pi.txt           # Raspberry Pi hardware dependencies
