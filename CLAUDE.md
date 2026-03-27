@@ -8,7 +8,7 @@ Python eInk dashboard for Raspberry Pi. Displays a weekly calendar (Google Calen
 
 ```bash
 make setup          # Create venv, install deps, copy config template
-make test           # Run pytest (900+ tests across 39 files)
+make test           # Run pytest
 make dry            # Preview with dummy data → output/latest.png
 make previews       # Generate all theme preview PNGs → output/theme_*.png
 make check          # Validate config/config.yaml
@@ -82,7 +82,7 @@ config/
 ├── config.example.yaml        # Template (copy to config.yaml)
 └── quotes.json                # Bundled daily quotes
 
-tests/                         # 39 test files, extensive mocking
+tests/                         # test files, extensive mocking
 fonts/                         # Bundled TTF fonts
 deploy/                        # Systemd service + timer + configure.sh
 output/                        # Generated PNGs + cache files (git-ignored except latest.png)
