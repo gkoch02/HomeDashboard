@@ -7,8 +7,9 @@ from unittest.mock import MagicMock
 import pytest
 
 from src.dummy_data import generate_dummy_data
+from src.config import resolve_tz
 from src.data_pipeline import retry_fetch
-from src.services_run_policy import in_quiet_hours, is_morning_startup, resolve_tz
+from src.services_run_policy import in_quiet_hours, is_morning_startup
 
 
 class TestRetryFetch:

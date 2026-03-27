@@ -1,12 +1,4 @@
-from datetime import datetime, tzinfo
-import zoneinfo
-
-
-def resolve_tz(tz_name: str) -> tzinfo:
-    """Return a tzinfo for the given IANA name, or the system local timezone for 'local'."""
-    if tz_name == "local":
-        return datetime.now().astimezone().tzinfo
-    return zoneinfo.ZoneInfo(tz_name)
+from datetime import datetime
 
 
 def in_quiet_hours(now: datetime, start_hour: int, end_hour: int) -> bool:

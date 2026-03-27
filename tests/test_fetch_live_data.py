@@ -247,3 +247,49 @@ class TestCircuitBreakerOpenPath:
             mock_weather.assert_not_called()
             assert data.weather is not None
             assert data.is_stale
+
+    def test_ignore_breakers_fetches_even_when_open(self):
+        from src.fetchers.circuit_breaker import CircuitBreaker
+        cfg = Config()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Open all three breakers without pre-seeding per-source cache,
+            # so _cache_is_recent returns (None, False) and the breaker check
+            # is actually reached for all sources.
+            breaker = CircuitBreaker(state_dir=tmpdir)
+            for source in ("events", "weather", "birthdays"):
+                for _ in range(cfg.cache.max_failures):
+                    breaker.record_failure(source)
+
+            with patch("src.data_pipeline.fetch_events", return_value=[]) as mock_events, \
+                 patch("src.data_pipeline.fetch_weather", return_value=_make_weather()) as mock_weather, \
+                 patch("src.data_pipeline.fetch_birthdays", return_value=[]) as mock_bdays:
+                fetch_live_data(cfg, tmpdir, ignore_breakers=True)
+
+        mock_events.assert_called_once()
+        mock_weather.assert_called_once()
+        mock_bdays.assert_called_once()
+
+
+class TestBirthdayCacheFallback:
+    """Birthday fetch failure should fall back to cached birthdays."""
+
+    def test_birthday_failure_uses_cache(self):
+        from datetime import date
+        cfg = Config()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Cache must be older than birthdays_fetch_interval (default 1440 min)
+            # so a fetch is actually attempted. Use 25 hours (1500 min > 1440 min).
+            old_ts = datetime.now() - timedelta(hours=25)
+            cached_birthday = Birthday(name="Cached Person", date=date(2024, 3, 20))
+            save_source("birthdays", [cached_birthday], old_ts, tmpdir)
+            mock_weather = WeatherData(
+                current_temp=42.0, current_icon="01d", current_description="clear",
+                high=48.0, low=35.0, humidity=60,
+            )
+            with patch("src.data_pipeline.fetch_events", return_value=[]), \
+                 patch("src.data_pipeline.fetch_weather", return_value=mock_weather), \
+                 patch("src.data_pipeline.fetch_birthdays", side_effect=Exception("contacts API down")):
+                data = fetch_live_data(cfg, tmpdir)
+
+        assert data.is_stale
+        assert any(b.name == "Cached Person" for b in data.birthdays)

@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from datetime import datetime, tzinfo
 from pathlib import Path
 import logging
 import zoneinfo
@@ -110,6 +111,13 @@ class Config:
     output_dir: str = "output"
     log_level: str = "INFO"
     timezone: str = "local"
+
+
+def resolve_tz(tz_name: str) -> tzinfo:
+    """Return a tzinfo for the given IANA name, or the system local timezone for 'local'."""
+    if tz_name == "local":
+        return datetime.now().astimezone().tzinfo
+    return zoneinfo.ZoneInfo(tz_name)
 
 
 def load_config(path: str = "config/config.yaml") -> Config:
