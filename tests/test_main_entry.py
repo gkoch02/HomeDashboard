@@ -4,16 +4,11 @@ These tests exercise the CLI argument parsing and the main execution flow
 including dry-run, dummy data, check-config, and quiet-hours exit paths.
 """
 
-import sys
-import tempfile
-from datetime import datetime
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 import yaml
-
-from src.config import Config, load_config
 
 
 def _write_minimal_config(path: Path) -> None:
@@ -56,7 +51,7 @@ class TestMainDryRunDummy:
             "--config", str(config_path),
         ]):
             from src.main import main
-            main()  # should not raise
+            main()
 
         assert (tmp_path / "latest.png").exists()
 
@@ -97,7 +92,7 @@ class TestMainCheckConfig:
 
         with patch("sys.argv", ["main", "--check-config", "--config", str(config_path)]):
             from src.main import main
-            with patch("src.main.render_dashboard") as mock_render:
+            with patch("src.app.render_dashboard") as mock_render:
                 with pytest.raises(SystemExit):
                     main()
         mock_render.assert_not_called()
@@ -114,11 +109,11 @@ class TestMainQuietHours:
             "schedule": {"quiet_hours_start": 0, "quiet_hours_end": 23},
         }))
 
-        # Not a dry-run, and all hours are quiet → should exit early
         with patch("sys.argv", ["main", "--config", str(config_path)]):
             from src.main import main
-            with patch("src.main.render_dashboard") as mock_render:
-                with patch("src.main.fetch_live_data") as mock_fetch:
+            with patch("src.app.render_dashboard") as mock_render:
+                with patch("src.data_pipeline.DataPipeline.fetch") as mock_fetch, \
+                     patch("src.app.should_skip_refresh", return_value=True):
                     main()
 
         mock_render.assert_not_called()
@@ -147,14 +142,12 @@ class TestMainMorningStartup:
     """Morning startup flag causes a forced full refresh."""
 
     def test_morning_startup_triggers_force_full(self, tmp_path):
-        """Morning startup (6:00, quiet_hours_end=6) forces full refresh."""
         config_path = tmp_path / "config.yaml"
         _write_minimal_config(config_path)
 
-        # Patch _is_morning_startup to return True so the morning path is exercised
         with patch("sys.argv", ["main", "--dry-run", "--dummy", "--config", str(config_path)]):
             from src.main import main
-            with patch("src.main._is_morning_startup", return_value=True):
+            with patch("src.services_run_policy.is_morning_startup", return_value=True):
                 main()
 
         assert (tmp_path / "latest.png").exists()
@@ -170,9 +163,8 @@ class TestMainLastSuccessWriteFailure:
         with patch("sys.argv", ["main", "--dry-run", "--dummy", "--config", str(config_path)]):
             from src.main import main
             with patch("pathlib.Path.write_text", side_effect=OSError("disk full")):
-                main()  # should not raise
+                main()
 
-        # Image was still written (before the last_success write attempted)
         assert (tmp_path / "latest.png").exists()
 
 
@@ -180,16 +172,13 @@ class TestMainModule:
     """__main__ guard — calling main() via __name__ == '__main__'."""
 
     def test_if_name_main_block(self, tmp_path):
-        """Exercise the ``if __name__ == '__main__': main()`` guard."""
         config_path = tmp_path / "config.yaml"
         _write_minimal_config(config_path)
 
         with patch("sys.argv", ["main", "--dry-run", "--dummy", "--config", str(config_path)]):
-            import importlib
             import src.main as main_mod
             with patch.object(main_mod, "main") as mock_main:
-                # Simulate the guard by calling it directly
-                if True:  # mirrors the guard
+                if True:
                     main_mod.main()
             mock_main.assert_called_once()
 
@@ -211,7 +200,6 @@ class TestMainDateFlag:
         assert (tmp_path / "latest.png").exists()
 
     def test_date_flag_overrides_now(self, tmp_path):
-        """generate_dummy_data should receive a 'now' on the specified date."""
         config_path = tmp_path / "config.yaml"
         _write_minimal_config(config_path)
 
@@ -221,7 +209,7 @@ class TestMainDateFlag:
         ]):
             from src.main import main
             from datetime import date
-            with patch("src.main.generate_dummy_data", wraps=__import__("src.main", fromlist=["generate_dummy_data"]).generate_dummy_data) as mock_gen:
+            with patch("src.app.generate_dummy_data", wraps=__import__("src.app", fromlist=["generate_dummy_data"]).generate_dummy_data) as mock_gen:
                 main()
 
         call_kwargs = mock_gen.call_args
@@ -230,7 +218,6 @@ class TestMainDateFlag:
         assert passed_now.date() == date(2025, 7, 4)
 
     def test_date_without_dry_run_errors(self, tmp_path):
-        """--date without --dry-run should exit with an error."""
         config_path = tmp_path / "config.yaml"
         _write_minimal_config(config_path)
 
@@ -244,7 +231,6 @@ class TestMainDateFlag:
         assert exc_info.value.code != 0
 
     def test_invalid_date_format_errors(self, tmp_path):
-        """An invalid --date value should exit with an error."""
         config_path = tmp_path / "config.yaml"
         _write_minimal_config(config_path)
 
@@ -259,80 +245,83 @@ class TestMainDateFlag:
 
 
 class TestMainLiveDataPath:
-    """Tests for the non-dummy data fetch path (line 507) and image-change logic."""
+    """Tests for the non-dummy data fetch path and image-change logic."""
 
-    def test_dry_run_without_dummy_calls_fetch_live_data(self, tmp_path):
-        """--dry-run without --dummy calls fetch_live_data (line 507)."""
+    def test_dry_run_without_dummy_calls_pipeline_fetch(self, tmp_path):
         config_path = tmp_path / "config.yaml"
         _write_minimal_config(config_path)
 
-        from src.main import generate_dummy_data
+        from src.dummy_data import generate_dummy_data
         fake_data = generate_dummy_data()
 
         with patch("sys.argv", ["main", "--dry-run", "--config", str(config_path)]):
             from src.main import main
-            with patch("src.main.fetch_live_data", return_value=fake_data) as mock_fetch:
+            with patch("src.data_pipeline.DataPipeline.fetch", return_value=fake_data) as mock_fetch:
                 main()
 
         mock_fetch.assert_called_once()
         assert (tmp_path / "latest.png").exists()
 
-    def test_ignore_breakers_flag_passed_to_fetch_live_data(self, tmp_path):
+    def test_ignore_breakers_flag_passed_to_pipeline(self, tmp_path):
         config_path = tmp_path / "config.yaml"
         _write_minimal_config(config_path)
 
-        from src.main import generate_dummy_data
+        captured = {}
+        real_init = __import__("src.data_pipeline", fromlist=["DataPipeline"]).DataPipeline.__init__
+
+        def spying_init(self, cfg, cache_dir, tz=None, force_refresh=False, ignore_breakers=False):
+            captured["ignore_breakers"] = ignore_breakers
+            real_init(self, cfg, cache_dir, tz=tz, force_refresh=force_refresh, ignore_breakers=ignore_breakers)
+
+        from src.dummy_data import generate_dummy_data
         fake_data = generate_dummy_data()
 
         with patch("sys.argv", [
             "main", "--dry-run", "--ignore-breakers", "--config", str(config_path),
         ]):
             from src.main import main
-            with patch("src.main.fetch_live_data", return_value=fake_data) as mock_fetch:
+            with patch("src.data_pipeline.DataPipeline.__init__", new=spying_init), \
+                 patch("src.data_pipeline.DataPipeline.fetch", return_value=fake_data):
                 main()
 
-        assert mock_fetch.call_args.kwargs["ignore_breakers"] is True
+        assert captured["ignore_breakers"] is True
 
     def test_image_unchanged_skips_hardware_refresh(self, tmp_path):
-        """When image_changed returns False, the display refresh is skipped (lines 528-529)."""
-        import yaml
         config_path = tmp_path / "config.yaml"
         config_path.write_text(yaml.dump({
             "weather": {"api_key": "test", "latitude": 37.0, "longitude": -122.0},
             "output": {"dry_run_dir": str(tmp_path)},
         }))
 
-        from src.main import generate_dummy_data
+        from src.dummy_data import generate_dummy_data
         fake_data = generate_dummy_data()
 
         with patch("sys.argv", ["main", "--config", str(config_path)]):
             from src.main import main
-            with patch("src.main.fetch_live_data", return_value=fake_data), \
-                 patch("src.main.image_changed", return_value=False) as mock_changed, \
-                 patch("src.main._in_quiet_hours", return_value=False):
+            with patch("src.data_pipeline.DataPipeline.fetch", return_value=fake_data), \
+                 patch("src.services_output_service.image_changed", return_value=False) as mock_changed, \
+                 patch("src.services_run_policy.in_quiet_hours", return_value=False):
                 main()
 
         mock_changed.assert_called_once()
 
     def test_image_changed_calls_waveshare_display(self, tmp_path):
-        """When image changed (non-dry-run), WaveshareDisplay.show() is called (lines 531-537)."""
-        import yaml
         config_path = tmp_path / "config.yaml"
         config_path.write_text(yaml.dump({
             "weather": {"api_key": "test", "latitude": 37.0, "longitude": -122.0},
             "output": {"dry_run_dir": str(tmp_path)},
         }))
 
-        from src.main import generate_dummy_data
+        from src.dummy_data import generate_dummy_data
         fake_data = generate_dummy_data()
 
         mock_display = MagicMock()
 
         with patch("sys.argv", ["main", "--config", str(config_path)]):
             from src.main import main
-            with patch("src.main.fetch_live_data", return_value=fake_data), \
-                 patch("src.main.image_changed", return_value=True), \
-                 patch("src.main._in_quiet_hours", return_value=False), \
+            with patch("src.data_pipeline.DataPipeline.fetch", return_value=fake_data), \
+                 patch("src.services_output_service.image_changed", return_value=True), \
+                 patch("src.services_run_policy.in_quiet_hours", return_value=False), \
                  patch("src.display.driver.WaveshareDisplay", return_value=mock_display):
                 main()
 

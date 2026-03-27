@@ -49,7 +49,7 @@ class DashboardApp:
         theme_name = resolve_theme_name(self.cfg, self.args.theme)
         if theme_name != configured_theme:
             logger.info("Random theme resolved to: %s", theme_name)
-        theme = resolve_theme(self.cfg, theme_name)
+        theme = resolve_theme(theme_name)
 
         logger.info("Rendering dashboard")
         image = render_dashboard(data, self.cfg.display, title=self.cfg.title, theme=theme)
