@@ -893,7 +893,12 @@ Dashboard-v4/
 ├── output/                       # Mostly git-ignored
 │   └── latest.png                # Latest dry-run preview (tracked)
 ├── src/
-│   ├── main.py                   # CLI entry point + fetcher orchestration
+│   ├── main.py                   # Thin CLI entry point: parse args, load config, launch app
+│   ├── app.py                    # Top-level dashboard run orchestration
+│   ├── data_pipeline.py          # Live data fetching, cache fallback, breakers, quotas
+│   ├── services_run_policy.py    # Quiet hours + morning full-refresh decisions
+│   ├── services_theme_service.py # Theme resolution (including random theme selection)
+│   ├── services_output_service.py# Dry-run writes, display refresh decisions, health marker
 │   ├── _version.py               # Version constant (__version__ = "4.1.0")
 │   ├── config.py                 # YAML -> typed Config dataclass + validation
 │   ├── dummy_data.py             # Realistic dummy data for --dummy / dev previews
