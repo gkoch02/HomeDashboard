@@ -24,7 +24,7 @@ class TestStalenessLevel:
         assert len(levels) == 4
 
     def test_ordering_by_name(self):
-        names = {l.name for l in StalenessLevel}
+        names = {level.name for level in StalenessLevel}
         assert names == {"FRESH", "AGING", "STALE", "EXPIRED"}
 
 

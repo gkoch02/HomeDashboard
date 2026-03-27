@@ -3,11 +3,8 @@ from PIL import ImageDraw
 
 from src.data.models import CalendarEvent, DayForecast
 from src.render import layout as L
-from src.render.fonts import (
-    semibold, regular, bold, medium,
-)
 from src.render.primitives import (
-    BLACK, WHITE, hline, vline, dashed_vline, filled_rect,
+    hline, vline, dashed_vline, filled_rect,
     draw_text_truncated, draw_text_wrapped, text_height, text_width,
     fmt_time as _fmt_time, events_for_day as _events_for_day, wrap_lines,
 )

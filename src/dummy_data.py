@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, timezone, tzinfo
 
 from src.data.models import (
     AirQualityData, Birthday, CalendarEvent, DashboardData, DayForecast,
-    HostData, StalenessLevel, WeatherAlert, WeatherData,
+    HostData, StalenessLevel, WeatherData,
 )
 
 

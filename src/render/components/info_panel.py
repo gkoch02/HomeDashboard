@@ -6,8 +6,7 @@ from pathlib import Path
 from PIL import ImageDraw
 
 from src.render import layout as L
-from src.render.fonts import bold, semibold, regular
-from src.render.primitives import BLACK, hline, draw_text_wrapped, wrap_lines
+from src.render.primitives import hline, draw_text_wrapped, wrap_lines
 from src.render.theme import ComponentRegion, ThemeStyle
 
 QUOTES_FILE = Path(__file__).parent.parent.parent.parent / "config" / "quotes.json"

@@ -11,8 +11,7 @@ from PIL import ImageDraw
 from src.data.models import CalendarEvent, DayForecast
 from src.render.primitives import (
     filled_rect, vline,
-    draw_text_truncated, draw_text_wrapped, text_height, text_width,
-    fmt_time as _fmt_time, events_for_day as _events_for_today,
+    draw_text_truncated, draw_text_wrapped, text_height, fmt_time as _fmt_time, events_for_day as _events_for_today,
 )
 from src.render.theme import ComponentRegion, ThemeStyle
 

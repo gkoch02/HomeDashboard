@@ -47,7 +47,7 @@ class TestMoonPhaseAge:
     def test_after_full_cycle_age_resets(self):
         """Adding exactly one synodic month should return nearly the same age."""
         d = date(2026, 3, 22)
-        a_start = moon_phase_age(d)
+        moon_phase_age(d)
         # Approx 29-30 days later should wrap around
         d_later = d + timedelta(days=30)
         a_later = moon_phase_age(d_later)

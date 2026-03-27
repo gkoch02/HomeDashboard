@@ -4,9 +4,9 @@ from PIL import ImageDraw
 
 from src.data.models import AirQualityData, WeatherData
 from src.render import layout as L
-from src.render.fonts import bold, regular, medium, semibold, weather_icon as weather_icon_font
+from src.render.fonts import weather_icon as weather_icon_font
 from src.render.primitives import (
-    BLACK, WHITE, draw_text_truncated, filled_rect, hline, text_width, vline,
+    draw_text_truncated, filled_rect, hline, text_width, vline,
     fmt_time as _fmt_time, deg_to_compass,
 )
 from src.render.icons import draw_weather_icon

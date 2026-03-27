@@ -3,7 +3,6 @@
 from datetime import date, datetime, timedelta
 from unittest.mock import patch
 
-import pytest
 from PIL import Image, ImageDraw
 
 from src.data.models import CalendarEvent, DayForecast

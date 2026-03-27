@@ -339,17 +339,17 @@ class TestPerSourceCache:
     def test_stale_sources_populated_on_partial_failure(self):
         """fetch_live_data should populate stale_sources for each failed source."""
         from src.config import Config
-        from src.main import fetch_live_data
+        from src.data_pipeline import DataPipeline
 
         with tempfile.TemporaryDirectory() as tmpdir:
             # Pre-populate cache for weather (recent enough to be within TTL)
             from datetime import timedelta
             save_source("weather", _make_weather(), datetime.now() - timedelta(hours=3), tmpdir)
 
-            with patch("src.main.fetch_events", return_value=[]), \
-                 patch("src.main.fetch_weather", side_effect=RuntimeError("down")), \
-                 patch("src.main.fetch_birthdays", return_value=[]):
-                data = fetch_live_data(Config(), tmpdir)
+            with patch("src.data_pipeline.fetch_events", return_value=[]), \
+                 patch("src.data_pipeline.fetch_weather", side_effect=RuntimeError("down")), \
+                 patch("src.data_pipeline.fetch_birthdays", return_value=[]):
+                data = DataPipeline(Config(), cache_dir=tmpdir).fetch()
 
         assert "weather" in data.stale_sources
         assert "events" not in data.stale_sources

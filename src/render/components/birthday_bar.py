@@ -3,8 +3,7 @@ from PIL import ImageDraw
 
 from src.data.models import Birthday
 from src.render import layout as L
-from src.render.fonts import semibold, medium, regular, bold
-from src.render.primitives import BLACK, WHITE, hline, vline, filled_rect, draw_text_truncated
+from src.render.primitives import hline, vline, filled_rect, draw_text_truncated
 from src.render.theme import ComponentRegion, ThemeStyle
 
 # Milestone ages rendered with extra emphasis

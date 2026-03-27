@@ -2,7 +2,6 @@
 
 from datetime import date, datetime, timedelta
 
-import pytest
 from PIL import Image
 
 from src.config import DisplayConfig
@@ -12,8 +11,6 @@ from src.data.models import (
 from src.render.canvas import render_dashboard
 from src.render.theme import (
     AVAILABLE_THEMES,
-    ComponentRegion,
-    ThemeLayout,
     load_theme,
 )
 from src.render.themes.fuzzyclock import fuzzyclock_theme

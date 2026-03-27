@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from src.render.fonts import cinzel_bold, cinzel_semibold, regular, medium, semibold
+from src.render.fonts import cinzel_bold, regular, medium, semibold
 from src.render.theme import ComponentRegion, Theme, ThemeLayout, ThemeStyle
 
 if TYPE_CHECKING:

@@ -2,7 +2,6 @@
 
 from datetime import datetime
 
-import pytest
 from PIL import Image, ImageDraw
 
 from src.render.components.fuzzyclock_panel import draw_fuzzyclock, fuzzy_time

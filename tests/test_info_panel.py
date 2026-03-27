@@ -103,7 +103,6 @@ class TestDrawInfo:
 
     def test_corrupt_quotes_json_falls_back_gracefully(self, tmp_path):
         """Corrupt quotes.json triggers except path (lines 62-63) in _quote_for_today."""
-        import json as _json
         corrupt = tmp_path / "quotes.json"
         corrupt.write_text("{bad json}")
         from src.render.components.info_panel import _quote_for_today

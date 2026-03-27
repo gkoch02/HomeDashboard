@@ -15,7 +15,7 @@ from src.render.components.qotd_panel import (
     draw_qotd_weather,
 )
 from src.render.fonts import bold as jakarta_bold
-from src.render.theme import ComponentRegion, ThemeStyle
+from src.render.theme import ComponentRegion
 
 
 def _make_draw(w: int = 800, h: int = 480):

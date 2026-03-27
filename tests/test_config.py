@@ -208,7 +208,6 @@ class TestLoadConfig:
 
     def test_cache_section_loaded(self, tmp_path):
         """load_config() parses the cache: section into CacheConfig (lines 169-170)."""
-        from src.config import CacheConfig
         p = tmp_path / "config.yaml"
         p.write_text(yaml.dump({
             "cache": {
@@ -230,7 +229,6 @@ class TestLoadConfig:
 
     def test_filters_section_loaded(self, tmp_path):
         """load_config() parses the filters: section into FilterConfig (lines 182-183)."""
-        from src.config import FilterConfig
         p = tmp_path / "config.yaml"
         p.write_text(yaml.dump({
             "filters": {

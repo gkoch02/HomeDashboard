@@ -3,8 +3,7 @@ from PIL import ImageDraw
 
 from src.data.models import StalenessLevel
 from src.render import layout as L
-from src.render.fonts import semibold, regular, bold
-from src.render.primitives import filled_rect, hline, BLACK, WHITE, text_height, text_width
+from src.render.primitives import filled_rect, hline, text_height, text_width
 from src.render.theme import ComponentRegion, ThemeStyle
 
 

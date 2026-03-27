@@ -2,10 +2,8 @@
 
 import json
 from datetime import date
-from pathlib import Path
 from unittest.mock import patch
 
-import pytest
 
 from src.render.random_theme import _EXCLUDED_FROM_POOL, eligible_themes, pick_random_theme
 from src.render.theme import AVAILABLE_THEMES
