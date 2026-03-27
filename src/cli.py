@@ -58,4 +58,10 @@ def parse_args(argv: list[str] | None = None):
     args = parser.parse_args(argv)
     if args.date is not None and not args.dry_run:
         parser.error("--date requires --dry-run")
+    if args.date is not None:
+        from datetime import date as _date
+        try:
+            _date.fromisoformat(args.date)
+        except ValueError:
+            parser.error(f"--date must be in YYYY-MM-DD format, got: {args.date!r}")
     return args

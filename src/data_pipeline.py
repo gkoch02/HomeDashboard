@@ -63,6 +63,12 @@ class DataPipeline:
         self.source_staleness: dict[str, StalenessLevel] = {}
 
     def fetch(self) -> DashboardData:
+        """Fetch all data sources and return a DashboardData snapshot.
+
+        Each DataPipeline instance is single-use: stale_sources and
+        source_staleness accumulate during this call and are baked into the
+        returned DashboardData. Do not call fetch() more than once per instance.
+        """
         events: list[CalendarEvent] = []
         weather: WeatherData | None = None
         birthdays: list[Birthday] = []
