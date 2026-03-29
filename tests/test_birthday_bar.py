@@ -110,6 +110,27 @@ class TestDrawBirthdays:
         # Simply verify both render differently
         assert img_today.tobytes() != img_future.tobytes()
 
+    def test_stale_birthdays_renders_glyph(self):
+        """STALE staleness draws the '!' badge without crashing."""
+        from src.data.models import StalenessLevel
+        from src.render.theme import ComponentRegion
+        today = date(2024, 3, 15)
+        birthdays = [Birthday(name="Alice", date=today + timedelta(days=3))]
+        img, draw = _make_draw()
+        draw_birthdays(
+            draw, birthdays, today,
+            region=ComponentRegion(300, 360, 250, 120),
+            staleness=StalenessLevel.STALE,
+        )
+        assert img.getbbox() is not None
+
+    def test_none_staleness_no_crash(self):
+        """staleness=None (default) must not crash."""
+        today = date(2024, 3, 15)
+        img, draw = _make_draw()
+        draw_birthdays(draw, [], today, staleness=None)
+        assert img.getbbox() is not None
+
     def test_early_break_when_layout_too_small(self):
         """The break fires when y + line_h exceeds available space (line 43).
 

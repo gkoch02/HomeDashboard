@@ -89,6 +89,54 @@ class TestFetchWeather:
         assert len(result.forecast) == 3
 
     @patch("src.fetchers.weather.requests.Session")
+    def test_location_name_captured_from_owm(self, mock_session_cls, cfg):
+        """location_name should be populated from current["name"] in OWM response."""
+        today = date.today()
+        current_resp = MagicMock()
+        current_resp.json.return_value = {**_mock_current_response(), "name": "New York"}
+        current_resp.raise_for_status = MagicMock()
+
+        forecast_resp = MagicMock()
+        forecast_resp.json.return_value = _mock_forecast_response(today)
+        forecast_resp.raise_for_status = MagicMock()
+
+        alerts_resp = MagicMock()
+        alerts_resp.json.return_value = {}
+        alerts_resp.raise_for_status = MagicMock()
+
+        session = MagicMock()
+        session.get.side_effect = [current_resp, forecast_resp, alerts_resp]
+        mock_session_cls.return_value.__enter__ = MagicMock(return_value=session)
+        mock_session_cls.return_value.__exit__ = MagicMock(return_value=False)
+
+        result = fetch_weather(cfg)
+        assert result.location_name == "New York"
+
+    @patch("src.fetchers.weather.requests.Session")
+    def test_location_name_none_when_absent(self, mock_session_cls, cfg):
+        """location_name should be None when OWM response has no 'name' key."""
+        today = date.today()
+        current_resp = MagicMock()
+        current_resp.json.return_value = _mock_current_response()  # no "name" key
+        current_resp.raise_for_status = MagicMock()
+
+        forecast_resp = MagicMock()
+        forecast_resp.json.return_value = _mock_forecast_response(today)
+        forecast_resp.raise_for_status = MagicMock()
+
+        alerts_resp = MagicMock()
+        alerts_resp.json.return_value = {}
+        alerts_resp.raise_for_status = MagicMock()
+
+        session = MagicMock()
+        session.get.side_effect = [current_resp, forecast_resp, alerts_resp]
+        mock_session_cls.return_value.__enter__ = MagicMock(return_value=session)
+        mock_session_cls.return_value.__exit__ = MagicMock(return_value=False)
+
+        result = fetch_weather(cfg)
+        assert result.location_name is None
+
+    @patch("src.fetchers.weather.requests.Session")
     def test_forecast_excludes_today(self, mock_session_cls, cfg):
         from datetime import timezone
         today = date.today()

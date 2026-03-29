@@ -267,6 +267,72 @@ class TestEnhancedWeatherRendering:
         assert img.getbbox() is not None
 
 
+class TestLocationName:
+    def test_location_name_in_label_renders(self):
+        """location_name should be appended to the WEATHER label without crashing."""
+        weather = _make_weather(location_name="San Francisco")
+        img, draw = _make_draw()
+        draw_weather(draw, weather)
+        assert img.getbbox() is not None
+
+    def test_location_name_none_no_crash(self):
+        """location_name=None (default) should render identically to before."""
+        weather = _make_weather(location_name=None)
+        img, draw = _make_draw()
+        draw_weather(draw, weather)
+        assert img.getbbox() is not None
+
+    def test_very_long_location_name_truncated_gracefully(self):
+        """A very long location name that doesn't fit should be silently omitted."""
+        weather = _make_weather(location_name="A" * 100)
+        img, draw = _make_draw()
+        draw_weather(draw, weather)
+        assert img.getbbox() is not None
+
+
+class TestStalenessGlyph:
+    def test_stale_weather_renders_glyph(self):
+        """STALE staleness should draw the '!' badge without crashing."""
+        from src.data.models import StalenessLevel
+        from src.render.theme import ComponentRegion
+        weather = _make_weather()
+        img, draw = _make_draw()
+        draw_weather(
+            draw, weather,
+            region=ComponentRegion(0, 0, 300, 120),
+            staleness=StalenessLevel.STALE,
+        )
+        assert img.getbbox() is not None
+
+    def test_expired_weather_renders_glyph(self):
+        """EXPIRED staleness should also draw the badge."""
+        from src.data.models import StalenessLevel
+        from src.render.theme import ComponentRegion
+        weather = _make_weather()
+        img, draw = _make_draw()
+        draw_weather(
+            draw, weather,
+            region=ComponentRegion(0, 0, 300, 120),
+            staleness=StalenessLevel.EXPIRED,
+        )
+        assert img.getbbox() is not None
+
+    def test_fresh_weather_no_glyph_no_crash(self):
+        """FRESH staleness should not draw a badge and must not crash."""
+        from src.data.models import StalenessLevel
+        weather = _make_weather()
+        img, draw = _make_draw()
+        draw_weather(draw, weather, staleness=StalenessLevel.FRESH)
+        assert img.getbbox() is not None
+
+    def test_none_staleness_no_crash(self):
+        """staleness=None (default) must not crash."""
+        weather = _make_weather()
+        img, draw = _make_draw()
+        draw_weather(draw, weather, staleness=None)
+        assert img.getbbox() is not None
+
+
 class TestFmtTime:
     def test_formats_am_time(self):
         dt = datetime(2024, 3, 15, 6, 24, tzinfo=timezone.utc)

@@ -5,7 +5,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 from src.render.primitives import (
     BLACK, WHITE,
-    draw_text_truncated, draw_text_wrapped,
+    draw_staleness_glyph, draw_text_truncated, draw_text_wrapped,
     filled_rect, hline, inverted_text,
     text_height, text_width, vline,
 )
@@ -145,6 +145,33 @@ class TestDrawingPrimitives:
         filled_rect(draw, (0, 0, 50, 50), fill=BLACK)
         filled_rect(draw, (10, 10, 20, 20), fill=WHITE)
         assert img.getpixel((15, 15)) == WHITE
+
+
+class TestDrawStalenessGlyph:
+    def test_glyph_draws_pixels_in_bottom_right(self, canvas):
+        """draw_staleness_glyph should draw a filled rectangle near the bottom-right."""
+        img, draw = canvas
+        from unittest.mock import MagicMock
+        region = MagicMock()
+        region.x, region.y, region.w, region.h = 0, 0, 200, 100
+        style = MagicMock()
+        style.fg = BLACK
+        style.bg = WHITE
+        draw_staleness_glyph(draw, region, style)
+        # The badge occupies the bottom-right corner — at least one black pixel there
+        assert img.getpixel((200 - 4, 100 - 4)) == BLACK
+
+    def test_glyph_no_crash_on_small_region(self):
+        """Should not raise even when the region is very small."""
+        img = Image.new("1", (30, 20), WHITE)
+        draw = ImageDraw.Draw(img)
+        from unittest.mock import MagicMock
+        region = MagicMock()
+        region.x, region.y, region.w, region.h = 0, 0, 30, 20
+        style = MagicMock()
+        style.fg = BLACK
+        style.bg = WHITE
+        draw_staleness_glyph(draw, region, style)  # must not raise
 
 
 class TestInvertedText:

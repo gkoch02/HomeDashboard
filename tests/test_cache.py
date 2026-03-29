@@ -126,6 +126,45 @@ class TestCacheRoundtrip:
         assert w.sunset is None
         assert w.forecast[0].precip_chance is None
 
+    def test_location_name_round_trips(self):
+        """location_name is serialised and deserialised correctly."""
+        weather = WeatherData(
+            current_temp=55.0, current_icon="01d", current_description="clear",
+            high=60.0, low=45.0, humidity=50,
+            location_name="San Francisco",
+        )
+        with tempfile.TemporaryDirectory() as tmpdir:
+            save_source("weather", weather, datetime(2024, 3, 15, 8, 0), tmpdir)
+            result = load_cached_source("weather", tmpdir)
+
+        assert result is not None
+        w, _ = result
+        assert w.location_name == "San Francisco"
+
+    def test_location_name_none_when_absent_in_old_cache(self):
+        """Old cache files without location_name deserialise safely as None."""
+        import json
+        raw_cache = {
+            "schema_version": 2,
+            "weather": {
+                "fetched_at": "2024-03-15T08:00:00",
+                "data": {
+                    "current_temp": 42.0, "current_icon": "01d",
+                    "current_description": "clear", "high": 50.0, "low": 35.0,
+                    "humidity": 60, "forecast": [], "alerts": [],
+                    # deliberately omit "location_name"
+                },
+            },
+        }
+        with tempfile.TemporaryDirectory() as tmpdir:
+            cache_path = Path(tmpdir) / "dashboard_cache.json"
+            cache_path.write_text(json.dumps(raw_cache))
+            result = load_cached_source("weather", tmpdir)
+
+        assert result is not None
+        w, _ = result
+        assert w.location_name is None
+
     def test_load_returns_none_when_missing(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             result = load_cached(tmpdir)
