@@ -12,6 +12,8 @@ display.
 
 - **First install on a Raspberry Pi:** start with [Quick Start](#quick-start), then finish
   [Google Calendar Setup](#google-calendar-setup) if you use calendar/birthdays.
+- **Want calendar without a GCP project?** Use [ICS Feed (No GCP Required)](#ics-feed-no-gcp-required)
+  — just paste one URL from Google Calendar settings, no credentials file needed.
 - **Upgrading from an older release:** go to [Upgrading from v3](#upgrading-from-v3).
 - **Local dev / preview only:** jump to [Development](#development) and run `make setup`
   + `make dry` (no hardware required).
@@ -20,6 +22,7 @@ display.
 
 - [Quick Start](#quick-start)
 - [Google Calendar Setup](#google-calendar-setup)
+- [ICS Feed (No GCP Required)](#ics-feed-no-gcp-required)
 - [Raspberry Pi Reference](#raspberry-pi-reference)
 - [Themes](#themes)
 - [Advanced Configuration](#advanced-configuration)
@@ -416,6 +419,7 @@ Your existing config is fully compatible. These are opt-in additions:
 | Feature | How to enable |
 |---|---|
 | **PurpleAir air quality** | Add `purpleair.api_key` and `purpleair.sensor_id` to `config.yaml`; an AQI card (EPA index from 60-minute PM2.5 average) appears in the `weather` theme metric row, and a PM1 · PM2.5 · PM10 µg/m³ breakdown appears in the detail strip |
+| **ICS feed calendar (no GCP)** | Set `google.ical_url` to your calendar's "Secret address in iCal format" URL — no service account or GCP project needed; supports multiple calendars via `additional_ical_urls` |
 
 ### What's new in v4
 
@@ -484,6 +488,64 @@ google:
     - "family@group.calendar.google.com"
     - "work@group.calendar.google.com"
 ```
+
+---
+
+## ICS Feed (No GCP Required)
+
+If the service account setup above feels like too much friction, you can use Google
+Calendar's built-in ICS export instead. No GCP project, no credentials file, no OAuth —
+just a URL.
+
+### Trade-offs vs service account
+
+| | ICS feed | Service account |
+|---|---|---|
+| GCP project required | No | Yes |
+| Credentials file | None | `service_account.json` |
+| Setup time | ~1 minute | ~10 minutes |
+| Incremental sync | No (full fetch every time) | Yes (only changed events) |
+| Multiple calendars | Yes (one URL each) | Yes |
+| Contacts birthdays | Not available | Available |
+
+The ICS path always fetches the full feed (~50–200 KB). At the default 2-hour event
+fetch interval this is negligible. Google does not rate-limit ICS fetches aggressively.
+
+### Step 1 — Get the ICS URL
+
+1. Open [Google Calendar](https://calendar.google.com) in a browser
+2. Click the three-dot menu next to your calendar > **Settings and sharing**
+3. Scroll to **Integrate calendar**
+4. Copy the **Secret address in iCal format** (not the public URL)
+
+> **Keep this URL private.** Anyone with it can read your calendar. It is safe to store
+> in `config/config.yaml` on your Pi since that file is git-ignored.
+
+### Step 2 — Add to config.yaml
+
+```yaml
+google:
+  ical_url: "https://calendar.google.com/calendar/ical/.../.../basic.ics"
+```
+
+That's it. Remove or leave `service_account_path` in place — it is ignored when
+`ical_url` is set.
+
+### Multiple calendars
+
+```yaml
+google:
+  ical_url: "https://calendar.google.com/calendar/ical/.../basic.ics"
+  additional_ical_urls:
+    - "https://calendar.google.com/calendar/ical/.../basic.ics"
+    - "https://calendar.google.com/calendar/ical/.../basic.ics"
+```
+
+### Birthdays
+
+Contacts-based birthdays (`birthdays.source: contacts`) require the People API and are
+not available via ICS. Use `birthdays.source: file` or `birthdays.source: calendar`
+(birthday events in your calendar will appear in the ICS feed automatically).
 
 ---
 
@@ -676,6 +738,11 @@ google:
   # contacts_email: "you@yourdomain.com"  # required for birthdays.source: "contacts"
   daily_quota_warning: 500         # log warning when daily API calls exceed this
 
+  # ICS feed alternative — when set, service_account_path is ignored for events.
+  # Get the URL: Google Calendar → Settings → [calendar] → "Secret address in iCal format"
+  # ical_url: "https://calendar.google.com/calendar/ical/.../.../basic.ics"
+  # additional_ical_urls: []
+
 weather:
   api_key: ""
   latitude: 0.0
@@ -784,6 +851,9 @@ refresh is skipped entirely. This extends display lifespan and saves power.
 After the first full sync, subsequent fetches download only changed events using Google
 Calendar sync tokens. This dramatically reduces API quota usage. Sync state is persisted
 to `output/calendar_sync_state.json`.
+
+This applies to the **service account path only**. When using `ical_url`, the full feed
+is re-fetched on every calendar refresh (no sync tokens — ICS has no equivalent mechanism).
 
 ---
 
@@ -979,7 +1049,8 @@ Custom fonts can be added per-theme via `ThemeStyle` font callables -- see
 - [Pillow](https://pillow.readthedocs.io/) -- image rendering
 - [google-api-python-client](https://googleapis.github.io/google-api-python-client/) -- Google Calendar and Contacts APIs
 - [google-auth](https://google-auth.readthedocs.io/) -- service account authentication
-- [requests](https://requests.readthedocs.io/) -- OpenWeatherMap API
+- [requests](https://requests.readthedocs.io/) -- OpenWeatherMap API and ICS feed fetching
+- [icalendar](https://icalendar.readthedocs.io/) -- ICS feed parsing (used when `ical_url` is set)
 - [PyYAML](https://pyyaml.org/) -- configuration parsing
 
 ### Raspberry Pi only

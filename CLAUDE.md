@@ -28,7 +28,8 @@ flake8 src/ tests/ --max-line-length=100   # Lint
 - **Python 3.9+** — no async, no web framework
 - **Pillow** — image rendering (PIL)
 - **google-api-python-client / google-auth** — Google Calendar & Contacts APIs
-- **requests** — OpenWeatherMap API
+- **requests** — OpenWeatherMap API + ICS feed fetching
+- **icalendar** — ICS feed parsing (used when `google.ical_url` is configured)
 - **PyYAML** — config parsing
 - **pytest** — testing (with unittest.mock)
 - **flake8** — linting (max line length: 100)
@@ -54,7 +55,7 @@ src/
 │   ├── driver.py              # DisplayDriver ABC → DryRunDisplay, WaveshareDisplay; image_changed()
 │   └── refresh_tracker.py     # Partial vs full refresh state machine
 ├── fetchers/
-│   ├── calendar.py            # Google Calendar API + incremental sync + birthdays
+│   ├── calendar.py            # Google Calendar API + ICS feed + incremental sync + birthdays
 │   ├── weather.py             # OpenWeatherMap (current + forecast + alerts)
 │   ├── purpleair.py           # PurpleAir sensor → PM1 / PM2.5 / PM10 / AQI + ambient readings
 │   ├── host.py                # System metrics via /proc: uptime, load, RAM, disk, CPU temp, IP
@@ -206,3 +207,9 @@ default to `None` and fall back gracefully so adding a new field never breaks ex
 - `diags` theme is a utility/diagnostic view and is permanently excluded from the `random` rotation pool via `_EXCLUDED_FROM_POOL` in `random_theme.py`; it cannot be added via `random_theme.include` — use `theme: diags` directly instead
 - `retry_fetch()` in `data_pipeline.py` retries only likely transient failures and does not retry likely permanent config/data errors (`RuntimeError`, `ValueError`, `TypeError`, `KeyError`)
 - `gpiozero` pin factory is set to `lgpio` for Pi hardware runtime (required for modern Pi OS)
+- **ICS feed**: when `google.ical_url` is set, `fetch_events()` dispatches to `_fetch_from_ical()` instead of the Google API path — `service_account_path` is ignored for event fetching; the Google API path (including incremental sync) is completely bypassed
+- ICS feeds have no sync token mechanism — the full feed is always re-downloaded and re-parsed on every calendar fetch; at the default 2-hour `events_fetch_interval` this is negligible
+- `_fetch_from_ical()` uses `requests.get(..., timeout=30)` and the `icalendar` library; HTTP errors or parse errors are caught, logged as warnings, and return `[]` (graceful degradation)
+- ICS calendar name is taken from the `X-WR-CALNAME` property of the VCALENDAR component; falls back to the URL hostname if absent
+- ICS tz-aware `DTSTART` datetimes are converted to naive local wall-clock time (same pattern as `_parse_event()` in the Google API path) so rendering code sees identical `CalendarEvent` objects regardless of source
+- `validate_config()` skips the service-account-file-missing warning and the `calendar_id == "primary"` warning when `ical_url` is set; emits a `ConfigError` if the URL doesn't start with `http://` or `https://`; emits a `ConfigWarning` if both `ical_url` and a real `service_account.json` are present (informational only — `ical_url` wins)
