@@ -154,6 +154,15 @@ def _draw_hero(draw, weather, x0, y0, W, H, style):
     hilo_y = min(hilo_y, max_hilo_y)
     draw.text((hilo_x, hilo_y), hilo_str, font=hilo_font, fill=fg)
 
+    # Location name (small, centred below hi/lo) — only when it fits
+    if weather.location_name:
+        loc_font = style.font_regular(11)
+        loc_w = text_width(draw, weather.location_name, loc_font)
+        loc_x = cx - loc_w // 2
+        loc_y = hilo_y + text_height(hilo_font) + 2
+        if loc_y + text_height(loc_font) <= y0 + H:
+            draw.text((loc_x, loc_y), weather.location_name, font=loc_font, fill=fg)
+
 
 def _draw_metric_cards(draw, weather, x0, y0, W, H, style, *, air_quality=None):
     """Four evenly-spaced rounded-rect metric cards."""

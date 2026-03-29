@@ -61,6 +61,8 @@ def fetch_weather(cfg: WeatherConfig, tz: tzinfo | None = None) -> WeatherData:
     if "main" not in current:
         raise RuntimeError("OWM response missing 'main' object")
 
+    location_name = current.get("name") or None
+
     return WeatherData(
         current_temp=current["main"]["temp"],
         current_icon=current["weather"][0]["icon"],
@@ -81,6 +83,7 @@ def fetch_weather(cfg: WeatherConfig, tz: tzinfo | None = None) -> WeatherData:
         uv_index=uv_index,
         sunrise=sunrise,
         sunset=sunset,
+        location_name=location_name,
     )
 
 

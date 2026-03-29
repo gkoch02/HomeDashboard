@@ -55,6 +55,7 @@ class WeatherData:
     uv_index: Optional[float] = None      # UV index (0-11+)
     sunrise: Optional[datetime] = None
     sunset: Optional[datetime] = None
+    location_name: Optional[str] = None  # City name from OWM (e.g. "New York")
 
 
 @dataclass

@@ -64,11 +64,13 @@ def render_dashboard(
             air_quality=data.air_quality,
             region=layout.weather,
             style=style,
+            staleness=data.source_staleness.get("weather"),
         ),
         "birthdays": lambda: birthday_bar.draw_birthdays(
             draw, data.birthdays, today,
             region=layout.birthdays,
             style=style,
+            staleness=data.source_staleness.get("birthdays"),
         ),
         "info": lambda: info_panel.draw_info(
             draw, today,

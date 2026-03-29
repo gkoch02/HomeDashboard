@@ -2,11 +2,11 @@ from datetime import date
 
 from PIL import ImageDraw
 
-from src.data.models import AirQualityData, WeatherData
+from src.data.models import AirQualityData, StalenessLevel, WeatherData
 from src.render import layout as L
 from src.render.fonts import weather_icon as weather_icon_font
 from src.render.primitives import (
-    draw_text_truncated, filled_rect, hline, text_width, vline,
+    draw_staleness_glyph, draw_text_truncated, filled_rect, hline, text_width, vline,
     fmt_time as _fmt_time, deg_to_compass,
 )
 from src.render.icons import draw_weather_icon
@@ -22,6 +22,7 @@ def draw_weather(
     air_quality: AirQualityData | None = None,
     region: ComponentRegion | None = None,
     style: ThemeStyle | None = None,
+    staleness: StalenessLevel | None = None,
 ):
     if region is None:
         region = ComponentRegion(L.WEATHER_X, L.WEATHER_Y, L.WEATHER_W, L.WEATHER_H)
@@ -45,6 +46,15 @@ def draw_weather(
     # Section label + moon phase icon
     label_font = style.label_font()
     weather_label = style.component_labels.get("weather", "WEATHER")
+
+    # Append city name when it fits between the label and the moon glyph.
+    # Reserve ~26px on the right for the moon glyph + padding.
+    if weather is not None and weather.location_name:
+        max_label_w = w - pad * 2 - 26
+        candidate = f"{weather_label} · {weather.location_name}"
+        if text_width(draw, candidate, label_font) <= max_label_w:
+            weather_label = candidate
+
     draw.text((x0 + pad, y0 + pad), weather_label, font=label_font, fill=style.fg)
 
     if today is not None:
@@ -213,6 +223,9 @@ def draw_weather(
         # Column separators
         if i < n_cols - 1 and style.show_borders:
             vline(draw, cx + col_w, forecast_top, y0 + h, fill=style.fg)
+
+    if staleness in (StalenessLevel.STALE, StalenessLevel.EXPIRED):
+        draw_staleness_glyph(draw, region, style)
 
 
 _GLYPH_AQI = "\uf062"  # wi-smoke (same glyph used by weather_full AQI card)

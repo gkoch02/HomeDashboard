@@ -43,7 +43,7 @@ src/
 ├── cli.py                     # CLI argument parser (build_parser / parse_args)
 ├── data_pipeline.py           # DataPipeline — concurrent fetching, caching, circuit breaking per source
 ├── services_run_policy.py     # resolve_tz, should_skip_refresh, should_force_full_refresh
-├── services_theme_service.py  # resolve_theme_name (random → concrete), resolve_theme
+├── services_theme_service.py  # resolve_theme_name (schedule → random → concrete), resolve_theme
 ├── services_output_service.py # OutputService — publish image to display or PNG; write last_success.txt
 ├── _version.py                # Single source of truth: __version__ = "4.1.0"
 ├── config.py                  # YAML → typed dataclasses; validate_config()
@@ -99,6 +99,8 @@ Fetchers, caching, circuit breaking, and staleness are all per-source (calendar,
 Three-layer design: **ComponentRegion** (bounding box) → **ThemeLayout** (canvas + regions + draw order) → **ThemeStyle** (colors, fonts, spacing). Components receive region + style and draw only within bounds. Themes are frozen dataclasses.
 
 Setting `theme: random` activates daily rotation: `random_theme.py` picks one theme from the eligible pool on the first run after midnight, persists it to `output/random_theme_state.json`, and reuses it for the rest of the day. The concrete theme name is resolved in `services_theme_service.py` before `load_theme()` is called — `load_theme()` itself never receives `"random"`.
+
+`theme_schedule` is a higher-priority override: `resolve_theme_name()` checks the schedule entries (sorted by HH:MM) before consulting `cfg.theme` or the random pool. The active entry is the last one whose time ≤ current local time. When no entry matches, control falls through to `cfg.theme` / random as normal. CLI `--theme` always wins over the schedule.
 
 ### Data flow
 `main.py` (thin): parse args → load config → validate config → `DashboardApp.run()`.
@@ -213,3 +215,6 @@ default to `None` and fall back gracefully so adding a new field never breaks ex
 - ICS calendar name is taken from the `X-WR-CALNAME` property of the VCALENDAR component; falls back to the URL hostname if absent
 - ICS tz-aware `DTSTART` datetimes are converted to naive local wall-clock time (same pattern as `_parse_event()` in the Google API path) so rendering code sees identical `CalendarEvent` objects regardless of source
 - `validate_config()` skips the service-account-file-missing warning and the `calendar_id == "primary"` warning when `ical_url` is set; emits a `ConfigError` if the URL doesn't start with `http://` or `https://`; emits a `ConfigWarning` if both `ical_url` and a real `service_account.json` are present (informational only — `ical_url` wins)
+- `theme_schedule` priority chain: CLI `--theme` > `theme_schedule` entries > `cfg.theme` / random. `_resolve_scheduled_theme()` sorts entries by HH:MM string and returns the last one whose time ≤ current local time; returns `None` when no entry has fired yet (e.g. all entries start after midnight and it's 3 AM), at which point normal `cfg.theme` / random logic applies. `validate_config()` validates each entry's time format and theme name.
+- `WeatherData.location_name` is populated from `current["name"]` in the OWM `/weather` response (always present when the API returns successfully); it is `None` when absent or empty. Old cache entries without this field deserialize safely as `None` via `.get()`.
+- Per-panel staleness glyphs: `draw_staleness_glyph()` in `primitives.py` draws a 12×14px inverted `!` badge in the bottom-right corner of a component region. `weather_panel.py` and `birthday_bar.py` accept an optional `staleness: StalenessLevel | None` kwarg and call the helper when staleness is `STALE` or `EXPIRED`; `canvas.py` passes `data.source_staleness.get("weather"/"birthdays")`. `info_panel` has no live data source and therefore no staleness glyph.

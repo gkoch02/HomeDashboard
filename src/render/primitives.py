@@ -197,6 +197,24 @@ def events_for_day(events: list, day: date) -> list:
     return result
 
 
+def draw_staleness_glyph(draw: ImageDraw.ImageDraw, region, style) -> None:
+    """Draw a small inverted '!' badge in the bottom-right corner of *region*.
+
+    Call only after confirming the source staleness is STALE or EXPIRED.
+    The badge is a 12×14px filled rectangle with a white '!' centred inside.
+    """
+    from src.render import fonts as _fonts
+    glyph_w, glyph_h = 12, 14
+    gx = region.x + region.w - glyph_w - 3
+    gy = region.y + region.h - glyph_h - 3
+    filled_rect(draw, (gx, gy, gx + glyph_w - 1, gy + glyph_h - 1), fill=style.fg)
+    warn_font = _fonts.bold(9)
+    bbox = draw.textbbox((0, 0), "!", font=warn_font)
+    tx = gx + (glyph_w - (bbox[2] - bbox[0])) // 2 - bbox[0]
+    ty = gy + (glyph_h - (bbox[3] - bbox[1])) // 2 - bbox[1]
+    draw.text((tx, ty), "!", font=warn_font, fill=style.bg)
+
+
 def deg_to_compass(deg: float) -> str:
     """Convert wind direction in degrees to a compass abbreviation.
 

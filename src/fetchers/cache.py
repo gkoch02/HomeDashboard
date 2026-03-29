@@ -249,6 +249,7 @@ def _ser_weather(w: WeatherData) -> dict:
         "uv_index": w.uv_index,
         "sunrise": w.sunrise.isoformat() if w.sunrise else None,
         "sunset": w.sunset.isoformat() if w.sunset else None,
+        "location_name": w.location_name,
         "forecast": [
             {
                 "date": f.date.isoformat(),
@@ -352,6 +353,7 @@ def _deser_weather(w: dict) -> WeatherData:
             for f in w.get("forecast", [])
         ],
         alerts=[WeatherAlert(event=a["event"]) for a in w.get("alerts", [])],
+        location_name=w.get("location_name"),
     )
 
 

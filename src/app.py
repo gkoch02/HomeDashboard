@@ -48,9 +48,9 @@ class DashboardApp:
         data = self._apply_filters(data)
 
         configured_theme = self.args.theme if self.args.theme is not None else self.cfg.theme
-        theme_name = resolve_theme_name(self.cfg, self.args.theme)
+        theme_name = resolve_theme_name(self.cfg, self.args.theme, now=now)
         if theme_name != configured_theme:
-            logger.info("Random theme resolved to: %s", theme_name)
+            logger.info("Theme resolved to: %s", theme_name)
         theme = load_theme(theme_name)
 
         logger.info("Rendering dashboard")

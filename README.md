@@ -146,6 +146,33 @@ random_theme:
 - If the pool is empty after filtering, the dashboard falls back to `"default"`.
 - Run `make check` to catch invalid theme names in either list.
 
+### Time-of-day theme schedule
+
+Automatically switch themes at specific times of day without any manual intervention:
+
+```yaml
+theme_schedule:
+  - time: "06:00"
+    theme: "default"
+  - time: "20:00"
+    theme: "minimalist"
+  - time: "22:00"
+    theme: "fuzzyclock_invert"
+```
+
+The active theme is determined by the last entry whose `time` (HH:MM, 24-hour) is ≤ the
+current local time. Before the first entry fires — e.g. at 4 AM when the first entry is
+`06:00` — the normal `theme:` / `random` logic applies.
+
+**Priority order (highest → lowest):**
+1. `--theme` CLI flag — always wins; schedule is never consulted.
+2. `theme_schedule` — the matching time window.
+3. `theme:` in `config.yaml` (may be `random`).
+
+The schedule works alongside `random`: if no schedule entry matches, the dashboard falls
+through to `theme: random` as usual. `make check` validates all time strings and theme names
+in the schedule.
+
 ### Built-in themes
 
 #### default
@@ -770,6 +797,12 @@ theme: "default"                   # default | terminal | minimalist | old_fashi
 random_theme:                      # only used when theme: random
   include: []                      # allowlist (empty = all themes eligible)
   exclude: []                      # denylist (e.g. ["fantasy", "qotd"])
+
+# theme_schedule:                  # time-of-day theme switching (checked before random/config.theme)
+#   - time: "06:00"                # HH:MM, 24-hour; active theme = last entry whose time <= now
+#     theme: "default"
+#   - time: "22:00"
+#     theme: "fuzzyclock_invert"
 
 cache:
   weather_ttl_minutes: 60          # data older than 4x TTL is discarded

@@ -271,3 +271,26 @@ class TestLoadConfig:
         assert cfg.theme == "random"
         assert cfg.random_theme.include == ["minimalist", "today"]
         assert cfg.random_theme.exclude == ["terminal"]
+
+    def test_theme_schedule_section_parsed(self, tmp_path):
+        """load_config() parses theme_schedule entries into ThemeScheduleConfig."""
+        p = tmp_path / "config.yaml"
+        p.write_text(yaml.dump({
+            "theme_schedule": [
+                {"time": "06:00", "theme": "default"},
+                {"time": "22:00", "theme": "fuzzyclock_invert"},
+            ],
+        }))
+        cfg = load_config(str(p))
+        assert len(cfg.theme_schedule.entries) == 2
+        assert cfg.theme_schedule.entries[0].time == "06:00"
+        assert cfg.theme_schedule.entries[0].theme == "default"
+        assert cfg.theme_schedule.entries[1].time == "22:00"
+        assert cfg.theme_schedule.entries[1].theme == "fuzzyclock_invert"
+
+    def test_theme_schedule_defaults_to_empty(self, tmp_path):
+        """theme_schedule is empty by default when absent from YAML."""
+        p = tmp_path / "config.yaml"
+        p.write_text(yaml.dump({"weather": {"api_key": "x"}}))
+        cfg = load_config(str(p))
+        assert cfg.theme_schedule.entries == []

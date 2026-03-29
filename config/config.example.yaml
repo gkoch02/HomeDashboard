@@ -105,3 +105,16 @@ logging:
 #   include: []  # Allowlist: only rotate among these themes (empty = all themes)
 #   exclude: []  # Denylist: never use these themes
 #                # Example: exclude: ["fantasy", "qotd"]
+
+# Time-of-day theme schedule — automatically switches themes at configured times.
+# Checked before random/explicit theme logic. Ignored when --theme is passed via CLI.
+# Each entry maps a start time (HH:MM, 24-hour) to a concrete theme name.
+# The active theme is the last entry whose time is <= the current local time.
+# When no entry applies (all start after the current time), normal theme/random logic runs.
+# theme_schedule:
+#   - time: "06:00"
+#     theme: "default"
+#   - time: "20:00"
+#     theme: "minimalist"
+#   - time: "22:00"
+#     theme: "fuzzyclock_invert"

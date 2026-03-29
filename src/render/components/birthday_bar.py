@@ -1,9 +1,9 @@
 from datetime import date
 from PIL import ImageDraw
 
-from src.data.models import Birthday
+from src.data.models import Birthday, StalenessLevel
 from src.render import layout as L
-from src.render.primitives import hline, vline, filled_rect, draw_text_truncated
+from src.render.primitives import draw_staleness_glyph, hline, vline, filled_rect, draw_text_truncated
 from src.render.theme import ComponentRegion, ThemeStyle
 
 # Milestone ages rendered with extra emphasis
@@ -17,6 +17,7 @@ def draw_birthdays(
     *,
     region: ComponentRegion | None = None,
     style: ThemeStyle | None = None,
+    staleness: StalenessLevel | None = None,
 ):
     if region is None:
         region = ComponentRegion(L.BIRTHDAY_X, L.BIRTHDAY_Y, L.BIRTHDAY_W, L.BIRTHDAY_H)
@@ -115,3 +116,6 @@ def draw_birthdays(
                 (x0 + pad + 12, y), f"+{overflow} more upcoming",
                 font=overflow_font, fill=style.fg,
             )
+
+    if staleness in (StalenessLevel.STALE, StalenessLevel.EXPIRED):
+        draw_staleness_glyph(draw, region, style)

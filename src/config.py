@@ -101,6 +101,25 @@ class RandomThemeConfig:
 
 
 @dataclass
+class ThemeScheduleEntry:
+    """A single time → theme mapping for the time-of-day theme schedule."""
+    time: str   # "HH:MM" in 24-hour format
+    theme: str  # concrete theme name (not "random")
+
+
+@dataclass
+class ThemeScheduleConfig:
+    """Time-of-day theme schedule — switches themes at configured times.
+
+    Entries are sorted by time. The active theme is the last entry whose
+    ``time`` is <= the current local time. When no entry applies (e.g. all
+    entries start after the current time), returns None and the normal
+    theme/random logic applies. Ignored when ``--theme`` is passed via CLI.
+    """
+    entries: list[ThemeScheduleEntry] = field(default_factory=list)
+
+
+@dataclass
 class Config:
     google: GoogleConfig = field(default_factory=GoogleConfig)
     weather: WeatherConfig = field(default_factory=WeatherConfig)
@@ -111,6 +130,7 @@ class Config:
     filters: FilterConfig = field(default_factory=FilterConfig)
     cache: CacheConfig = field(default_factory=CacheConfig)
     random_theme: RandomThemeConfig = field(default_factory=RandomThemeConfig)
+    theme_schedule: ThemeScheduleConfig = field(default_factory=ThemeScheduleConfig)
     title: str = "Home Dashboard"
     theme: str = "default"
     output_dir: str = "output"
@@ -237,6 +257,17 @@ def load_config(path: str = "config/config.yaml") -> Config:
             include=rt.get("include", []),
             exclude=rt.get("exclude", []),
         )
+
+    if "theme_schedule" in raw:
+        raw_entries = raw["theme_schedule"]
+        entries = []
+        if isinstance(raw_entries, list):
+            for item in raw_entries:
+                entries.append(ThemeScheduleEntry(
+                    time=str(item.get("time", "")),
+                    theme=str(item.get("theme", "")),
+                ))
+        cfg.theme_schedule = ThemeScheduleConfig(entries=entries)
 
     if "output" in raw:
         cfg.output_dir = raw["output"].get("dry_run_dir", "output")
@@ -392,6 +423,29 @@ def validate_config(
                 field="random_theme",
                 message="Random theme pool is empty — all themes have been excluded.",
                 hint="Check your include/exclude lists; the dashboard will fall back to 'default'.",
+            ))
+
+    # --- Theme schedule ---
+    real_themes = AVAILABLE_THEMES - {"random"}
+    for i, entry in enumerate(cfg.theme_schedule.entries):
+        try:
+            parts = entry.time.split(":")
+            if len(parts) != 2:
+                raise ValueError
+            h, m = int(parts[0]), int(parts[1])
+            if not (0 <= h <= 23 and 0 <= m <= 59):
+                raise ValueError
+        except (ValueError, AttributeError):
+            errors.append(ConfigError(
+                field=f"theme_schedule[{i}].time",
+                message=f"Invalid time '{entry.time}' — must be HH:MM (24-hour)",
+                hint="Example: '22:00' for 10 PM",
+            ))
+        if entry.theme not in real_themes:
+            warnings.append(ConfigWarning(
+                field=f"theme_schedule[{i}].theme",
+                message=f"Unknown theme '{entry.theme}' in schedule",
+                hint=f"Available themes: {', '.join(sorted(real_themes))}",
             ))
 
     # --- Display model ---
