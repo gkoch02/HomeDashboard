@@ -51,7 +51,7 @@ class DisplayConfig:
     model: str = "epd7in5_V2"
     width: int = 800
     height: int = 480
-    enable_partial_refresh: bool = False
+    enable_partial_refresh: bool = True
     max_partials_before_full: int = 6
     week_days: int = 7
     show_weather: bool = True

@@ -38,7 +38,7 @@ class TestDefaults:
         assert d.model == "epd7in5_V2"
         assert d.width == 800
         assert d.height == 480
-        assert d.enable_partial_refresh is False
+        assert d.enable_partial_refresh is True
         assert d.max_partials_before_full == 6
         assert d.week_days == 7
         assert d.show_weather is True

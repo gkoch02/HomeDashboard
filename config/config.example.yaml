@@ -6,7 +6,7 @@ display:
   # width/height are derived automatically from `model`. Override here only if needed.
   # width: 800
   # height: 480
-  enable_partial_refresh: false
+  enable_partial_refresh: true
   max_partials_before_full: 6
   week_days: 7
   show_weather: true
