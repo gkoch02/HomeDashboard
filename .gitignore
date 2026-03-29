@@ -22,3 +22,5 @@ credentials/
 dist/
 build/
 .DS_Store
+.coverage
+htmlcov/
