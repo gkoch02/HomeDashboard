@@ -17,6 +17,11 @@ class GoogleConfig:
     # Required when birthdays.source is "contacts".
     contacts_email: str = ""
     daily_quota_warning: int = 500  # warn when daily API calls exceed this
+    # ICS feed alternative — when set, calendar events are fetched from this URL
+    # instead of the Google Calendar API (no GCP project or credentials required).
+    # Get the URL from Google Calendar → Settings → [calendar] → "Secret address in iCal format".
+    ical_url: str = ""
+    additional_ical_urls: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -143,6 +148,8 @@ def load_config(path: str = "config/config.yaml") -> Config:
             additional_calendars=g.get("additional_calendars", []),
             contacts_email=g.get("contacts_email", ""),
             daily_quota_warning=g.get("daily_quota_warning", 500),
+            ical_url=g.get("ical_url", ""),
+            additional_ical_urls=g.get("additional_ical_urls", []),
         )
 
     if "weather" in raw:
@@ -286,22 +293,41 @@ def validate_config(
         return errors, warnings  # Can't validate further without a config file
 
     # --- Google / Calendar ---
-    sa_path = Path(cfg.google.service_account_path)
-    if not sa_path.exists():
-        warnings.append(ConfigWarning(
-            field="google.service_account_path",
-            message=f"Service account file not found: {sa_path}",
-            hint="Download a service account JSON key from Google Cloud Console "
-                 "and place it at the configured path.",
-        ))
+    using_ical = bool(cfg.google.ical_url)
 
-    if cfg.google.calendar_id == "primary":
-        warnings.append(ConfigWarning(
-            field="google.calendar_id",
-            message="Calendar ID is set to 'primary' (the default).",
-            hint="Set google.calendar_id to your calendar's ID "
-                 "(Settings > Calendar > Integrate > Calendar ID).",
-        ))
+    if using_ical:
+        ical_url = cfg.google.ical_url
+        if not ical_url.startswith(("http://", "https://")):
+            errors.append(ConfigError(
+                field="google.ical_url",
+                message=f"ICS URL must start with http:// or https://, got: {ical_url!r}",
+                hint="Use the 'Secret address in iCal format' URL from Google Calendar settings.",
+            ))
+        sa_path = Path(cfg.google.service_account_path)
+        if sa_path.exists():
+            warnings.append(ConfigWarning(
+                field="google.ical_url",
+                message="Both ical_url and a service account file are configured; "
+                        "ical_url takes precedence for calendar events.",
+                hint="Remove service_account_path from config if you only want ICS fetching.",
+            ))
+    else:
+        sa_path = Path(cfg.google.service_account_path)
+        if not sa_path.exists():
+            warnings.append(ConfigWarning(
+                field="google.service_account_path",
+                message=f"Service account file not found: {sa_path}",
+                hint="Download a service account JSON key from Google Cloud Console "
+                     "and place it at the configured path.",
+            ))
+
+        if cfg.google.calendar_id == "primary":
+            warnings.append(ConfigWarning(
+                field="google.calendar_id",
+                message="Calendar ID is set to 'primary' (the default).",
+                hint="Set google.calendar_id to your calendar's ID "
+                     "(Settings > Calendar > Integrate > Calendar ID).",
+            ))
 
     # --- Weather ---
     if not cfg.weather.api_key:

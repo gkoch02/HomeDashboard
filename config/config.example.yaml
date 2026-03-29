@@ -23,6 +23,17 @@ google:
   # be set to the email of the user whose contacts should be read.
   # contacts_email: "you@yourdomain.com"
 
+  # --- ICS feed (simpler alternative — no GCP project or credentials required) ---
+  # When ical_url is set, calendar events are fetched from this URL instead of
+  # the Google Calendar API.  service_account_path is ignored for event fetching.
+  #
+  # How to get the URL:
+  #   Google Calendar → Settings → [pick a calendar] → "Secret address in iCal format"
+  #   Keep this URL private — anyone with it can read your calendar.
+  #
+  # ical_url: "https://calendar.google.com/calendar/ical/.../.../basic.ics"
+  # additional_ical_urls: []   # optional extra calendars
+
 weather:
   api_key: "YOUR_OPENWEATHERMAP_API_KEY"
   latitude: 40.7128

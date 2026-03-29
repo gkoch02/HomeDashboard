@@ -877,3 +877,313 @@ class TestFetchEventsIntegration:
         assert len(events1) == 1
         # Incremental sync: no new events, but stored event still in window
         assert mock_service.events().list().execute.call_count == 2
+
+
+# ---------------------------------------------------------------------------
+# ICS feed fetching
+# ---------------------------------------------------------------------------
+
+def _make_ics(events_text: str, cal_name: str = "Test Calendar") -> str:
+    """Wrap one or more VEVENT blocks in a minimal VCALENDAR envelope."""
+    return (
+        "BEGIN:VCALENDAR\r\n"
+        "VERSION:2.0\r\n"
+        f"X-WR-CALNAME:{cal_name}\r\n"
+        f"{events_text}"
+        "END:VCALENDAR\r\n"
+    )
+
+
+def _timed_vevent(
+    uid: str,
+    summary: str,
+    dtstart: str,
+    dtend: str,
+    location: str = "",
+) -> str:
+    lines = (
+        "BEGIN:VEVENT\r\n"
+        f"UID:{uid}\r\n"
+        f"SUMMARY:{summary}\r\n"
+        f"DTSTART:{dtstart}\r\n"
+        f"DTEND:{dtend}\r\n"
+    )
+    if location:
+        lines += f"LOCATION:{location}\r\n"
+    lines += "END:VEVENT\r\n"
+    return lines
+
+
+def _allday_vevent(uid: str, summary: str, dtstart: str, dtend: str) -> str:
+    return (
+        "BEGIN:VEVENT\r\n"
+        f"UID:{uid}\r\n"
+        f"SUMMARY:{summary}\r\n"
+        f"DTSTART;VALUE=DATE:{dtstart}\r\n"
+        f"DTEND;VALUE=DATE:{dtend}\r\n"
+        "END:VEVENT\r\n"
+    )
+
+
+class TestICalFetcher:
+    """Tests for ICS-feed-based calendar fetching."""
+
+    def _make_response(self, ics_text: str):
+        mock_resp = MagicMock()
+        mock_resp.text = ics_text
+        mock_resp.raise_for_status.return_value = None
+        return mock_resp
+
+    def _this_monday(self, tz=None):
+        from src.fetchers.calendar import _today
+        today = _today(tz)
+        return today - timedelta(days=today.weekday())
+
+    # --- Basic timed event ---
+
+    @patch("src.fetchers.calendar.requests.get")
+    def test_timed_event_parsed(self, mock_get):
+        tz = zoneinfo.ZoneInfo("America/New_York")
+        monday = self._this_monday(tz)
+        tuesday = monday + timedelta(days=1)
+
+        dtstart = datetime.combine(tuesday, datetime.min.time().replace(hour=9)).replace(
+            tzinfo=tz
+        )
+        dtend = dtstart + timedelta(hours=1)
+        # ICS format: YYYYMMDDTHHMMSSZ (UTC) or with TZID
+        dtstart_str = dtstart.astimezone(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        dtend_str = dtend.astimezone(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+
+        ics = _make_ics(
+            _timed_vevent("uid1", "Team Standup", dtstart_str, dtend_str, location="Zoom"),
+            cal_name="Work",
+        )
+        mock_get.return_value = self._make_response(ics)
+
+        cfg = GoogleConfig(ical_url="https://example.com/cal.ics")
+        from src.fetchers.calendar import fetch_events
+        events = fetch_events(cfg, tz=tz)
+
+        assert len(events) == 1
+        assert events[0].summary == "Team Standup"
+        assert events[0].location == "Zoom"
+        assert events[0].calendar_name == "Work"
+        assert events[0].is_all_day is False
+        assert events[0].start.tzinfo is None  # must be naive local
+
+    # --- All-day event ---
+
+    @patch("src.fetchers.calendar.requests.get")
+    def test_allday_event_parsed(self, mock_get):
+        tz = zoneinfo.ZoneInfo("America/New_York")
+        monday = self._this_monday(tz)
+        wednesday = monday + timedelta(days=2)
+
+        ics = _make_ics(
+            _allday_vevent(
+                "uid2",
+                "Company Holiday",
+                wednesday.strftime("%Y%m%d"),
+                (wednesday + timedelta(days=1)).strftime("%Y%m%d"),
+            )
+        )
+        mock_get.return_value = self._make_response(ics)
+
+        cfg = GoogleConfig(ical_url="https://example.com/cal.ics")
+        from src.fetchers.calendar import fetch_events
+        events = fetch_events(cfg, tz=tz)
+
+        assert len(events) == 1
+        assert events[0].summary == "Company Holiday"
+        assert events[0].is_all_day is True
+
+    # --- Event outside the week window is filtered out ---
+
+    @patch("src.fetchers.calendar.requests.get")
+    def test_event_outside_window_excluded(self, mock_get):
+        tz = zoneinfo.ZoneInfo("America/New_York")
+        monday = self._this_monday(tz)
+        far_future = monday + timedelta(days=30)
+
+        dtstart = datetime.combine(far_future, datetime.min.time().replace(hour=10)).replace(
+            tzinfo=tz
+        )
+        dtend = dtstart + timedelta(hours=1)
+        dtstart_str = dtstart.astimezone(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        dtend_str = dtend.astimezone(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+
+        ics = _make_ics(_timed_vevent("uid3", "Far Future Event", dtstart_str, dtend_str))
+        mock_get.return_value = self._make_response(ics)
+
+        cfg = GoogleConfig(ical_url="https://example.com/cal.ics")
+        from src.fetchers.calendar import fetch_events
+        events = fetch_events(cfg, tz=tz)
+
+        assert events == []
+
+    # --- X-WR-CALNAME used as calendar_name ---
+
+    @patch("src.fetchers.calendar.requests.get")
+    def test_cal_name_from_xwrcalname(self, mock_get):
+        tz = zoneinfo.ZoneInfo("America/New_York")
+        monday = self._this_monday(tz)
+        thursday = monday + timedelta(days=3)
+
+        dtstart = datetime.combine(thursday, datetime.min.time().replace(hour=14)).replace(
+            tzinfo=tz
+        )
+        dtend = dtstart + timedelta(hours=1)
+        dtstart_str = dtstart.astimezone(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        dtend_str = dtend.astimezone(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+
+        ics = _make_ics(
+            _timed_vevent("uid4", "Planning", dtstart_str, dtend_str),
+            cal_name="My Personal Calendar",
+        )
+        mock_get.return_value = self._make_response(ics)
+
+        cfg = GoogleConfig(ical_url="https://example.com/cal.ics")
+        from src.fetchers.calendar import fetch_events
+        events = fetch_events(cfg, tz=tz)
+
+        assert len(events) == 1
+        assert events[0].calendar_name == "My Personal Calendar"
+
+    # --- Hostname fallback when no X-WR-CALNAME ---
+
+    @patch("src.fetchers.calendar.requests.get")
+    def test_cal_name_hostname_fallback(self, mock_get):
+        tz = zoneinfo.ZoneInfo("America/New_York")
+        monday = self._this_monday(tz)
+        friday = monday + timedelta(days=4)
+
+        dtstart = datetime.combine(friday, datetime.min.time().replace(hour=11)).replace(
+            tzinfo=tz
+        )
+        dtend = dtstart + timedelta(hours=1)
+        dtstart_str = dtstart.astimezone(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        dtend_str = dtend.astimezone(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+
+        ics = (
+            "BEGIN:VCALENDAR\r\n"
+            "VERSION:2.0\r\n"
+            + _timed_vevent("uid5", "Meeting", dtstart_str, dtend_str)
+            + "END:VCALENDAR\r\n"
+        )
+        mock_get.return_value = self._make_response(ics)
+
+        cfg = GoogleConfig(ical_url="https://calendar.google.com/calendar/ical/abc/basic.ics")
+        from src.fetchers.calendar import fetch_events
+        events = fetch_events(cfg, tz=tz)
+
+        assert len(events) == 1
+        assert events[0].calendar_name == "calendar.google.com"
+
+    # --- Multiple URLs merged and sorted ---
+
+    @patch("src.fetchers.calendar.requests.get")
+    def test_multiple_urls_merged(self, mock_get):
+        tz = zoneinfo.ZoneInfo("America/New_York")
+        monday = self._this_monday(tz)
+
+        def make_event(day_offset, hour, uid, summary):
+            dt = datetime.combine(
+                monday + timedelta(days=day_offset),
+                datetime.min.time().replace(hour=hour),
+            ).replace(tzinfo=tz)
+            dtend = dt + timedelta(hours=1)
+            return (
+                dt.astimezone(timezone.utc).strftime("%Y%m%dT%H%M%SZ"),
+                dtend.astimezone(timezone.utc).strftime("%Y%m%dT%H%M%SZ"),
+                uid,
+                summary,
+            )
+
+        s1, e1, u1, n1 = make_event(1, 9, "uid-a", "Early Meeting")
+        s2, e2, u2, n2 = make_event(1, 14, "uid-b", "Afternoon Meeting")
+
+        ics1 = _make_ics(_timed_vevent(u1, n1, s1, e1), cal_name="Cal A")
+        ics2 = _make_ics(_timed_vevent(u2, n2, s2, e2), cal_name="Cal B")
+
+        mock_get.side_effect = [
+            self._make_response(ics1),
+            self._make_response(ics2),
+        ]
+
+        cfg = GoogleConfig(
+            ical_url="https://example.com/cal1.ics",
+            additional_ical_urls=["https://example.com/cal2.ics"],
+        )
+        from src.fetchers.calendar import fetch_events
+        events = fetch_events(cfg, tz=tz)
+
+        assert len(events) == 2
+        assert events[0].summary == "Early Meeting"
+        assert events[1].summary == "Afternoon Meeting"
+        assert mock_get.call_count == 2
+
+    # --- HTTP error returns empty list, logs warning ---
+
+    @patch("src.fetchers.calendar.requests.get")
+    def test_http_error_returns_empty(self, mock_get):
+        mock_get.side_effect = Exception("connection refused")
+
+        cfg = GoogleConfig(ical_url="https://example.com/cal.ics")
+        from src.fetchers.calendar import fetch_events
+        events = fetch_events(cfg)
+
+        assert events == []
+
+    # --- Malformed ICS returns empty list ---
+
+    @patch("src.fetchers.calendar.requests.get")
+    def test_malformed_ics_returns_empty(self, mock_get):
+        mock_resp = MagicMock()
+        mock_resp.text = "this is not valid ics data %%% garbage"
+        mock_resp.raise_for_status.return_value = None
+        mock_get.return_value = mock_resp
+
+        cfg = GoogleConfig(ical_url="https://example.com/cal.ics")
+        from src.fetchers.calendar import fetch_events
+        # Should not raise — logs warning and returns []
+        events = fetch_events(cfg)
+
+        assert isinstance(events, list)
+
+    # --- Google path still works when ical_url is empty (regression) ---
+
+    @patch("src.fetchers.calendar._build_service")
+    def test_google_path_used_when_no_ical_url(self, mock_build):
+        today = date.today()
+        monday = today - timedelta(days=today.weekday())
+        event_start = datetime.combine(
+            monday + timedelta(days=1),
+            datetime.min.time().replace(hour=10),
+        ).replace(tzinfo=timezone.utc)
+        event_end = (event_start + timedelta(hours=1)).isoformat()
+
+        mock_service = MagicMock()
+        mock_build.return_value = mock_service
+        mock_service.events().list().execute.return_value = {
+            "summary": "Work",
+            "items": [
+                {
+                    "id": "ev1",
+                    "summary": "Regular Meeting",
+                    "start": {"dateTime": event_start.isoformat()},
+                    "end": {"dateTime": event_end},
+                }
+            ],
+            "nextSyncToken": "tok1",
+        }
+
+        # ical_url is empty — must use Google API path
+        cfg = GoogleConfig(ical_url="")
+        from src.fetchers.calendar import fetch_events
+        with tempfile.TemporaryDirectory() as tmpdir:
+            events = fetch_events(cfg, cache_dir=tmpdir)
+
+        mock_build.assert_called_once()
+        assert len(events) == 1
+        assert events[0].summary == "Regular Meeting"
