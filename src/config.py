@@ -80,6 +80,8 @@ class CacheConfig:
     # PurpleAir air quality cache settings
     air_quality_ttl_minutes: int = 30
     air_quality_fetch_interval: int = 15
+    # Quote rotation frequency: "daily" (default), "twice_daily" (AM/PM), or "hourly"
+    quote_refresh: str = "daily"
 
 
 @dataclass
@@ -234,6 +236,7 @@ def load_config(path: str = "config/config.yaml") -> Config:
             cooldown_minutes=ca.get("cooldown_minutes", 30),
             air_quality_ttl_minutes=ca.get("air_quality_ttl_minutes", 30),
             air_quality_fetch_interval=ca.get("air_quality_fetch_interval", 15),
+            quote_refresh=ca.get("quote_refresh", "daily"),
         )
 
     if "filters" in raw:
@@ -492,6 +495,15 @@ def validate_config(
                 message=f"Invalid hour value: {val}",
                 hint="Must be an integer between 0 and 23.",
             ))
+
+    # --- Quote refresh ---
+    valid_quote_refresh = {"daily", "twice_daily", "hourly"}
+    if cfg.cache.quote_refresh not in valid_quote_refresh:
+        errors.append(ConfigError(
+            field="cache.quote_refresh",
+            message=f"Invalid quote_refresh value: '{cfg.cache.quote_refresh}'",
+            hint=f"Must be one of: {', '.join(sorted(valid_quote_refresh))}",
+        ))
 
     # --- Cache fetch intervals ---
     for label, val in [

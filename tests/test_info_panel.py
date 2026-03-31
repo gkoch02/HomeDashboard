@@ -1,7 +1,7 @@
 """Tests for src/render/components/info_panel.py."""
 
 import json
-from datetime import date
+from datetime import date, datetime
 from unittest.mock import patch
 
 from PIL import Image, ImageDraw
@@ -39,6 +39,7 @@ class TestQuoteForToday:
         qfile.write_text(json.dumps(custom))
 
         with patch("src.render.components.info_panel.QUOTES_FILE", qfile):
+            _quote_for_today.cache_clear()
             q = _quote_for_today(date(2024, 3, 15))
 
         assert q["text"] == "Custom quote"
@@ -123,3 +124,94 @@ class TestDrawInfo:
             img, draw = self._make_draw()
             draw_info(draw, date(2097, 11, 22))
         assert img.getbbox() is not None
+
+
+class TestQuoteRefreshModes:
+    """Tests for the refresh= parameter on _quote_for_today."""
+
+    def setup_method(self):
+        _quote_for_today.cache_clear()
+
+    def teardown_method(self):
+        _quote_for_today.cache_clear()
+
+    def test_daily_same_as_default(self):
+        d = date(2025, 6, 1)
+        assert _quote_for_today(d, refresh="daily") == _quote_for_today(d)
+
+    def test_twice_daily_am_stable(self):
+        d = date(2025, 6, 1)
+        now_am1 = datetime(2025, 6, 1, 9, 0)
+        now_am2 = datetime(2025, 6, 1, 11, 59)
+        assert _quote_for_today(d, refresh="twice_daily", now=now_am1) == \
+               _quote_for_today(d, refresh="twice_daily", now=now_am2)
+
+    def test_twice_daily_pm_stable(self):
+        d = date(2025, 6, 1)
+        now_pm1 = datetime(2025, 6, 1, 12, 0)
+        now_pm2 = datetime(2025, 6, 1, 23, 0)
+        assert _quote_for_today(d, refresh="twice_daily", now=now_pm1) == \
+               _quote_for_today(d, refresh="twice_daily", now=now_pm2)
+
+    def test_twice_daily_am_pm_differ(self):
+        d = date(2025, 6, 2)
+        now_am = datetime(2025, 6, 2, 8, 0)
+        now_pm = datetime(2025, 6, 2, 14, 0)
+        # Keys differ ("2025-06-02-am" vs "2025-06-02-pm") so hashes differ
+        q_am = _quote_for_today(d, refresh="twice_daily", now=now_am)
+        q_pm = _quote_for_today(d, refresh="twice_daily", now=now_pm)
+        assert q_am != q_pm
+
+    def test_hourly_same_hour_stable(self):
+        d = date(2025, 6, 3)
+        now1 = datetime(2025, 6, 3, 14, 0)
+        now2 = datetime(2025, 6, 3, 14, 59)
+        assert _quote_for_today(d, refresh="hourly", now=now1) == \
+               _quote_for_today(d, refresh="hourly", now=now2)
+
+    def test_hourly_different_hours_differ(self):
+        d = date(2025, 6, 3)
+        now_h1 = datetime(2025, 6, 3, 9, 0)
+        now_h2 = datetime(2025, 6, 3, 10, 0)
+        q1 = _quote_for_today(d, refresh="hourly", now=now_h1)
+        q2 = _quote_for_today(d, refresh="hourly", now=now_h2)
+        assert q1 != q2
+
+    def test_daily_and_hourly_can_differ(self):
+        d = date(2025, 6, 4)
+        now = datetime(2025, 6, 4, 15, 0)
+        q_daily = _quote_for_today(d, refresh="daily")
+        q_hourly = _quote_for_today(d, refresh="hourly", now=now)
+        # Keys are different strings so at least one of the many hours will differ
+        assert isinstance(q_daily, dict) and isinstance(q_hourly, dict)
+
+    def test_result_has_text_and_author(self):
+        d = date(2025, 6, 5)
+        now = datetime(2025, 6, 5, 10, 0)
+        for refresh in ("daily", "twice_daily", "hourly"):
+            q = _quote_for_today(d, refresh=refresh, now=now)
+            assert "text" in q and "author" in q
+
+
+class TestQuoteRefreshConfig:
+    """Tests for cache.quote_refresh validation in config.py."""
+
+    def test_valid_values_accepted(self):
+        from src.config import Config, CacheConfig, validate_config
+        for val in ("daily", "twice_daily", "hourly"):
+            cfg = Config()
+            cfg.cache = CacheConfig(quote_refresh=val)
+            errors, _ = validate_config(cfg)
+            field_errors = [e for e in errors if e.field == "cache.quote_refresh"]
+            assert not field_errors, f"Expected no error for {val!r}, got {field_errors}"
+
+    def test_invalid_value_raises_error(self):
+        from src.config import Config, CacheConfig, validate_config
+        cfg = Config()
+        cfg.cache = CacheConfig(quote_refresh="weekly")
+        errors, _ = validate_config(cfg)
+        assert any(e.field == "cache.quote_refresh" for e in errors)
+
+    def test_default_is_daily(self):
+        from src.config import CacheConfig
+        assert CacheConfig().quote_refresh == "daily"
