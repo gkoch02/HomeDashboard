@@ -19,6 +19,7 @@ def render_dashboard(
     config: DisplayConfig,
     title: str = "Home Dashboard",
     theme: Theme | None = None,
+    quote_refresh: str = "daily",
 ) -> Image.Image:
     """Compose all components onto a 1-bit image at the configured display resolution.
 
@@ -76,6 +77,7 @@ def render_dashboard(
             draw, today,
             region=layout.info,
             style=style,
+            quote_refresh=quote_refresh,
         ),
         "today_view": lambda: today_view.draw_today(
             draw, data.events, today,
@@ -87,6 +89,7 @@ def render_dashboard(
             draw, today,
             region=layout.qotd,
             style=style,
+            quote_refresh=quote_refresh,
         ),
         "qotd_weather": lambda: qotd_panel.draw_qotd_weather(
             draw, data.weather, today,

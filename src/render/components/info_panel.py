@@ -1,6 +1,6 @@
 import json
 import hashlib
-from datetime import date
+from datetime import date, datetime
 from functools import lru_cache
 from pathlib import Path
 from PIL import ImageDraw
@@ -53,9 +53,13 @@ DEFAULT_QUOTES = [
 ]
 
 
-@lru_cache(maxsize=1)
-def _quote_for_today(today: date) -> dict:
-    """Deterministically pick a quote based on the date."""
+@lru_cache(maxsize=32)
+def _cached_select_quote(key: str) -> dict:
+    """Deterministically pick a quote from the store using a pre-built string key.
+
+    The key encodes both the date and the time-bucket (see ``_quote_for_today``),
+    so the same key always returns the same quote regardless of when it is called.
+    """
     if QUOTES_FILE.exists():
         try:
             quotes = json.loads(QUOTES_FILE.read_text())
@@ -64,9 +68,40 @@ def _quote_for_today(today: date) -> dict:
     else:
         quotes = DEFAULT_QUOTES
 
-    # Hash the date so it rotates daily but is stable within a day
-    day_hash = int(hashlib.md5(today.isoformat().encode()).hexdigest(), 16)
+    day_hash = int(hashlib.md5(key.encode()).hexdigest(), 16)
     return quotes[day_hash % len(quotes)]
+
+
+def _quote_for_today(
+    today: date,
+    refresh: str = "daily",
+    now: datetime | None = None,
+) -> dict:
+    """Deterministically pick a quote based on the date and refresh frequency.
+
+    *refresh* controls how the time-bucket is computed:
+
+    - ``"daily"``       — one quote per calendar day (default, backward-compatible)
+    - ``"twice_daily"`` — flips at noon; ``"am"`` bucket before 12:00, ``"pm"`` after
+    - ``"hourly"``      — a new quote each clock hour
+
+    *now* is used only for ``twice_daily`` and ``hourly``; it defaults to
+    ``datetime.now()`` and is accepted as an argument for testability.
+    """
+    if refresh == "hourly":
+        dt = now if now is not None else datetime.now()
+        key = f"{today.isoformat()}T{dt.hour:02d}"
+    elif refresh == "twice_daily":
+        dt = now if now is not None else datetime.now()
+        period = "am" if dt.hour < 12 else "pm"
+        key = f"{today.isoformat()}-{period}"
+    else:
+        key = today.isoformat()
+    return _cached_select_quote(key)
+
+
+# Allow callers (including tests) to flush the quote cache after patching QUOTES_FILE.
+_quote_for_today.cache_clear = _cached_select_quote.cache_clear  # type: ignore[attr-defined]
 
 
 def _count_lines(text: str, font, max_width: int) -> int:
@@ -80,6 +115,7 @@ def draw_info(
     *,
     region: ComponentRegion | None = None,
     style: ThemeStyle | None = None,
+    quote_refresh: str = "daily",
 ):
     if region is None:
         region = ComponentRegion(L.INFO_X, L.INFO_Y, L.INFO_W, L.INFO_H)
@@ -102,7 +138,7 @@ def draw_info(
     info_label = style.component_labels.get("info", "QUOTE OF THE DAY")
     draw.text((x0 + pad, y0 + pad), info_label, font=label_font, fill=style.fg)
 
-    quote = _quote_for_today(today)
+    quote = _quote_for_today(today, refresh=quote_refresh)
 
     # Quote text — adapt font size so long quotes fit without truncation
     text = f'"{quote["text"]}"'

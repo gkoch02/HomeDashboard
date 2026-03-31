@@ -54,7 +54,12 @@ class DashboardApp:
         theme = load_theme(theme_name)
 
         logger.info("Rendering dashboard")
-        image = render_dashboard(data, self.cfg.display, title=self.cfg.title, theme=theme)
+        image = render_dashboard(
+            data, self.cfg.display,
+            title=self.cfg.title,
+            theme=theme,
+            quote_refresh=self.cfg.cache.quote_refresh,
+        )
         self.output.publish(image, dry_run=self.args.dry_run, force_full=force_full)
         self.output.write_health_marker()
         logger.info("Done")

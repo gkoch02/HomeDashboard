@@ -83,6 +83,11 @@ logging:
 #   birthdays_fetch_interval: 1440  # 24 hours
 #   air_quality_ttl_minutes: 30        # 30 minutes
 #   air_quality_fetch_interval: 15     # 15 minutes
+#   # How often the displayed quote rotates. Uses a date-based hash so the same
+#   # slot always shows the same quote (stable within the bucket, varies between).
+#   # With 144 bundled quotes: daily ≈ 144-day cycle, twice_daily ≈ 72-day cycle,
+#   # hourly ≈ 6-day cycle. Hash-based (not sequential), so repeats can occur.
+#   quote_refresh: daily               # daily (default) | twice_daily | hourly
 
 # Event filtering — hide events from the display without removing them from cache.
 # filters:
