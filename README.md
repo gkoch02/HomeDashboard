@@ -92,7 +92,7 @@ first and come back here for customization.
 Switch the entire dashboard layout and visual style with one line in `config.yaml`:
 
 ```yaml
-theme: terminal   # default | terminal | minimalist | old_fashioned | today | fantasy | qotd | qotd_invert | weather | fuzzyclock | fuzzyclock_invert | diags | random
+theme: terminal   # default | terminal | minimalist | old_fashioned | today | fantasy | qotd | qotd_invert | weather | fuzzyclock | fuzzyclock_invert | diags | air_quality | random
 ```
 
 Or override it from the command line without editing your config:
@@ -141,8 +141,8 @@ random_theme:
 ```
 
 - `include` is applied first; `exclude` is applied after.
-- If both are empty, all standard themes are eligible (`diags` is always excluded — it is a
-  utility view, not a daily aesthetic).
+- If both are empty, all standard themes are eligible (`diags` and `air_quality` are always
+  excluded — they are specialised views, not general-purpose daily aesthetics).
 - If the pool is empty after filtering, the dashboard falls back to `"default"`.
 - Run `make check` to catch invalid theme names in either list.
 
@@ -296,6 +296,34 @@ shapes of this screen-optimised sans-serif hold up well at large sizes when reve
 dark background.
 
 ![Fuzzyclock Invert theme](output/theme_fuzzyclock_invert.png)
+
+#### air_quality
+
+Full-screen environmental health dashboard. Devotes the entire 800×480 canvas to PurpleAir
+sensor data, organised into four horizontal zones:
+
+- **AQI hero** (top 38%): the EPA Air Quality Index number in large bold type on the left,
+  with the category label (Good / Moderate / Unhealthy for Sensitive Groups / Unhealthy /
+  Very Unhealthy / Hazardous) below. On the right, a 6-zone health scale bar fills
+  progressively from left to the current reading, with a triangle position indicator and
+  zone labels.
+- **Particulate matter row** (15%): PM1.0 · PM2.5 · PM10 readings in µg/m³, centred in
+  three equal columns. Only fields returned by the sensor are shown.
+- **Ambient sensor cards** (21%): up to three rounded-rect cards for sensor temperature (°F),
+  relative humidity (%), and barometric pressure (hPa). Cards are hidden when the sensor does
+  not provide those readings.
+- **Weather + forecast strip** (bottom 27%): current conditions (icon, temperature,
+  description, hi/lo) on the left; a 4-day forecast grid (day name, icon, hi/lo, precipitation
+  probability) on the right.
+
+Requires a configured PurpleAir sensor (`purpleair.api_key` + `purpleair.sensor_id` in
+`config.yaml`). Weather data is optional — the strip degrades gracefully if unavailable.
+`air_quality` is excluded from the `random` rotation pool; activate it with `theme: air_quality`
+directly. Font: Space Grotesk — a proportional sans derived from Space Mono whose quirky
+letterforms (a, G, R, t) give the data-dashboard layout personality while remaining legible
+at all eInk display sizes.
+
+![Air Quality theme](output/theme_air_quality.png)
 
 #### diags
 

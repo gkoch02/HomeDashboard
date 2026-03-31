@@ -82,6 +82,11 @@ class ThemeLayout:
     diags: ComponentRegion = field(
         default_factory=lambda: ComponentRegion(0, 0, 800, 480, visible=False)
     )
+    # Used by the ``air_quality`` theme for the full-screen air quality display.
+    # Hidden by default so existing themes are not affected.
+    air_quality_full: ComponentRegion = field(
+        default_factory=lambda: ComponentRegion(0, 0, 800, 480, visible=False)
+    )
     draw_order: list[str] = field(
         default_factory=lambda: ["header", "week_view", "weather", "birthdays", "info"]
     )
@@ -183,7 +188,7 @@ AVAILABLE_THEMES: frozenset[str] = frozenset(
     {
         "default", "terminal", "minimalist", "old_fashioned", "today",
         "fantasy", "qotd", "qotd_invert", "weather", "fuzzyclock", "fuzzyclock_invert",
-        "diags", "random",
+        "diags", "air_quality", "random",
     }
 )
 
@@ -259,6 +264,9 @@ def load_theme(name: str) -> Theme:
     if name == "diags":
         from src.render.themes.diags import diags_theme
         return diags_theme()
+    if name == "air_quality":
+        from src.render.themes.air_quality import air_quality_theme
+        return air_quality_theme()
     raise ValueError(
         f"Unknown theme: {name!r}. Available: {', '.join(sorted(AVAILABLE_THEMES))}"
     )

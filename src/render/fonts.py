@@ -111,6 +111,22 @@ def uesc_display(size: int) -> ImageFont.FreeTypeFont:
     return get_font("UESC Display.otf", size)
 
 
+# Space Grotesk — proportional sans derived from Space Mono; retains the
+# monospace family's quirky letterforms (a, G, R, t) for data-dashboard personality
+# while remaining legible at all sizes.  Used by the air_quality theme.
+# Weights available: Regular (400), Medium (500), Bold (700).
+def sg_regular(size: int) -> ImageFont.FreeTypeFont:
+    return get_font("SpaceGrotesk-Regular.ttf", size)
+
+
+def sg_medium(size: int) -> ImageFont.FreeTypeFont:
+    return get_font("SpaceGrotesk-Medium.ttf", size)
+
+
+def sg_bold(size: int) -> ImageFont.FreeTypeFont:
+    return get_font("SpaceGrotesk-Bold.ttf", size)
+
+
 # Playfair Display — newspaper serif font for the Old Fashioned theme.
 def playfair_regular(size: int) -> ImageFont.FreeTypeFont:
     return get_font("PlayfairDisplay-Regular.ttf", size)

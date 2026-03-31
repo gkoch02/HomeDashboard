@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 _STATE_FILE = "random_theme_state.json"
 # "random" is not a real theme and must never appear in its own rotation pool.
 # "diags" is a utility/diagnostic view, not a daily-driver aesthetic — excluded by default.
-_EXCLUDED_FROM_POOL: frozenset[str] = frozenset({"random", "diags"})
+_EXCLUDED_FROM_POOL: frozenset[str] = frozenset({"random", "diags", "air_quality"})
 
 
 def eligible_themes(include: list[str], exclude: list[str]) -> list[str]:
