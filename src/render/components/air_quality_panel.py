@@ -136,7 +136,7 @@ def _draw_aqi_hero(
 
     # "AIR QUALITY" section label — small inverted pill
     label_text = "AIR QUALITY"
-    label_font = style.font_medium(11)
+    label_font = style.font_medium(13)
     lw = text_width(draw, label_text, label_font)
     lh = text_height(label_font)
     pill_pad_x, pill_pad_y = 6, 3
@@ -206,7 +206,7 @@ def _draw_scale_bar(
         filled_rect(draw, (bar_x + 1, bar_y + 1, fill_x, bar_y + bar_h - 1), fill=fg)
 
     # Zone dividers and labels
-    label_font = style.font_regular(10)
+    label_font = style.font_regular(12)
     prev_bound = 0
     for upper, zone_label in _AQI_ZONES:
         div_x = bar_x + int(upper / _AQI_MAX * bar_w)
@@ -262,8 +262,8 @@ def _draw_pm_row(
     cy = y0 + H // 2
 
     val_font = style.font_bold(28)
-    label_font = style.font_regular(13)
-    unit_font = style.font_regular(11)
+    label_font = style.font_regular(15)
+    unit_font = style.font_regular(13)
 
     val_h = text_height(val_font)
     label_h = text_height(label_font)
@@ -328,7 +328,7 @@ def _draw_ambient_cards(
 
     icon_font = weather_icon_font(24)
     val_font = style.font_bold(19)
-    label_font = style.font_regular(12)
+    label_font = style.font_regular(14)
 
     for i, (glyph, value, label) in enumerate(cards):
         card_x = x0 + margin + i * (card_w + gap)
@@ -437,13 +437,13 @@ def _draw_current_conditions(
     )
 
     # Description below icon row
-    desc_font = style.font_regular(14)
+    desc_font = style.font_regular(16)
     desc = wx.current_description.title()
     desc_y = cy + 4
     draw_text_truncated(draw, (x0 + pad, desc_y), desc, desc_font, W - pad - 10, fill=fg)
 
     # Hi / Lo
-    hilo_font = style.font_regular(13)
+    hilo_font = style.font_regular(14)
     hilo_str = f"H:{wx.high:.0f}°  L:{wx.low:.0f}°"
     hilo_y = desc_y + text_height(desc_font) + 2
     if hilo_y + text_height(hilo_font) <= y0 + H - 2:
@@ -465,9 +465,9 @@ def _draw_forecast_columns(
 
     n = len(forecast)
     col_w = W // n
-    day_font = style.font_medium(14)
-    hilo_font = style.font_regular(13)
-    precip_font = style.font_regular(12)
+    day_font = style.font_medium(16)
+    hilo_font = style.font_regular(14)
+    precip_font = style.font_regular(13)
     icon_size = 28
 
     for i, fc in enumerate(forecast):
