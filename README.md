@@ -447,6 +447,7 @@ Your existing config is fully compatible. These are opt-in additions:
 |---|---|
 | **PurpleAir air quality** | Add `purpleair.api_key` and `purpleair.sensor_id` to `config.yaml`; an AQI card (EPA index from 60-minute PM2.5 average) appears in the `weather` theme metric row, and a PM1 · PM2.5 · PM10 µg/m³ breakdown appears in the detail strip |
 | **ICS feed calendar (no GCP)** | Set `google.ical_url` to your calendar's "Secret address in iCal format" URL — no service account or GCP project needed; supports multiple calendars via `additional_ical_urls` |
+| **Configurable quote refresh** | Set `cache.quote_refresh` to `daily` (default), `twice_daily`, or `hourly` to control how often the displayed quote rotates; uses a stable date-based hash so the same time slot always shows the same quote |
 
 ### What's new in v4
 
@@ -815,6 +816,7 @@ cache:
   air_quality_fetch_interval: 15
   max_failures: 3                  # circuit breaker: failures before tripping
   cooldown_minutes: 30             # circuit breaker: wait before probing
+  quote_refresh: daily             # daily | twice_daily | hourly
 
 filters:
   exclude_calendars: []            # case-insensitive substring match
@@ -868,8 +870,6 @@ incremental sync correctness -- they are only hidden at render time.
 After 3 consecutive failures (configurable), a source is "tripped" and goes straight to
 cache on subsequent runs. After the cooldown period, a single probe request is sent. If it
 succeeds, normal fetching resumes.
-Use `--ignore-breakers` to bypass OPEN breaker state for one run.
-
 Use `--ignore-breakers` to bypass OPEN breaker state for one run (useful for manual recovery checks).
 
 ### Conditional display refresh
