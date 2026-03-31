@@ -74,10 +74,10 @@ src/
     │                          #   events_for_day, deg_to_compass)
     ├── themes/                # themes: default, terminal, minimalist, old_fashioned, today,
     │                          #   fantasy, qotd, qotd_invert, weather, fuzzyclock, fuzzyclock_invert,
-    │                          #   diags
+    │                          #   diags, air_quality
     └── components/            # One file per UI region: header, week_view, weather_panel,
                                #   weather_full, birthday_bar, today_view, info_panel, qotd_panel,
-                               #   fuzzyclock_panel, diags_panel
+                               #   fuzzyclock_panel, diags_panel, air_quality_panel
 
 config/
 ├── config.example.yaml        # Template (copy to config.yaml)
@@ -162,6 +162,9 @@ Components are pure functions: `draw_*(draw, data, region, style) -> None`. No g
 | `DMSans.ttf` | `dm_regular/medium/semibold/bold` | `minimalist`, `weather`, `fuzzyclock`, `diags` (section labels) |
 | `PlayfairDisplay-*.ttf` | `playfair_regular/medium/semibold/bold` | `old_fashioned`, `qotd` |
 | `Cinzel.ttf` | `cinzel_regular/semibold/bold/black` | `fantasy`, `old_fashioned` section labels |
+| `SpaceGrotesk-Regular.ttf` | `sg_regular` | `air_quality` |
+| `SpaceGrotesk-Medium.ttf` | `sg_medium` | `air_quality` |
+| `SpaceGrotesk-Bold.ttf` | `sg_bold` | `air_quality` |
 | `NuCore.otf` / `NuCore Condensed.otf` | *(unused — available for new themes)* | — |
 
 ### `ThemeStyle` font fields
@@ -201,12 +204,13 @@ default to `None` and fall back gracefully so adding a new field never breaks ex
 - `fuzzyclock` component uses `style.font_bold` / `style.font_medium` for the phrase / date — font-agnostic so the theme can be re-skinned by swapping the style callables
 - `qotd_invert` and `fuzzyclock_invert` are inverted-color variants of their base themes; they are included in the random rotation pool by default
 - Theme preview PNGs (`output/theme_*.png`) are git-ignored by `.gitignore` (`output/*.png`) but tracked as exceptions; use `git add -f output/theme_<name>.png` when adding a new one
-- PurpleAir AQI card only appears in the `weather` theme; other themes have access to `DashboardData.air_quality` for future use
+- PurpleAir data surfaces in two themes: `weather` shows a compact AQI card + PM detail strip alongside weather data; `air_quality` devotes the full canvas to environmental health data (AQI hero + scale bar, PM1/PM2.5/PM10 row, ambient sensor cards, weather strip)
 - `_pm25_to_aqi()` in `purpleair.py` implements the EPA AQI piecewise linear formula with standard breakpoints; PM2.5 is truncated (not rounded) to one decimal before lookup, and AQI is applied to the 60-minute PM2.5 average (`pm2.5_60minute`) for a smoother, less noisy reading — the result is stored on `AirQualityData.aqi` at fetch time; `AirQualityData` also carries `pm1` (PM1.0) and `pm10` (PM10) for display in the `weather` theme detail strip
 - When `purpleair.api_key` or `purpleair.sensor_id` is `0`/`""`, the source is skipped silently (no circuit breaker entry, no cache miss); validation emits warnings only when one is set without the other
 - `AirQualityData` includes optional `temperature` (°F), `humidity` (%), and `pressure` (hPa) fields from PurpleAir ambient readings; these appear in the `diags` panel; old cache entries missing these fields deserialize safely as `None`
 - `HostData` is fetched synchronously (after concurrent API fetches complete) using only Python stdlib and `/proc`; fields that are unavailable (e.g. CPU temp on non-Pi) return `None` and are silently omitted in the `diags` panel
-- `diags` theme is a utility/diagnostic view and is permanently excluded from the `random` rotation pool via `_EXCLUDED_FROM_POOL` in `random_theme.py`; it cannot be added via `random_theme.include` — use `theme: diags` directly instead
+- `diags` and `air_quality` themes are permanently excluded from the `random` rotation pool via `_EXCLUDED_FROM_POOL` in `random_theme.py`; they cannot be added via `random_theme.include` — use `theme: diags` / `theme: air_quality` directly instead
+- `air_quality` theme uses `draw_air_quality_full()` in `air_quality_panel.py`, which receives the full `DashboardData` object (same pattern as `diags_panel`); the component dispatches via the `air_quality_full` region on `ThemeLayout`
 - `retry_fetch()` in `data_pipeline.py` retries only likely transient failures and does not retry likely permanent config/data errors (`RuntimeError`, `ValueError`, `TypeError`, `KeyError`)
 - `gpiozero` pin factory is set to `lgpio` for Pi hardware runtime (required for modern Pi OS)
 - **ICS feed**: when `google.ical_url` is set, `fetch_events()` dispatches to `_fetch_from_ical()` instead of the Google API path — `service_account_path` is ignored for event fetching; the Google API path (including incremental sync) is completely bypassed
