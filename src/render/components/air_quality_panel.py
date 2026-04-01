@@ -134,20 +134,11 @@ def _draw_aqi_hero(
     lx = x0 + pad
     ly = y0 + pad
 
-    # "AIR QUALITY" section label — small inverted pill
+    # "AIR QUALITY" section label — plain bold text
     label_text = "AIR QUALITY"
-    label_font = style.font_medium(16)
-    lw = text_width(draw, label_text, label_font)
-    lh = text_height(label_font)
-    pill_pad_x, pill_pad_y = 6, 3
-    pill_x1 = lx + lw + 2 * pill_pad_x
-    pill_y1 = ly + lh + 2 * pill_pad_y
-    filled_rect(draw, (lx, ly, pill_x1, pill_y1), fill=fg)
-    draw.text(
-        (lx + pill_pad_x, ly + pill_pad_y),
-        label_text, font=label_font, fill=style.bg,
-    )
-    label_bottom = pill_y1 + 8
+    label_font = style.font_bold(22)
+    draw.text((lx, ly), label_text, font=label_font, fill=fg)
+    label_bottom = ly + text_height(label_font) + 8
 
     # Large AQI number
     aqi_str = str(aq.aqi)
@@ -330,6 +321,8 @@ def _draw_ambient_cards(
     val_font = style.font_bold(22)
     label_font = style.font_regular(17)
 
+    label_h = text_height(label_font)
+
     for i, (glyph, value, label) in enumerate(cards):
         card_x = x0 + margin + i * (card_w + gap)
 
@@ -340,28 +333,41 @@ def _draw_ambient_cards(
 
         inner_cx = card_x + card_w // 2
 
-        # Icon + value on one row, centred
+        # Measure icon and value bboxes for layout
         gbbox = draw.textbbox((0, 0), glyph, font=icon_font)
         gw = gbbox[2] - gbbox[0]
-        vw = text_width(draw, value, val_font)
+        gh = gbbox[3] - gbbox[1]
+        vbbox = draw.textbbox((0, 0), value, val_font)
+        vw = vbbox[2] - vbbox[0]
+        vh = vbbox[3] - vbbox[1]
+        row_h = max(gh, vh)
+
+        # Label sits at the bottom; vertically centre the icon+value in the space above it
+        label_top = card_y + card_h - label_h - 7
+        content_top = card_y + 6
+        content_h = label_top - 4 - content_top
+        row_y = content_top + (content_h - row_h) // 2
+
+        # Horizontally centre icon + value row
         total_w = gw + 6 + vw
         row_x = inner_cx - total_w // 2
-        row_y = card_y + 10
 
+        # Draw icon and value vertically centred on the same baseline
+        icon_y = row_y + (row_h - gh) // 2
+        val_y = row_y + (row_h - vh) // 2
         draw.text(
-            (row_x - gbbox[0], row_y - gbbox[1]),
+            (row_x - gbbox[0], icon_y - gbbox[1]),
             glyph, font=icon_font, fill=fg,
         )
-        vbbox = draw.textbbox((0, 0), value, font=val_font)
         draw.text(
-            (row_x + gw + 6 - vbbox[0], row_y - vbbox[1]),
+            (row_x + gw + 6 - vbbox[0], val_y - vbbox[1]),
             value, font=val_font, fill=fg,
         )
 
         # Label centred at bottom of card
         lw = text_width(draw, label, label_font)
         draw.text(
-            (inner_cx - lw // 2, card_y + card_h - text_height(label_font) - 7),
+            (inner_cx - lw // 2, label_top),
             label, font=label_font, fill=fg,
         )
 
@@ -472,13 +478,13 @@ def _draw_forecast_columns(
 
     for i, fc in enumerate(forecast):
         col_cx = x0 + i * col_w + col_w // 2
-        row_y = y0 + 8
+        row_y = y0 + 10
 
         # Day name
         day_str = fc.date.strftime("%a")
         dw = text_width(draw, day_str, day_font)
         draw.text((col_cx - dw // 2, row_y), day_str, font=day_font, fill=fg)
-        row_y += text_height(day_font) + 3
+        row_y += text_height(day_font) + 7
 
         # Icon
         icon_font = weather_icon_font(icon_size)
@@ -489,13 +495,13 @@ def _draw_forecast_columns(
             (col_cx - gw // 2 - gbbox[0], row_y - gbbox[1]),
             glyph, font=icon_font, fill=fg,
         )
-        row_y += icon_size + 3
+        row_y += icon_size + 7
 
         # Hi / Lo
         hilo_str = f"{fc.high:.0f}°/{fc.low:.0f}°"
         hw = text_width(draw, hilo_str, hilo_font)
         draw.text((col_cx - hw // 2, row_y), hilo_str, font=hilo_font, fill=fg)
-        row_y += text_height(hilo_font) + 2
+        row_y += text_height(hilo_font) + 5
 
         # Precip chance
         if fc.precip_chance is not None and fc.precip_chance >= 0.05:
