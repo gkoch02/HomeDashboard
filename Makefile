@@ -71,7 +71,9 @@ pi-install:
 	venv/bin/pip install -r requirements.txt -r requirements-pi.txt
 	@echo ""
 	@echo "==> Installing Waveshare EPD library..."
-	git clone --depth=1 https://github.com/waveshare/e-Paper /tmp/waveshare-epd
+	rm -rf /tmp/waveshare-epd
+	git clone --depth=1 --filter=blob:none --sparse https://github.com/waveshare/e-Paper /tmp/waveshare-epd
+	git -C /tmp/waveshare-epd sparse-checkout set RaspberryPi_JetsonNano/python
 	venv/bin/pip install --quiet /tmp/waveshare-epd/RaspberryPi_JetsonNano/python/
 	rm -rf /tmp/waveshare-epd
 	venv/bin/python -c "import waveshare_epd; print('  Waveshare EPD: OK')"
