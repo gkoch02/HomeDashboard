@@ -214,8 +214,8 @@ def _draw_metric_cards(draw, weather, x0, y0, W, H, style, *, air_quality=None):
     card_h = H - 8  # 4px top/bottom padding
     card_y = y0 + 4
 
-    icon_font = weather_icon_font(18)
-    value_font = style.font_semibold(14)
+    icon_font = weather_icon_font(22)
+    value_font = style.font_semibold(18)
     label_font = style.font_regular(13)
 
     label_h = text_height(label_font)
