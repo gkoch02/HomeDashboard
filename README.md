@@ -92,7 +92,7 @@ first and come back here for customization.
 Switch the entire dashboard layout and visual style with one line in `config.yaml`:
 
 ```yaml
-theme: terminal   # default | terminal | minimalist | old_fashioned | today | fantasy | qotd | qotd_invert | weather | fuzzyclock | fuzzyclock_invert | diags | air_quality | random
+theme: terminal   # default | terminal | minimalist | old_fashioned | today | fantasy | qotd | qotd_invert | weather | fuzzyclock | fuzzyclock_invert | diags | air_quality | random_daily | random_hourly
 ```
 
 Or override it from the command line without editing your config:
@@ -102,27 +102,33 @@ venv/bin/python -m src.main --dry-run --dummy --theme terminal
 ```
 
 The `--theme` flag takes precedence over `config.yaml`. All values are accepted,
-including `random` (which triggers the daily rotation logic as normal).
+including `random_daily` and `random_hourly` (which trigger the rotation logic as normal).
 
 Themes control component positions, proportions, fonts, and visual style -- not just
 colors. Each theme can hide sections, rearrange panels, or use entirely different fonts.
 
-### Random daily rotation
+### Random rotation
 
-Set `theme: random` to automatically pick a different theme each day:
+Two rotation cadences are available:
+
+| Theme value | Rotates | State file |
+|---|---|---|
+| `random_daily` | Once per day, at first refresh after midnight | `output/random_theme_state.json` |
+| `random_hourly` | Once per hour, at first refresh after the hour turns | `output/random_theme_hourly_state.json` |
+| `random` | Alias for `random_daily` (backwards compatible) | `output/random_theme_state.json` |
 
 ```yaml
-theme: random
+theme: random_daily    # or random_hourly
 ```
 
-A theme is chosen once per day on the first refresh after midnight and reused for every
-subsequent refresh that day. The selection is persisted to
-`output/random_theme_state.json` so restarts mid-day do not re-roll the theme.
+The selected theme is persisted to the state file so restarts within the same
+bucket (day or hour) do not re-roll the theme.
 
-Use `random_theme` to control which themes are in the rotation:
+Use `random_theme` to control which themes are in the rotation — the same
+`include`/`exclude` lists apply to both cadences:
 
 ```yaml
-theme: random
+theme: random_daily    # or random_hourly
 random_theme:
   include: []          # allowlist — only these themes rotate (empty = all themes)
   exclude: []          # denylist — never use these themes
@@ -162,16 +168,16 @@ theme_schedule:
 
 The active theme is determined by the last entry whose `time` (HH:MM, 24-hour) is ≤ the
 current local time. Before the first entry fires — e.g. at 4 AM when the first entry is
-`06:00` — the normal `theme:` / `random` logic applies.
+`06:00` — the normal `theme:` / random logic applies.
 
 **Priority order (highest → lowest):**
 1. `--theme` CLI flag — always wins; schedule is never consulted.
 2. `theme_schedule` — the matching time window.
-3. `theme:` in `config.yaml` (may be `random`).
+3. `theme:` in `config.yaml` (may be `random_daily`, `random_hourly`, or `random`).
 
-The schedule works alongside `random`: if no schedule entry matches, the dashboard falls
-through to `theme: random` as usual. `make check` validates all time strings and theme names
-in the schedule.
+The schedule works alongside random rotation: if no schedule entry matches, the dashboard
+falls through to `theme: random_daily` / `random_hourly` as usual. `make check` validates
+all time strings and theme names in the schedule.
 
 ### Built-in themes
 
@@ -341,7 +347,7 @@ when configured), BIRTHDAYS (name, date, and age for upcoming birthdays), and ST
 freshness level per source: Fresh / Aging / Stale / Expired).
 
 Each section label includes a right-aligned source attribution (`OpenWeatherMap`, `Google
-Calendar`, `PurpleAir`). `diags` is intentionally excluded from the `random` rotation pool —
+Calendar`, `PurpleAir`). `diags` is intentionally excluded from the random rotation pool —
 it is a utility/sanity-check view, not a daily aesthetic.
 
 ![Diags theme](output/theme_diags.png)
@@ -378,7 +384,7 @@ def retro_theme() -> Theme:
 **2. Register in `src/render/theme.py`:**
 
 Add a clause to `load_theme()` and add the name to `AVAILABLE_THEMES`. New themes are
-automatically included in the `random` rotation pool. To exclude a theme from the pool (e.g.
+automatically included in the random rotation pool. To exclude a theme from the pool (e.g.
 utility or diagnostic views), add its name to `_EXCLUDED_FROM_POOL` in
 `src/render/random_theme.py`.
 
@@ -484,7 +490,7 @@ Your existing config is fully compatible. These are opt-in additions:
 |---|---|
 | **Versioning** (`--version` flag) | Run `python -m src.main --version` or `make version` to print the current version |
 | **Themes** (built-in layouts) | Add `theme: terminal` (or `minimalist`, `old_fashioned`, `today`, `fantasy`, `qotd`, `qotd_invert`, `weather`, `fuzzyclock`, `fuzzyclock_invert`) to `config.yaml`, or pass `--theme THEME` on the command line |
-| **Random daily theme rotation** | Set `theme: random`; optionally add a `random_theme:` block to include/exclude specific themes |
+| **Random theme rotation** | Set `theme: random_daily` (once per day) or `theme: random_hourly` (once per hour); optionally add a `random_theme:` block to include/exclude specific themes |
 | **Event filtering** | Add a `filters:` block — hide events by calendar name, keyword, or all-day status |
 | **Configurable cache TTLs** | Add a `cache:` block to tune per-source TTL and fetch intervals |
 | **Circuit breaker tuning** | `cache.max_failures` and `cache.cooldown_minutes` |
@@ -820,9 +826,9 @@ schedule:
 
 timezone: "local"                  # IANA name or "local"
 title: "Home Dashboard"            # text shown in the header bar
-theme: "default"                   # default | terminal | minimalist | old_fashioned | today | fantasy | qotd | qotd_invert | weather | fuzzyclock | fuzzyclock_invert | diags | random
+theme: "default"                   # default | terminal | minimalist | old_fashioned | today | fantasy | qotd | qotd_invert | weather | fuzzyclock | fuzzyclock_invert | diags | random_daily | random_hourly
 
-random_theme:                      # only used when theme: random
+random_theme:                      # only used when theme: random_daily or random_hourly
   include: []                      # allowlist (empty = all themes eligible)
   exclude: []                      # denylist (e.g. ["fantasy", "qotd"])
 
@@ -981,7 +987,7 @@ venv/bin/python -m src.main --dry-run --theme diags --force-full-refresh --ignor
 | `--dry-run` | Save to PNG instead of writing to display |
 | `--dummy` | Use built-in dummy data (no API calls needed) |
 | `--config PATH` | Config file path (default: `config/config.yaml`) |
-| `--theme THEME` | Override the theme set in `config.yaml`. Choices: `default`, `terminal`, `minimalist`, `old_fashioned`, `today`, `fantasy`, `qotd`, `qotd_invert`, `weather`, `fuzzyclock`, `fuzzyclock_invert`, `diags`, `random` |
+| `--theme THEME` | Override the theme set in `config.yaml`. Choices: `default`, `terminal`, `minimalist`, `old_fashioned`, `today`, `fantasy`, `qotd`, `qotd_invert`, `weather`, `fuzzyclock`, `fuzzyclock_invert`, `diags`, `random_daily`, `random_hourly` |
 | `--date YYYY-MM-DD` | Override today's date for the dry-run preview (requires `--dry-run`) |
 | `--force-full-refresh` | Force full eInk refresh and bypass fetch intervals |
 | `--ignore-breakers` | Ignore OPEN circuit breakers for this run and attempt fetches anyway |
@@ -1046,7 +1052,7 @@ Dashboard-v4/
 │   └── render/
 │       ├── canvas.py             # Top-level render orchestrator (theme-driven)
 │       ├── theme.py              # Theme system (ComponentRegion, ThemeLayout, ThemeStyle)
-│       ├── random_theme.py       # Daily random theme selection + persistence
+│       ├── random_theme.py       # Daily/hourly random theme selection + persistence
 │       ├── layout.py             # Default pixel geometry constants
 │       ├── fonts.py              # Font loader with @lru_cache
 │       ├── icons.py              # OWM icon code -> Weather Icons glyph

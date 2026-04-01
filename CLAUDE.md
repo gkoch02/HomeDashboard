@@ -65,7 +65,7 @@ src/
 └── render/
     ├── canvas.py              # Top-level render orchestrator (dispatches to components by theme)
     ├── theme.py               # Theme system (ComponentRegion, ThemeLayout, ThemeStyle); AVAILABLE_THEMES
-    ├── random_theme.py        # Daily random theme selection + persistence (output/random_theme_state.json)
+    ├── random_theme.py        # Daily/hourly random theme selection + persistence
     ├── layout.py              # Default layout constants
     ├── fonts.py               # Font loader (@lru_cache)
     ├── icons.py               # OWM icon code → Weather Icons glyph
@@ -98,7 +98,7 @@ Fetchers, caching, circuit breaking, and staleness are all per-source (calendar,
 ### Theme system
 Three-layer design: **ComponentRegion** (bounding box) → **ThemeLayout** (canvas + regions + draw order) → **ThemeStyle** (colors, fonts, spacing). Components receive region + style and draw only within bounds. Themes are frozen dataclasses.
 
-Setting `theme: random` activates daily rotation: `random_theme.py` picks one theme from the eligible pool on the first run after midnight, persists it to `output/random_theme_state.json`, and reuses it for the rest of the day. The concrete theme name is resolved in `services_theme_service.py` before `load_theme()` is called — `load_theme()` itself never receives `"random"`.
+Two rotation cadences are available: `theme: random_daily` (alias: `random`) picks once per day after midnight and persists to `output/random_theme_state.json`; `theme: random_hourly` picks once per hour and persists to `output/random_theme_hourly_state.json`. Both use the same `random_theme.include` / `random_theme.exclude` lists. The concrete theme name is resolved in `services_theme_service.py` before `load_theme()` is called — `load_theme()` itself never receives a pseudo-theme name.
 
 `theme_schedule` is a higher-priority override: `resolve_theme_name()` checks the schedule entries (sorted by HH:MM) before consulting `cfg.theme` or the random pool. The active entry is the last one whose time ≤ current local time. When no entry matches, control falls through to `cfg.theme` / random as normal. CLI `--theme` always wins over the schedule.
 
@@ -141,7 +141,7 @@ Components are pure functions: `draw_*(draw, data, region, style) -> None`. No g
 
 **New component**: Create `src/render/components/my_component.py` → implement `draw_my_component(draw, data, region, style)` → add `ComponentRegion` to themes → register in `canvas.py` draw dispatch → add to theme `draw_order`.
 
-**New theme**: Create `src/render/themes/my_theme.py` → implement `my_theme() -> Theme` factory → register in `load_theme()` in `theme.py` → add name to `AVAILABLE_THEMES`. New themes are automatically included in the `random` rotation pool. To exclude a theme from the pool (e.g. utility or diagnostic views), add its name to `_EXCLUDED_FROM_POOL` in `src/render/random_theme.py`.
+**New theme**: Create `src/render/themes/my_theme.py` → implement `my_theme() -> Theme` factory → register in `load_theme()` in `theme.py` → add name to `AVAILABLE_THEMES`. New themes are automatically included in the random rotation pool (both daily and hourly). To exclude a theme from the pool (e.g. utility or diagnostic views), add its name to `_EXCLUDED_FROM_POOL` in `src/render/random_theme.py`.
 
 **New fetcher**: Create `src/fetchers/my_fetcher.py` → use `cache.py` and `circuit_breaker.py` → integrate into `DataPipeline` in `data_pipeline.py` → extend `DashboardData` if needed → add ser/deser branch to `cache.py` `save_source()`/`load_cached_source()`. See `purpleair.py` as a reference implementation.
 
@@ -194,7 +194,8 @@ default to `None` and fall back gracefully so adding a new field never breaks ex
 - Default canvas: 800×480; scaled via LANCZOS to match display resolution
 - Image hash comparison (`last_image_hash.txt`) skips eInk writes when content unchanged
 - Health marker written to `output/last_success.txt` on every successful run (ISO timestamp)
-- Random theme state persists in `output/random_theme_state.json`; delete it to force a new theme pick mid-day
+- Daily random theme state persists in `output/random_theme_state.json`; delete it to force a new pick mid-day
+- Hourly random theme state persists in `output/random_theme_hourly_state.json`; delete it to force a new pick mid-hour
 - `terminal` theme: the month band font (`font_month_title`) starts at 33px and scales down to fit longer names (e.g. FEBRUARY, SEPTEMBER) within the combined date cell width
 - Deploy paths (`PI_USER`, `PI_HOST`, `PI_DIR`) default to `pi`, `dashboard`, `/home/pi/home-dashboard`; override with `make deploy PI_USER=myuser PI_HOST=mypi.local`
 - `make install` (remote deploy) uses `__INSTALL_DIR__` and `__USER__` placeholders in `dashboard.service` — these are substituted via `sed` during install, so no manual editing is needed for standard setups
@@ -209,7 +210,7 @@ default to `None` and fall back gracefully so adding a new field never breaks ex
 - When `purpleair.api_key` or `purpleair.sensor_id` is `0`/`""`, the source is skipped silently (no circuit breaker entry, no cache miss); validation emits warnings only when one is set without the other
 - `AirQualityData` includes optional `temperature` (°F), `humidity` (%), and `pressure` (hPa) fields from PurpleAir ambient readings; these appear in the `diags` panel; old cache entries missing these fields deserialize safely as `None`
 - `HostData` is fetched synchronously (after concurrent API fetches complete) using only Python stdlib and `/proc`; fields that are unavailable (e.g. CPU temp on non-Pi) return `None` and are silently omitted in the `diags` panel
-- `diags` theme is permanently excluded from the `random` rotation pool via `_EXCLUDED_FROM_POOL` in `random_theme.py`; use `theme: diags` directly instead. `air_quality` is included in the pool and will appear in normal random rotation.
+- `diags` theme is permanently excluded from the random rotation pool via `_EXCLUDED_FROM_POOL` in `random_theme.py`; use `theme: diags` directly instead. `air_quality` is included in the pool and will appear in normal random rotation.
 - `air_quality` theme uses `draw_air_quality_full()` in `air_quality_panel.py`, which receives the full `DashboardData` object (same pattern as `diags_panel`); the component dispatches via the `air_quality_full` region on `ThemeLayout`
 - `retry_fetch()` in `data_pipeline.py` retries only likely transient failures and does not retry likely permanent config/data errors (`RuntimeError`, `ValueError`, `TypeError`, `KeyError`)
 - `gpiozero` pin factory is set to `lgpio` for Pi hardware runtime (required for modern Pi OS)
@@ -219,7 +220,7 @@ default to `None` and fall back gracefully so adding a new field never breaks ex
 - ICS calendar name is taken from the `X-WR-CALNAME` property of the VCALENDAR component; falls back to the URL hostname if absent
 - ICS tz-aware `DTSTART` datetimes are converted to naive local wall-clock time (same pattern as `_parse_event()` in the Google API path) so rendering code sees identical `CalendarEvent` objects regardless of source
 - `validate_config()` skips the service-account-file-missing warning and the `calendar_id == "primary"` warning when `ical_url` is set; emits a `ConfigError` if the URL doesn't start with `http://` or `https://`; emits a `ConfigWarning` if both `ical_url` and a real `service_account.json` are present (informational only — `ical_url` wins)
-- `theme_schedule` priority chain: CLI `--theme` > `theme_schedule` entries > `cfg.theme` / random. `_resolve_scheduled_theme()` sorts entries by HH:MM string and returns the last one whose time ≤ current local time; returns `None` when no entry has fired yet (e.g. all entries start after midnight and it's 3 AM), at which point normal `cfg.theme` / random logic applies. `validate_config()` validates each entry's time format and theme name.
+- `theme_schedule` priority chain: CLI `--theme` > `theme_schedule` entries > `cfg.theme` / random. `_resolve_scheduled_theme()` sorts entries by HH:MM string and returns the last one whose time ≤ current local time; returns `None` when no entry has fired yet (e.g. all entries start after midnight and it's 3 AM), at which point normal `cfg.theme` / `random_daily` / `random_hourly` logic applies. `validate_config()` validates each entry's time format and theme name.
 - `WeatherData.location_name` is populated from `current["name"]` in the OWM `/weather` response (always present when the API returns successfully); it is `None` when absent or empty. Old cache entries without this field deserialize safely as `None` via `.get()`.
 - Per-panel staleness glyphs: `draw_staleness_glyph()` in `primitives.py` draws a 12×14px inverted `!` badge in the bottom-right corner of a component region. `weather_panel.py` and `birthday_bar.py` accept an optional `staleness: StalenessLevel | None` kwarg and call the helper when staleness is `STALE` or `EXPIRED`; `canvas.py` passes `data.source_staleness.get("weather"/"birthdays")`. `info_panel` has no live data source and therefore no staleness glyph.
 - `cache.quote_refresh` controls how often the displayed quote rotates: `daily` (default), `twice_daily`, or `hourly`. Quote selection uses a stable date/time-bucket hash — the same bucket always maps to the same quote (repeats are possible). With 144 bundled quotes: daily ≈ 144-day cycle, twice_daily ≈ 72-day cycle, hourly ≈ 6-day cycle. The hash input is `(title, date, bucket_index)` so the same slot is stable across restarts.
