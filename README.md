@@ -413,63 +413,121 @@ See the theme reference tables and font customization guide in [`CLAUDE.md`](CLA
 
 v4 is a drop-in upgrade. Your existing credentials and `config.yaml` work without changes.
 
-### Step 1 -- Clone the new repo
+Pick the path that matches your setup:
+
+- **Option A** — you run the dashboard directly on the Pi (most common)
+- **Option B** — you develop on a separate machine and deploy to the Pi via `make deploy`
+
+### Option A: Upgrade directly on the Pi
+
+SSH into your Pi. Your v3 installation is likely in `~/home-dashboard`.
+
+#### 1. Clone v4 alongside v3
+
+```bash
+# On the Pi
+git clone https://github.com/gkoch02/Dashboard-v4.git ~/home-dashboard-v4
+```
+
+#### 2. Copy your config and credentials from v3
+
+```bash
+# On the Pi
+cp ~/home-dashboard/config/config.yaml   ~/home-dashboard-v4/config/config.yaml
+cp ~/home-dashboard/credentials/service_account.json ~/home-dashboard-v4/credentials/service_account.json
+
+# If you had a birthdays.json, copy that too:
+cp ~/home-dashboard/config/birthdays.json ~/home-dashboard-v4/config/birthdays.json 2>/dev/null
+```
+
+#### 3. Swap directories
+
+```bash
+# On the Pi
+mv ~/home-dashboard ~/home-dashboard-v3-backup
+mv ~/home-dashboard-v4 ~/home-dashboard
+cd ~/home-dashboard
+```
+
+#### 4. Install dependencies
+
+```bash
+# On the Pi — ~/home-dashboard
+make pi-install
+```
+
+#### 5. Clear stale v3 cache files
+
+```bash
+# On the Pi — ~/home-dashboard
+rm -f output/calendar_cache.json output/weather_cache.json \
+      output/birthday_cache.json output/calendar_sync_state.json \
+      output/last_image_hash.txt
+```
+
+#### 6. Validate and test
+
+```bash
+# On the Pi — ~/home-dashboard
+make check          # validate config
+make dry            # render a preview with dummy data
+```
+
+#### 7. Re-enable the systemd timer
+
+```bash
+# On the Pi — ~/home-dashboard
+make pi-enable      # reinstall systemd timer (unit file has changed in v4)
+make pi-status      # confirm the timer is active
+```
+
+You can delete `~/home-dashboard-v3-backup` once you're satisfied everything works.
+
+### Option B: Upgrade on a dev machine, then deploy to the Pi
+
+All commands below run on your **dev machine** unless noted otherwise.
+
+#### 1. Clone v4
 
 ```bash
 git clone https://github.com/gkoch02/Dashboard-v4.git
 cd Dashboard-v4
 ```
 
-### Step 2 -- Copy your config and credentials
+#### 2. Copy your config and credentials from v3
 
 ```bash
 cp /path/to/Dashboard-v3/config/config.yaml config/config.yaml
 cp /path/to/Dashboard-v3/credentials/service_account.json credentials/service_account.json
-```
 
-If you had a `config/birthdays.json`, copy that too:
-
-```bash
+# If you had a birthdays.json, copy that too:
 cp /path/to/Dashboard-v3/config/birthdays.json config/birthdays.json
 ```
 
-### Step 3 -- Install dependencies
+#### 3. Install dependencies and validate
 
 ```bash
 make setup
+make check
+make dry            # render a preview with dummy data
 ```
 
-The dependency list is identical to v3; `make setup` creates a fresh venv.
-
-### Step 4 -- Clear the old cache
-
-Delete v3's output files before the first run to avoid stale cache conflicts:
+#### 4. Deploy to the Pi
 
 ```bash
+make deploy         # rsync to pi@dashboard:~/home-dashboard
+```
+
+Then SSH into the Pi to finish setup:
+
+```bash
+# On the Pi — ~/home-dashboard
 rm -f output/calendar_cache.json output/weather_cache.json \
       output/birthday_cache.json output/calendar_sync_state.json \
       output/last_image_hash.txt
-```
-
-### Step 5 -- Validate your config
-
-```bash
-make check
-```
-
-### Step 6 -- Test
-
-```bash
-make dry            # renders output/latest.png with dummy data
-venv/bin/python -m src.main --dry-run --config config/config.yaml   # live data
-```
-
-### Step 7 -- Redeploy to Pi
-
-```bash
-make deploy
-ssh pi@raspberrypi.local "cd ~/home-dashboard && make setup"
-make install        # reinstall systemd timer (unit file has changed)
+make pi-install     # install system deps and rebuild the venv
+make pi-enable      # reinstall systemd timer (unit file has changed in v4)
+make pi-status      # confirm the timer is active
 ```
 
 ### What's new in v4.1
