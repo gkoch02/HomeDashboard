@@ -209,7 +209,7 @@ default to `None` and fall back gracefully so adding a new field never breaks ex
 - When `purpleair.api_key` or `purpleair.sensor_id` is `0`/`""`, the source is skipped silently (no circuit breaker entry, no cache miss); validation emits warnings only when one is set without the other
 - `AirQualityData` includes optional `temperature` (°F), `humidity` (%), and `pressure` (hPa) fields from PurpleAir ambient readings; these appear in the `diags` panel; old cache entries missing these fields deserialize safely as `None`
 - `HostData` is fetched synchronously (after concurrent API fetches complete) using only Python stdlib and `/proc`; fields that are unavailable (e.g. CPU temp on non-Pi) return `None` and are silently omitted in the `diags` panel
-- `diags` and `air_quality` themes are permanently excluded from the `random` rotation pool via `_EXCLUDED_FROM_POOL` in `random_theme.py`; they cannot be added via `random_theme.include` — use `theme: diags` / `theme: air_quality` directly instead
+- `diags` theme is permanently excluded from the `random` rotation pool via `_EXCLUDED_FROM_POOL` in `random_theme.py`; use `theme: diags` directly instead. `air_quality` is included in the pool and will appear in normal random rotation.
 - `air_quality` theme uses `draw_air_quality_full()` in `air_quality_panel.py`, which receives the full `DashboardData` object (same pattern as `diags_panel`); the component dispatches via the `air_quality_full` region on `ThemeLayout`
 - `retry_fetch()` in `data_pipeline.py` retries only likely transient failures and does not retry likely permanent config/data errors (`RuntimeError`, `ValueError`, `TypeError`, `KeyError`)
 - `gpiozero` pin factory is set to `lgpio` for Pi hardware runtime (required for modern Pi OS)
