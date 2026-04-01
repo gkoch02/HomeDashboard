@@ -1,0 +1,11 @@
+# Logrotate config for Home Dashboard
+# Installed by `make pi-enable` to /etc/logrotate.d/dashboard
+__INSTALL_DIR__/output/dashboard.log {
+    weekly
+    rotate 4
+    compress
+    missingok
+    notifempty
+    copytruncate
+    size 5M
+}

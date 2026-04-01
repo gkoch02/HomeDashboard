@@ -38,7 +38,7 @@ deploy:
 
 install:
 	@echo "Copying systemd units to Pi..."
-	scp deploy/dashboard.service deploy/dashboard.timer $(PI_USER)@$(PI_HOST):/tmp/
+	scp deploy/dashboard.service deploy/dashboard.timer deploy/dashboard.logrotate $(PI_USER)@$(PI_HOST):/tmp/
 	ssh $(PI_USER)@$(PI_HOST) " \
 		sudo systemctl stop dashboard.timer 2>/dev/null || true; \
 		REMOTE_DIR='$(PI_DIR)'; \
@@ -46,6 +46,8 @@ install:
 		    -e \"s|__USER__|$(PI_USER)|g\" \
 		    /tmp/dashboard.service | sudo tee /etc/systemd/system/dashboard.service > /dev/null && \
 		sudo cp /tmp/dashboard.timer /etc/systemd/system/ && \
+		sed -e \"s|__INSTALL_DIR__|\$$REMOTE_DIR|g\" \
+		    /tmp/dashboard.logrotate | sudo tee /etc/logrotate.d/dashboard > /dev/null && \
 		sudo systemctl daemon-reload && \
 		sudo systemctl reset-failed dashboard.service dashboard.timer 2>/dev/null || true; \
 		sudo systemctl enable dashboard.timer && \
@@ -102,6 +104,10 @@ pi-enable:
 	sudo cp deploy/dashboard.timer /etc/systemd/system/dashboard.timer; \
 	sudo systemctl daemon-reload; \
 	sudo systemctl enable --now dashboard.timer
+	@echo "==> Installing logrotate config..."
+	@INSTALL_DIR="$$(pwd)"; \
+	sed -e "s|__INSTALL_DIR__|$$INSTALL_DIR|g" \
+	    deploy/dashboard.logrotate | sudo tee /etc/logrotate.d/dashboard > /dev/null
 	@echo ""
 	@$(MAKE) pi-status
 
