@@ -64,7 +64,7 @@ def draw_weather_full(
 
     # ── Zone heights (proportional to 480px canvas) ──────────────────
     hero_h = int(H * 0.44)        # ~211px: icon + temp + desc + hi/lo
-    cards_h = int(H * 0.115)      # ~55px: metric cards row
+    cards_h = int(H * 0.155)      # ~74px: metric cards row
     detail_h = int(H * 0.06)      # ~29px: sunrise/sunset/pressure/moon
     alert_h = int(H * 0.055)      # ~26px: alert banner (if needed)
     # Remaining space goes to forecast grid
@@ -216,7 +216,9 @@ def _draw_metric_cards(draw, weather, x0, y0, W, H, style, *, air_quality=None):
 
     icon_font = weather_icon_font(18)
     value_font = style.font_semibold(14)
-    label_font = style.font_regular(10)
+    label_font = style.font_regular(13)
+
+    label_h = text_height(label_font)
 
     for i, (glyph, value, label) in enumerate(cards):
         card_x = x0 + margin + i * (card_w + gap)
@@ -227,34 +229,44 @@ def _draw_metric_cards(draw, weather, x0, y0, W, H, style, *, air_quality=None):
             radius=6, outline=fg, width=1,
         )
 
-        # Centre content vertically within card
         inner_cx = card_x + card_w // 2
 
-        # Icon glyph + value on one line
+        # Measure icon and value for layout
         glyph_bbox = draw.textbbox((0, 0), glyph, font=icon_font)
         glyph_w = glyph_bbox[2] - glyph_bbox[0]
-        val_w = text_width(draw, value, value_font)
+        glyph_h = glyph_bbox[3] - glyph_bbox[1]
+        val_bbox = draw.textbbox((0, 0), value, font=value_font)
+        val_w = val_bbox[2] - val_bbox[0]
+        val_h = val_bbox[3] - val_bbox[1]
+        row_h = max(glyph_h, val_h)
+
+        # Label sits at the bottom; vertically centre the icon+value in the space above it
+        label_top = card_y + card_h - label_h - 5
+        content_top = card_y + 6
+        content_h = label_top - 4 - content_top
+        line_y = content_top + (content_h - row_h) // 2
+
+        # Horizontally centre icon + value row
         spacing = 5
         total_w = glyph_w + spacing + val_w
         line_x = inner_cx - total_w // 2
 
-        line_y = card_y + 6
+        # Draw icon and value vertically centred on the same row
+        icon_y = line_y + (row_h - glyph_h) // 2
+        val_y = line_y + (row_h - val_h) // 2
         draw.text(
-            (line_x - glyph_bbox[0], line_y - glyph_bbox[1]),
+            (line_x - glyph_bbox[0], icon_y - glyph_bbox[1]),
             glyph, font=icon_font, fill=fg,
         )
-        val_bbox = draw.textbbox((0, 0), value, font=value_font)
         draw.text(
-            (line_x + glyph_w + spacing - val_bbox[0],
-             line_y - val_bbox[1]),
+            (line_x + glyph_w + spacing - val_bbox[0], val_y - val_bbox[1]),
             value, font=value_font, fill=fg,
         )
 
-        # Label below
+        # Label centred at bottom of card
         label_w = text_width(draw, label, label_font)
         label_x = inner_cx - label_w // 2
-        label_y = card_y + card_h - text_height(label_font) - 5
-        draw.text((label_x, label_y), label, font=label_font, fill=fg)
+        draw.text((label_x, label_top), label, font=label_font, fill=fg)
 
 
 def _draw_detail_strip(draw, weather, today, x0, y0, W, H, style, *, air_quality=None):
