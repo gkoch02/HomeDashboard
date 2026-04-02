@@ -1,4 +1,5 @@
-"""Tests for src/render/components/air_quality_panel.py."""
+"""Tests for src/render/components/air_quality_panel.py
+and src/render/themes/air_quality.py."""
 
 from datetime import date, datetime, timedelta
 
@@ -285,3 +286,48 @@ class TestAqiHeroAndScaleBar:
         aq = _make_aq(aqi=350, category="Hazardous")
         data = _make_data(air_quality=aq)
         draw_air_quality_full(draw, data, date(2024, 3, 15))
+
+
+# ---------------------------------------------------------------------------
+# air_quality theme factory — src/render/themes/air_quality.py
+# ---------------------------------------------------------------------------
+
+class TestAirQualityTheme:
+    def test_theme_name(self):
+        from src.render.themes.air_quality import air_quality_theme
+        assert air_quality_theme().name == "air_quality"
+
+    def test_theme_in_available_themes(self):
+        from src.render.theme import AVAILABLE_THEMES
+        assert "air_quality" in AVAILABLE_THEMES
+
+    def test_load_theme_returns_air_quality(self):
+        from src.render.theme import load_theme
+        assert load_theme("air_quality").name == "air_quality"
+
+    def test_air_quality_full_region_visible(self):
+        from src.render.themes.air_quality import air_quality_theme
+        assert air_quality_theme().layout.air_quality_full.visible is True
+
+    def test_standard_regions_hidden(self):
+        from src.render.themes.air_quality import air_quality_theme
+        layout = air_quality_theme().layout
+        assert layout.header.visible is False
+        assert layout.week_view.visible is False
+        assert layout.weather.visible is False
+
+    def test_uses_space_grotesk_fonts(self):
+        from src.render.fonts import sg_bold, sg_regular
+        from src.render.themes.air_quality import air_quality_theme
+        style = air_quality_theme().style
+        assert style.font_regular is sg_regular
+        assert style.font_bold is sg_bold
+
+    def test_renders_via_canvas(self):
+        from PIL import Image as PILImage
+        from src.config import DisplayConfig
+        from src.render.canvas import render_dashboard
+        from src.render.theme import load_theme
+        result = render_dashboard(_make_data(), DisplayConfig(), theme=load_theme("air_quality"))
+        assert isinstance(result, PILImage.Image)
+        assert result.size == (800, 480)
