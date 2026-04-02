@@ -86,7 +86,7 @@ def _draw_date_line(
     cx: int, y: int, style: "ThemeStyle",
 ) -> int:
     """Draw formatted date centered at cx, return y after the line."""
-    font = cinzel_bold(14)
+    font = cinzel_bold(17)
     day_name = today.strftime("%A")
     month = today.strftime("%B")
     day_num = today.day
@@ -102,7 +102,7 @@ def _draw_phase_name(
     cx: int, y: int, style: "ThemeStyle",
 ) -> int:
     """Draw the phase name with decorative tildes, return y after."""
-    font = cinzel_bold(18)
+    font = cinzel_bold(22)
     name = moon_phase_name(today).upper()
     text = f"~ {name} ~"
     tw = text_width(draw, text, font)
@@ -115,7 +115,7 @@ def _draw_moon_row(
     cx: int, y_top: int, row_h: int, style: "ThemeStyle",
 ) -> None:
     """Draw the hero moon and 3 flanking moons per side."""
-    hero_size = 140
+    hero_size = 162
     hero_font = weather_icon(hero_size)
     hero_glyph = moon_phase_glyph(today)
 
@@ -130,15 +130,15 @@ def _draw_moon_row(
 
     # Flanking moons: offsets from center, sizes, and day deltas
     flanks = [
-        (-1, 42, -110),
-        (-2, 36, -180),
-        (-3, 30, -245),
-        (1, 42, 110),
-        (2, 36, 180),
-        (3, 30, 245),
+        (-1, 50, -130),
+        (-2, 44, -205),
+        (-3, 36, -275),
+        (1, 50, 130),
+        (2, 44, 205),
+        (3, 36, 275),
     ]
 
-    label_font = playfair_regular(10)
+    label_font = playfair_regular(13)
 
     for delta, size, x_off in flanks:
         d = today + timedelta(days=delta)
@@ -166,7 +166,7 @@ def _draw_illumination(
     cx: int, y: int, style: "ThemeStyle",
 ) -> int:
     """Draw illumination percentage with star decorations."""
-    font = playfair_medium(18)
+    font = playfair_medium(22)
     pct = moon_illumination(today)
     text = f"* {pct:.0f}% illuminated *"
     tw = text_width(draw, text, font)
@@ -179,7 +179,7 @@ def _draw_celestial_strip(
     today: date, cx: int, y: int, style: "ThemeStyle",
 ) -> int:
     """Draw sunrise/sunset times and moon age."""
-    font = playfair_regular(16)
+    font = playfair_regular(19)
     age = moon_phase_age(today)
 
     parts = []
@@ -205,10 +205,10 @@ def _draw_weather_strip(
         return y
 
     # Weather icon glyph
-    icon_font = weather_icon(26)
+    icon_font = weather_icon(30)
     icon_glyph = OWM_ICON_MAP.get(weather.current_icon, FALLBACK_ICON)
 
-    text_font = playfair_regular(16)
+    text_font = playfair_regular(19)
     temp = f"{weather.current_temp:.0f}°"
     desc = weather.current_description.title()
     hilo = f"H:{weather.high:.0f}° L:{weather.low:.0f}°"
@@ -269,7 +269,7 @@ def _draw_quote(
     quote = _quote_for_panel(today, refresh=quote_refresh)
     text = f'"{quote["text"]}"'
 
-    quote_font = playfair_regular(15)
+    quote_font = playfair_regular(18)
     lines_h = text_height(quote_font)
 
     # Wrap into lines, then draw each line centered
@@ -283,7 +283,7 @@ def _draw_quote(
         cur_y += lines_h + 4
 
     # Attribution
-    attr_font = playfair_regular(13)
+    attr_font = playfair_regular(16)
     attr = f'-- {quote["author"]}'
     attr_w = text_width(draw, attr, attr_font)
     attr_y = cur_y + 4
@@ -320,15 +320,15 @@ def draw_moonphase(
     weather = data.weather
 
     # Date line
-    y = y0 + 20
+    y = y0 + 14
     y = _draw_date_line(draw, today, cx, y, style)
 
     # Phase name
     y = _draw_phase_name(draw, today, cx, y, style)
 
-    # Hero moon + flanking moons (fixed 200px zone)
+    # Hero moon + flanking moons (fixed 215px zone)
     moon_row_y = y + 2
-    moon_row_h = 200
+    moon_row_h = 215
     _draw_moon_row(draw, today, cx, moon_row_y, moon_row_h, style)
     y = moon_row_y + moon_row_h + 4
 
