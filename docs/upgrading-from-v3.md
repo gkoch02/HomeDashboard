@@ -1,0 +1,157 @@
+← [README](../README.md)
+
+# Upgrading from v3
+
+v4 is a drop-in upgrade. Your existing credentials and `config.yaml` work without changes.
+
+Pick the path that matches your setup:
+
+- **Option A** — you run the dashboard directly on the Pi (most common)
+- **Option B** — you develop on a separate machine and deploy to the Pi via `make deploy`
+
+---
+
+## Option A: Upgrade directly on the Pi
+
+SSH into your Pi. Your v3 installation is likely in `~/home-dashboard`.
+
+### 1. Clone v4 alongside v3
+
+```bash
+# On the Pi
+git clone https://github.com/gkoch02/Dashboard-v4.git ~/home-dashboard-v4
+```
+
+### 2. Copy your config and credentials from v3
+
+```bash
+# On the Pi
+cp ~/home-dashboard/config/config.yaml   ~/home-dashboard-v4/config/config.yaml
+cp ~/home-dashboard/credentials/service_account.json ~/home-dashboard-v4/credentials/service_account.json
+
+# If you had a birthdays.json, copy that too:
+cp ~/home-dashboard/config/birthdays.json ~/home-dashboard-v4/config/birthdays.json 2>/dev/null
+```
+
+### 3. Swap directories
+
+```bash
+# On the Pi
+mv ~/home-dashboard ~/home-dashboard-v3-backup
+mv ~/home-dashboard-v4 ~/home-dashboard
+cd ~/home-dashboard
+```
+
+### 4. Install dependencies
+
+```bash
+# On the Pi — ~/home-dashboard
+make pi-install
+```
+
+### 5. Clear stale v3 cache files
+
+```bash
+# On the Pi — ~/home-dashboard
+rm -f output/calendar_cache.json output/weather_cache.json \
+      output/birthday_cache.json output/calendar_sync_state.json \
+      output/last_image_hash.txt
+```
+
+### 6. Validate and test
+
+```bash
+# On the Pi — ~/home-dashboard
+make check          # validate config
+make dry            # render a preview with dummy data
+```
+
+### 7. Re-enable the systemd timer
+
+```bash
+# On the Pi — ~/home-dashboard
+make pi-enable      # reinstall systemd timer (unit file has changed in v4)
+make pi-status      # confirm the timer is active
+```
+
+You can delete `~/home-dashboard-v3-backup` once you're satisfied everything works.
+
+---
+
+## Option B: Upgrade on a dev machine, then deploy to the Pi
+
+All commands below run on your **dev machine** unless noted otherwise.
+
+### 1. Clone v4
+
+```bash
+git clone https://github.com/gkoch02/Dashboard-v4.git
+cd Dashboard-v4
+```
+
+### 2. Copy your config and credentials from v3
+
+```bash
+cp /path/to/Dashboard-v3/config/config.yaml config/config.yaml
+cp /path/to/Dashboard-v3/credentials/service_account.json credentials/service_account.json
+
+# If you had a birthdays.json, copy that too:
+cp /path/to/Dashboard-v3/config/birthdays.json config/birthdays.json
+```
+
+### 3. Install dependencies and validate
+
+```bash
+make setup
+make check
+make dry            # render a preview with dummy data
+```
+
+### 4. Deploy to the Pi
+
+```bash
+make deploy         # rsync to pi@dashboard:~/home-dashboard
+```
+
+Then SSH into the Pi to finish setup:
+
+```bash
+# On the Pi — ~/home-dashboard
+rm -f output/calendar_cache.json output/weather_cache.json \
+      output/birthday_cache.json output/calendar_sync_state.json \
+      output/last_image_hash.txt
+make pi-install     # install system deps and rebuild the venv
+make pi-enable      # reinstall systemd timer (unit file has changed in v4)
+make pi-status      # confirm the timer is active
+```
+
+---
+
+## What's new in v4.1
+
+Your existing config is fully compatible. These are opt-in additions:
+
+| Feature | How to enable |
+|---|---|
+| **PurpleAir air quality** | Add `purpleair.api_key` and `purpleair.sensor_id` to `config.yaml`; an AQI card (EPA index from 60-minute PM2.5 average) appears in the `weather` theme metric row, and a PM1 · PM2.5 · PM10 µg/m³ breakdown appears in the detail strip |
+| **ICS feed calendar (no GCP)** | Set `google.ical_url` to your calendar's "Secret address in iCal format" URL — no service account or GCP project needed; supports multiple calendars via `additional_ical_urls` |
+| **Configurable quote refresh** | Set `cache.quote_refresh` to `daily` (default), `twice_daily`, or `hourly` to control how often the displayed quote rotates; uses a stable date-based hash so the same time slot always shows the same quote |
+
+---
+
+## What's new in v4
+
+Your existing config is fully compatible. These are opt-in additions:
+
+| Feature | How to enable |
+|---|---|
+| **Versioning** (`--version` flag) | Run `python -m src.main --version` or `make version` to print the current version |
+| **Themes** (built-in layouts) | Add `theme: terminal` (or `minimalist`, `old_fashioned`, `today`, `fantasy`, `moonphase`, `moonphase_invert`, `qotd`, `qotd_invert`, `weather`, `air_quality`, `fuzzyclock`, `fuzzyclock_invert`, `diags`) to `config.yaml`, or pass `--theme THEME` on the command line |
+| **Random theme rotation** | Set `theme: random_daily` (once per day) or `theme: random_hourly` (once per hour); optionally add a `random_theme:` block to include/exclude specific themes |
+| **Event filtering** | Add a `filters:` block — hide events by calendar name, keyword, or all-day status |
+| **Configurable cache TTLs** | Add a `cache:` block to tune per-source TTL and fetch intervals |
+| **Circuit breaker tuning** | `cache.max_failures` and `cache.cooldown_minutes` |
+| **API quota warnings** | `google.daily_quota_warning: 500` logs a warning when calls exceed the threshold |
+| **`--check-config` flag** | Validate config and exit without running the dashboard |
+| **`--force-full-refresh` flag** | Bypass fetch intervals and force a full eInk refresh for a one-off run |
+| **`--ignore-breakers` flag** | Ignore OPEN circuit breakers for one run and attempt live fetches anyway |
