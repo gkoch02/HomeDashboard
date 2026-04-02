@@ -7,16 +7,24 @@ hours, caching, graceful fallback behavior, and a handful of well-designed theme
 customization is available, but the default setup is optimized to get something useful on
 the wall fast.
 
+- Weekly calendar view — works via ICS feed (no GCP account needed) or Google Calendar API
+- Current weather, forecast, and optional air quality (OpenWeatherMap + PurpleAir)
+- Upcoming birthdays from Google Contacts, a flat file, or a calendar feed
+- Daily quote from a bundled library
+- 16 built-in themes with random daily/hourly rotation and a schedule override
+- Graceful degradation: stale-cache fallback, circuit breakers, staleness indicators
+
 ![Default theme preview](output/theme_default.png)
 
 ---
 
 ## Choose Your Path
 
-- **First install on a Raspberry Pi:** start with [Quick Start](#quick-start), then finish
-  [Google Calendar Setup](docs/setup.md#google-calendar-setup) if you use calendar/birthdays.
-- **Want calendar without a GCP project?** Use [ICS Feed (No GCP Required)](docs/setup.md#ics-feed-no-gcp-required)
-  — just paste one URL from Google Calendar settings, no credentials file needed.
+- **First install on a Raspberry Pi:** start with [Quick Start](#quick-start).
+- **Setting up calendar (recommended for most):** use [ICS Feed (No GCP Required)](docs/setup.md#ics-feed-no-gcp-required)
+  — paste one URL from Google Calendar settings, no credentials file or GCP project needed.
+- **Need contacts-based birthdays or incremental sync?** Follow [Google Calendar Setup](docs/setup.md#google-calendar-setup)
+  to configure a service account instead.
 - **Upgrading from an older release:** go to [Upgrading from v3](docs/upgrading-from-v3.md).
 - **Local dev / preview only:** jump to [Development](docs/development.md) and run `make setup`
   + `make dry` (no hardware required).
