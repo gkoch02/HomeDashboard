@@ -166,12 +166,12 @@ def _draw_illumination(
     cx: int, y: int, style: "ThemeStyle",
 ) -> int:
     """Draw illumination percentage with star decorations."""
-    font = playfair_medium(13)
+    font = playfair_medium(18)
     pct = moon_illumination(today)
     text = f"* {pct:.0f}% illuminated *"
     tw = text_width(draw, text, font)
     draw.text((cx - tw // 2, y), text, font=font, fill=style.fg)
-    return y + text_height(font) + 8
+    return y + text_height(font) + 10
 
 
 def _draw_celestial_strip(
@@ -179,7 +179,7 @@ def _draw_celestial_strip(
     today: date, cx: int, y: int, style: "ThemeStyle",
 ) -> int:
     """Draw sunrise/sunset times and moon age."""
-    font = playfair_regular(12)
+    font = playfair_regular(16)
     age = moon_phase_age(today)
 
     parts = []
@@ -193,7 +193,7 @@ def _draw_celestial_strip(
     text = "  ~  ".join(parts)
     tw = text_width(draw, text, font)
     draw.text((cx - tw // 2, y), text, font=font, fill=style.fg)
-    return y + text_height(font) + 8
+    return y + text_height(font) + 10
 
 
 def _draw_weather_strip(
@@ -205,10 +205,10 @@ def _draw_weather_strip(
         return y
 
     # Weather icon glyph
-    icon_font = weather_icon(20)
+    icon_font = weather_icon(26)
     icon_glyph = OWM_ICON_MAP.get(weather.current_icon, FALLBACK_ICON)
 
-    text_font = playfair_regular(12)
+    text_font = playfair_regular(16)
     temp = f"{weather.current_temp:.0f}°"
     desc = weather.current_description.title()
     hilo = f"H:{weather.high:.0f}° L:{weather.low:.0f}°"
@@ -230,7 +230,7 @@ def _draw_weather_strip(
 
     # Draw text
     draw.text((start_x + icon_w, y), info, font=text_font, fill=style.fg)
-    return y + th + 6
+    return y + th + 10
 
 
 def _draw_separator(
@@ -269,7 +269,7 @@ def _draw_quote(
     quote = _quote_for_panel(today, refresh=quote_refresh)
     text = f'"{quote["text"]}"'
 
-    quote_font = playfair_regular(11)
+    quote_font = playfair_regular(15)
     lines_h = text_height(quote_font)
 
     # Wrap into lines, then draw each line centered
@@ -280,13 +280,13 @@ def _draw_quote(
         lw = text_width(draw, line, quote_font)
         draw.text((cx - lw // 2, cur_y), line,
                   font=quote_font, fill=style.fg)
-        cur_y += lines_h + 3
+        cur_y += lines_h + 4
 
     # Attribution
-    attr_font = playfair_regular(10)
+    attr_font = playfair_regular(13)
     attr = f'-- {quote["author"]}'
     attr_w = text_width(draw, attr, attr_font)
-    attr_y = cur_y + 2
+    attr_y = cur_y + 4
     if attr_y + lines_h < y + max_h:
         draw.text((cx - attr_w // 2, attr_y), attr,
                   font=attr_font, fill=style.fg)
