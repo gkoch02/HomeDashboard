@@ -1,8 +1,11 @@
 # Home Dashboard
 
-A Python eInk dashboard for Raspberry Pi. Displays your weekly calendar, current weather,
-upcoming birthdays, and a daily quote on any supported Waveshare black-and-white eInk
-display.
+Home Dashboard is a low-maintenance eInk wall display for family logistics: calendar,
+weather, birthdays, and other glanceable daily context on a Raspberry Pi with a Waveshare
+display. It's designed to be calm, readable, and reliable for unattended use, with quiet
+hours, caching, graceful fallback behavior, and a handful of well-designed themes. Advanced
+customization is available, but the default setup is optimized to get something useful on
+the wall fast.
 
 ![Default theme preview](output/theme_default.png)
 
