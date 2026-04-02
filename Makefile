@@ -13,7 +13,7 @@ dry: _check-venv
 	$(VENV) -m src.main --dry-run --dummy
 
 previews: _check-venv
-	@for theme in air_quality default diags fantasy fuzzyclock fuzzyclock_invert minimalist old_fashioned qotd qotd_invert terminal today weather; do \
+	@for theme in air_quality default diags fantasy fuzzyclock fuzzyclock_invert minimalist moonphase moonphase_invert old_fashioned qotd qotd_invert terminal today weather; do \
 		echo "Generating preview for theme: $$theme"; \
 		$(VENV) -m src.main --dry-run --dummy --theme $$theme; \
 		cp output/latest.png output/theme_$$theme.png; \

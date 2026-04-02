@@ -92,7 +92,7 @@ first and come back here for customization.
 Switch the entire dashboard layout and visual style with one line in `config.yaml`:
 
 ```yaml
-theme: terminal   # default | terminal | minimalist | old_fashioned | today | fantasy | qotd | qotd_invert | weather | fuzzyclock | fuzzyclock_invert | diags | air_quality | random_daily | random_hourly
+theme: terminal   # default | terminal | minimalist | old_fashioned | today | fantasy | moonphase | moonphase_invert | qotd | qotd_invert | weather | fuzzyclock | fuzzyclock_invert | diags | air_quality | random_daily | random_hourly
 ```
 
 Or override it from the command line without editing your config:
@@ -242,6 +242,30 @@ Triple-line vertical divider between sidebar and quest log with diamond ticks at
 and 2/3 of the body height. Plus Jakarta Sans for event body text.
 
 ![Fantasy theme](output/theme_fantasy.png)
+
+#### moonphase
+
+Celestial moon phase display. The current moon phase is rendered as a large 140px Weather
+Icons glyph at the centre of the canvas, flanked by three days on each side at graduated
+sizes (42/36/30px) showing the lunar progression from past to future. Below the moon arc
+sits the illumination percentage, sunrise and sunset times, moon age in days, and a compact
+weather strip with current conditions and hi/lo temperatures. A small centered daily quote
+fills the bottom. The entire canvas is framed by a whimsical vine border with triangular
+leaf buds along each edge, concentric-arc corner flourishes, and scattered stars in the
+upper corners. Dark canvas (white on black) for a night-sky aesthetic. Fonts: Cinzel Bold
+for the date and phase name, Playfair Display for body text and quote.
+
+![Moonphase theme](output/theme_moonphase.png)
+
+#### moonphase_invert
+
+Same layout as `moonphase` — central hero moon glyph, flanking day moons, celestial info
+strip, weather, and quote — but with the color scheme inverted: black on white for a
+parchment / fairy-tale illustrated-manuscript feel. The vine border, leaf buds, corner
+flourishes, and star scatter adapt automatically to the inverted palette. Maximum eInk
+contrast.
+
+![Moonphase Invert theme](output/theme_moonphase_invert.png)
 
 #### qotd
 

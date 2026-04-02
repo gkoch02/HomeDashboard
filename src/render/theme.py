@@ -87,6 +87,11 @@ class ThemeLayout:
     air_quality_full: ComponentRegion = field(
         default_factory=lambda: ComponentRegion(0, 0, 800, 480, visible=False)
     )
+    # Used by the ``moonphase`` theme for the full-canvas moon phase display.
+    # Hidden by default so existing themes are not affected.
+    moonphase_full: ComponentRegion = field(
+        default_factory=lambda: ComponentRegion(0, 0, 800, 480, visible=False)
+    )
     draw_order: list[str] = field(
         default_factory=lambda: ["header", "week_view", "weather", "birthdays", "info"]
     )
@@ -188,7 +193,8 @@ AVAILABLE_THEMES: frozenset[str] = frozenset(
     {
         "default", "terminal", "minimalist", "old_fashioned", "today",
         "fantasy", "qotd", "qotd_invert", "weather", "fuzzyclock", "fuzzyclock_invert",
-        "diags", "air_quality", "random", "random_daily", "random_hourly",
+        "diags", "air_quality", "moonphase", "moonphase_invert",
+        "random", "random_daily", "random_hourly",
     }
 )
 
@@ -267,6 +273,12 @@ def load_theme(name: str) -> Theme:
     if name == "air_quality":
         from src.render.themes.air_quality import air_quality_theme
         return air_quality_theme()
+    if name == "moonphase":
+        from src.render.themes.moonphase import moonphase_theme
+        return moonphase_theme()
+    if name == "moonphase_invert":
+        from src.render.themes.moonphase_invert import moonphase_invert_theme
+        return moonphase_invert_theme()
     raise ValueError(
         f"Unknown theme: {name!r}. Available: {', '.join(sorted(AVAILABLE_THEMES))}"
     )

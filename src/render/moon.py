@@ -4,6 +4,7 @@ Uses a simplified algorithm based on the known new-moon reference date
 (2000-01-06 18:14 UTC) and the synodic month length (29.53059 days).
 """
 
+import math
 from datetime import date, datetime, timezone
 
 # Mean synodic month in days (new moon to new moon)
@@ -71,6 +72,12 @@ def moon_phase_name(d: date) -> str:
     fraction = age / _SYNODIC_MONTH
     idx = int(fraction * 8 + 0.5) % 8
     return _PHASE_NAMES[idx]
+
+
+def moon_illumination(d: date) -> float:
+    """Return approximate illumination percentage (0.0 = new moon, 100.0 = full)."""
+    age = moon_phase_age(d)
+    return (1 - math.cos(2 * math.pi * age / _SYNODIC_MONTH)) / 2 * 100
 
 
 def moon_phase_glyph(d: date) -> str:

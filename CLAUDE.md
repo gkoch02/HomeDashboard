@@ -73,11 +73,12 @@ src/
     ├── primitives.py          # Shared draw utilities (truncation, wrapping, colors, fmt_time,
     │                          #   events_for_day, deg_to_compass)
     ├── themes/                # themes: default, terminal, minimalist, old_fashioned, today,
-    │                          #   fantasy, qotd, qotd_invert, weather, fuzzyclock, fuzzyclock_invert,
-    │                          #   diags, air_quality
+    │                          #   fantasy, moonphase, moonphase_invert, qotd, qotd_invert,
+    │                          #   weather, fuzzyclock, fuzzyclock_invert, diags, air_quality
     └── components/            # One file per UI region: header, week_view, weather_panel,
                                #   weather_full, birthday_bar, today_view, info_panel, qotd_panel,
-                               #   fuzzyclock_panel, diags_panel, air_quality_panel
+                               #   fuzzyclock_panel, diags_panel, air_quality_panel,
+                               #   moonphase_panel
 
 config/
 ├── config.example.yaml        # Template (copy to config.yaml)
@@ -160,8 +161,8 @@ Components are pure functions: `draw_*(draw, data, region, style) -> None`. No g
 | `UESC Display.otf` | `uesc_display` | `terminal` — month band, section labels, quote attribution |
 | `Synthetic Genesis.otf` | `synthetic_genesis` | `terminal` — large today date numeral |
 | `DMSans.ttf` | `dm_regular/medium/semibold/bold` | `minimalist`, `weather`, `fuzzyclock`, `diags` (section labels) |
-| `PlayfairDisplay-*.ttf` | `playfair_regular/medium/semibold/bold` | `old_fashioned`, `qotd` |
-| `Cinzel.ttf` | `cinzel_regular/semibold/bold/black` | `fantasy`, `old_fashioned` section labels |
+| `PlayfairDisplay-*.ttf` | `playfair_regular/medium/semibold/bold` | `old_fashioned`, `qotd`, `moonphase` |
+| `Cinzel.ttf` | `cinzel_regular/semibold/bold/black` | `fantasy`, `old_fashioned` section labels, `moonphase` |
 | `SpaceGrotesk-Regular.ttf` | `sg_regular` | `air_quality` |
 | `SpaceGrotesk-Medium.ttf` | `sg_medium` | `air_quality` |
 | `SpaceGrotesk-Bold.ttf` | `sg_bold` | `air_quality` |
@@ -224,3 +225,7 @@ default to `None` and fall back gracefully so adding a new field never breaks ex
 - `WeatherData.location_name` is populated from `current["name"]` in the OWM `/weather` response (always present when the API returns successfully); it is `None` when absent or empty. Old cache entries without this field deserialize safely as `None` via `.get()`.
 - Per-panel staleness glyphs: `draw_staleness_glyph()` in `primitives.py` draws a 12×14px inverted `!` badge in the bottom-right corner of a component region. `weather_panel.py` and `birthday_bar.py` accept an optional `staleness: StalenessLevel | None` kwarg and call the helper when staleness is `STALE` or `EXPIRED`; `canvas.py` passes `data.source_staleness.get("weather"/"birthdays")`. `info_panel` has no live data source and therefore no staleness glyph.
 - `cache.quote_refresh` controls how often the displayed quote rotates: `daily` (default), `twice_daily`, or `hourly`. Quote selection uses a stable date/time-bucket hash — the same bucket always maps to the same quote (repeats are possible). With 144 bundled quotes: daily ≈ 144-day cycle, twice_daily ≈ 72-day cycle, hourly ≈ 6-day cycle. The hash input is `(title, date, bucket_index)` so the same slot is stable across restarts.
+- `moonphase` theme is a full-canvas display using the `moonphase_full` region on `ThemeLayout`; `draw_moonphase()` in `moonphase_panel.py` receives the full `DashboardData` object (same pattern as `diags_panel` and `air_quality_panel`). Moon phase data is purely computational via `moon.py` — no API needed.
+- `moon_illumination(d)` in `moon.py` returns 0.0–100.0 using a cosine approximation from the phase age; used by the `moonphase` theme's illumination display.
+- `moonphase` and `moonphase_invert` are both included in the random rotation pool by default. `moonphase_invert` shares the same overlay function (`_draw_moonphase_overlay`) from `moonphase.py` — it adapts to fg/bg colors automatically.
+- `moonphase_panel.py` has its own `_quote_for_panel()` function with a `"moonphase-"` key prefix so its quote selection is independent from `info_panel`'s quote (they won't show the same quote on the same day).
