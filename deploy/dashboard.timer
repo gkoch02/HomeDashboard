@@ -1,5 +1,5 @@
 [Unit]
-Description=Run Home Dashboard every 5 minutes (06:00–22:59)
+Description=Run Home Dashboard every 5 minutes
 
 [Timer]
 OnBootSec=1min

@@ -571,7 +571,7 @@ Your existing config is fully compatible. These are opt-in additions:
 | Feature | How to enable |
 |---|---|
 | **Versioning** (`--version` flag) | Run `python -m src.main --version` or `make version` to print the current version |
-| **Themes** (built-in layouts) | Add `theme: terminal` (or `minimalist`, `old_fashioned`, `today`, `fantasy`, `qotd`, `qotd_invert`, `weather`, `fuzzyclock`, `fuzzyclock_invert`) to `config.yaml`, or pass `--theme THEME` on the command line |
+| **Themes** (built-in layouts) | Add `theme: terminal` (or `minimalist`, `old_fashioned`, `today`, `fantasy`, `moonphase`, `moonphase_invert`, `qotd`, `qotd_invert`, `weather`, `air_quality`, `fuzzyclock`, `fuzzyclock_invert`, `diags`) to `config.yaml`, or pass `--theme THEME` on the command line |
 | **Random theme rotation** | Set `theme: random_daily` (once per day) or `theme: random_hourly` (once per hour); optionally add a `random_theme:` block to include/exclude specific themes |
 | **Event filtering** | Add a `filters:` block — hide events by calendar name, keyword, or all-day status |
 | **Configurable cache TTLs** | Add a `cache:` block to tune per-source TTL and fetch intervals |
@@ -908,7 +908,7 @@ schedule:
 
 timezone: "local"                  # IANA name or "local"
 title: "Home Dashboard"            # text shown in the header bar
-theme: "default"                   # default | terminal | minimalist | old_fashioned | today | fantasy | qotd | qotd_invert | weather | fuzzyclock | fuzzyclock_invert | diags | random_daily | random_hourly
+theme: "default"                   # default | terminal | minimalist | old_fashioned | today | fantasy | moonphase | moonphase_invert | qotd | qotd_invert | weather | air_quality | fuzzyclock | fuzzyclock_invert | diags | random_daily | random_hourly
 
 random_theme:                      # only used when theme: random_daily or random_hourly
   include: []                      # allowlist (empty = all themes eligible)
@@ -1056,9 +1056,10 @@ venv/bin/python -m src.main --dry-run --theme diags --force-full-refresh --ignor
 |---|---|
 | `make setup` | Create venv, install dependencies, create config from template |
 | `make dry` | Render with dummy data to `output/latest.png` |
+| `make previews` | Generate preview PNGs for all themes to `output/theme_*.png` |
 | `make test` | Run `pytest tests/ -v` across the full suite |
 | `make check` | Validate config file and exit |
-| `make version` | Print the current version (e.g. `main.py 4.1.0`) |
+| `make version` | Print the current version (e.g. `main.py 4.1.1`) |
 | `make deploy` | rsync project to Raspberry Pi (`PI_USER`, `PI_HOST`, `PI_DIR` configurable) |
 | `make install` | Copy systemd timer/service to Pi and enable (legacy remote path) |
 
@@ -1069,7 +1070,7 @@ venv/bin/python -m src.main --dry-run --theme diags --force-full-refresh --ignor
 | `--dry-run` | Save to PNG instead of writing to display |
 | `--dummy` | Use built-in dummy data (no API calls needed) |
 | `--config PATH` | Config file path (default: `config/config.yaml`) |
-| `--theme THEME` | Override the theme set in `config.yaml`. Choices: `default`, `terminal`, `minimalist`, `old_fashioned`, `today`, `fantasy`, `qotd`, `qotd_invert`, `weather`, `fuzzyclock`, `fuzzyclock_invert`, `diags`, `random_daily`, `random_hourly` |
+| `--theme THEME` | Override the theme set in `config.yaml`. Choices: `default`, `terminal`, `minimalist`, `old_fashioned`, `today`, `fantasy`, `moonphase`, `moonphase_invert`, `qotd`, `qotd_invert`, `weather`, `air_quality`, `fuzzyclock`, `fuzzyclock_invert`, `diags`, `random_daily`, `random_hourly` |
 | `--date YYYY-MM-DD` | Override today's date for the dry-run preview (requires `--dry-run`) |
 | `--force-full-refresh` | Force full eInk refresh and bypass fetch intervals |
 | `--ignore-breakers` | Ignore OPEN circuit breakers for this run and attempt fetches anyway |
@@ -1098,11 +1099,12 @@ flake8 src/ tests/ --max-line-length=100
 Dashboard-v4/
 ├── config/
 │   ├── config.example.yaml       # Configuration template
-│   └── quotes.json               # Daily quote pool (125 entries)
+│   └── quotes.json               # Daily quote pool (144 entries)
 ├── credentials/                  # Git-ignored -- Google service account JSON
 ├── deploy/
 │   ├── dashboard.service         # Systemd service template (paths filled by make pi-enable)
 │   ├── dashboard.timer           # Systemd timer (fires every 5 min)
+│   ├── dashboard.logrotate       # Logrotate config template (paths filled by make pi-enable)
 │   └── configure.sh              # Interactive config wizard (invoked by make configure)
 ├── fonts/                        # Bundled TTF fonts
 ├── output/                       # Mostly git-ignored
@@ -1114,7 +1116,7 @@ Dashboard-v4/
 │   ├── services_run_policy.py    # Quiet hours + morning full-refresh decisions
 │   ├── services_theme_service.py # Theme resolution (including random theme selection)
 │   ├── services_output_service.py# Dry-run writes, display refresh decisions, health marker
-│   ├── _version.py               # Version constant (__version__ = "4.1.0")
+│   ├── _version.py               # Version constant (__version__ = "4.1.1")
 │   ├── config.py                 # YAML -> typed Config dataclass + validation
 │   ├── dummy_data.py             # Realistic dummy data for --dummy / dev previews
 │   ├── filters.py                # Event filtering (calendar, keyword, all-day)
@@ -1146,9 +1148,12 @@ Dashboard-v4/
 │       │   ├── old_fashioned.py
 │       │   ├── today.py
 │       │   ├── fantasy.py
+│       │   ├── moonphase.py
+│       │   ├── moonphase_invert.py
 │       │   ├── qotd.py
 │       │   ├── qotd_invert.py
 │       │   ├── weather.py
+│       │   ├── air_quality.py
 │       │   ├── fuzzyclock.py
 │       │   ├── fuzzyclock_invert.py
 │       │   └── diags.py
@@ -1162,6 +1167,8 @@ Dashboard-v4/
 │           ├── info_panel.py
 │           ├── qotd_panel.py
 │           ├── fuzzyclock_panel.py
+│           ├── air_quality_panel.py
+│           ├── moonphase_panel.py
 │           └── diags_panel.py
 ├── tests/                        # Full test suite
 ├── Makefile
@@ -1182,8 +1189,9 @@ Dashboard-v4/
 | UESC Display | `terminal` theme — month band, section labels, quote attribution |
 | Synthetic Genesis | `terminal` theme — large today date numeral |
 | [DM Sans](https://fonts.google.com/specimen/DM+Sans) | `minimalist` theme; `weather` theme; `fuzzyclock` theme; `diags` theme — section labels |
-| [Playfair Display](https://fonts.google.com/specimen/Playfair+Display) | `old_fashioned` theme; `qotd` quote text |
-| [Cinzel](https://fonts.google.com/specimen/Cinzel) | `fantasy` theme |
+| [Playfair Display](https://fonts.google.com/specimen/Playfair+Display) | `old_fashioned` theme; `qotd` quote text; `moonphase` body text and quote |
+| [Cinzel](https://fonts.google.com/specimen/Cinzel) | `fantasy` theme; `old_fashioned` section labels; `moonphase` date and phase name |
+| [Space Grotesk](https://fonts.google.com/specimen/Space+Grotesk) | `air_quality` theme |
 
 Custom fonts can be added per-theme via `ThemeStyle` font callables -- see
 [Creating your own theme](#creating-your-own-theme) and [`CLAUDE.md`](CLAUDE.md).
@@ -1205,3 +1213,5 @@ Custom fonts can be added per-theme via `ThemeStyle` font callables -- see
 
 - [RPi.GPIO](https://pypi.org/project/RPi.GPIO/) -- GPIO pin control
 - [spidev](https://pypi.org/project/spidev/) -- SPI communication with display
+- [lgpio](https://pypi.org/project/lgpio/) -- Linux GPIO interface (required by modern Pi OS)
+- [gpiozero](https://pypi.org/project/gpiozero/) -- GPIO zero abstraction layer (pin factory set to lgpio)

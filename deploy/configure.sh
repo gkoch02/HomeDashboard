@@ -20,6 +20,17 @@ current() {
     | sed 's/.*:\s*//' | tr -d '"' | xargs || true
 }
 
+# Read a value scoped to a YAML section (e.g. current_in purpleair api_key)
+current_in() {
+  local section="$1" key="$2"
+  awk -v sec="$section" -v k="$key" '
+    /^[^ #]/ { in_sec = ($0 ~ "^"sec":") }
+    in_sec && $0 ~ "^[ \t]+"k":" {
+      sub(/.*:[ \t]*/, ""); gsub(/"/, ""); print; exit
+    }
+  ' "$CONFIG" 2>/dev/null | xargs || true
+}
+
 prompt() {
   local label="$1" default="$2" varname="$3"
   if [ -n "$default" ]; then
@@ -70,8 +81,8 @@ echo ""
 echo "--- PurpleAir AQI (optional — press Enter to skip) ---"
 echo "  Free API key at develop.purpleair.com"
 echo "  Find sensor ID at map.purpleair.com (click sensor → check URL)"
-prompt "PurpleAir API key" "$(current purpleair_api_key 2>/dev/null || true)" PA_KEY
-prompt "PurpleAir sensor ID" "$(current sensor_id 2>/dev/null || true)" PA_SENSOR
+prompt "PurpleAir API key" "$(current_in purpleair api_key)" PA_KEY
+prompt "PurpleAir sensor ID" "$(current_in purpleair sensor_id)" PA_SENSOR
 echo ""
 
 # ---------------------------------------------------------------------------
