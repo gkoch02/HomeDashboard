@@ -138,7 +138,7 @@ def _draw_moon_row(
         (3, 36, 275),
     ]
 
-    label_font = playfair_regular(13)
+    label_font = playfair_regular(16)
 
     for delta, size, x_off in flanks:
         d = today + timedelta(days=delta)
