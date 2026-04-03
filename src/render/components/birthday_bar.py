@@ -90,8 +90,8 @@ def draw_birthdays(
         # Choose font: bold for milestones and today birthdays, medium otherwise
         font = milestone_font if (is_milestone or is_today_bday) else name_font
 
-        if is_milestone:
-            # Invert the entire row for milestone birthdays only
+        if is_today_bday:
+            # Invert the entire row for today birthdays — most urgent, deserves strongest signal
             row_rect = (x0 + pad - 1, y - 1, x0 + w - pad - 1, y + line_h - 2)
             filled_rect(draw, row_rect, fill=style.fg)
             draw.ellipse((x0 + pad, y + 5, x0 + pad + 5, y + 10), fill=style.bg)
