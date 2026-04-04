@@ -5,6 +5,7 @@
 - [Google Calendar Setup](#google-calendar-setup)
 - [ICS Feed (No GCP Required)](#ics-feed-no-gcp-required)
 - [Birthday Configuration](#birthday-configuration)
+- [PurpleAir Air Quality (Optional)](#purpleair-air-quality-optional)
 - [Raspberry Pi Reference](#raspberry-pi-reference)
 - [Supported Displays](#supported-displays)
 - [Hardware](#hardware)
@@ -161,6 +162,39 @@ google:
 birthdays:
   source: "contacts"
 ```
+
+---
+
+## PurpleAir Air Quality (Optional)
+
+Display real-time air quality data from a [PurpleAir](https://www.purpleair.com/) sensor.
+AQI data appears in the `weather` theme (compact card) and the `air_quality` theme
+(full-screen dashboard). This is entirely optional — the dashboard works fine without it.
+
+### Step 1 — Get an API key
+
+1. Go to [develop.purpleair.com](https://develop.purpleair.com/) and create an account
+2. Request a **Read** API key (free for personal use)
+
+### Step 2 — Find your sensor ID
+
+1. Go to [map.purpleair.com](https://map.purpleair.com/)
+2. Click on the sensor you want to monitor
+3. The sensor ID is the number in the URL (e.g. `map.purpleair.com/...?select=12345` → sensor ID is `12345`)
+
+### Step 3 — Add to config.yaml
+
+```yaml
+purpleair:
+  api_key: "YOUR_PURPLEAIR_API_KEY"
+  sensor_id: 12345
+```
+
+The sensor is polled at the interval set by `cache.air_quality_fetch_interval` (default:
+15 minutes). Data is cached for `cache.air_quality_ttl_minutes` (default: 30 minutes).
+
+If either `api_key` or `sensor_id` is missing or empty, the source is silently skipped —
+no errors, no circuit breaker entry.
 
 ---
 

@@ -41,7 +41,7 @@
 | `make previews` | Generate preview PNGs for all themes to `output/theme_*.png` |
 | `make test` | Run `pytest tests/ -v` across the full suite |
 | `make check` | Validate config file and exit |
-| `make version` | Print the current version (e.g. `main.py 4.1.1`) |
+| `make version` | Print the current version (e.g. `main.py 4.1.3`) |
 | `make deploy` | rsync project to Raspberry Pi (`PI_USER`, `PI_HOST`, `PI_DIR` configurable) |
 | `make install` | Copy systemd timer/service to Pi and enable (legacy remote path) |
 
@@ -54,7 +54,7 @@
 | `--dry-run` | Save to PNG instead of writing to display |
 | `--dummy` | Use built-in dummy data (no API calls needed) |
 | `--config PATH` | Config file path (default: `config/config.yaml`) |
-| `--theme THEME` | Override the theme set in `config.yaml`. Choices: `default`, `terminal`, `minimalist`, `old_fashioned`, `today`, `fantasy`, `moonphase`, `moonphase_invert`, `qotd`, `qotd_invert`, `weather`, `air_quality`, `fuzzyclock`, `fuzzyclock_invert`, `diags`, `random_daily`, `random_hourly` |
+| `--theme THEME` | Override the theme set in `config.yaml`. Choices: `default`, `terminal`, `minimalist`, `old_fashioned`, `today`, `fantasy`, `moonphase`, `moonphase_invert`, `qotd`, `qotd_invert`, `weather`, `air_quality`, `fuzzyclock`, `fuzzyclock_invert`, `diags`, `random`, `random_daily`, `random_hourly` |
 | `--date YYYY-MM-DD` | Override today's date for the dry-run preview (requires `--dry-run`) |
 | `--force-full-refresh` | Force full eInk refresh and bypass fetch intervals |
 | `--ignore-breakers` | Ignore OPEN circuit breakers for this run and attempt fetches anyway |
@@ -101,10 +101,14 @@ Dashboard-v4/
 │   ├── main.py                   # Thin CLI entry point: parse args, load config, launch app
 │   ├── app.py                    # Top-level dashboard run orchestration
 │   ├── data_pipeline.py          # Live data fetching, cache fallback, breakers, quotas
-│   ├── services_run_policy.py    # Quiet hours + morning full-refresh decisions
-│   ├── services_theme_service.py # Theme resolution (including random theme selection)
-│   ├── services_output_service.py# Dry-run writes, display refresh decisions, health marker
-│   ├── _version.py               # Version constant (__version__ = "4.1.1")
+│   ├── services/
+│   │   ├── run_policy.py         # Quiet hours + morning full-refresh decisions
+│   │   ├── theme.py              # Theme resolution (including random theme selection)
+│   │   └── output.py             # Dry-run writes, display refresh decisions, health marker
+│   ├── services_run_policy.py    # Re-export shim for services/run_policy.py (backward compat)
+│   ├── services_theme_service.py # Re-export shim for services/theme.py (backward compat)
+│   ├── services_output_service.py# Re-export shim for services/output.py (backward compat)
+│   ├── _version.py               # Version constant (__version__ = "4.1.3")
 │   ├── config.py                 # YAML -> typed Config dataclass + validation
 │   ├── dummy_data.py             # Realistic dummy data for --dummy / dev previews
 │   ├── filters.py                # Event filtering (calendar, keyword, all-day)

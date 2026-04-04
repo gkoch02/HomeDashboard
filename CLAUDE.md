@@ -12,7 +12,7 @@ make test           # Run pytest
 make dry            # Preview with dummy data → output/latest.png
 make previews       # Generate all theme preview PNGs → output/theme_*.png
 make check          # Validate config/config.yaml
-make version        # Print current version (e.g. main.py 4.1.1)
+make version        # Print current version (e.g. main.py 4.1.3)
 make deploy         # Rsync to Pi (configurable: PI_USER, PI_HOST, PI_DIR)
 make install        # Install systemd timer on remote Pi (via ssh/scp)
 make pi-install     # Full Pi setup: apt deps, venv, Waveshare library (run ON Pi)
@@ -42,10 +42,14 @@ src/
 ├── app.py                     # DashboardApp — top-level orchestrator (quiet hours, fetch, render, output)
 ├── cli.py                     # CLI argument parser (build_parser / parse_args)
 ├── data_pipeline.py           # DataPipeline — concurrent fetching, caching, circuit breaking per source
-├── services_run_policy.py     # resolve_tz, should_skip_refresh, should_force_full_refresh
-├── services_theme_service.py  # resolve_theme_name (schedule → random → concrete), resolve_theme
-├── services_output_service.py # OutputService — publish image to display or PNG; write last_success.txt
-├── _version.py                # Single source of truth: __version__ = "4.1.1"
+├── services/
+│   ├── run_policy.py          # resolve_tz, should_skip_refresh, should_force_full_refresh
+│   ├── theme.py               # resolve_theme_name (schedule → random → concrete), resolve_theme
+│   └── output.py              # OutputService — publish image to display or PNG; write last_success.txt
+├── services_run_policy.py     # Re-export shim for services/run_policy.py (backward compat)
+├── services_theme_service.py  # Re-export shim for services/theme.py (backward compat)
+├── services_output_service.py # Re-export shim for services/output.py (backward compat)
+├── _version.py                # Single source of truth: __version__ = "4.1.3"
 ├── config.py                  # YAML → typed dataclasses; validate_config()
 ├── dummy_data.py              # Realistic dummy data for --dummy / dev previews
 ├── filters.py                 # Event filtering (calendar, keyword, all-day)
@@ -89,6 +93,7 @@ docs/
 ├── themes.md                  # All themes, random rotation, schedule, custom themes
 ├── configuration.md           # Full config.yaml reference
 ├── development.md             # Makefile, CLI, project structure, dependencies
+├── faq.md                     # Frequently asked questions (quiet hours, troubleshooting, etc.)
 └── upgrading-from-v3.md       # Migration guide from v3
 
 tests/                         # test files, extensive mocking
@@ -144,7 +149,7 @@ Components are pure functions: `draw_*(draw, data, region, style) -> None`. No g
 --force-full-refresh   Force full eInk refresh and bypass fetch intervals
 --ignore-breakers      Ignore OPEN circuit breakers for this run
 --check-config         Validate config and exit
---version              Print version and exit (e.g. "main.py 4.1.1")
+--version              Print version and exit (e.g. "main.py 4.1.3")
 ```
 
 ## Adding New Features
