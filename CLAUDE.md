@@ -12,7 +12,7 @@ make test           # Run pytest
 make dry            # Preview with dummy data → output/latest.png
 make previews       # Generate all theme preview PNGs → output/theme_*.png
 make check          # Validate config/config.yaml
-make version        # Print current version (e.g. main.py 4.1.3)
+make version        # Print current version (e.g. main.py 4.2)
 make deploy         # Rsync to Pi (configurable: PI_USER, PI_HOST, PI_DIR)
 make install        # Install systemd timer on remote Pi (via ssh/scp)
 make pi-install     # Full Pi setup: apt deps, venv, Waveshare library (run ON Pi)
@@ -47,7 +47,7 @@ src/
 │   ├── run_policy.py          # resolve_tz, should_skip_refresh, should_force_full_refresh
 │   ├── theme.py               # resolve_theme_name (schedule → random → concrete), resolve_theme
 │   └── output.py              # OutputService — publish image to display or PNG; write last_success.txt
-├── _version.py                # Single source of truth: __version__ = "4.1.3"
+├── _version.py                # Single source of truth: __version__ = "4.2"
 ├── config.py                  # YAML → typed dataclasses; validate_config()
 ├── dummy_data.py              # Realistic dummy data for --dummy / dev previews
 ├── filters.py                 # Event filtering (calendar, keyword, all-day)
@@ -151,7 +151,7 @@ Components are pure functions: `draw_*(draw, data, region, style) -> None`. No g
 --force-full-refresh   Force full eInk refresh and bypass fetch intervals
 --ignore-breakers      Ignore OPEN circuit breakers for this run
 --check-config         Validate config and exit
---version              Print version and exit (e.g. "main.py 4.1.3")
+--version              Print version and exit (e.g. "main.py 4.2")
 ```
 
 ## Adding New Features
