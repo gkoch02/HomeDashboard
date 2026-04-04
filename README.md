@@ -11,7 +11,7 @@ the wall fast.
 - Current weather, forecast, and optional air quality (OpenWeatherMap + PurpleAir)
 - Upcoming birthdays from Google Contacts, a flat file, or a calendar feed
 - Daily quote from a bundled library
-- 16 built-in themes with random daily/hourly rotation and a schedule override
+- 17 built-in themes with random daily/hourly rotation and a schedule override
 - Graceful degradation: stale-cache fallback, circuit breakers, staleness indicators
 
 ![Default theme preview](output/theme_default.png)
@@ -32,7 +32,7 @@ the wall fast.
 ## Documentation
 
 - [Setup Guide](docs/setup.md) — Google Calendar, ICS feed, birthdays, Raspberry Pi setup, hardware
-- [Themes](docs/themes.md) — all 16 built-in themes, random rotation, schedule, creating your own
+- [Themes](docs/themes.md) — all 17 built-in themes, random rotation, schedule, creating your own
 - [Configuration Reference](docs/configuration.md) — full config.yaml, cache tuning, filtering, circuit breaker
 - [Development](docs/development.md) — Makefile targets, CLI flags, project structure, dependencies
 - [Architecture](docs/architecture.md) — data flow, module layers, key design decisions

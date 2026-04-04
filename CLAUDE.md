@@ -148,6 +148,7 @@ Components are pure functions: `draw_*(draw, data, region, style) -> None`. No g
 --config PATH          Custom config file path
 --date YYYY-MM-DD      Override today's date for dry-run previews (requires --dry-run)
 --theme THEME          Override theme from config (choices: all AVAILABLE_THEMES)
+--message TEXT         Text to display when using the message theme
 --force-full-refresh   Force full eInk refresh and bypass fetch intervals
 --ignore-breakers      Ignore OPEN circuit breakers for this run
 --check-config         Validate config and exit
@@ -179,9 +180,9 @@ Components are pure functions: `draw_*(draw, data, region, style) -> None`. No g
 | `DMSans.ttf` | `dm_regular/medium/semibold/bold` | `minimalist`, `weather`, `fuzzyclock`, `diags` (section labels) |
 | `PlayfairDisplay-*.ttf` | `playfair_regular/medium/semibold/bold` | `old_fashioned`, `qotd`, `moonphase` |
 | `Cinzel.ttf` | `cinzel_regular/semibold/bold/black` | `fantasy`, `old_fashioned` section labels, `moonphase` |
-| `SpaceGrotesk-Regular.ttf` | `sg_regular` | `air_quality` |
-| `SpaceGrotesk-Medium.ttf` | `sg_medium` | `air_quality` |
-| `SpaceGrotesk-Bold.ttf` | `sg_bold` | `air_quality` |
+| `SpaceGrotesk-Regular.ttf` | `sg_regular` | `air_quality`, `message` |
+| `SpaceGrotesk-Medium.ttf` | `sg_medium` | `air_quality`, `message` |
+| `SpaceGrotesk-Bold.ttf` | `sg_bold` | `air_quality`, `message` |
 | `NuCore.otf` / `NuCore Condensed.otf` | *(unused — available for new themes)* | — |
 
 ### `ThemeStyle` font fields

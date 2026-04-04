@@ -16,7 +16,7 @@
 Switch the entire dashboard layout and visual style with one line in `config.yaml`:
 
 ```yaml
-theme: terminal   # default | terminal | minimalist | old_fashioned | today | fantasy | moonphase | moonphase_invert | qotd | qotd_invert | weather | fuzzyclock | fuzzyclock_invert | diags | air_quality | random | random_daily | random_hourly
+theme: terminal   # default | terminal | minimalist | old_fashioned | today | fantasy | moonphase | moonphase_invert | qotd | qotd_invert | weather | fuzzyclock | fuzzyclock_invert | diags | air_quality | message | random | random_daily | random_hourly
 ```
 
 Or override it from the command line without editing your config:
@@ -73,8 +73,9 @@ random_theme:
 ```
 
 - `include` is applied first; `exclude` is applied after.
-- If both are empty, all standard themes are eligible (`diags` is always
-  excluded — it is a utility/diagnostic view, not a general-purpose daily aesthetic).
+- If both are empty, all standard themes are eligible (`diags` and `message` are always
+  excluded from the pool — `diags` is a utility/diagnostic view; `message` requires a
+  `--message` argument and is intended for manual runs only).
 - If the pool is empty after filtering, the dashboard falls back to `"default"`.
 - Run `make check` to catch invalid theme names in either list.
 
@@ -306,6 +307,26 @@ it is a utility/sanity-check view, not a daily aesthetic.
 
 ![Diags theme](../output/theme_diags.png)
 
+### message
+
+Custom message display. Forgoes the calendar, birthdays, and info panel entirely.
+The display is devoted to a single user-supplied message in large Space Grotesk Bold,
+centered typographically. Font size scales automatically — from 64px down to 20px — so
+the full message always fits without truncation. Decorative oversized quotation marks frame
+the text as corner accents. A compact full-width weather banner runs across the bottom 80px
+(identical to the `qotd` strip: current conditions, hi/lo, feels-like, wind, 3-day
+forecast, and moon phase).
+
+Intended for manual one-off runs — pipe a reminder, announcement, or note to the display
+without touching `config.yaml`. Use `--message` to provide the text:
+
+```bash
+venv/bin/python -m src.main --dry-run --dummy --theme message --message "Dentist at 3pm"
+```
+
+This theme is excluded from random rotation (`random_daily` / `random_hourly`) and must
+always be specified explicitly via `--theme message`.
+
 ---
 
 ## Creating your own theme
@@ -378,7 +399,7 @@ See the theme reference tables and font customization guide in [`CLAUDE.md`](../
 | [DM Sans](https://fonts.google.com/specimen/DM+Sans) | `minimalist` theme; `weather` theme; `fuzzyclock` theme; `diags` theme — section labels |
 | [Playfair Display](https://fonts.google.com/specimen/Playfair+Display) | `old_fashioned` theme; `qotd` quote text; `moonphase` body text and quote |
 | [Cinzel](https://fonts.google.com/specimen/Cinzel) | `fantasy` theme; `old_fashioned` section labels; `moonphase` date and phase name |
-| [Space Grotesk](https://fonts.google.com/specimen/Space+Grotesk) | `air_quality` theme |
+| [Space Grotesk](https://fonts.google.com/specimen/Space+Grotesk) | `air_quality` theme; `message` theme |
 
 Custom fonts can be added per-theme via `ThemeStyle` font callables — see
 [Creating your own theme](#creating-your-own-theme) and [`CLAUDE.md`](../CLAUDE.md).

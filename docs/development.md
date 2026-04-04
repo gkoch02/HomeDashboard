@@ -56,7 +56,8 @@
 | `--dry-run` | Save to PNG instead of writing to display |
 | `--dummy` | Use built-in dummy data (no API calls needed) |
 | `--config PATH` | Config file path (default: `config/config.yaml`) |
-| `--theme THEME` | Override the theme set in `config.yaml`. Choices: `default`, `terminal`, `minimalist`, `old_fashioned`, `today`, `fantasy`, `moonphase`, `moonphase_invert`, `qotd`, `qotd_invert`, `weather`, `air_quality`, `fuzzyclock`, `fuzzyclock_invert`, `diags`, `random`, `random_daily`, `random_hourly` |
+| `--theme THEME` | Override the theme set in `config.yaml`. Choices: `default`, `terminal`, `minimalist`, `old_fashioned`, `today`, `fantasy`, `moonphase`, `moonphase_invert`, `qotd`, `qotd_invert`, `weather`, `air_quality`, `fuzzyclock`, `fuzzyclock_invert`, `diags`, `message`, `random`, `random_daily`, `random_hourly` |
+| `--message TEXT` | Text to display when using the `message` theme |
 | `--date YYYY-MM-DD` | Override today's date for the dry-run preview (requires `--dry-run`) |
 | `--force-full-refresh` | Force full eInk refresh and bypass fetch intervals |
 | `--ignore-breakers` | Ignore OPEN circuit breakers for this run and attempt fetches anyway |
