@@ -20,7 +20,8 @@ make pi-enable      # Install systemd units and enable timer (run ON Pi)
 make pi-status      # Show timer status and recent logs (run ON Pi)
 make pi-logs        # Tail output/dashboard.log (run ON Pi)
 make configure      # Run deploy/configure.sh interactive setup
-flake8 src/ tests/ --max-line-length=100   # Lint
+ruff check src/ tests/                         # Lint
+ruff format src/ tests/                        # Format
 ```
 
 ## Tech Stack
@@ -32,7 +33,7 @@ flake8 src/ tests/ --max-line-length=100   # Lint
 - **icalendar** — ICS feed parsing (used when `google.ical_url` is configured)
 - **PyYAML** — config parsing
 - **pytest** — testing (with unittest.mock)
-- **flake8** — linting (max line length: 100)
+- **ruff** — linting and formatting (max line length: 100)
 
 ## Repository Structure
 
@@ -46,9 +47,6 @@ src/
 │   ├── run_policy.py          # resolve_tz, should_skip_refresh, should_force_full_refresh
 │   ├── theme.py               # resolve_theme_name (schedule → random → concrete), resolve_theme
 │   └── output.py              # OutputService — publish image to display or PNG; write last_success.txt
-├── services_run_policy.py     # Re-export shim for services/run_policy.py (backward compat)
-├── services_theme_service.py  # Re-export shim for services/theme.py (backward compat)
-├── services_output_service.py # Re-export shim for services/output.py (backward compat)
 ├── _version.py                # Single source of truth: __version__ = "4.1.3"
 ├── config.py                  # YAML → typed dataclasses; validate_config()
 ├── dummy_data.py              # Realistic dummy data for --dummy / dev previews
@@ -59,7 +57,9 @@ src/
 │   ├── driver.py              # DisplayDriver ABC → DryRunDisplay, WaveshareDisplay; image_changed()
 │   └── refresh_tracker.py     # Partial vs full refresh state machine
 ├── fetchers/
-│   ├── calendar.py            # Google Calendar API + ICS feed + incremental sync + birthdays
+│   ├── calendar.py            # Dispatcher: routes to Google API or ICS; birthday extraction
+│   ├── calendar_google.py     # Google Calendar API — full sync, incremental sync, sync state
+│   ├── calendar_ical.py       # ICS feed fetching and parsing
 │   ├── weather.py             # OpenWeatherMap (current + forecast + alerts)
 │   ├── purpleair.py           # PurpleAir sensor → PM1 / PM2.5 / PM10 / AQI + ambient readings
 │   ├── host.py                # System metrics via /proc: uptime, load, RAM, disk, CPU temp, IP
@@ -99,9 +99,11 @@ docs/
 tests/                         # test files, extensive mocking
 fonts/                         # Bundled TTF fonts
 deploy/                        # Systemd service + timer + configure.sh + logrotate
-output/                        # Generated PNGs + cache files (git-ignored except latest.png)
+state/                         # Runtime state: cache, breaker, quota, sync tokens (git-ignored)
+output/                        # Generated PNGs + logs + health marker (git-ignored except latest.png)
 credentials/                   # Google service account JSON (git-ignored)
-requirements.txt               # Core Python dependencies
+pyproject.toml                 # Project metadata, dependencies, tool config (ruff, pytest, mypy)
+requirements.txt               # Core Python dependencies (kept for Pi deployment compat)
 requirements-pi.txt            # Raspberry Pi-specific deps (gpiozero, lgpio, Waveshare EPD)
 ```
 
@@ -113,7 +115,7 @@ Fetchers, caching, circuit breaking, and staleness are all per-source (calendar,
 ### Theme system
 Three-layer design: **ComponentRegion** (bounding box) → **ThemeLayout** (canvas + regions + draw order) → **ThemeStyle** (colors, fonts, spacing). Components receive region + style and draw only within bounds. Themes are frozen dataclasses.
 
-Two rotation cadences are available: `theme: random_daily` (alias: `random`) picks once per day after midnight and persists to `output/random_theme_state.json`; `theme: random_hourly` picks once per hour and persists to `output/random_theme_hourly_state.json`. Both use the same `random_theme.include` / `random_theme.exclude` lists. The concrete theme name is resolved in `services_theme_service.py` before `load_theme()` is called — `load_theme()` itself never receives a pseudo-theme name.
+Two rotation cadences are available: `theme: random_daily` (alias: `random`) picks once per day after midnight and persists to `state/random_theme_state.json`; `theme: random_hourly` picks once per hour and persists to `state/random_theme_hourly_state.json`. Both use the same `random_theme.include` / `random_theme.exclude` lists. The concrete theme name is resolved in `services/theme.py` before `load_theme()` is called — `load_theme()` itself never receives a pseudo-theme name.
 
 `theme_schedule` is a higher-priority override: `resolve_theme_name()` checks the schedule entries (sorted by HH:MM) before consulting `cfg.theme` or the random pool. The active entry is the last one whose time ≤ current local time. When no entry matches, control falls through to `cfg.theme` / random as normal. CLI `--theme` always wins over the schedule.
 
@@ -202,15 +204,16 @@ default to `None` and fall back gracefully so adding a new field never breaks ex
 
 ## Gotchas
 
-- Incremental sync tokens persist in `calendar_sync_state.json`; delete to force full resync
+- Incremental sync tokens persist in `state/calendar_sync_state.json`; delete to force full resync
 - Quiet hours (default 23:00–06:00): app exits immediately during this window (dry-run bypasses this)
 - Morning startup: first run within 30 minutes after `quiet_hours_end` automatically forces a full refresh, regardless of `--force-full-refresh`
 - eInk partial refreshes degrade quality; full refresh forced after `max_partials_before_full` partials
 - Default canvas: 800×480; scaled via LANCZOS to match display resolution
 - Image hash comparison (`last_image_hash.txt`) skips eInk writes when content unchanged
 - Health marker written to `output/last_success.txt` on every successful run (ISO timestamp)
-- Daily random theme state persists in `output/random_theme_state.json`; delete it to force a new pick mid-day
-- Hourly random theme state persists in `output/random_theme_hourly_state.json`; delete it to force a new pick mid-hour
+- Daily random theme state persists in `state/random_theme_state.json`; delete it to force a new pick mid-day
+- Hourly random theme state persists in `state/random_theme_hourly_state.json`; delete it to force a new pick mid-hour
+- State files auto-migrate from `output/` to `state/` on first run after upgrade
 - `terminal` theme: the month band font (`font_month_title`) starts at 33px and scales down to fit longer names (e.g. FEBRUARY, SEPTEMBER) within the combined date cell width
 - Deploy paths (`PI_USER`, `PI_HOST`, `PI_DIR`) default to `pi`, `dashboard`, `/home/pi/home-dashboard`; override with `make deploy PI_USER=myuser PI_HOST=mypi.local`
 - `make install` (remote deploy) uses `__INSTALL_DIR__` and `__USER__` placeholders in `dashboard.service` — these are substituted via `sed` during install, so no manual editing is needed for standard setups
