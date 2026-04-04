@@ -309,3 +309,39 @@ See [CLI flags](development.md#cli-flags) for the full flag reference.
 - Repeated failures open the breaker for that source and fallback to cache.
 - After cooldown, one probe request is allowed (`HALF_OPEN`).
 - `--ignore-breakers` bypasses OPEN state for one run only; breaker state still persists.
+
+---
+
+## Troubleshooting
+
+### Weather data not loading
+
+- Verify your API key: `curl "https://api.openweathermap.org/data/2.5/weather?lat=0&lon=0&appid=YOUR_KEY"` should return JSON, not a 401 error.
+- New OWM keys can take up to 2 hours to activate.
+- Check `output/dashboard.log` for "Weather fetch failed" messages.
+
+### Calendar shows no events
+
+- If using a service account: ensure the calendar is shared with the service account email (found in the JSON key file under `client_email`).
+- If using ICS: verify the URL is accessible with `curl -s "YOUR_ICS_URL" | head`.
+- Run `make check` to validate your configuration file.
+
+### Stale data indicator appears
+
+- The `!` badge in the corner of a panel means the data source failed to refresh and cached data is being shown.
+- Check `output/dashboard.log` for errors from the failing source.
+- Run with `--ignore-breakers --force-full-refresh` to force a fresh fetch attempt.
+- Delete `output/dashboard_cache.json` to clear all cached data and start fresh.
+
+### Corrupted cache or sync state
+
+- Delete `output/dashboard_cache.json` to reset the data cache.
+- Delete `output/calendar_sync_state.json` to force a full calendar resync.
+- Delete `output/dashboard_breaker_state.json` to reset all circuit breakers.
+
+### Display not updating
+
+- Run `make pi-status` to check if the systemd timer is active.
+- Check `output/dashboard.log` for errors.
+- The image hash check (`output/last_image_hash.txt`) skips display writes when content hasn't changed — delete this file to force a redraw.
+- During quiet hours (default 23:00–06:00), the app exits immediately. Use `--dry-run` to bypass.

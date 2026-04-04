@@ -147,7 +147,7 @@ class TestMainMorningStartup:
 
         with patch("sys.argv", ["main", "--dry-run", "--dummy", "--config", str(config_path)]):
             from src.main import main
-            with patch("src.services_run_policy.is_morning_startup", return_value=True):
+            with patch("src.services.run_policy.is_morning_startup", return_value=True):
                 main()
 
         assert (tmp_path / "latest.png").exists()
@@ -299,8 +299,8 @@ class TestMainLiveDataPath:
         with patch("sys.argv", ["main", "--config", str(config_path)]):
             from src.main import main
             with patch("src.data_pipeline.DataPipeline.fetch", return_value=fake_data), \
-                 patch("src.services_output_service.image_changed", return_value=False) as mock_changed, \
-                 patch("src.services_run_policy.in_quiet_hours", return_value=False):
+                 patch("src.services.output.image_changed", return_value=False) as mock_changed, \
+                 patch("src.services.run_policy.in_quiet_hours", return_value=False):
                 main()
 
         mock_changed.assert_called_once()
@@ -320,8 +320,8 @@ class TestMainLiveDataPath:
         with patch("sys.argv", ["main", "--config", str(config_path)]):
             from src.main import main
             with patch("src.data_pipeline.DataPipeline.fetch", return_value=fake_data), \
-                 patch("src.services_output_service.image_changed", return_value=True), \
-                 patch("src.services_run_policy.in_quiet_hours", return_value=False), \
+                 patch("src.services.output.image_changed", return_value=True), \
+                 patch("src.services.run_policy.in_quiet_hours", return_value=False), \
                  patch("src.display.driver.WaveshareDisplay", return_value=mock_display):
                 main()
 

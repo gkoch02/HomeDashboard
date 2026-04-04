@@ -88,10 +88,21 @@ echo ""
 # ---------------------------------------------------------------------------
 # Write values into config.yaml using Python for reliable YAML editing
 # ---------------------------------------------------------------------------
-venv/bin/python - <<PYEOF
+venv/bin/python - "$CONFIG" "$DISPLAY_MODEL" "$WEATHER_KEY" "$LAT" "$LON" "$UNITS" "$TIMEZONE" "$CALENDAR_ID" "$PA_KEY" "$PA_SENSOR" <<'PYEOF'
 import re, sys
 
-with open("$CONFIG") as f:
+config_path = sys.argv[1]
+display_model = sys.argv[2]
+weather_key = sys.argv[3]
+lat = sys.argv[4]
+lon = sys.argv[5]
+units = sys.argv[6]
+tz = sys.argv[7]
+calendar_id = sys.argv[8]
+pa_key = sys.argv[9]
+pa_sensor = sys.argv[10]
+
+with open(config_path) as f:
     text = f.read()
 
 def set_scalar(text, key, value, section=None):
@@ -110,9 +121,9 @@ def q(v):
         float(v)
         return v
     except (ValueError, TypeError):
-        return '"{}"'.format(v) if v else '""'
+        return '"{}"'.format(v.replace('\\', '\\\\').replace('"', '\\"')) if v else '""'
 
-text = set_scalar(text, "model", q("$DISPLAY_MODEL"))
+text = set_scalar(text, "model", q(display_model))
 
 # Weather section — api_key appears multiple times; target only the weather one
 # We look for the first api_key after the 'weather:' header
@@ -125,19 +136,17 @@ for i, line in enumerate(lines):
     elif in_weather and re.match(r"^\S", line) and not line.startswith(" ") and stripped != "weather:":
         in_weather = False
     if in_weather and re.match(r"^\s+api_key:", line):
-        lines[i] = re.sub(r"(api_key:\s*).*", r"\g<1>" + q("$WEATHER_KEY"), line)
+        lines[i] = re.sub(r"(api_key:\s*).*", r"\g<1>" + q(weather_key), line)
         in_weather = False
 text = "".join(lines)
 
-text = set_scalar(text, "latitude", "$LAT")
-text = set_scalar(text, "longitude", "$LON")
-text = set_scalar(text, "units", q("$UNITS"))
-text = set_scalar(text, "timezone", q("$TIMEZONE"))
-text = set_scalar(text, "calendar_id", q("$CALENDAR_ID"))
+text = set_scalar(text, "latitude", lat)
+text = set_scalar(text, "longitude", lon)
+text = set_scalar(text, "units", q(units))
+text = set_scalar(text, "timezone", q(tz))
+text = set_scalar(text, "calendar_id", q(calendar_id))
 
 # PurpleAir — only write if provided
-pa_key = "$PA_KEY"
-pa_sensor = "$PA_SENSOR"
 if pa_key:
     # api_key under purpleair section
     lines = text.splitlines(keepends=True)
@@ -156,7 +165,7 @@ if pa_key:
 if pa_sensor:
     text = set_scalar(text, "sensor_id", pa_sensor)
 
-with open("$CONFIG", "w") as f:
+with open(config_path, "w") as f:
     f.write(text)
 
 print("  config/config.yaml updated.")

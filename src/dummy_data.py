@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, timezone, tzinfo
 
 from src.data.models import (
     AirQualityData, Birthday, CalendarEvent, DashboardData, DayForecast,
-    HostData, StalenessLevel, WeatherData,
+    HostData, StalenessLevel, WeatherAlert, WeatherData,
 )
 
 
@@ -197,7 +197,7 @@ def generate_dummy_data(tz: tzinfo | None = None, now: datetime | None = None) -
                 icon="09d", description="drizzle", precip_chance=0.60,
             ),
         ],
-        alerts=[],
+        alerts=[WeatherAlert(event="Wind Advisory")],
         feels_like=38.0,
         wind_speed=12.0,
         wind_deg=315.0,
@@ -252,6 +252,7 @@ def generate_dummy_data(tz: tzinfo | None = None, now: datetime | None = None) -
         source_staleness={
             "weather": StalenessLevel.FRESH,
             "events": StalenessLevel.FRESH,
+            "birthdays": StalenessLevel.STALE,
             "air_quality": StalenessLevel.FRESH,
         },
     )

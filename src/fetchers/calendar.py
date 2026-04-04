@@ -48,6 +48,12 @@ _service_cache: dict[str, Any] = {}
 _people_service_cache: dict[str, Any] = {}
 
 
+def clear_service_caches() -> None:
+    """Clear cached API service objects (useful for testing)."""
+    _service_cache.clear()
+    _people_service_cache.clear()
+
+
 def _build_service(cfg: GoogleConfig):
     key = cfg.service_account_path
     if key not in _service_cache:
