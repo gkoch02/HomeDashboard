@@ -5,11 +5,11 @@ from src.data_pipeline import DataPipeline
 from src.dummy_data import generate_dummy_data
 from src.filters import filter_events
 from src.render.canvas import render_dashboard
-from src.services_output_service import OutputService
+from src.services.output import OutputService
 from src.config import resolve_tz
 from src.render.theme import load_theme
-from src.services_run_policy import should_force_full_refresh, should_skip_refresh
-from src.services_theme_service import resolve_theme_name
+from src.services.run_policy import should_force_full_refresh, should_skip_refresh
+from src.services.theme import resolve_theme_name
 
 logger = logging.getLogger(__name__)
 

@@ -226,6 +226,26 @@ def default_theme() -> Theme:
     )
 
 
+# Registry mapping theme name → (module_path, factory_function_name).
+# To add a new theme, add an entry here and to AVAILABLE_THEMES above.
+_THEME_REGISTRY: dict[str, tuple[str, str]] = {
+    "terminal":          ("src.render.themes.terminal",          "terminal_theme"),
+    "minimalist":        ("src.render.themes.minimalist",        "minimalist_theme"),
+    "old_fashioned":     ("src.render.themes.old_fashioned",     "old_fashioned_theme"),
+    "today":             ("src.render.themes.today",             "today_theme"),
+    "fantasy":           ("src.render.themes.fantasy",           "fantasy_theme"),
+    "qotd":              ("src.render.themes.qotd",              "qotd_theme"),
+    "qotd_invert":       ("src.render.themes.qotd_invert",      "qotd_invert_theme"),
+    "weather":           ("src.render.themes.weather",           "weather_theme"),
+    "fuzzyclock":        ("src.render.themes.fuzzyclock",        "fuzzyclock_theme"),
+    "fuzzyclock_invert": ("src.render.themes.fuzzyclock_invert", "fuzzyclock_invert_theme"),
+    "diags":             ("src.render.themes.diags",             "diags_theme"),
+    "air_quality":       ("src.render.themes.air_quality",       "air_quality_theme"),
+    "moonphase":         ("src.render.themes.moonphase",         "moonphase_theme"),
+    "moonphase_invert":  ("src.render.themes.moonphase_invert",  "moonphase_invert_theme"),
+}
+
+
 def load_theme(name: str) -> Theme:
     """Return a Theme for the given name.
 
@@ -237,48 +257,14 @@ def load_theme(name: str) -> Theme:
     """
     if name == "default":
         return default_theme()
-    if name == "terminal":
-        from src.render.themes.terminal import terminal_theme
-        return terminal_theme()
-    if name == "minimalist":
-        from src.render.themes.minimalist import minimalist_theme
-        return minimalist_theme()
-    if name == "old_fashioned":
-        from src.render.themes.old_fashioned import old_fashioned_theme
-        return old_fashioned_theme()
-    if name == "today":
-        from src.render.themes.today import today_theme
-        return today_theme()
-    if name == "fantasy":
-        from src.render.themes.fantasy import fantasy_theme
-        return fantasy_theme()
-    if name == "qotd":
-        from src.render.themes.qotd import qotd_theme
-        return qotd_theme()
-    if name == "qotd_invert":
-        from src.render.themes.qotd_invert import qotd_invert_theme
-        return qotd_invert_theme()
-    if name == "weather":
-        from src.render.themes.weather import weather_theme
-        return weather_theme()
-    if name == "fuzzyclock":
-        from src.render.themes.fuzzyclock import fuzzyclock_theme
-        return fuzzyclock_theme()
-    if name == "fuzzyclock_invert":
-        from src.render.themes.fuzzyclock_invert import fuzzyclock_invert_theme
-        return fuzzyclock_invert_theme()
-    if name == "diags":
-        from src.render.themes.diags import diags_theme
-        return diags_theme()
-    if name == "air_quality":
-        from src.render.themes.air_quality import air_quality_theme
-        return air_quality_theme()
-    if name == "moonphase":
-        from src.render.themes.moonphase import moonphase_theme
-        return moonphase_theme()
-    if name == "moonphase_invert":
-        from src.render.themes.moonphase_invert import moonphase_invert_theme
-        return moonphase_invert_theme()
-    raise ValueError(
-        f"Unknown theme: {name!r}. Available: {', '.join(sorted(AVAILABLE_THEMES))}"
-    )
+
+    if name not in _THEME_REGISTRY:
+        raise ValueError(
+            f"Unknown theme: {name!r}. Available: {', '.join(sorted(AVAILABLE_THEMES))}"
+        )
+
+    module_path, factory_name = _THEME_REGISTRY[name]
+    from importlib import import_module
+    module = import_module(module_path)
+    factory = getattr(module, factory_name)
+    return factory()

@@ -143,7 +143,12 @@ def fetch_air_quality(cfg: PurpleAirConfig) -> AirQualityData:
         raise RuntimeError(f"PurpleAir sensor {cfg.sensor_id} not found")
     resp.raise_for_status()
 
-    payload = resp.json()
+    try:
+        payload = resp.json()
+    except ValueError as exc:
+        raise RuntimeError(
+            f"PurpleAir returned non-JSON response (status {resp.status_code}): {exc}"
+        ) from exc
     sensor = _sensor_payload_to_dict(payload)
 
     pm25_60min = _first_float(

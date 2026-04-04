@@ -24,7 +24,11 @@ def retry_fetch(label: str, fn):
         if isinstance(exc, (RuntimeError, ValueError, TypeError, KeyError)):
             raise
         logger.warning("%s failed, retrying: %s", label, exc)
-    return fn()
+    try:
+        return fn()
+    except Exception as exc:
+        logger.error("%s retry also failed: %s", label, exc)
+        raise
 
 
 class DataPipeline:
@@ -198,7 +202,7 @@ class DataPipeline:
         if future is None:
             return current
         try:
-            events = future.result(timeout=120)
+            events = future.result(timeout=60)
             save_source("events", events, self.fetched_at, self.cache_dir)
             self.source_staleness["events"] = StalenessLevel.FRESH
             self.breaker.record_success("events")
@@ -218,7 +222,7 @@ class DataPipeline:
         if future is None:
             return current
         try:
-            weather = future.result(timeout=120)
+            weather = future.result(timeout=60)
             save_source("weather", weather, self.fetched_at, self.cache_dir)
             self.source_staleness["weather"] = StalenessLevel.FRESH
             self.breaker.record_success("weather")
@@ -238,7 +242,7 @@ class DataPipeline:
         if future is None:
             return current
         try:
-            birthdays = future.result(timeout=120)
+            birthdays = future.result(timeout=60)
             save_source("birthdays", birthdays, self.fetched_at, self.cache_dir)
             self.source_staleness["birthdays"] = StalenessLevel.FRESH
             self.breaker.record_success("birthdays")
@@ -258,7 +262,7 @@ class DataPipeline:
         if future is None:
             return current
         try:
-            air_quality = future.result(timeout=120)
+            air_quality = future.result(timeout=60)
             save_source("air_quality", air_quality, self.fetched_at, self.cache_dir)
             self.source_staleness["air_quality"] = StalenessLevel.FRESH
             self.breaker.record_success("air_quality")
