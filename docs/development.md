@@ -43,7 +43,7 @@
 | `make lint` | Run `ruff check src/ tests/` |
 | `make fmt` | Run `ruff format src/ tests/` |
 | `make check` | Validate config file and exit |
-| `make version` | Print the current version (e.g. `main.py 4.2`) |
+| `make version` | Print the current version (e.g. `main.py 4.2.1`) |
 | `make deploy` | rsync project to Raspberry Pi (`PI_USER`, `PI_HOST`, `PI_DIR` configurable) |
 | `make install` | Copy systemd timer/service to Pi and enable (legacy remote path) |
 
