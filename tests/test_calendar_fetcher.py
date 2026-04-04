@@ -663,7 +663,7 @@ class TestFetchIncrementalNon410HttpError:
 
 
 class TestFetchEventsIncrementalReset:
-    @patch("src.fetchers.calendar._build_service")
+    @patch("src.fetchers.calendar_google._build_service")
     def test_expired_sync_token_falls_back_to_full_sync(self, mock_build):
         """When incremental sync returns needs_reset=True, full sync is performed."""
         today = date.today()
@@ -847,7 +847,7 @@ class TestBirthdaysFromCalendar:
 
 
 class TestFetchEventsIntegration:
-    @patch("src.fetchers.calendar._build_service")
+    @patch("src.fetchers.calendar_google._build_service")
     def test_fetch_events_returns_events(self, mock_build):
         today = date.today()
         monday = today - timedelta(days=today.weekday())
@@ -881,7 +881,7 @@ class TestFetchEventsIntegration:
         assert len(events) == 1
         assert events[0].summary == "Team Meeting"
 
-    @patch("src.fetchers.calendar._build_service")
+    @patch("src.fetchers.calendar_google._build_service")
     def test_fetch_events_uses_incremental_sync_on_second_call(self, mock_build):
         today = date.today()
         monday = today - timedelta(days=today.weekday())
@@ -987,7 +987,7 @@ class TestICalFetcher:
 
     # --- Basic timed event ---
 
-    @patch("src.fetchers.calendar.requests.get")
+    @patch("src.fetchers.calendar_ical.requests.get")
     def test_timed_event_parsed(self, mock_get):
         tz = zoneinfo.ZoneInfo("America/New_York")
         monday = self._this_monday(tz)
@@ -1019,7 +1019,7 @@ class TestICalFetcher:
 
     # --- All-day event ---
 
-    @patch("src.fetchers.calendar.requests.get")
+    @patch("src.fetchers.calendar_ical.requests.get")
     def test_allday_event_parsed(self, mock_get):
         tz = zoneinfo.ZoneInfo("America/New_York")
         monday = self._this_monday(tz)
@@ -1046,7 +1046,7 @@ class TestICalFetcher:
 
     # --- Event outside the week window is filtered out ---
 
-    @patch("src.fetchers.calendar.requests.get")
+    @patch("src.fetchers.calendar_ical.requests.get")
     def test_event_outside_window_excluded(self, mock_get):
         tz = zoneinfo.ZoneInfo("America/New_York")
         monday = self._this_monday(tz)
@@ -1071,7 +1071,7 @@ class TestICalFetcher:
 
     # --- X-WR-CALNAME used as calendar_name ---
 
-    @patch("src.fetchers.calendar.requests.get")
+    @patch("src.fetchers.calendar_ical.requests.get")
     def test_cal_name_from_xwrcalname(self, mock_get):
         tz = zoneinfo.ZoneInfo("America/New_York")
         monday = self._this_monday(tz)
@@ -1100,7 +1100,7 @@ class TestICalFetcher:
 
     # --- Hostname fallback when no X-WR-CALNAME ---
 
-    @patch("src.fetchers.calendar.requests.get")
+    @patch("src.fetchers.calendar_ical.requests.get")
     def test_cal_name_hostname_fallback(self, mock_get):
         tz = zoneinfo.ZoneInfo("America/New_York")
         monday = self._this_monday(tz)
@@ -1129,7 +1129,7 @@ class TestICalFetcher:
 
     # --- Multiple URLs merged and sorted ---
 
-    @patch("src.fetchers.calendar.requests.get")
+    @patch("src.fetchers.calendar_ical.requests.get")
     def test_multiple_urls_merged(self, mock_get):
         tz = zoneinfo.ZoneInfo("America/New_York")
         monday = self._this_monday(tz)
@@ -1173,7 +1173,7 @@ class TestICalFetcher:
 
     # --- HTTP error returns empty list, logs warning ---
 
-    @patch("src.fetchers.calendar.requests.get")
+    @patch("src.fetchers.calendar_ical.requests.get")
     def test_http_error_returns_empty(self, mock_get):
         mock_get.side_effect = Exception("connection refused")
 
@@ -1186,7 +1186,7 @@ class TestICalFetcher:
 
     # --- Malformed ICS returns empty list ---
 
-    @patch("src.fetchers.calendar.requests.get")
+    @patch("src.fetchers.calendar_ical.requests.get")
     def test_malformed_ics_returns_empty(self, mock_get):
         mock_resp = MagicMock()
         mock_resp.text = "this is not valid ics data %%% garbage"
@@ -1203,7 +1203,7 @@ class TestICalFetcher:
 
     # --- Google path still works when ical_url is empty (regression) ---
 
-    @patch("src.fetchers.calendar._build_service")
+    @patch("src.fetchers.calendar_google._build_service")
     def test_google_path_used_when_no_ical_url(self, mock_build):
         today = date.today()
         monday = today - timedelta(days=today.weekday())
