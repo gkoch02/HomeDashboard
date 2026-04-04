@@ -7,9 +7,10 @@ __pycache__/
 venv/
 .venv/
 
-# Output (except latest.png which is tracked)
+# Output (except latest.png and theme_*.png which are tracked)
 output/*.png
 !output/latest.png
+!output/theme_*.png
 output/*.json
 output/*.txt
 

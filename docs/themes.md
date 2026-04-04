@@ -285,6 +285,28 @@ at all eInk display sizes.
 
 ![Air Quality theme](../output/theme_air_quality.png)
 
+### message
+
+Custom message display. Forgoes the calendar, birthdays, and info panel entirely.
+The display is devoted to a single user-supplied message in large Space Grotesk Bold,
+centered typographically. Font size scales automatically — from 64px down to 20px — so
+the full message always fits without truncation. Decorative oversized quotation marks frame
+the text as corner accents. A compact full-width weather banner runs across the bottom 80px
+(identical to the `qotd` strip: current conditions, hi/lo, feels-like, wind, 3-day
+forecast, and moon phase).
+
+Intended for manual one-off runs — pipe a reminder, announcement, or note to the display
+without touching `config.yaml`. Use `--message` to provide the text:
+
+```bash
+venv/bin/python -m src.main --dry-run --dummy --theme message --message "Dentist at 3pm"
+```
+
+This theme is excluded from random rotation (`random_daily` / `random_hourly`) and must
+always be specified explicitly via `--theme message`.
+
+![Message theme](../output/theme_message.png)
+
 ### diags
 
 Diagnostic text readout. Devotes the entire 800×480 canvas to a structured two-column
@@ -306,26 +328,6 @@ Calendar`, `PurpleAir`). `diags` is intentionally excluded from the random rotat
 it is a utility/sanity-check view, not a daily aesthetic.
 
 ![Diags theme](../output/theme_diags.png)
-
-### message
-
-Custom message display. Forgoes the calendar, birthdays, and info panel entirely.
-The display is devoted to a single user-supplied message in large Space Grotesk Bold,
-centered typographically. Font size scales automatically — from 64px down to 20px — so
-the full message always fits without truncation. Decorative oversized quotation marks frame
-the text as corner accents. A compact full-width weather banner runs across the bottom 80px
-(identical to the `qotd` strip: current conditions, hi/lo, feels-like, wind, 3-day
-forecast, and moon phase).
-
-Intended for manual one-off runs — pipe a reminder, announcement, or note to the display
-without touching `config.yaml`. Use `--message` to provide the text:
-
-```bash
-venv/bin/python -m src.main --dry-run --dummy --theme message --message "Dentist at 3pm"
-```
-
-This theme is excluded from random rotation (`random_daily` / `random_hourly`) and must
-always be specified explicitly via `--theme message`.
 
 ---
 
