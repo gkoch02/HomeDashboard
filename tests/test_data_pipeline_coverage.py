@@ -85,7 +85,7 @@ class TestResolveAirQualityFailure:
         future.set_exception(RuntimeError("fetch failed"))
 
         with patch.object(pipeline, "_use_cache", return_value=cached):
-            result = pipeline._resolve_air_quality(future, None)
+            result = pipeline._resolve_source("air_quality", future, None)
 
         assert result is cached
 
@@ -97,14 +97,14 @@ class TestResolveAirQualityFailure:
         future.set_exception(RuntimeError("fetch failed"))
 
         with patch.object(pipeline, "_use_cache", return_value=None):
-            result = pipeline._resolve_air_quality(future, None)
+            result = pipeline._resolve_source("air_quality", future, None)
 
         assert result is None
 
     def test_none_future_returns_current(self, tmp_path):
         """A None future (source skipped) returns current unchanged."""
         pipeline = _make_pipeline(tmp_path, api_key="key", sensor_id=123)
-        result = pipeline._resolve_air_quality(None, None)
+        result = pipeline._resolve_source("air_quality", None, None)
         assert result is None
 
 

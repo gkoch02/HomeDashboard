@@ -123,6 +123,13 @@ class CircuitBreaker:
                     last_failure_at=data.get("last_failure_at"),
                     state=data.get("state", "closed"),
                 )
+            for source, st in self._states.items():
+                if st.state != "closed":
+                    logger.info(
+                        "Circuit breaker for '%s' loaded in %s state "
+                        "(%d consecutive failures)",
+                        source, st.state.upper(), st.consecutive_failures,
+                    )
         except Exception as exc:
             logger.debug("Could not load breaker state: %s", exc)
 

@@ -100,7 +100,7 @@ class TestValidateConfigClean:
                 service_account_path=str(sa_file),
                 calendar_id="abc@group.calendar.google.com",
             ),
-            weather=WeatherConfig(api_key="real_key", latitude=40.7, longitude=-74.0),
+            weather=WeatherConfig(api_key="a" * 32, latitude=40.7, longitude=-74.0),
             birthdays=BirthdayConfig(source="file", file_path=str(bday_file)),
             display=DisplayConfig(model="epd7in5_V2"),
             timezone="America/New_York",

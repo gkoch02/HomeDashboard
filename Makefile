@@ -65,7 +65,16 @@ pi-install:
 	sudo apt-get install -y python3-dev python3-venv libopenjp2-7 $$TIFF_PKG git swig liblgpio-dev
 	@echo ""
 	@echo "==> Enabling SPI interface..."
-	sudo raspi-config nonint do_spi 0
+	@SPI_BEFORE=$$(sudo raspi-config nonint get_spi 2>/dev/null || echo "unknown"); \
+	sudo raspi-config nonint do_spi 0; \
+	if [ "$$SPI_BEFORE" = "1" ]; then \
+		echo "  SPI was just enabled. You MUST reboot before the display will work."; \
+		echo "  Run: sudo reboot"; \
+	elif [ "$$SPI_BEFORE" = "0" ]; then \
+		echo "  SPI was already enabled. No reboot needed."; \
+	else \
+		echo "  Could not determine SPI state. Reboot if this is a fresh install."; \
+	fi
 	@echo ""
 	@echo "==> Creating Python virtual environment..."
 	python3 -m venv venv

@@ -93,13 +93,16 @@ def _sensor_payload_to_dict(payload: dict[str, Any]) -> dict[str, Any]:
     fields = payload.get("fields")
     data = payload.get("data")
     if not isinstance(fields, list):
+        logger.debug("PurpleAir payload missing 'fields' list: keys=%s", sorted(payload.keys()))
         return {}
     if not isinstance(data, list) or not data:
+        logger.debug("PurpleAir payload missing 'data' list: keys=%s", sorted(payload.keys()))
         return {}
 
     # data can be a single row list or a list of rows; use the first row.
     row = data[0] if isinstance(data[0], list) else data
     if not isinstance(row, list):
+        logger.debug("PurpleAir data row is not a list: type=%s", type(row).__name__)
         return {}
     return dict(zip(fields, row))
 

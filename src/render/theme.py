@@ -186,16 +186,31 @@ class Theme:
 
 
 # ---------------------------------------------------------------------------
-# Built-in theme names
+# Theme registry and built-in theme names
 # ---------------------------------------------------------------------------
 
+# Registry mapping theme name → (module_path, factory_function_name).
+# To add a new theme, add an entry here — AVAILABLE_THEMES is derived automatically.
+_THEME_REGISTRY: dict[str, tuple[str, str]] = {
+    "terminal":          ("src.render.themes.terminal",          "terminal_theme"),
+    "minimalist":        ("src.render.themes.minimalist",        "minimalist_theme"),
+    "old_fashioned":     ("src.render.themes.old_fashioned",     "old_fashioned_theme"),
+    "today":             ("src.render.themes.today",             "today_theme"),
+    "fantasy":           ("src.render.themes.fantasy",           "fantasy_theme"),
+    "qotd":              ("src.render.themes.qotd",              "qotd_theme"),
+    "qotd_invert":       ("src.render.themes.qotd_invert",      "qotd_invert_theme"),
+    "weather":           ("src.render.themes.weather",           "weather_theme"),
+    "fuzzyclock":        ("src.render.themes.fuzzyclock",        "fuzzyclock_theme"),
+    "fuzzyclock_invert": ("src.render.themes.fuzzyclock_invert", "fuzzyclock_invert_theme"),
+    "diags":             ("src.render.themes.diags",             "diags_theme"),
+    "air_quality":       ("src.render.themes.air_quality",       "air_quality_theme"),
+    "moonphase":         ("src.render.themes.moonphase",         "moonphase_theme"),
+    "moonphase_invert":  ("src.render.themes.moonphase_invert",  "moonphase_invert_theme"),
+}
+
+# Derived from the registry — adding a theme to _THEME_REGISTRY is all that's needed.
 AVAILABLE_THEMES: frozenset[str] = frozenset(
-    {
-        "default", "terminal", "minimalist", "old_fashioned", "today",
-        "fantasy", "qotd", "qotd_invert", "weather", "fuzzyclock", "fuzzyclock_invert",
-        "diags", "air_quality", "moonphase", "moonphase_invert",
-        "random", "random_daily", "random_hourly",
-    }
+    set(_THEME_REGISTRY.keys()) | {"default", "random", "random_daily", "random_hourly"}
 )
 
 
@@ -224,26 +239,6 @@ def default_theme() -> Theme:
         style=ThemeStyle(),  # __post_init__ fills in default fonts
         layout=default_layout(),
     )
-
-
-# Registry mapping theme name → (module_path, factory_function_name).
-# To add a new theme, add an entry here and to AVAILABLE_THEMES above.
-_THEME_REGISTRY: dict[str, tuple[str, str]] = {
-    "terminal":          ("src.render.themes.terminal",          "terminal_theme"),
-    "minimalist":        ("src.render.themes.minimalist",        "minimalist_theme"),
-    "old_fashioned":     ("src.render.themes.old_fashioned",     "old_fashioned_theme"),
-    "today":             ("src.render.themes.today",             "today_theme"),
-    "fantasy":           ("src.render.themes.fantasy",           "fantasy_theme"),
-    "qotd":              ("src.render.themes.qotd",              "qotd_theme"),
-    "qotd_invert":       ("src.render.themes.qotd_invert",      "qotd_invert_theme"),
-    "weather":           ("src.render.themes.weather",           "weather_theme"),
-    "fuzzyclock":        ("src.render.themes.fuzzyclock",        "fuzzyclock_theme"),
-    "fuzzyclock_invert": ("src.render.themes.fuzzyclock_invert", "fuzzyclock_invert_theme"),
-    "diags":             ("src.render.themes.diags",             "diags_theme"),
-    "air_quality":       ("src.render.themes.air_quality",       "air_quality_theme"),
-    "moonphase":         ("src.render.themes.moonphase",         "moonphase_theme"),
-    "moonphase_invert":  ("src.render.themes.moonphase_invert",  "moonphase_invert_theme"),
-}
 
 
 def load_theme(name: str) -> Theme:

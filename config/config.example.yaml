@@ -36,6 +36,7 @@ google:
 
 weather:
   api_key: "YOUR_OPENWEATHERMAP_API_KEY"
+  # CHANGE THESE to your location (these are New York City defaults)
   latitude: 40.7128
   longitude: -74.0060
   units: "imperial"  # "imperial" or "metric"

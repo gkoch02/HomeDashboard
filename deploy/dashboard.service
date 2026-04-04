@@ -2,6 +2,8 @@
 Description=Home Dashboard eInk renderer
 After=network-online.target
 Wants=network-online.target
+StartLimitBurst=5
+StartLimitIntervalSec=300
 
 [Service]
 Type=oneshot

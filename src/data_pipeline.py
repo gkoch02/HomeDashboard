@@ -97,12 +97,26 @@ class DataPipeline:
         if aq_skip and aq_cached is not None:
             air_quality = aq_cached
 
-        futures = self._launch_fetches(events_skip, weather_skip, birthdays_skip, purpleair_enabled, aq_skip)
+        futures = self._launch_fetches(
+            events_skip, weather_skip, birthdays_skip, purpleair_enabled, aq_skip,
+        )
 
-        events = self._resolve_events(futures.get("events"), events)
-        weather = self._resolve_weather(futures.get("weather"), weather)
-        birthdays = self._resolve_birthdays(futures.get("birthdays"), birthdays)
-        air_quality = self._resolve_air_quality(futures.get("air_quality"), air_quality)
+        events = self._resolve_source(
+            "events", futures.get("events"), events,
+            lambda d: logger.info("Fetched %d calendar events", len(d)),
+        )
+        weather = self._resolve_source(
+            "weather", futures.get("weather"), weather,
+            lambda d: logger.info("Fetched weather: %.1f°", d.current_temp),
+        )
+        birthdays = self._resolve_source(
+            "birthdays", futures.get("birthdays"), birthdays,
+            lambda d: logger.info("Fetched %d upcoming birthdays", len(d)),
+        )
+        air_quality = self._resolve_source(
+            "air_quality", futures.get("air_quality"), air_quality,
+            lambda d: logger.info("Fetched air quality: AQI=%d (%s)", d.aqi, d.category),
+        )
 
         quota_threshold = self.cfg.google.daily_quota_warning
         for src in ("events", "weather", "birthdays"):
@@ -145,7 +159,10 @@ class DataPipeline:
         age_minutes = (self.fetched_at - cached_at).total_seconds() / 60
         interval = self.interval_map[source]
         if age_minutes < interval:
-            logger.info("%s data is %.0fm old (interval: %dm), skipping fetch", source, age_minutes, interval)
+            logger.info(
+                "%s data is %.0fm old (interval: %dm), skipping fetch",
+                source, age_minutes, interval,
+            )
             self.source_staleness[source] = StalenessLevel.FRESH
             return data, True
         return None, False
@@ -160,7 +177,8 @@ class DataPipeline:
             return cached_data, True
         return None, False
 
-    def _launch_fetches(self, events_skip, weather_skip, birthdays_skip, purpleair_enabled, aq_skip):
+    def _launch_fetches(self, events_skip, weather_skip, birthdays_skip,
+                        purpleair_enabled, aq_skip):
         futures: dict[str, Future | None] = {
             "events": None,
             "weather": None,
@@ -198,84 +216,34 @@ class DataPipeline:
                 )
         return futures
 
-    def _resolve_events(self, future: Future | None, current):
-        if future is None:
-            return current
-        try:
-            events = future.result(timeout=60)
-            save_source("events", events, self.fetched_at, self.cache_dir)
-            self.source_staleness["events"] = StalenessLevel.FRESH
-            self.breaker.record_success("events")
-            self.quota.record_call("events")
-            logger.info("Fetched %d calendar events", len(events))
-            return events
-        except Exception as exc:
-            logger.error("Calendar fetch failed: %s", exc)
-            self.breaker.record_failure("events")
-            cached_data = self._use_cache("events")
-            if cached_data is not None:
-                logger.warning("Using cached events (%s)", self.source_staleness["events"].value)
-                return cached_data
-            return current
+    def _resolve_source(self, source: str, future: Future | None, current, success_log_fn=None):
+        """Resolve a single data source from its future, falling back to cache.
 
-    def _resolve_weather(self, future: Future | None, current):
+        Args:
+            source: Cache/breaker key (e.g. "events", "weather").
+            future: Future from the thread pool, or None if the fetch was skipped.
+            current: Current value to return if both fetch and cache fail.
+            success_log_fn: Optional callable(data) to log on successful fetch.
+        """
         if future is None:
             return current
         try:
-            weather = future.result(timeout=60)
-            save_source("weather", weather, self.fetched_at, self.cache_dir)
-            self.source_staleness["weather"] = StalenessLevel.FRESH
-            self.breaker.record_success("weather")
-            self.quota.record_call("weather")
-            logger.info("Fetched weather: %.1f°", weather.current_temp)
-            return weather
+            data = future.result(timeout=120)
+            save_source(source, data, self.fetched_at, self.cache_dir)
+            self.source_staleness[source] = StalenessLevel.FRESH
+            self.breaker.record_success(source)
+            self.quota.record_call(source)
+            if success_log_fn:
+                success_log_fn(data)
+            return data
         except Exception as exc:
-            logger.error("Weather fetch failed: %s", exc)
-            self.breaker.record_failure("weather")
-            cached_data = self._use_cache("weather")
-            if cached_data is not None:
-                logger.warning("Using cached weather (%s)", self.source_staleness["weather"].value)
-                return cached_data
-            return current
-
-    def _resolve_birthdays(self, future: Future | None, current):
-        if future is None:
-            return current
-        try:
-            birthdays = future.result(timeout=60)
-            save_source("birthdays", birthdays, self.fetched_at, self.cache_dir)
-            self.source_staleness["birthdays"] = StalenessLevel.FRESH
-            self.breaker.record_success("birthdays")
-            self.quota.record_call("birthdays")
-            logger.info("Fetched %d upcoming birthdays", len(birthdays))
-            return birthdays
-        except Exception as exc:
-            logger.error("Birthday fetch failed: %s", exc)
-            self.breaker.record_failure("birthdays")
-            cached_data = self._use_cache("birthdays")
-            if cached_data is not None:
-                logger.warning("Using cached birthdays (%s)", self.source_staleness["birthdays"].value)
-                return cached_data
-            return current
-
-    def _resolve_air_quality(self, future: Future | None, current):
-        if future is None:
-            return current
-        try:
-            air_quality = future.result(timeout=60)
-            save_source("air_quality", air_quality, self.fetched_at, self.cache_dir)
-            self.source_staleness["air_quality"] = StalenessLevel.FRESH
-            self.breaker.record_success("air_quality")
-            logger.info("Fetched air quality: AQI=%d (%s)", air_quality.aqi, air_quality.category)
-            return air_quality
-        except Exception as exc:
-            logger.error("Air quality fetch failed: %s", exc)
-            self.breaker.record_failure("air_quality")
-            cached_data = self._use_cache("air_quality")
+            logger.error("%s fetch failed: %s", source.capitalize(), exc)
+            self.breaker.record_failure(source)
+            cached_data = self._use_cache(source)
             if cached_data is not None:
                 logger.warning(
-                    "Using cached air quality (%s)",
-                    self.source_staleness.get("air_quality", StalenessLevel.STALE).value,
+                    "Using cached %s (%s)", source,
+                    self.source_staleness.get(source, StalenessLevel.STALE).value,
                 )
                 return cached_data
             return current

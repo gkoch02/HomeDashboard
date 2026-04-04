@@ -138,7 +138,10 @@ class WaveshareDisplay(DisplayDriver):
 
             tracker.save()
         finally:
-            epd.sleep()
+            try:
+                epd.sleep()
+            except Exception as exc:
+                logger.warning("EPD sleep failed: %s", exc)
 
     def clear(self) -> None:
         epd = self._get_epd()

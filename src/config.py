@@ -2,6 +2,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, tzinfo
 from pathlib import Path
 import logging
+import re
 import zoneinfo
 import yaml
 
@@ -143,7 +144,11 @@ class Config:
 def resolve_tz(tz_name: str) -> tzinfo:
     """Return a tzinfo for the given IANA name, or the system local timezone for 'local'."""
     if tz_name == "local":
-        return datetime.now().astimezone().tzinfo
+        tz = datetime.now().astimezone().tzinfo
+        if tz is None:
+            logger.warning("Could not determine local timezone; falling back to UTC")
+            return zoneinfo.ZoneInfo("UTC")
+        return tz
     return zoneinfo.ZoneInfo(tz_name)
 
 
@@ -377,12 +382,25 @@ def validate_config(
             message="Weather API key is still the placeholder value.",
             hint="Replace with your actual OpenWeatherMap API key.",
         ))
+    elif not re.fullmatch(r'[0-9a-fA-F]{32}', cfg.weather.api_key):
+        warnings.append(ConfigWarning(
+            field="weather.api_key",
+            message="OpenWeatherMap API key doesn't match expected format (32 hex characters).",
+            hint="Double-check your API key at https://home.openweathermap.org/api_keys",
+        ))
 
     if cfg.weather.latitude == 0.0 and cfg.weather.longitude == 0.0:
         warnings.append(ConfigWarning(
             field="weather.latitude/longitude",
             message="Weather coordinates are at 0,0 (Gulf of Guinea).",
             hint="Set weather.latitude and weather.longitude to your location.",
+        ))
+    elif (abs(cfg.weather.latitude - 40.7128) < 0.001
+          and abs(cfg.weather.longitude - (-74.0060)) < 0.001):
+        warnings.append(ConfigWarning(
+            field="weather.latitude/longitude",
+            message="Weather coordinates appear to be the example defaults (New York City).",
+            hint="Update weather.latitude and weather.longitude to your actual location.",
         ))
 
     # --- Timezone ---

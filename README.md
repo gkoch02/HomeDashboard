@@ -93,3 +93,60 @@ placing it at `credentials/service_account.json` and links to the
 
 For supported display models and hardware recommendations, see the
 [Setup Guide](docs/setup.md#supported-displays).
+
+---
+
+## Prerequisites
+
+- **Hardware**: Raspberry Pi 3, 4, or 5 with a [supported Waveshare eInk display](docs/setup.md#supported-displays)
+- **Software**: Raspberry Pi OS (Bookworm or later), Python 3.9+
+- **Network**: Internet connection for API calls (weather, calendar)
+- **Accounts**: Free [OpenWeatherMap API key](https://openweathermap.org/api) for weather; Google Calendar (ICS feed or service account) for events
+
+---
+
+## First-Run Checklist
+
+After completing [Quick Start](#quick-start), verify everything is working:
+
+1. `make check` -- validates your config file (API keys, paths, coordinates)
+2. `make dry` -- renders a preview with dummy data to `output/latest.png`
+3. Open `output/latest.png` on your computer to confirm the layout looks right
+4. `make pi-enable` -- installs and starts the systemd refresh timer
+5. `make pi-status` -- confirms the timer is active and shows recent logs
+
+If anything looks wrong, see [Troubleshooting](#troubleshooting) below.
+
+---
+
+## Reliability
+
+The dashboard is designed to run unattended for months. When things go wrong,
+it degrades gracefully instead of showing a blank screen:
+
+- **Cached data**: If an API call fails, the last successful response is used.
+  A small `!` badge appears on stale panels so you know the data isn't fresh.
+- **Staleness levels**: Data progresses through Fresh -> Aging -> Stale -> Expired
+  based on age relative to the configured TTL. Expired data (older than 4x TTL)
+  is discarded entirely.
+- **Circuit breaker**: After 3 consecutive failures for a source (configurable),
+  the dashboard stops attempting that API call for a cooldown period (default 30
+  minutes), then probes once to see if it has recovered.
+- **Independent sources**: A weather API outage doesn't affect calendar display.
+  Each data source fetches, caches, and fails independently.
+
+---
+
+## Troubleshooting
+
+| Symptom | Likely cause | Fix |
+|---------|-------------|-----|
+| Blank/white display | SPI not enabled, or display cable loose | Run `sudo raspi-config` -> Interface Options -> SPI -> Enable, then `sudo reboot` |
+| Display shows old data | API fetch failing, using stale cache | Run `make pi-logs` to check for errors; verify API keys with `make check` |
+| Calendar events missing | Service account not shared, or wrong calendar ID | Verify `calendar_id` in config; ensure the service account email has read access to your calendar |
+| Weather showing wrong location | Coordinates still set to defaults | Check `weather.latitude` and `weather.longitude` in `config/config.yaml` |
+| `make dry` works but display stays blank | Hardware issue or wrong display model | Verify `display.model` in config matches your Waveshare model |
+| Timer not running | systemd units not installed | Run `make pi-enable` and check `make pi-status` |
+
+For logs, run `make pi-logs` to tail the dashboard log, or check
+`output/dashboard.log` directly. See also the [FAQ](docs/faq.md).
