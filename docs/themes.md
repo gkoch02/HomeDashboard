@@ -327,6 +327,8 @@ venv/bin/python -m src.main --dry-run --dummy --theme message --message "Dentist
 This theme is excluded from random rotation (`random_daily` / `random_hourly`) and must
 always be specified explicitly via `--theme message`.
 
+![Message theme](../output/theme_message.png)
+
 ---
 
 ## Creating your own theme
