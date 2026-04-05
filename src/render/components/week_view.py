@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from datetime import date, datetime, timedelta
 
 from PIL import ImageDraw
@@ -143,7 +145,7 @@ def draw_week(
 
     # --- Multi-day spanning event bars (rendered above per-day content) ---
     spanning = _collect_spanning_events(events, week_start, week_end)
-    spanning_ids: set[str | None] = set()
+    spanning_ids: set[int] = set()
     allday_font = style.font_semibold(13)
     span_bar_h = text_height(allday_font) + 6
     span_spacing = 2
@@ -317,7 +319,7 @@ def draw_week(
         month_font = _month_fn(_month_size)
         mbb = draw.textbbox((0, 0), month_text, font=month_font)
         month_w = mbb[2] - mbb[0]
-    month_h = mbb[3] - mbb[1]
+    month_h = int(mbb[3] - mbb[1])
     month_band_h = month_h + PAD * 2
 
     month_x = sat_cx + (combined_date_w - month_w) // 2 - mbb[0]
@@ -354,7 +356,7 @@ def _autofit_font(
     draw: ImageDraw.ImageDraw,
     text: str,
     font,
-    style: "ThemeStyle",
+    style: ThemeStyle,
     max_w: int,
     max_lines: int = 2,
     min_size: int = 9,

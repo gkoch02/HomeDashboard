@@ -5,10 +5,7 @@ from datetime import datetime
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from src.app import DashboardApp, _migrate_state_files
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -286,7 +283,7 @@ class TestApplyFilters:
         data = self._make_data()
 
         with patch("src.app.filter_events", return_value=[]) as mock_filter:
-            result = app._apply_filters(data)
+            app._apply_filters(data)
 
         mock_filter.assert_called_once()
 
@@ -298,7 +295,7 @@ class TestApplyFilters:
         data = self._make_data()
 
         with patch("src.app.filter_events", return_value=[]) as mock_filter:
-            result = app._apply_filters(data)
+            app._apply_filters(data)
 
         mock_filter.assert_called_once()
 

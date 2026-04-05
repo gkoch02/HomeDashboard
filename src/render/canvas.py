@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from datetime import datetime
 
 from PIL import Image, ImageDraw
@@ -207,6 +209,10 @@ def render_dashboard(
 
     # Scale to native display resolution when it differs from the base canvas size
     if (config.width, config.height) != (layout.canvas_w, layout.canvas_h):
-        image = image.convert("L").resize((config.width, config.height), Image.LANCZOS).convert("1")
+        image = (
+            image.convert("L")
+            .resize((config.width, config.height), Image.Resampling.LANCZOS)
+            .convert("1")
+        )
 
     return image

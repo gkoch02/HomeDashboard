@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import argparse
 
 from src._version import __version__

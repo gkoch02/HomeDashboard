@@ -12,11 +12,13 @@ Configuration example (config.yaml)::
 API reference: https://community.purpleair.com/t/making-api-calls/180
 """
 
+from __future__ import annotations
+
 import logging
 import math
 from typing import Any
 
-import requests
+import requests  # type: ignore[import-untyped]
 
 from src.config import PurpleAirConfig
 from src.data.models import AirQualityData

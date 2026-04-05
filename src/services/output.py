@@ -14,8 +14,7 @@ class OutputService:
 
     def publish(self, image, *, dry_run: bool, force_full: bool) -> None:
         if dry_run:
-            display = DryRunDisplay(output_dir=self.cfg.output_dir)
-            display.show(image)
+            DryRunDisplay(output_dir=self.cfg.output_dir).show(image)
             return
 
         if not image_changed(image, self.cfg.output_dir) and not force_full:
@@ -24,12 +23,11 @@ class OutputService:
 
         from src.display.driver import WaveshareDisplay
 
-        display = WaveshareDisplay(
+        WaveshareDisplay(
             model=self.cfg.display.model,
             enable_partial=self.cfg.display.enable_partial_refresh,
             max_partials=self.cfg.display.max_partials_before_full,
-        )
-        display.show(image, force_full=force_full)
+        ).show(image, force_full=force_full)
 
     def write_health_marker(self) -> None:
         try:

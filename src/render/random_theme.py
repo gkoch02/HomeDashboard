@@ -52,7 +52,7 @@ def eligible_themes(include: list[str], exclude: list[str]) -> list[str]:
     Returns:
         Sorted list of eligible theme names (may be empty).
     """
-    pool: set[str] = AVAILABLE_THEMES - _EXCLUDED_FROM_POOL
+    pool: set[str] = set(AVAILABLE_THEMES - _EXCLUDED_FROM_POOL)
     if include:
         pool = pool & set(include)
     if exclude:

@@ -1,9 +1,11 @@
 """OpenWeatherMap fetcher — current conditions + extended forecast + active alerts."""
 
+from __future__ import annotations
+
 import logging
 from datetime import date, datetime, timezone, tzinfo
 
-import requests
+import requests  # type: ignore[import-untyped]
 
 from src.config import WeatherConfig
 from src.data.models import DayForecast, WeatherAlert, WeatherData
