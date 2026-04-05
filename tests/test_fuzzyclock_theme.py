@@ -1,5 +1,7 @@
 """Tests for the fuzzyclock theme and its integration with the render pipeline."""
 
+from __future__ import annotations
+
 from datetime import date, datetime, timedelta
 
 from PIL import Image

@@ -1,5 +1,7 @@
 """Tests for the diags theme and its render pipeline integration."""
 
+from __future__ import annotations
+
 from datetime import date, datetime, timedelta
 
 import pytest

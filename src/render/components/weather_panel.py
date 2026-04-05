@@ -232,7 +232,7 @@ def draw_weather(
                 forecast_h,
                 style,
             )
-        elif show_aqi_col and i == n_cols - 1:
+        elif show_aqi_col and air_quality is not None and i == n_cols - 1:
             _draw_aqi_column(draw, air_quality, cx, forecast_top, col_w, forecast_h, style)
         else:
             if forecast_idx < len(forecast_items):

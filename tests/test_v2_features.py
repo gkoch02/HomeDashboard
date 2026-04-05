@@ -2,6 +2,8 @@
 per-source cache, and incremental calendar sync.
 """
 
+from __future__ import annotations
+
 import json
 import tempfile
 from datetime import date, datetime, timedelta, timezone

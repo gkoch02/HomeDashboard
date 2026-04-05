@@ -1,5 +1,7 @@
 """Tests for src/render/components/today_view.py."""
 
+from __future__ import annotations
+
 from datetime import date, datetime, timedelta
 from unittest.mock import patch
 

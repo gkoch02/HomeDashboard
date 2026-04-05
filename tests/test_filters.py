@@ -1,5 +1,7 @@
 """Tests for event filtering (src/filters.py)."""
 
+from __future__ import annotations
+
 from datetime import datetime
 
 from src.config import FilterConfig

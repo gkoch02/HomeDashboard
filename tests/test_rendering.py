@@ -1,5 +1,7 @@
 """Rendering smoke tests — verifies the pipeline produces a valid image."""
 
+from __future__ import annotations
+
 from datetime import date, datetime, timedelta
 
 from PIL import Image

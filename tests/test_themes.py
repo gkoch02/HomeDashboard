@@ -1,5 +1,7 @@
 """Tests for the theme system (src/render/theme.py) and built-in themes."""
 
+from __future__ import annotations
+
 from datetime import date, datetime, timedelta
 
 import pytest
