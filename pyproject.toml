@@ -76,9 +76,11 @@ module = [
     "src.render.components.message_panel",
     "src.render.components.moonphase_panel",
     "src.render.components.qotd_panel",
+    "src.render.components.timeline_panel",
     "src.render.components.today_view",
     "src.render.components.weather_full",
     "src.render.components.weather_panel",
     "src.render.components.week_view",
+    "src.render.components.year_pulse_panel",
 ]
 ignore_errors = true

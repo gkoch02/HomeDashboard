@@ -187,7 +187,24 @@ Components are pure functions: `draw_*(draw, data, region, style) -> None`. No g
 | `SpaceGrotesk-Bold.ttf` | `sg_bold` | `air_quality`, `message` |
 | `NuCore.otf` / `NuCore Condensed.otf` | *(unused — available for new themes)* | — |
 
-### `ThemeStyle` font fields
+### `ThemeStyle` fields
+
+#### Boolean / scalar flags
+
+| Field | Default | Effect |
+|---|---|---|
+| `fg` / `bg` | `0` / `1` | 1-bit color values: 0 = BLACK, 1 = WHITE |
+| `invert_header` | `True` | Fill header bar with `fg`, draw text in `bg` |
+| `invert_today_col` | `True` | Fill today column with `fg`, draw text in `bg` |
+| `invert_allday_bars` | `True` | Filled (vs outlined) all-day event bars |
+| `show_borders` | `True` | Draw structural border lines and section separators; set `False` for borderless themes like `minimalist` |
+| `show_forecast_strip` | `True` | Draw the 3-day forecast grid at the bottom of the weather panel; set `False` for compact strips where the panel is too short to accommodate it without overlap — the four current-conditions rows are then spread evenly across the full panel height |
+| `spacing_scale` | `1.0` | Event row height multiplier in the week view |
+| `label_font_size` | `12` | Point size for section labels (WEATHER, BIRTHDAYS, …) |
+| `label_font_weight` | `"bold"` | Weight for section labels when `font_section_label` is `None`: `"bold"` / `"semibold"` / `"regular"` |
+| `component_labels` | `{}` | Override section label strings per component (keys: `"weather"`, `"birthdays"`, `"info"`, `"year_pulse"`, …) |
+
+#### Font callables
 
 `ThemeStyle` exposes font callables of the form `(size: int) -> FreeTypeFont`. All fields
 default to `None` and fall back gracefully so adding a new field never breaks existing themes.

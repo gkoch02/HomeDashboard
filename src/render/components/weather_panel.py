@@ -93,11 +93,25 @@ def draw_weather(
     icon_x_offset = int(w * 0.04)  # ~12px at 300w
     temp_x_offset = int(w * 0.26)  # ~78px at 300w
     detail_x_offset = int(w * 0.513)  # ~154px at 300w
-    forecast_h = int(h * 0.317)  # ~38px at 120h
-    content_y_offset = int(h * 0.233)  # ~28px at 120h
-    hilo_y_offset = content_y_offset + int(h * 0.117)  # ~14px step = row 2
-    detail3_y_offset = content_y_offset + int(h * 0.217)  # ~26px step = row 3
-    detail4_y_offset = content_y_offset + int(h * 0.317)  # ~38px step = row 4
+
+    show_forecast = style.show_forecast_strip
+    if show_forecast:
+        # Standard proportional layout — leaves room for the forecast strip.
+        forecast_h = int(h * 0.317)  # ~38px at 120h
+        content_y_offset = int(h * 0.233)  # ~28px at 120h
+        hilo_y_offset = content_y_offset + int(h * 0.117)  # ~14px step = row 2
+        detail3_y_offset = content_y_offset + int(h * 0.217)  # ~26px step = row 3
+        detail4_y_offset = content_y_offset + int(h * 0.317)  # ~38px step = row 4
+    else:
+        # No-forecast layout — spread the four detail rows evenly across the
+        # full panel height so the content is not crowded.
+        forecast_h = 0
+        _label_reserved = pad + 14 + 4  # approx label height + gap
+        _row_step = max(12, (h - _label_reserved - pad) // 4)
+        content_y_offset = _label_reserved
+        hilo_y_offset = content_y_offset + _row_step
+        detail3_y_offset = hilo_y_offset + _row_step
+        detail4_y_offset = detail3_y_offset + _row_step
 
     # Weather icon (left side)
     icon_x = x0 + icon_x_offset
@@ -175,6 +189,11 @@ def draw_weather(
             max_detail_w,
             fill=style.fg,
         )
+
+    if not show_forecast:
+        if staleness in (StalenessLevel.STALE, StalenessLevel.EXPIRED):
+            draw_staleness_glyph(draw, region, style)
+        return
 
     # Forecast strip along the bottom.
     forecast_top = y0 + h - forecast_h

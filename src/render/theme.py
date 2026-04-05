@@ -89,6 +89,16 @@ class ThemeLayout:
     message: ComponentRegion = field(
         default_factory=lambda: ComponentRegion(0, 0, 800, 400, visible=False)
     )
+    # Used by the ``timeline`` theme for the hourly day-view timeline.
+    # Hidden by default so existing themes are not affected.
+    timeline: ComponentRegion = field(
+        default_factory=lambda: ComponentRegion(0, 40, 800, 360, visible=False)
+    )
+    # Used by the ``year_pulse`` theme for the year progress + countdowns area.
+    # Hidden by default so existing themes are not affected.
+    year_pulse: ComponentRegion = field(
+        default_factory=lambda: ComponentRegion(0, 40, 800, 360, visible=False)
+    )
     draw_order: list[str] = field(
         default_factory=lambda: ["header", "week_view", "weather", "birthdays", "info"]
     )
@@ -146,6 +156,12 @@ class ThemeStyle:
     # When False, all structural border lines and separators are suppressed.
     # Useful for borderless themes like minimalist.
     show_borders: bool = True
+
+    # When False, the forecast strip at the bottom of the weather panel is
+    # omitted and the current-conditions text rows are spread more evenly
+    # across the full panel height.  Useful for compact strip layouts where
+    # the panel is too short to accommodate the forecast without overlap.
+    show_forecast_strip: bool = True
 
     def __post_init__(self) -> None:
         """Fill in default fonts from fonts.py when callables were not provided."""
@@ -207,6 +223,8 @@ _THEME_REGISTRY: dict[str, tuple[str, str]] = {
     "moonphase": ("src.render.themes.moonphase", "moonphase_theme"),
     "moonphase_invert": ("src.render.themes.moonphase_invert", "moonphase_invert_theme"),
     "message": ("src.render.themes.message", "message_theme"),
+    "timeline": ("src.render.themes.timeline", "timeline_theme"),
+    "year_pulse": ("src.render.themes.year_pulse", "year_pulse_theme"),
 }
 
 # Derived from the registry — adding a theme to _THEME_REGISTRY is all that's needed.
