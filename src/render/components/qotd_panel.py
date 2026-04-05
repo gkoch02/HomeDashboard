@@ -126,8 +126,8 @@ def draw_qotd(
 
     for glyph, side in (("\u201c", "open"), ("\u201d", "close")):
         bb = draw.textbbox((0, 0), glyph, font=mark_font)
-        ink_w = bb[2] - bb[0]
-        ink_h = bb[3] - bb[1]
+        ink_w = int(bb[2] - bb[0])
+        ink_h = int(bb[3] - bb[1])
 
         if side == "open":
             # Top-left: ink top sits slightly above the first text line
@@ -143,14 +143,14 @@ def draw_qotd(
     # ---- Quote body lines (centered horizontally) ----
     y = text_block_top
     for line in best_lines:
-        lw = int(best_quote_font.getlength(line))
+        lw = int(best_quote_font.getlength(line))  # type: ignore[union-attr]
         x = region.x + (region.w - lw) // 2
         draw.text((x, y), line, font=best_quote_font, fill=style.fg)
         y += lh + line_gap
 
     # Attribution — gap after last line, then centered
     y += attr_gap - line_gap
-    aw = int(best_attr_font.getlength(author))
+    aw = int(best_attr_font.getlength(author))  # type: ignore[union-attr]
     ax = region.x + (region.w - aw) // 2
     draw.text((ax, y), author, font=best_attr_font, fill=style.fg)
 
