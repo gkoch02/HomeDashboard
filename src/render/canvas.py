@@ -15,10 +15,13 @@ from src.render.components import (
     info_panel,
     message_panel,
     moonphase_panel,
+    newspaper_panel,
     qotd_panel,
+    timeline_panel,
     today_view,
     weather_panel,
     week_view,
+    year_pulse_panel,
 )
 from src.render.components import (
     weather_full as weather_full_comp,
@@ -180,6 +183,28 @@ def render_dashboard(
             data.weather,
             today,
             region=layout.weather,
+            style=style,
+        ),
+        "newspaper_events": lambda: newspaper_panel.draw_newspaper_events(
+            draw,
+            data.events,
+            today,
+            region=layout.newspaper_events,
+            style=style,
+        ),
+        "timeline": lambda: timeline_panel.draw_timeline(
+            draw,
+            data.events,
+            today,
+            now,
+            region=layout.timeline,
+            style=style,
+        ),
+        "year_pulse": lambda: year_pulse_panel.draw_year_pulse(
+            draw,
+            data,
+            today,
+            region=layout.year_pulse,
             style=style,
         ),
     }
