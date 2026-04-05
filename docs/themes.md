@@ -271,8 +271,9 @@ sensor data, organised into four horizontal zones:
 - **Particulate matter row** (15%): PM1.0 · PM2.5 · PM10 readings in µg/m³, centred in
   three equal columns. Only fields returned by the sensor are shown.
 - **Ambient sensor cards** (21%): up to three rounded-rect cards for sensor temperature (°F),
-  relative humidity (%), and barometric pressure (hPa). Cards are hidden when the sensor does
-  not provide those readings.
+  relative humidity (%), and barometric pressure (hPa). PurpleAir sensor readings are used
+  when available; for any field the sensor does not report, the corresponding OWM value is
+  used as a fallback. The temperature card is hidden when both sources lack the value.
 - **Weather + forecast strip** (bottom 27%): current conditions (icon, temperature,
   description, hi/lo) on the left; a 4-day forecast grid (day name, icon, hi/lo, precipitation
   probability) on the right.
