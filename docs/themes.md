@@ -6,6 +6,12 @@
 - [Random rotation](#random-rotation)
 - [Time-of-day theme schedule](#time-of-day-theme-schedule)
 - [Built-in themes](#built-in-themes)
+  - [default](#default), [terminal](#terminal), [minimalist](#minimalist), [old\_fashioned](#old_fashioned), [today](#today), [fantasy](#fantasy)
+  - [moonphase](#moonphase), [moonphase\_invert](#moonphase_invert)
+  - [qotd](#qotd), [qotd\_invert](#qotd_invert)
+  - [weather](#weather), [fuzzyclock](#fuzzyclock), [fuzzyclock\_invert](#fuzzyclock_invert)
+  - [air\_quality](#air_quality), [message](#message), [diags](#diags)
+  - [newspaper](#newspaper), [timeline](#timeline), [year\_pulse](#year_pulse)
 - [Creating your own theme](#creating-your-own-theme)
 - [Typography](#typography)
 
@@ -16,7 +22,7 @@
 Switch the entire dashboard layout and visual style with one line in `config.yaml`:
 
 ```yaml
-theme: terminal   # default | terminal | minimalist | old_fashioned | today | fantasy | moonphase | moonphase_invert | qotd | qotd_invert | weather | fuzzyclock | fuzzyclock_invert | diags | air_quality | message | random | random_daily | random_hourly
+theme: terminal   # default | terminal | minimalist | old_fashioned | today | fantasy | moonphase | moonphase_invert | qotd | qotd_invert | weather | fuzzyclock | fuzzyclock_invert | diags | air_quality | message | newspaper | timeline | year_pulse | random | random_daily | random_hourly
 ```
 
 Or override it from the command line without editing your config:
@@ -330,6 +336,96 @@ it is a utility/sanity-check view, not a daily aesthetic.
 
 ![Diags theme](../output/theme_diags.png)
 
+### newspaper
+
+Broadsheet layout inspired by the front page of a quality daily newspaper. The canvas is
+divided into a tall left column and a narrower right sidebar, separated by a single vertical
+rule. A thick inverted **masthead** (60px) uses Cinzel Black for the dashboard title — the
+same all-caps Roman inscription typeface found on broadsheet nameplates — while the date
+appears right-aligned in the same weight.
+
+A **double rule** (2px top, 1px secondary) separates the masthead from the body, reinforcing
+the broadsheet hierarchy.
+
+- **Left column (530px) — TODAY'S AGENDA:** Today's calendar events are laid out as
+  newspaper *articles*. Each timed event gets a compact *dateline* (start–end time in small
+  regular weight), a *headline* (event title in Playfair Display SemiBold, up to two wrapped
+  lines), and an optional *subhead* (first segment of the location field). All-day events
+  appear as a compact inverted bar strip pinned to the bottom of the column, above a thin
+  rule. A "No events today" placeholder appears when the schedule is empty.
+
+- **Right column (270px):** The upper ~220px shows the current weather panel (conditions,
+  temperature, hi/lo, feel, wind). The lower ~200px shows the **WORDS OF WISDOM** quote
+  panel, using the same Playfair Display serif body text.
+
+Fonts: Cinzel Black for the masthead title; Cinzel Bold for all section labels; Playfair
+Display for body text, event headlines, and quotes.
+
+![Newspaper theme](../output/theme_newspaper.png)
+
+### timeline
+
+Hourly day-view that makes free time and busy stretches immediately obvious. The standard
+7-day week grid is replaced by a single-day vertical timeline running from **7 AM to 9 PM**
+(14 visible hours).
+
+- **Left axis (52px):** Hour labels right-aligned against the axis (7a, 8a … 12p … 9p).
+  Subtle horizontal grid lines cross the timeline area at every hour boundary.
+
+- **Event blocks:** Each timed event is rendered as a filled inverted rectangle spanning its
+  start-to-end time proportionally. Event titles are drawn in white inside the block.
+  Overlapping events are automatically placed in adjacent columns using a greedy column
+  assignment algorithm — no two overlapping events share a column.
+
+- **Now line:** When today's date matches the display date, a dashed horizontal line
+  (4px-on / 3px-off, 2px thick) marks the current time. It moves every 5-minute timer tick
+  and the image-hash check prevents needless eInk refreshes when nothing has changed.
+
+- **All-day strip (top):** If there are any all-day events, a narrow 14px strip runs across
+  the full width above the hourly grid, dividing available horizontal space equally between
+  events.
+
+- **Weather strip (bottom 80px):** A compact full-width weather banner shows current
+  conditions, hi/lo, feel, wind speed/direction, and a 3-day forecast strip (identical to
+  the `fuzzyclock` and `qotd` weather bars).
+
+Font: DM Sans throughout — the same screen-optimised geometric sans used by `minimalist`,
+`weather`, and `fuzzyclock`.
+
+![Timeline theme](../output/theme_timeline.png)
+
+### year_pulse
+
+Zooms out from the usual week-at-a-glance to show **where you are in the year**. Useful as
+a periodic big-picture check-in alongside the regular weekly themes.
+
+- **Year stats (top ~120px):** A large **year number** in bold (56px) anchors the top-left.
+  The current **week number** appears right-aligned at the same vertical position. Below both
+  sits a full-width **year progress bar**: the outline rect spans the whole content width;
+  the filled portion corresponds to the fraction of the year elapsed. A label beneath the bar
+  reads "Day X of Y · Z% complete" in regular weight.
+
+- **Countdown list (bottom ~200px):** After a horizontal rule and a "COMING UP" section
+  label, a list of upcoming items appears — one row per item. Each row shows a right-arrow
+  glyph, a bold days-until indicator (`3d`, `23d`, `today`), and the event or birthday name
+  truncated to the available width. The list merges:
+    - **Calendar events** from the next 14 days (first occurrence per summary/date pair)
+    - **Birthdays** from the next 120 days (next annual occurrence; age at next birthday
+      shown in parentheses when known)
+  
+  Items are sorted by days-until ascending. Up to five items are shown; the list truncates
+  cleanly when the region fills.
+
+- **Weather strip (bottom 80px):** Same compact weather banner as `timeline` and `fuzzyclock`.
+
+Feb 29 birthdays in non-leap years are gracefully shifted to Feb 28 of the next year, so
+they always appear in the countdown without crashing.
+
+Font: Space Grotesk — the same data-dashboard sans used by `air_quality` and `message`. Its
+quirky proportional letterforms (a, G, R, t) suit numeric data display at all eInk sizes.
+
+![Year Pulse theme](../output/theme_year_pulse.png)
+
 ---
 
 ## Creating your own theme
@@ -399,10 +495,10 @@ See the theme reference tables and font customization guide in [`CLAUDE.md`](../
 | Maratype | `terminal` theme — dashboard title, day column headers, quote body |
 | UESC Display | `terminal` theme — month band, section labels, quote attribution |
 | Synthetic Genesis | `terminal` theme — large today date numeral |
-| [DM Sans](https://fonts.google.com/specimen/DM+Sans) | `minimalist` theme; `weather` theme; `fuzzyclock` theme; `diags` theme — section labels |
-| [Playfair Display](https://fonts.google.com/specimen/Playfair+Display) | `old_fashioned` theme; `qotd` quote text; `moonphase` body text and quote |
-| [Cinzel](https://fonts.google.com/specimen/Cinzel) | `fantasy` theme; `old_fashioned` section labels; `moonphase` date and phase name |
-| [Space Grotesk](https://fonts.google.com/specimen/Space+Grotesk) | `air_quality` theme; `message` theme |
+| [DM Sans](https://fonts.google.com/specimen/DM+Sans) | `minimalist` theme; `weather` theme; `fuzzyclock` theme; `timeline` theme; `diags` theme — section labels |
+| [Playfair Display](https://fonts.google.com/specimen/Playfair+Display) | `old_fashioned` theme; `newspaper` theme — event headlines and quote text; `qotd` quote text; `moonphase` body text and quote |
+| [Cinzel](https://fonts.google.com/specimen/Cinzel) | `fantasy` theme; `newspaper` theme — masthead title (Black) and section labels (Bold); `old_fashioned` section labels; `moonphase` date and phase name |
+| [Space Grotesk](https://fonts.google.com/specimen/Space+Grotesk) | `air_quality` theme; `message` theme; `year_pulse` theme |
 
 Custom fonts can be added per-theme via `ThemeStyle` font callables — see
 [Creating your own theme](#creating-your-own-theme) and [`CLAUDE.md`](../CLAUDE.md).
