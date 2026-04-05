@@ -15,7 +15,6 @@ from src.render.components import (
     info_panel,
     message_panel,
     moonphase_panel,
-    newspaper_panel,
     qotd_panel,
     timeline_panel,
     today_view,
@@ -183,13 +182,6 @@ def render_dashboard(
             data.weather,
             today,
             region=layout.weather,
-            style=style,
-        ),
-        "newspaper_events": lambda: newspaper_panel.draw_newspaper_events(
-            draw,
-            data.events,
-            today,
-            region=layout.newspaper_events,
             style=style,
         ),
         "timeline": lambda: timeline_panel.draw_timeline(

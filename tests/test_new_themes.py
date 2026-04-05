@@ -1,4 +1,4 @@
-"""Smoke tests for the three new themes: newspaper, timeline, and year_pulse.
+"""Smoke tests for the timeline and year_pulse themes.
 
 Each test renders the theme with dummy data and asserts basic image properties:
 correct size, 1-bit mode, and non-blank output.  Component-level unit tests
@@ -7,16 +7,15 @@ verify specific drawing logic.
 
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 
-import pytest
 from PIL import Image
 
 from src.config import DisplayConfig
-from src.data.models import Birthday, CalendarEvent, DashboardData, WeatherData
+from src.data.models import Birthday, CalendarEvent, DashboardData
 from src.dummy_data import generate_dummy_data
 from src.render.canvas import render_dashboard
-from src.render.theme import load_theme, AVAILABLE_THEMES
+from src.render.theme import AVAILABLE_THEMES, load_theme
 
 FIXED_NOW = datetime(2026, 4, 5, 10, 30)  # A Sunday morning
 
@@ -33,18 +32,11 @@ def _render(theme_name: str) -> Image.Image:
 # ---------------------------------------------------------------------------
 
 class TestThemeRegistration:
-    def test_newspaper_in_available_themes(self):
-        assert "newspaper" in AVAILABLE_THEMES
-
     def test_timeline_in_available_themes(self):
         assert "timeline" in AVAILABLE_THEMES
 
     def test_year_pulse_in_available_themes(self):
         assert "year_pulse" in AVAILABLE_THEMES
-
-    def test_load_newspaper(self):
-        theme = load_theme("newspaper")
-        assert theme.name == "newspaper"
 
     def test_load_timeline(self):
         theme = load_theme("timeline")
@@ -53,34 +45,6 @@ class TestThemeRegistration:
     def test_load_year_pulse(self):
         theme = load_theme("year_pulse")
         assert theme.name == "year_pulse"
-
-
-# ---------------------------------------------------------------------------
-# Newspaper theme smoke tests
-# ---------------------------------------------------------------------------
-
-class TestNewspaperTheme:
-    def test_renders_correct_size(self):
-        img = _render("newspaper")
-        assert img.size == (800, 480)
-
-    def test_renders_1bit(self):
-        img = _render("newspaper")
-        assert img.mode == "1"
-
-    def test_renders_non_blank(self):
-        img = _render("newspaper")
-        assert not all(p == 255 for p in img.tobytes()), "Image is blank"
-
-    def test_layout_has_newspaper_events_region(self):
-        from src.render.theme import load_theme
-        theme = load_theme("newspaper")
-        assert theme.layout.newspaper_events.visible is True
-        assert theme.layout.newspaper_events.w == 530
-
-    def test_overlay_fn_is_set(self):
-        theme = load_theme("newspaper")
-        assert theme.layout.overlay_fn is not None
 
 
 # ---------------------------------------------------------------------------
@@ -127,63 +91,6 @@ class TestYearPulseTheme:
         theme = load_theme("year_pulse")
         assert theme.layout.year_pulse.visible is True
         assert theme.layout.year_pulse.h == 360
-
-
-# ---------------------------------------------------------------------------
-# Newspaper panel unit tests
-# ---------------------------------------------------------------------------
-
-class TestNewspaperPanel:
-    def _make_draw(self):
-        from PIL import Image, ImageDraw
-        img = Image.new("1", (530, 420), 1)
-        return ImageDraw.Draw(img), img
-
-    def test_renders_no_events(self):
-        from src.render.components.newspaper_panel import draw_newspaper_events
-        from src.render.theme import ComponentRegion, ThemeStyle
-        draw, img = self._make_draw()
-        draw_newspaper_events(draw, [], date(2026, 4, 5), region=ComponentRegion(0, 0, 530, 420))
-        # Should not raise; image may be nearly blank but not all-white after label
-        assert img.mode == "1"
-
-    def test_renders_timed_events(self):
-        from src.render.components.newspaper_panel import draw_newspaper_events
-        from src.render.theme import ComponentRegion
-        draw, img = self._make_draw()
-        events = [
-            CalendarEvent(
-                summary="Morning Standup",
-                start=datetime(2026, 4, 5, 9, 0),
-                end=datetime(2026, 4, 5, 9, 30),
-            ),
-            CalendarEvent(
-                summary="Product Review",
-                start=datetime(2026, 4, 5, 14, 0),
-                end=datetime(2026, 4, 5, 15, 0),
-            ),
-        ]
-        draw_newspaper_events(draw, events, date(2026, 4, 5),
-                              region=ComponentRegion(0, 0, 530, 420))
-        pixels = list(img.tobytes())
-        assert not all(p == 255 for p in pixels), "Panel is blank"
-
-    def test_renders_allday_events(self):
-        from src.render.components.newspaper_panel import draw_newspaper_events
-        from src.render.theme import ComponentRegion
-        draw, img = self._make_draw()
-        events = [
-            CalendarEvent(
-                summary="Company Holiday",
-                start=datetime(2026, 4, 5),
-                end=datetime(2026, 4, 6),
-                is_all_day=True,
-            ),
-        ]
-        draw_newspaper_events(draw, events, date(2026, 4, 5),
-                              region=ComponentRegion(0, 0, 530, 420))
-        pixels = list(img.tobytes())
-        assert not all(p == 255 for p in pixels), "Panel is blank"
 
 
 # ---------------------------------------------------------------------------

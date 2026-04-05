@@ -10,8 +10,7 @@
   - [moonphase](#moonphase), [moonphase\_invert](#moonphase_invert)
   - [qotd](#qotd), [qotd\_invert](#qotd_invert)
   - [weather](#weather), [fuzzyclock](#fuzzyclock), [fuzzyclock\_invert](#fuzzyclock_invert)
-  - [air\_quality](#air_quality), [message](#message), [diags](#diags)
-  - [newspaper](#newspaper), [timeline](#timeline), [year\_pulse](#year_pulse)
+  - [air\_quality](#air_quality), [timeline](#timeline), [year\_pulse](#year_pulse), [message](#message), [diags](#diags)
 - [Creating your own theme](#creating-your-own-theme)
 - [Typography](#typography)
 
@@ -22,7 +21,7 @@
 Switch the entire dashboard layout and visual style with one line in `config.yaml`:
 
 ```yaml
-theme: terminal   # default | terminal | minimalist | old_fashioned | today | fantasy | moonphase | moonphase_invert | qotd | qotd_invert | weather | fuzzyclock | fuzzyclock_invert | diags | air_quality | message | newspaper | timeline | year_pulse | random | random_daily | random_hourly
+theme: terminal   # default | terminal | minimalist | old_fashioned | today | fantasy | moonphase | moonphase_invert | qotd | qotd_invert | weather | fuzzyclock | fuzzyclock_invert | diags | air_quality | timeline | year_pulse | message | random | random_daily | random_hourly
 ```
 
 Or override it from the command line without editing your config:
@@ -292,77 +291,6 @@ at all eInk display sizes.
 
 ![Air Quality theme](../output/theme_air_quality.png)
 
-### message
-
-Custom message display. Forgoes the calendar, birthdays, and info panel entirely.
-The display is devoted to a single user-supplied message in large Space Grotesk Bold,
-centered typographically. Font size scales automatically — from 64px down to 20px — so
-the full message always fits without truncation. Decorative oversized quotation marks frame
-the text as corner accents. A compact full-width weather banner runs across the bottom 80px
-(identical to the `qotd` strip: current conditions, hi/lo, feels-like, wind, 3-day
-forecast, and moon phase).
-
-Intended for manual one-off runs — pipe a reminder, announcement, or note to the display
-without touching `config.yaml`. Use `--message` to provide the text:
-
-```bash
-venv/bin/python -m src.main --dry-run --dummy --theme message --message "Dentist at 3pm"
-```
-
-This theme is excluded from random rotation (`random_daily` / `random_hourly`) and must
-always be specified explicitly via `--theme message`.
-
-![Message theme](../output/theme_message.png)
-
-### diags
-
-Diagnostic text readout. Devotes the entire 800×480 canvas to a structured two-column
-key-value display of every available data field. No icons, no decorations — only labeled
-sections rendered in a clean monospace font (Share Tech Mono for data rows, DM Sans Bold for
-section labels).
-
-**Left column:** WEATHER (condition, temperature, hi/lo, feels-like, humidity, wind speed and
-direction, barometric pressure, UV index, sunrise/sunset, active alerts) followed by a
-FORECAST strip (up to six days of date, hi/lo, description, and precipitation probability).
-
-**Right column (top-to-bottom):** CALENDAR (per-day event counts for the current Mon–Sun week),
-AIR QUALITY (AQI, PM2.5, PM1.0, PM10, plus PurpleAir ambient temperature/humidity/pressure
-when configured), BIRTHDAYS (name, date, and age for upcoming birthdays), and STATUS (data
-freshness level per source: Fresh / Aging / Stale / Expired).
-
-Each section label includes a right-aligned source attribution (`OpenWeatherMap`, `Google
-Calendar`, `PurpleAir`). `diags` is intentionally excluded from the random rotation pool —
-it is a utility/sanity-check view, not a daily aesthetic.
-
-![Diags theme](../output/theme_diags.png)
-
-### newspaper
-
-Broadsheet layout inspired by the front page of a quality daily newspaper. The canvas is
-divided into a tall left column and a narrower right sidebar, separated by a single vertical
-rule. A thick inverted **masthead** (60px) uses Cinzel Black for the dashboard title — the
-same all-caps Roman inscription typeface found on broadsheet nameplates — while the date
-appears right-aligned in the same weight.
-
-A **double rule** (2px top, 1px secondary) separates the masthead from the body, reinforcing
-the broadsheet hierarchy.
-
-- **Left column (530px) — TODAY'S AGENDA:** Today's calendar events are laid out as
-  newspaper *articles*. Each timed event gets a compact *dateline* (start–end time in small
-  regular weight), a *headline* (event title in Playfair Display SemiBold, up to two wrapped
-  lines), and an optional *subhead* (first segment of the location field). All-day events
-  appear as a compact inverted bar strip pinned to the bottom of the column, above a thin
-  rule. A "No events today" placeholder appears when the schedule is empty.
-
-- **Right column (270px):** The upper ~220px shows the current weather panel (conditions,
-  temperature, hi/lo, feel, wind). The lower ~200px shows the **WORDS OF WISDOM** quote
-  panel, using the same Playfair Display serif body text.
-
-Fonts: Cinzel Black for the masthead title; Cinzel Bold for all section labels; Playfair
-Display for body text, event headlines, and quotes.
-
-![Newspaper theme](../output/theme_newspaper.png)
-
 ### timeline
 
 Hourly day-view that makes free time and busy stretches immediately obvious. The standard
@@ -425,6 +353,50 @@ Font: Space Grotesk — the same data-dashboard sans used by `air_quality` and `
 quirky proportional letterforms (a, G, R, t) suit numeric data display at all eInk sizes.
 
 ![Year Pulse theme](../output/theme_year_pulse.png)
+
+### message
+
+Custom message display. Forgoes the calendar, birthdays, and info panel entirely.
+The display is devoted to a single user-supplied message in large Space Grotesk Bold,
+centered typographically. Font size scales automatically — from 64px down to 20px — so
+the full message always fits without truncation. Decorative oversized quotation marks frame
+the text as corner accents. A compact full-width weather banner runs across the bottom 80px
+(identical to the `qotd` strip: current conditions, hi/lo, feels-like, wind, 3-day
+forecast, and moon phase).
+
+Intended for manual one-off runs — pipe a reminder, announcement, or note to the display
+without touching `config.yaml`. Use `--message` to provide the text:
+
+```bash
+venv/bin/python -m src.main --dry-run --dummy --theme message --message "Dentist at 3pm"
+```
+
+This theme is excluded from random rotation (`random_daily` / `random_hourly`) and must
+always be specified explicitly via `--theme message`.
+
+![Message theme](../output/theme_message.png)
+
+### diags
+
+Diagnostic text readout. Devotes the entire 800×480 canvas to a structured two-column
+key-value display of every available data field. No icons, no decorations — only labeled
+sections rendered in a clean monospace font (Share Tech Mono for data rows, DM Sans Bold for
+section labels).
+
+**Left column:** WEATHER (condition, temperature, hi/lo, feels-like, humidity, wind speed and
+direction, barometric pressure, UV index, sunrise/sunset, active alerts) followed by a
+FORECAST strip (up to six days of date, hi/lo, description, and precipitation probability).
+
+**Right column (top-to-bottom):** CALENDAR (per-day event counts for the current Mon–Sun week),
+AIR QUALITY (AQI, PM2.5, PM1.0, PM10, plus PurpleAir ambient temperature/humidity/pressure
+when configured), BIRTHDAYS (name, date, and age for upcoming birthdays), and STATUS (data
+freshness level per source: Fresh / Aging / Stale / Expired).
+
+Each section label includes a right-aligned source attribution (`OpenWeatherMap`, `Google
+Calendar`, `PurpleAir`). `diags` is intentionally excluded from the random rotation pool —
+it is a utility/sanity-check view, not a daily aesthetic.
+
+![Diags theme](../output/theme_diags.png)
 
 ---
 
@@ -496,8 +468,8 @@ See the theme reference tables and font customization guide in [`CLAUDE.md`](../
 | UESC Display | `terminal` theme — month band, section labels, quote attribution |
 | Synthetic Genesis | `terminal` theme — large today date numeral |
 | [DM Sans](https://fonts.google.com/specimen/DM+Sans) | `minimalist` theme; `weather` theme; `fuzzyclock` theme; `timeline` theme; `diags` theme — section labels |
-| [Playfair Display](https://fonts.google.com/specimen/Playfair+Display) | `old_fashioned` theme; `newspaper` theme — event headlines and quote text; `qotd` quote text; `moonphase` body text and quote |
-| [Cinzel](https://fonts.google.com/specimen/Cinzel) | `fantasy` theme; `newspaper` theme — masthead title (Black) and section labels (Bold); `old_fashioned` section labels; `moonphase` date and phase name |
+| [Playfair Display](https://fonts.google.com/specimen/Playfair+Display) | `old_fashioned` theme; `qotd` quote text; `moonphase` body text and quote |
+| [Cinzel](https://fonts.google.com/specimen/Cinzel) | `fantasy` theme; `old_fashioned` section labels; `moonphase` date and phase name |
 | [Space Grotesk](https://fonts.google.com/specimen/Space+Grotesk) | `air_quality` theme; `message` theme; `year_pulse` theme |
 
 Custom fonts can be added per-theme via `ThemeStyle` font callables — see

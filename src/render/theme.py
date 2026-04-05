@@ -89,11 +89,6 @@ class ThemeLayout:
     message: ComponentRegion = field(
         default_factory=lambda: ComponentRegion(0, 0, 800, 400, visible=False)
     )
-    # Used by the ``newspaper`` theme for the left-column event articles area.
-    # Hidden by default so existing themes are not affected.
-    newspaper_events: ComponentRegion = field(
-        default_factory=lambda: ComponentRegion(0, 60, 530, 420, visible=False)
-    )
     # Used by the ``timeline`` theme for the hourly day-view timeline.
     # Hidden by default so existing themes are not affected.
     timeline: ComponentRegion = field(
@@ -222,7 +217,6 @@ _THEME_REGISTRY: dict[str, tuple[str, str]] = {
     "moonphase": ("src.render.themes.moonphase", "moonphase_theme"),
     "moonphase_invert": ("src.render.themes.moonphase_invert", "moonphase_invert_theme"),
     "message": ("src.render.themes.message", "message_theme"),
-    "newspaper": ("src.render.themes.newspaper", "newspaper_theme"),
     "timeline": ("src.render.themes.timeline", "timeline_theme"),
     "year_pulse": ("src.render.themes.year_pulse", "year_pulse_theme"),
 }
