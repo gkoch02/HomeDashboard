@@ -309,11 +309,11 @@ def _aq_section(draw, x, y, w, aq: AirQualityData | None, style) -> int:
         y = _kv(draw, x, y, "PM1.0", f"{aq.pm1:.1f} \u00b5g/m\u00b3", style, w)
     if aq.pm10 is not None:
         y = _kv(draw, x, y, "PM10", f"{aq.pm10:.1f} \u00b5g/m\u00b3", style, w)
-    if aq.temperature is not None:
+    if aq.temperature is not None and "temperature" not in aq.fallback_fields:
         y = _kv(draw, x, y, "Temp", f"{aq.temperature:.1f}\u00b0F", style, w)
-    if aq.humidity is not None:
+    if aq.humidity is not None and "humidity" not in aq.fallback_fields:
         y = _kv(draw, x, y, "Humidity", f"{aq.humidity:.0f}%", style, w)
-    if aq.pressure is not None:
+    if aq.pressure is not None and "pressure" not in aq.fallback_fields:
         y = _kv(draw, x, y, "Pressure", f"{aq.pressure:.1f} hPa", style, w)
     return y
 
