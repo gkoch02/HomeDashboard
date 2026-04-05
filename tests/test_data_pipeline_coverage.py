@@ -291,3 +291,66 @@ class TestMergeAirQualityWithWeatherFallback:
         result = _merge_air_quality_with_weather_fallback(aq, weather)
 
         assert result.pressure is None
+
+    def test_fallback_fields_tracks_filled_temperature(self):
+        """Fallback_fields tracks when temperature is filled from OWM."""
+        aq = AirQualityData(aqi=50, category="Good", pm25=10.0)
+        weather = _make_weather()
+        result = _merge_air_quality_with_weather_fallback(aq, weather)
+
+        assert "temperature" in result.fallback_fields
+
+    def test_fallback_fields_tracks_filled_humidity(self):
+        """Fallback_fields tracks when humidity is filled from OWM."""
+        aq = AirQualityData(aqi=50, category="Good", pm25=10.0)
+        weather = _make_weather()
+        result = _merge_air_quality_with_weather_fallback(aq, weather)
+
+        assert "humidity" in result.fallback_fields
+
+    def test_fallback_fields_tracks_filled_pressure(self):
+        """Fallback_fields tracks when pressure is filled from OWM."""
+        aq = AirQualityData(aqi=50, category="Good", pm25=10.0)
+        weather = WeatherData(
+            current_temp=68.0,
+            current_icon="01d",
+            current_description="clear sky",
+            high=75.0,
+            low=55.0,
+            humidity=40,
+            pressure=1013.0,
+        )
+        result = _merge_air_quality_with_weather_fallback(aq, weather)
+
+        assert "pressure" in result.fallback_fields
+
+    def test_fallback_fields_empty_when_no_merge_needed(self):
+        """Fallback_fields is empty when all fields are from sensor."""
+        aq = AirQualityData(
+            aqi=50,
+            category="Good",
+            pm25=10.0,
+            temperature=72.0,
+            humidity=45.0,
+            pressure=1013.0,
+        )
+        weather = _make_weather()
+        result = _merge_air_quality_with_weather_fallback(aq, weather)
+
+        assert len(result.fallback_fields) == 0
+
+    def test_fallback_fields_only_for_missing_fields(self):
+        """Fallback_fields only contains fields that were actually filled."""
+        aq = AirQualityData(
+            aqi=50,
+            category="Good",
+            pm25=10.0,
+            temperature=72.0,  # Present
+            # humidity and pressure missing
+        )
+        weather = _make_weather()
+        result = _merge_air_quality_with_weather_fallback(aq, weather)
+
+        assert "temperature" not in result.fallback_fields
+        assert "humidity" in result.fallback_fields
+        assert "pressure" not in result.fallback_fields  # weather.pressure is None

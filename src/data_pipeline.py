@@ -29,7 +29,8 @@ def _merge_air_quality_with_weather_fallback(
     """Fill missing air_quality sensor fields from weather data.
 
     When PurpleAir sensor lacks ambient readings (temp/humidity/pressure),
-    fallback to OWM data if available.
+    fallback to OWM data if available. Tracks which fields came from fallback
+    so the renderer can hide them if desired.
 
     Args:
         air_quality: AirQualityData from PurpleAir, or None.
@@ -49,20 +50,26 @@ def _merge_air_quality_with_weather_fallback(
     ):
         return air_quality
 
+    # Track which fields are filled from fallback
+    fallback_fields: set[str] = set()
+
     # Build fallback values
     temperature = air_quality.temperature
     if temperature is None:
         temperature = weather.current_temp
+        fallback_fields.add("temperature")
 
     humidity = air_quality.humidity
     if humidity is None:
         humidity = float(weather.humidity)
+        fallback_fields.add("humidity")
 
     pressure = air_quality.pressure
     if pressure is None and weather.pressure is not None:
         pressure = weather.pressure
+        fallback_fields.add("pressure")
 
-    # Return new AirQualityData with merged values
+    # Return new AirQualityData with merged values and fallback tracking
     return AirQualityData(
         aqi=air_quality.aqi,
         category=air_quality.category,
@@ -73,6 +80,7 @@ def _merge_air_quality_with_weather_fallback(
         temperature=temperature,
         humidity=humidity,
         pressure=pressure,
+        fallback_fields=fallback_fields,
     )
 
 

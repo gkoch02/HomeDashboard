@@ -77,6 +77,7 @@ class AirQualityData:
     temperature: Optional[float] = None  # °F — PurpleAir ambient sensor reading
     humidity: Optional[float] = None  # % relative humidity — PurpleAir ambient
     pressure: Optional[float] = None  # hPa atmospheric pressure — PurpleAir ambient
+    fallback_fields: set[str] = field(default_factory=set)  # Fields filled from OWM fallback
 
 
 @dataclass

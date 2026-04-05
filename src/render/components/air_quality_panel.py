@@ -321,11 +321,15 @@ def _draw_ambient_cards(
     H: int,
     style: ThemeStyle,
 ) -> None:
-    """Up to three rounded-rect metric cards for sensor ambient readings."""
+    """Up to three rounded-rect metric cards for sensor ambient readings.
+
+    Skips temperature card if it came from OWM fallback (only show native sensor data).
+    """
     fg = style.fg
 
     cards: list[tuple[str, str, str]] = []  # (glyph, value, label)
-    if aq.temperature is not None:
+    # Only show temperature if it's from native sensor, not from OWM fallback
+    if aq.temperature is not None and "temperature" not in aq.fallback_fields:
         cards.append((_GLYPH_THERMOMETER, f"{aq.temperature:.0f}°F", "Sensor Temp"))
     if aq.humidity is not None:
         cards.append((_GLYPH_HUMIDITY, f"{aq.humidity:.0f}%", "Humidity"))

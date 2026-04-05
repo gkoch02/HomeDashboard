@@ -271,6 +271,43 @@ class TestAmbientCards:
         data = _make_data(air_quality=aq)
         draw_air_quality_full(draw, data, date(2024, 3, 15))
 
+    def test_temperature_hidden_when_from_fallback(self):
+        """When temperature is from OWM fallback, the temp card is hidden."""
+        _, draw = _make_draw()
+        # Temperature and pressure from fallback, humidity from sensor
+        aq = _make_aq(
+            temperature=68.0,
+            humidity=55.0,
+            pressure=1013.0,
+            fallback_fields={"temperature", "pressure"},
+        )
+        data = _make_data(air_quality=aq)
+        draw_air_quality_full(draw, data, date(2024, 3, 15))
+
+    def test_only_humidity_shown_when_temp_from_fallback(self):
+        """Only humidity card shown when temperature is fallback and pressure is None."""
+        _, draw = _make_draw()
+        aq = _make_aq(
+            temperature=68.0,
+            humidity=55.0,
+            pressure=None,
+            fallback_fields={"temperature"},
+        )
+        data = _make_data(air_quality=aq)
+        draw_air_quality_full(draw, data, date(2024, 3, 15))
+
+    def test_humidity_and_pressure_shown_without_temperature(self):
+        """Humidity and pressure cards centered when temperature is fallback."""
+        _, draw = _make_draw()
+        aq = _make_aq(
+            temperature=68.0,
+            humidity=55.0,
+            pressure=1013.0,
+            fallback_fields={"temperature"},
+        )
+        data = _make_data(air_quality=aq)
+        draw_air_quality_full(draw, data, date(2024, 3, 15))
+
 
 # ---------------------------------------------------------------------------
 # AQI scale bar — various AQI values covering all six zones
