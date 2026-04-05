@@ -6,6 +6,8 @@ backend depending on config.  Birthday extraction supports file, calendar,
 and Google Contacts sources.
 """
 
+from __future__ import annotations
+
 import json
 import logging
 import re
@@ -30,8 +32,10 @@ from src.fetchers.calendar_google import (  # noqa: F401
     _save_sync_state,
     _ser_sync_event,
     _today,
-    clear_service_caches,
     fetch_google_events,
+)
+from src.fetchers.calendar_google import (
+    clear_service_caches as _google_clear_service_caches,
 )
 from src.fetchers.calendar_ical import (  # noqa: F401
     _parse_ical_event,
@@ -54,12 +58,11 @@ def _clear_people_service_cache() -> None:
 
 
 # Preserve the original clear_service_caches behaviour (clears both caches)
-_original_clear = clear_service_caches
 
 
-def clear_service_caches() -> None:  # noqa: F811
+def clear_service_caches() -> None:
     """Clear cached API service objects (useful for testing)."""
-    _original_clear()
+    _google_clear_service_caches()
     _people_service_cache.clear()
 
 

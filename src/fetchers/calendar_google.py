@@ -6,6 +6,8 @@ previous response so only changed events are transferred.  Sync state is
 persisted to ``<cache_dir>/calendar_sync_state.json``.
 """
 
+from __future__ import annotations
+
 import json
 import logging
 import os

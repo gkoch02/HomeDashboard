@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import json
 import os
 import tempfile
@@ -16,7 +18,7 @@ class RefreshTracker:
         self.max_partials = max_partials
 
     @classmethod
-    def load(cls, max_partials: int = 6) -> "RefreshTracker":
+    def load(cls, max_partials: int = 6) -> RefreshTracker:
         if STATE_FILE.exists():
             try:
                 data = json.loads(STATE_FILE.read_text())

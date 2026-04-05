@@ -1,11 +1,13 @@
 """ICS feed fetcher — fetch and parse calendar events from iCalendar URLs."""
 
+from __future__ import annotations
+
 import logging
 from datetime import datetime, timedelta, timezone, tzinfo
 from typing import Any
 from urllib.parse import urlparse
 
-import requests
+import requests  # type: ignore[import-untyped]
 
 from src.data.models import CalendarEvent
 from src.fetchers.calendar_google import _today

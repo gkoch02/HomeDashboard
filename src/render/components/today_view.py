@@ -4,6 +4,8 @@ Renders a large date panel on the left and a spacious event list on the right,
 showcasing today's schedule in a comfortable, large-format layout.
 """
 
+from __future__ import annotations
+
 from datetime import date
 
 from PIL import ImageDraw

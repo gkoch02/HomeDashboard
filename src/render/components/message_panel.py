@@ -63,6 +63,7 @@ def draw_message(
         best_size = 20
         best_lines = _wrap_lines(text, best_font, max_w)[:8]
 
+    assert best_font is not None
     lh = text_height(best_font)
     line_gap = max(4, best_size // 6)
     total_h = len(best_lines) * lh + max(0, len(best_lines) - 1) * line_gap
@@ -85,7 +86,7 @@ def draw_message(
             py = text_block_top - ink_h // 3
         else:
             px = region.x + region.w - h_pad // 4 - ink_w
-            py = text_block_bottom - ink_h * 2 // 3
+            py = int(text_block_bottom - ink_h * 2 // 3)
 
         draw.text((px - bb[0], py - bb[1]), glyph, font=mark_font, fill=style.fg)
 

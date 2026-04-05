@@ -21,7 +21,7 @@ def draw_text_truncated(
 
     if text_w <= max_width:
         draw.text(xy, text, font=font, fill=fill)
-        return text_w
+        return int(text_w)
 
     ellipsis = "..."
     lo, hi, best_i = 1, len(text), 0
@@ -38,11 +38,11 @@ def draw_text_truncated(
         truncated = text[:best_i] + ellipsis
         draw.text(xy, truncated, font=font, fill=fill)
         bbox = draw.textbbox((0, 0), truncated, font=font)
-        return bbox[2] - bbox[0]
+        return int(bbox[2] - bbox[0])
 
     draw.text(xy, ellipsis, font=font, fill=fill)
     bbox = draw.textbbox((0, 0), ellipsis, font=font)
-    return bbox[2] - bbox[0]
+    return int(bbox[2] - bbox[0])
 
 
 def draw_text_wrapped(
@@ -106,12 +106,12 @@ def text_height(font: ImageFont.FreeTypeFont) -> int:
     img = Image.new("1", (1, 1))
     d = ID.Draw(img)
     bbox = d.textbbox((0, 0), "Ag", font=font)
-    return bbox[3] - bbox[1]
+    return int(bbox[3] - bbox[1])
 
 
 def text_width(draw: ImageDraw.ImageDraw, text: str, font: ImageFont.FreeTypeFont) -> int:
     bbox = draw.textbbox((0, 0), text, font=font)
-    return bbox[2] - bbox[0]
+    return int(bbox[2] - bbox[0])
 
 
 def hline(draw: ImageDraw.ImageDraw, y: int, x0: int, x1: int, fill: int = BLACK):

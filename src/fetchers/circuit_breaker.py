@@ -10,6 +10,8 @@ States:
   HALF_OPEN → cooldown expired, allow one probe request
 """
 
+from __future__ import annotations
+
 import json
 import logging
 from dataclasses import dataclass

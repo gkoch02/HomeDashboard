@@ -234,15 +234,28 @@ class TestShouldForceFullRefresh:
         return datetime(2026, 3, 17, hour, minute)
 
     def test_force_flag_true_returns_true(self):
-        assert should_force_full_refresh(self._dt(12), quiet_hours_end=6, force_full_refresh_flag=True) is True
+        assert (
+            should_force_full_refresh(self._dt(12), quiet_hours_end=6, force_full_refresh_flag=True)
+            is True
+        )
 
     def test_morning_startup_returns_true(self):
         # hour=6, minute=10 → morning startup window (quiet_hours_end=6)
-        assert should_force_full_refresh(self._dt(6, 10), quiet_hours_end=6, force_full_refresh_flag=False) is True
+        assert (
+            should_force_full_refresh(
+                self._dt(6, 10), quiet_hours_end=6, force_full_refresh_flag=False
+            )
+            is True
+        )
 
     def test_neither_flag_nor_morning_startup_returns_false(self):
         # hour=12 is not morning startup
-        assert should_force_full_refresh(self._dt(12), quiet_hours_end=6, force_full_refresh_flag=False) is False
+        assert (
+            should_force_full_refresh(
+                self._dt(12), quiet_hours_end=6, force_full_refresh_flag=False
+            )
+            is False
+        )
 
 
 class TestResolveTz:

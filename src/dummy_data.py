@@ -3,6 +3,8 @@
 Used by ``main.py --dummy`` to render a dashboard without API credentials.
 """
 
+from __future__ import annotations
+
 from datetime import datetime, timedelta, timezone, tzinfo
 
 from src.data.models import (

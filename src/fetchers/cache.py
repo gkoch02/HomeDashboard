@@ -7,6 +7,8 @@ v1 format (legacy, no schema_version key): flat structure — read-only backward
 compat so existing cache files are not broken after upgrading.
 """
 
+from __future__ import annotations
+
 import json
 import logging
 import os
@@ -150,7 +152,7 @@ def save_source(
     Path(cache_dir).mkdir(parents=True, exist_ok=True)
 
     if source == "events":
-        serialized: list | dict | None = [_ser_event(e) for e in (data or [])]
+        serialized: list | dict | None = [_ser_event(e) for e in (data or [])]  # type: ignore[union-attr]
     elif source == "weather":
         serialized = _ser_weather(data) if data else None  # type: ignore[arg-type]
     elif source == "birthdays":

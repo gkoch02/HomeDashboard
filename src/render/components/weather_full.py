@@ -15,6 +15,8 @@ When weather alerts are present, an inverted banner is drawn above the
 forecast grid.
 """
 
+from __future__ import annotations
+
 from datetime import date
 
 from PIL import ImageDraw
