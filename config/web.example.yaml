@@ -8,10 +8,14 @@ port: 8080
 # or 127.0.0.1 to restrict to localhost only (SSH tunnel access).
 host: "0.0.0.0"
 
+# Flask session secret used for CSRF/session protection.
+# Set this to a long random string on any real install.
+secret_key: "replace-me-with-a-random-secret"
+
 # HTTP Basic Auth credentials.
 # Leave password_hash empty to disable auth (open access — not recommended on a LAN).
 # Generate a hash with:
 #   python -m src.web.auth --set-password
 auth:
   username: "admin"
-  password_hash: ""
+  password_hash: "scrypt:replace-me-with-generated-hash"
