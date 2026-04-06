@@ -10,7 +10,6 @@ import pytest
 
 from src.web.app import create_app
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -46,7 +45,6 @@ def client(app):
 class TestGetCsrfToken:
     def test_token_minted_on_first_request(self, app):
         with app.test_request_context("/"):
-            from flask import session
             from src.web.csrf import get_csrf_token
 
             token = get_csrf_token()
@@ -68,8 +66,10 @@ class TestGetCsrfToken:
             tok1 = s1.get("csrf_token")
 
         # Re-create a fresh client (new session)
+        import pathlib
+        import tempfile
+
         from src.web.app import create_app
-        import tempfile, pathlib
 
         with tempfile.TemporaryDirectory() as d:
             p = pathlib.Path(d)
@@ -113,9 +113,7 @@ class TestCsrfProtect:
 
     def test_post_with_wrong_token_returns_403(self, client):
         self._get_token(client)
-        resp = client.post(
-            "/api/trigger-refresh", headers={"X-CSRF-Token": "totally-wrong-token"}
-        )
+        resp = client.post("/api/trigger-refresh", headers={"X-CSRF-Token": "totally-wrong-token"})
         assert resp.status_code == 403
 
     def test_get_request_not_protected(self, client):

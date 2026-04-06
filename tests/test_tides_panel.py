@@ -10,7 +10,6 @@ from __future__ import annotations
 
 from datetime import date, datetime, timedelta
 
-import pytest
 from PIL import Image, ImageDraw
 
 from src.data.models import (
@@ -262,8 +261,7 @@ class TestBandBirthdays:
         draw, _ = _blank_draw()
         data = DashboardData(fetched_at=FIXED_NOW)
         data.birthdays = [
-            Birthday(name=f"Person {i}", date=date(2026, 4, 7 + i), age=20 + i)
-            for i in range(8)
+            Birthday(name=f"Person {i}", date=date(2026, 4, 7 + i), age=20 + i) for i in range(8)
         ]
         _band_birthdays(draw, 0, 0, 800, 36, data, FIXED_TODAY, _style())
 

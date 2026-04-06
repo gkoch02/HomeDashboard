@@ -8,19 +8,15 @@ birthdays; before/after sunrise; tile content correctness).
 
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 
-import pytest
 from PIL import Image, ImageDraw
 
 from src.data.models import (
-    AirQualityData,
     Birthday,
-    CalendarEvent,
     DashboardData,
     HostData,
     WeatherData,
-    DayForecast,
 )
 from src.dummy_data import generate_dummy_data
 from src.render.components.scorecard_panel import (

@@ -8,10 +8,7 @@ handles corrupt lines, returns empty on read error).
 from __future__ import annotations
 
 import json
-import time
 from pathlib import Path
-
-import pytest
 
 from src.web.event_store import append_event, read_recent_events
 
