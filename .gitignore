@@ -19,6 +19,8 @@ state/
 
 # Config and credentials (user-specific, sensitive)
 config/config.yaml
+config/web.yaml
+config/birthdays.json
 credentials/
 
 # Misc
