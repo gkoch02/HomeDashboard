@@ -357,17 +357,28 @@ input:focus, select:focus, textarea:focus, button:focus {
 /* Save preview dialog */
 .save-preview-dialog {
   max-width: min(900px, 92vw);
+  max-height: 90vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  padding: 1rem;
 }
 .save-preview-panel {
-  width: min(900px, 92vw);
-  max-height: 85vh;
-  overflow: auto;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 .save-preview-body {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: .75rem;
   background: #f8fafc;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
 }
 .save-preview-meta {
   font-size: 13px;
