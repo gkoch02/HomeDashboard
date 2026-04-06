@@ -193,4 +193,4 @@ Install dev tools with: `pip install -e ".[dev]"` (uses `pyproject.toml` optiona
 - [Waitress](https://docs.pylonsproject.org/projects/waitress/) -- pure-Python WSGI server (Pi-friendly, no C extensions)
 
 Install with `pip install -r requirements-web.txt` or `pip install -e ".[web]"`.
-See [Web UI](web-ui.md) for setup instructions.
+For current setup, remember that `config/web.yaml` should now include a `secret_key` in addition to any optional Basic Auth credentials. See [Web UI](web-ui.md) for current setup and security instructions.

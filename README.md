@@ -13,7 +13,7 @@ the wall fast.
 - Daily quote from a bundled library
 - 20 built-in themes with random daily/hourly rotation and a schedule override
 - Graceful degradation: stale-cache fallback, circuit breakers, staleness indicators
-- Optional web UI — status dashboard, config editor, and one-click refresh from any browser on your network
+- Optional web UI — health dashboard, safe config editor, recent events, integration diagnostics, and one-click refresh from any browser on your network
 
 ![Default theme preview](output/theme_default.png)
 
@@ -149,8 +149,8 @@ The optional web interface runs on the Pi and is accessible from any browser on 
 
 | Page | What it does |
 |---|---|
-| **Status** (`/`) | Last run time, active theme, live image preview, per-source cache/breaker state, system metrics, log tail |
-| **Config** (`/config`) | Edit `config.yaml` in the browser — changes are validated before saving |
+| **Status** (`/`) | System health, active/effective theme, live image preview, source diagnostics, integration readiness, recent events, system metrics, log tail |
+| **Config** (`/config`) | Edit `config.yaml` in the browser with Basic/Advanced modes, change summary, backup restore, and review-before-save |
 | **Refresh Now** | Triggers an immediate dashboard run without SSH |
 
 Install in four steps:
@@ -159,10 +159,11 @@ Install in four steps:
 venv/bin/pip install -r requirements-web.txt   # install Flask + Waitress
 cp config/web.example.yaml config/web.yaml     # create web config
 venv/bin/python -m src.web.auth --set-password # set a login password
+# also set web.secret_key in config/web.yaml for CSRF/session integrity
 make web-enable                                 # install + start systemd service
 ```
 
-See [Web UI](docs/web-ui.md) for full setup details, SSH tunnel access, and security notes.
+See [Web UI](docs/web-ui.md) for full setup details, current feature set, SSH tunnel access, and security notes.
 
 ---
 

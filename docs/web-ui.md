@@ -55,21 +55,24 @@ venv/bin/pip install flask waitress
 cp config/web.example.yaml config/web.yaml
 ```
 
-Edit `config/web.yaml` to set your port and credentials (see [Configuration](#configuration-webyaml) below).
+Edit `config/web.yaml` to set your port, credentials, and `secret_key` (see [Configuration](#configuration-webyaml) below).
 
-### Step 3 — Set a password
+### Step 3 — Set a password and session secret
 
 ```bash
 venv/bin/python -m src.web.auth --set-password
 ```
 
-Enter your chosen password. Copy the printed hash into `config/web.yaml`:
+Enter your chosen password. Copy the printed hash into `config/web.yaml`, and also set a random `secret_key` for Flask session/CSRF handling:
 
 ```yaml
+secret_key: "replace-me-with-a-random-secret"
 auth:
   username: "admin"
   password_hash: "scrypt:..."
 ```
+
+Use a long random value for `secret_key` on any persistent install.
 
 ### Step 4 — Install and start the systemd service
 
@@ -154,7 +157,7 @@ The main landing page. Refreshes automatically every 30 seconds.
 | **System** | Uptime, load average, RAM, disk, CPU temperature, IP address |
 | **Log tail** | Last 100 lines of `output/dashboard.log` |
 
-The **Refresh Now** button in the Data Sources card header triggers an immediate dashboard run (see [Manual refresh](#manual-refresh)).
+The **Refresh Now** button in the Data Sources card header triggers an immediate dashboard run (see [Manual refresh](#manual-refresh)). If the live image has not rendered yet, the page now shows an explicit empty-state hint instead of a dead-looking blank area.
 
 Each source row also has:
 - **Reset** — reset the circuit breaker to `closed`

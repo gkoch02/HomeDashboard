@@ -79,6 +79,13 @@ function set_text(id, value) {
   if (el) el.textContent = value;
 }
 
+function set_image_state(hasImage) {
+  const img = $("dash-img");
+  const empty = $("image-empty-note");
+  if (img) img.style.display = hasImage ? "block" : "none";
+  if (empty) empty.hidden = hasImage;
+}
+
 function show_action_msg(msg, ok = true) {
   const el = $("action-msg");
   if (!el) return;
@@ -251,6 +258,7 @@ function applyStatus(data) {
   // Last run
   set_text("last-run", fmt_seconds(data.seconds_since_run));
   set_text("current-theme", data.current_theme || "—");
+  set_image_state(true);
 
   // Health summary / banners
   const banner = $("quiet-banner");
@@ -409,6 +417,8 @@ async function refreshStatus() {
 function refreshImage() {
   const img = $("dash-img");
   if (!img) return;
+  img.onload = () => set_image_state(true);
+  img.onerror = () => set_image_state(false);
   img.src = "/image/latest?t=" + Date.now();
 }
 
