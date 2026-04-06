@@ -246,14 +246,22 @@ class TestApplyDelta:
 
     def test_upsert_new_event(self):
         stored = []
-        delta = [_timed_item("New Meeting", "2024-03-15T09:00:00+00:00", "2024-03-15T10:00:00+00:00", "new1")]
+        delta = [
+            _timed_item(
+                "New Meeting", "2024-03-15T09:00:00+00:00", "2024-03-15T10:00:00+00:00", "new1"
+            )
+        ]
         result = _apply_delta(stored, delta, "Work")
         assert len(result) == 1
         assert result[0]["summary"] == "New Meeting"
 
     def test_upsert_updates_existing(self):
         stored = [self._stored_event("evt1", "Old Title")]
-        delta = [_timed_item("New Title", "2024-03-15T09:00:00+00:00", "2024-03-15T10:00:00+00:00", "evt1")]
+        delta = [
+            _timed_item(
+                "New Title", "2024-03-15T09:00:00+00:00", "2024-03-15T10:00:00+00:00", "evt1"
+            )
+        ]
         result = _apply_delta(stored, delta, "Work")
         assert len(result) == 1
         assert result[0]["summary"] == "New Title"
@@ -416,7 +424,9 @@ class TestFetchFull:
 
     def test_pagination(self):
         page1 = {
-            "items": [_timed_item("Event 1", "2024-03-15T09:00:00+00:00", "2024-03-15T10:00:00+00:00")],
+            "items": [
+                _timed_item("Event 1", "2024-03-15T09:00:00+00:00", "2024-03-15T10:00:00+00:00")
+            ],
             "summary": "Cal",
             "nextPageToken": "page2",
         }
