@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-Python eInk dashboard for Raspberry Pi. Displays a weekly calendar (Google Calendar), weather (OpenWeatherMap), upcoming birthdays, and a daily quote. Renders to a Waveshare eInk display or PNG preview. No web framework — pure CLI application.
+Python eInk dashboard for Raspberry Pi. Displays a weekly calendar (Google Calendar), weather (OpenWeatherMap), upcoming birthdays, and a daily quote. Renders to a Waveshare eInk display or PNG preview. Includes an optional Flask web UI for status monitoring and config editing.
 
 ## Quick Commands
 
@@ -20,18 +20,22 @@ make pi-enable      # Install systemd units and enable timer (run ON Pi)
 make pi-status      # Show timer status and recent logs (run ON Pi)
 make pi-logs        # Tail output/dashboard.log (run ON Pi)
 make configure      # Run deploy/configure.sh interactive setup
+make web-enable     # Install and start web UI systemd service (run ON Pi)
+make web-status     # Web service status + recent log tail (run ON Pi)
+make web-logs       # Tail output/dashboard-web.log (run ON Pi)
 ruff check src/ tests/                         # Lint
 ruff format src/ tests/                        # Format
 ```
 
 ## Tech Stack
 
-- **Python 3.9+** — no async, no web framework
+- **Python 3.9+** — no async
 - **Pillow** — image rendering (PIL)
 - **google-api-python-client / google-auth** — Google Calendar & Contacts APIs
 - **requests** — OpenWeatherMap API + ICS feed fetching
 - **icalendar** — ICS feed parsing (used when `google.ical_url` is configured)
 - **PyYAML** — config parsing
+- **Flask 3 + Waitress** — optional web UI (`requirements-web.txt`; `pip install -e ".[web]"`)
 - **pytest** — testing (with unittest.mock)
 - **ruff** — linting and formatting (max line length: 100)
 
@@ -86,13 +90,29 @@ src/
                                #   weather_full, birthday_bar, today_view, info_panel, qotd_panel,
                                #   fuzzyclock_panel, diags_panel, air_quality_panel,
                                #   moonphase_panel, message_panel
+└── web/                       # Optional Flask web UI (install: pip install -r requirements-web.txt)
+    ├── __main__.py            # Entry point: python -m src.web [--config web.yaml] [--port 8080]
+    ├── app.py                 # Flask application factory (create_app); registers all blueprints
+    ├── auth.py                # HTTP Basic Auth middleware; scrypt password hashing
+    ├── state_reader.py        # Pure read functions: last_success, breakers, cache ages, quota, host
+    ├── config_editor.py       # Safe config read/write: EDITABLE_FIELD_PATHS allowlist, apply_patch()
+    ├── routes/
+    │   ├── status.py          # GET / (HTML), GET /api/status (JSON)
+    │   ├── image.py           # GET /image/latest, GET /image/theme/<name>
+    │   ├── logs.py            # GET /api/logs?lines=N
+    │   ├── config.py          # GET/POST /api/config, GET /config (HTML editor)
+    │   └── actions.py         # POST /api/trigger-refresh, /api/reset-breaker, /api/clear-cache
+    ├── templates/             # Jinja2 templates: base.html, status.html, config.html
+    └── static/                # dashboard.js, style.css
 
 config/
 ├── config.example.yaml        # Template (copy to config.yaml)
+├── web.example.yaml           # Web UI config template (copy to web.yaml)
 └── quotes.json                # Bundled daily quotes
 
 docs/
 ├── setup.md                   # Google Calendar, ICS feed, birthdays, Pi hardware setup
+├── web-ui.md                  # Web UI setup, auth, pages, manual refresh, security
 ├── themes.md                  # All themes, random rotation, schedule, custom themes
 ├── configuration.md           # Full config.yaml reference
 ├── development.md             # Makefile, CLI, project structure, dependencies
@@ -269,3 +289,9 @@ default to `None` and fall back gracefully so adding a new field never breaks ex
 - `moon_illumination(d)` in `moon.py` returns 0.0–100.0 using a cosine approximation from the phase age; used by the `moonphase` theme's illumination display.
 - `moonphase` and `moonphase_invert` are both included in the random rotation pool by default. `moonphase_invert` shares the same overlay function (`_draw_moonphase_overlay`) from `moonphase.py` — it adapts to fg/bg colors automatically.
 - `moonphase_panel.py` has its own `_quote_for_panel()` function with a `"moonphase-"` key prefix so its quote selection is independent from `info_panel`'s quote (they won't show the same quote on the same day).
+- Web UI config is in `config/web.yaml` (separate from `config/config.yaml`); it is git-ignored and contains the password hash — never commit it
+- `EDITABLE_FIELD_PATHS` in `config_editor.py` is the sole allowlist for web-editable config keys; sensitive fields (API keys, credential paths) are never sent to the browser — they appear only as `_*_set: bool` flags in API responses
+- `apply_patch()` in `config_editor.py` validates the patched YAML through `load_config()` + `validate_config()` in a temp file before writing; `validate_config()` does a lazy import of `src.display.driver.WAVESHARE_MODELS` (which imports PIL) — tests that call `apply_patch` must patch `src.web.config_editor.validate_config` to avoid the PIL dependency
+- Manual refresh uses a trigger-file approach: the web UI touches `state/web_trigger`; the `dashboard-trigger.path` systemd unit watches for this file and starts `dashboard.service`; the service deletes the file via `ExecStartPost`; no sudo required
+- `dashboard-web.service` and `dashboard-trigger.path` are installed by `make web-enable` using the same `__USER__`/`__INSTALL_DIR__` substitution as `dashboard.service`
+- The web server is a long-running process (`Type=simple`, `Restart=on-failure`); the dashboard renderer remains a short-lived timer job — they are completely separate processes sharing only the filesystem

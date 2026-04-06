@@ -31,6 +31,9 @@
 | `make pi-enable` | Generate and install systemd service (with correct paths) + enable timer |
 | `make pi-status` | Show timer status, last service run, and recent log tail |
 | `make pi-logs` | `tail -f output/dashboard.log` |
+| `make web-enable` | Install and start the web UI systemd service + trigger path unit |
+| `make web-status` | Show web service status and recent web log tail |
+| `make web-logs` | `tail -f output/dashboard-web.log` |
 
 ### Dev targets
 
@@ -183,3 +186,11 @@ Install dev tools with: `pip install -e ".[dev]"` (uses `pyproject.toml` optiona
 - [spidev](https://pypi.org/project/spidev/) -- SPI communication with display
 - [lgpio](https://pypi.org/project/lgpio/) -- Linux GPIO interface (required by modern Pi OS)
 - [gpiozero](https://pypi.org/project/gpiozero/) -- GPIO zero abstraction layer (pin factory set to lgpio)
+
+### Web UI (optional)
+
+- [Flask](https://flask.palletsprojects.com/) 3.x -- web framework
+- [Waitress](https://docs.pylonsproject.org/projects/waitress/) -- pure-Python WSGI server (Pi-friendly, no C extensions)
+
+Install with `pip install -r requirements-web.txt` or `pip install -e ".[web]"`.
+See [Web UI](web-ui.md) for setup instructions.

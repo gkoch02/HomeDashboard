@@ -7,6 +7,7 @@
 - [Birthday Configuration](#birthday-configuration)
 - [PurpleAir Air Quality (Optional)](#purpleair-air-quality-optional)
 - [Raspberry Pi Reference](#raspberry-pi-reference)
+- [Web UI (Optional)](web-ui.md)
 - [Supported Displays](#supported-displays)
 - [Hardware](#hardware)
 - [Troubleshooting and Recovery](#troubleshooting-and-recovery)
