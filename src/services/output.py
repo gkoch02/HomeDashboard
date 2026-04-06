@@ -29,6 +29,14 @@ class OutputService:
             max_partials=self.cfg.display.max_partials_before_full,
         ).show(image, force_full=force_full)
 
+        # Save latest.png so the web UI always reflects the current display.
+        try:
+            latest = Path(self.cfg.output_dir) / "latest.png"
+            latest.parent.mkdir(parents=True, exist_ok=True)
+            image.save(latest)
+        except Exception as exc:
+            logger.warning("Could not save latest.png: %s", exc)
+
     def write_health_marker(self) -> None:
         try:
             marker = Path(self.cfg.output_dir) / "last_success.txt"

@@ -148,6 +148,49 @@ class TestPublishHardware:
 
         mock_changed.assert_called_once_with(image, str(tmp_path))
 
+    def test_hardware_publish_saves_latest_png(self, tmp_path):
+        """After a hardware display write, latest.png must be updated."""
+        svc = OutputService(_make_cfg(tmp_path), _make_tz())
+        image = _make_image()
+
+        with (
+            patch("src.services.output.image_changed", return_value=True),
+            patch("src.display.driver.WaveshareDisplay", return_value=MagicMock()),
+        ):
+            svc.publish(image, dry_run=False, force_full=False)
+
+        assert (tmp_path / "latest.png").exists()
+
+    def test_hardware_publish_skipped_does_not_save_latest_png(self, tmp_path):
+        """When the image is unchanged and not forced, latest.png must not be written."""
+        svc = OutputService(_make_cfg(tmp_path), _make_tz())
+        image = _make_image()
+
+        with (
+            patch("src.services.output.image_changed", return_value=False),
+            patch("src.display.driver.WaveshareDisplay", return_value=MagicMock()),
+        ):
+            svc.publish(image, dry_run=False, force_full=False)
+
+        assert not (tmp_path / "latest.png").exists()
+
+    def test_hardware_publish_latest_png_save_failure_does_not_raise(self, tmp_path, caplog):
+        """A failure saving latest.png must log a warning but not crash."""
+        import logging
+
+        svc = OutputService(_make_cfg(tmp_path), _make_tz())
+        image = _make_image()
+
+        with (
+            patch("src.services.output.image_changed", return_value=True),
+            patch("src.display.driver.WaveshareDisplay", return_value=MagicMock()),
+            patch.object(image, "save", side_effect=OSError("disk full")),
+            caplog.at_level(logging.WARNING, logger="src.services.output"),
+        ):
+            svc.publish(image, dry_run=False, force_full=False)  # must not raise
+
+        assert "latest.png" in caplog.text
+
 
 # ---------------------------------------------------------------------------
 # write_health_marker()
