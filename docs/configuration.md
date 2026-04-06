@@ -62,7 +62,7 @@ schedule:
 
 timezone: "local"                  # IANA name or "local"
 title: "Home Dashboard"            # text shown in the header bar
-theme: "default"                   # default | terminal | minimalist | old_fashioned | today | fantasy | moonphase | moonphase_invert | qotd | qotd_invert | weather | air_quality | fuzzyclock | fuzzyclock_invert | diags | random_daily | random_hourly
+theme: "default"                   # default | terminal | minimalist | old_fashioned | today | fantasy | moonphase | moonphase_invert | qotd | qotd_invert | weather | air_quality | fuzzyclock | fuzzyclock_invert | timeline | year_pulse | sunrise | scorecard | tides | diags | message | random_daily | random_hourly
 
 random_theme:                      # only used when theme: random_daily or random_hourly
   include: []                      # allowlist (empty = all themes eligible)

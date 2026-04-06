@@ -10,7 +10,9 @@
   - [moonphase](#moonphase), [moonphase\_invert](#moonphase_invert)
   - [qotd](#qotd), [qotd\_invert](#qotd_invert)
   - [weather](#weather), [fuzzyclock](#fuzzyclock), [fuzzyclock\_invert](#fuzzyclock_invert)
-  - [air\_quality](#air_quality), [timeline](#timeline), [year\_pulse](#year_pulse), [message](#message), [diags](#diags)
+  - [air\_quality](#air_quality), [timeline](#timeline), [year\_pulse](#year_pulse)
+  - [sunrise](#sunrise), [scorecard](#scorecard), [tides](#tides)
+  - [message](#message), [diags](#diags)
 - [Creating your own theme](#creating-your-own-theme)
 - [Typography](#typography)
 
@@ -21,7 +23,7 @@
 Switch the entire dashboard layout and visual style with one line in `config.yaml`:
 
 ```yaml
-theme: terminal   # default | terminal | minimalist | old_fashioned | today | fantasy | moonphase | moonphase_invert | qotd | qotd_invert | weather | fuzzyclock | fuzzyclock_invert | diags | air_quality | timeline | year_pulse | message | random | random_daily | random_hourly
+theme: terminal   # default | terminal | minimalist | old_fashioned | today | fantasy | moonphase | moonphase_invert | qotd | qotd_invert | weather | fuzzyclock | fuzzyclock_invert | diags | air_quality | timeline | year_pulse | sunrise | scorecard | tides | message | random | random_daily | random_hourly
 ```
 
 Or override it from the command line without editing your config:
@@ -354,6 +356,85 @@ quirky proportional letterforms (a, G, R, t) suit numeric data display at all eI
 
 ![Year Pulse theme](../output/theme_year_pulse.png)
 
+### sunrise
+
+Sun-centric daylight dashboard that organises the day around the sun's arc across the sky.
+A semicircular arc at the top of the canvas shows the sun's calculated position between
+sunrise and sunset — the glyph moves along the arc proportionally with time. Before sunrise
+or after sunset, the moon phase glyph replaces the sun. A dashed horizon line marks the
+transition between sky and ground, with sunrise/sunset times as labels. Below the horizon,
+a stippled dot-pattern fill creates a textured "ground" — a unique visual technique not
+used by any other theme.
+
+Today's events are split into two columns by sunset time: **DAYLIGHT** events (before
+sunset) on the left and **TONIGHT** events (after sunset) on the right. When evening events
+are sparse, the moon phase name and illumination percentage appear in the bottom of the
+right column. A compact full-width footer packs weather conditions (icon, temperature,
+description, hi/lo), air quality (AQI + category), and year progress (Day X/365) into a
+single dense strip, with a second row showing a 4-day forecast with weather icons.
+
+Font: NuCore Condensed for the header and section labels (the first theme to use this
+previously unused bundled font); Plus Jakarta Sans for event text.
+
+![Sunrise theme](../output/theme_sunrise.png)
+
+### scorecard
+
+At-a-glance numeric dashboard inspired by sports scoreboards and financial tickers.
+Everything is reduced to **big hero numbers** in a 4-column, 3-row tile grid — each tile
+is a large centred numeral (Space Grotesk Bold, 42px) with a small ALL CAPS label and a
+context sub-line beneath.
+
+**Row 1 — primary metrics:**
+- Events today (with "X this week" context)
+- Outdoor temperature (with hi/lo)
+- Air quality index (with category)
+- Week number and year (with year-progress percentage)
+
+**Row 2 — computed metrics (unique to this theme):**
+- Daylight remaining (percentage of time between sunrise and sunset)
+- Sunset countdown (hours and minutes until sunset)
+- Next birthday (days until, with name and age)
+- CPU temperature or system load (from host data)
+
+**Row 3 — moon + quote:**
+- 4-day moon phase glyph progression (yesterday, today, tomorrow, day after) showing the
+  lunar cycle animation in Weather Icons glyphs
+- Daily quote filling the remaining space
+
+Tiles gracefully show "—" when their data source is unavailable (no AQI configured, no
+host data, etc.). Font: Space Grotesk throughout for labels and context lines.
+
+![Scorecard theme](../output/theme_scorecard.png)
+
+### tides
+
+Maximum information density in a striking zebra-stripe layout. The entire canvas is divided
+into **eight full-width horizontal bands** that flow top to bottom, alternating between
+inverted (white text on black fill) and normal (black text on white). This exploits eInk's
+strength — crisp high-contrast black/white — for a visually distinctive result.
+
+| Band | Style | Content |
+|------|-------|---------|
+| 1 | Inverted | Date (day, month, year) + fuzzy clock phrase (e.g. "ten to one") |
+| 2 | Normal | Today's events as flowing inline text with `·` separators |
+| 3 | Inverted | Current weather: icon, temperature, description, hi/lo, feels-like, humidity |
+| 4 | Normal | 5-day forecast inline with weather icons |
+| 5 | Inverted | AQI + category + PM2.5, sunrise/sunset arrows, moon phase glyph + illumination |
+| 6 | Normal | Birthday countdowns inline with `·` separators |
+| 7 | Inverted | Daily quote (largest band for visual breathing room) |
+| 8 | Normal | Host diagnostics: hostname, uptime, load, RAM%, CPU temp, IP address |
+
+This is the only theme that displays **all eight data sources** on a single screen. It also
+uniquely combines the fuzzy clock with other data — no other theme does this. Bands with
+missing data (no weather, no AQI, no host) are dynamically skipped and remaining bands
+expand to fill the canvas.
+
+Fonts: NuCore Condensed for inverted bands; Share Tech Mono for the host diagnostics band
+(terminal aesthetic); Plus Jakarta Sans for normal bands.
+
+![Tides theme](../output/theme_tides.png)
+
 ### message
 
 Custom message display. Forgoes the calendar, birthdays, and info panel entirely.
@@ -470,7 +551,8 @@ See the theme reference tables and font customization guide in [`CLAUDE.md`](../
 | [DM Sans](https://fonts.google.com/specimen/DM+Sans) | `minimalist` theme; `weather` theme; `fuzzyclock` theme; `timeline` theme; `diags` theme — section labels |
 | [Playfair Display](https://fonts.google.com/specimen/Playfair+Display) | `old_fashioned` theme; `qotd` quote text; `moonphase` body text and quote |
 | [Cinzel](https://fonts.google.com/specimen/Cinzel) | `fantasy` theme; `old_fashioned` section labels; `moonphase` date and phase name |
-| [Space Grotesk](https://fonts.google.com/specimen/Space+Grotesk) | `air_quality` theme; `message` theme; `year_pulse` theme |
+| [Space Grotesk](https://fonts.google.com/specimen/Space+Grotesk) | `air_quality` theme; `message` theme; `year_pulse` theme; `scorecard` theme — hero numbers, labels, and context |
+| NuCore / NuCore Condensed | `sunrise` theme — header and section labels; `tides` theme — inverted band text |
 
 Custom fonts can be added per-theme via `ThemeStyle` font callables — see
 [Creating your own theme](#creating-your-own-theme) and [`CLAUDE.md`](../CLAUDE.md).
