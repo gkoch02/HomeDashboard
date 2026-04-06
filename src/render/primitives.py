@@ -122,6 +122,22 @@ def vline(draw: ImageDraw.ImageDraw, x: int, y0: int, y1: int, fill: int = BLACK
     draw.line([(x, y0), (x, y1)], fill=fill, width=1)
 
 
+def dashed_hline(
+    draw: ImageDraw.ImageDraw,
+    y: int,
+    x0: int,
+    x1: int,
+    on: int = 2,
+    off: int = 4,
+    fill: int = BLACK,
+) -> None:
+    """Draw a horizontal dashed line with configurable on/off segment lengths."""
+    x = x0
+    while x <= x1:
+        draw.line([(x, y), (min(x + on - 1, x1), y)], fill=fill, width=1)
+        x += on + off
+
+
 def dashed_vline(
     draw: ImageDraw.ImageDraw,
     x: int,

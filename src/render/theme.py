@@ -99,6 +99,18 @@ class ThemeLayout:
     year_pulse: ComponentRegion = field(
         default_factory=lambda: ComponentRegion(0, 40, 800, 360, visible=False)
     )
+    # Used by the ``sunrise`` theme for the sun-arc + split-schedule panel.
+    sunrise: ComponentRegion = field(
+        default_factory=lambda: ComponentRegion(0, 0, 800, 480, visible=False)
+    )
+    # Used by the ``scorecard`` theme for the numeric KPI tile grid.
+    scorecard: ComponentRegion = field(
+        default_factory=lambda: ComponentRegion(0, 0, 800, 480, visible=False)
+    )
+    # Used by the ``tides`` theme for alternating inverted horizontal bands.
+    tides: ComponentRegion = field(
+        default_factory=lambda: ComponentRegion(0, 0, 800, 480, visible=False)
+    )
     draw_order: list[str] = field(
         default_factory=lambda: ["header", "week_view", "weather", "birthdays", "info"]
     )
@@ -225,6 +237,9 @@ _THEME_REGISTRY: dict[str, tuple[str, str]] = {
     "message": ("src.render.themes.message", "message_theme"),
     "timeline": ("src.render.themes.timeline", "timeline_theme"),
     "year_pulse": ("src.render.themes.year_pulse", "year_pulse_theme"),
+    "sunrise": ("src.render.themes.sunrise", "sunrise_theme"),
+    "scorecard": ("src.render.themes.scorecard", "scorecard_theme"),
+    "tides": ("src.render.themes.tides", "tides_theme"),
 }
 
 # Derived from the registry — adding a theme to _THEME_REGISTRY is all that's needed.

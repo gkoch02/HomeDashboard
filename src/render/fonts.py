@@ -143,3 +143,12 @@ def playfair_semibold(size: int) -> ImageFont.FreeTypeFont:
 
 def playfair_bold(size: int) -> ImageFont.FreeTypeFont:
     return get_font("PlayfairDisplay-Bold.ttf", size)
+
+
+# NuCore — high-contrast display font for scorecard/sunrise/tides themes.
+def nucore(size: int) -> ImageFont.FreeTypeFont:
+    return get_font("NuCore.otf", size)
+
+
+def nucore_condensed(size: int) -> ImageFont.FreeTypeFont:
+    return get_font("NuCore Condensed.otf", size)
