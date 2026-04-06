@@ -360,14 +360,22 @@ function applyStatus(data) {
     const pct = Math.round((h.ram_used_mb / h.ram_total_mb) * 100);
     set_text("host-ram", `${Math.round(h.ram_used_mb)} / ${Math.round(h.ram_total_mb)} MB`);
     const bar = $("ram-bar");
-    if (bar) { bar.style.width = pct + "%"; bar.className = "bar-fill " + bar_class(pct); }
+    if (bar) {
+      bar.className = "bar-fill " + bar_class(pct);
+      bar.style.width = "0%";
+      requestAnimationFrame(() => { bar.style.width = pct + "%"; });
+    }
   }
 
   if (h.disk_used_gb != null && h.disk_total_gb != null) {
     const pct = Math.round((h.disk_used_gb / h.disk_total_gb) * 100);
     set_text("host-disk", `${h.disk_used_gb.toFixed(1)} / ${h.disk_total_gb.toFixed(1)} GB`);
     const bar = $("disk-bar");
-    if (bar) { bar.style.width = pct + "%"; bar.className = "bar-fill " + bar_class(pct); }
+    if (bar) {
+      bar.className = "bar-fill " + bar_class(pct);
+      bar.style.width = "0%";
+      requestAnimationFrame(() => { bar.style.width = pct + "%"; });
+    }
   }
 
   // Sources table — includes Reset/Clear buttons for P2
@@ -893,6 +901,31 @@ document.addEventListener("DOMContentLoaded", () => {
   const savePreview = $("save-preview-dialog");
   if (savePreview) {
     savePreview.addEventListener("click", e => { if (e.target === savePreview) closeSavePreview(); });
+  }
+
+  // Hamburger menu toggle (mobile nav)
+  const hamburger = $("nav-hamburger");
+  const navLinks  = $("nav-links");
+  const mainNav   = $("main-nav");
+  if (hamburger && navLinks) {
+    hamburger.addEventListener("click", e => {
+      e.stopPropagation();
+      const open = navLinks.classList.toggle("open");
+      hamburger.setAttribute("aria-expanded", String(open));
+    });
+    document.addEventListener("click", e => {
+      if (mainNav && !mainNav.contains(e.target)) {
+        navLinks.classList.remove("open");
+        hamburger.setAttribute("aria-expanded", "false");
+      }
+    });
+    // Close on link click (navigation)
+    navLinks.querySelectorAll("a").forEach(a => {
+      a.addEventListener("click", () => {
+        navLinks.classList.remove("open");
+        hamburger.setAttribute("aria-expanded", "false");
+      });
+    });
   }
 
   refreshStatus();

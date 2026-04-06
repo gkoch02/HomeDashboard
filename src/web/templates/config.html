@@ -87,10 +87,21 @@
     </div>
   </dialog>
 
+  {# Section jump nav — scrollable pill row on mobile #}
+  <nav class="cfg-jump-nav" aria-label="Jump to section">
+    <a href="#cfg-sec-general">General</a>
+    <a href="#cfg-sec-theme">Theme</a>
+    <a href="#cfg-sec-display">Display</a>
+    <a href="#cfg-sec-schedule">Sleep</a>
+    <a href="#cfg-sec-weather">Weather</a>
+    <a href="#cfg-sec-birthdays">Birthdays</a>
+    <a href="#cfg-sec-filters">Filters</a>
+  </nav>
+
   {# ------------------------------------------------------------------ #}
   {# General                                                             #}
   {# ------------------------------------------------------------------ #}
-  <div class="cfg-section">
+  <div class="cfg-section" id="cfg-sec-general">
     <div class="cfg-section-title">General</div>
 
     <div class="field-row">
@@ -124,7 +135,7 @@
   {# ------------------------------------------------------------------ #}
   {# Theme                                                               #}
   {# ------------------------------------------------------------------ #}
-  <div class="cfg-section">
+  <div class="cfg-section" id="cfg-sec-theme">
     <div class="cfg-section-title">Theme</div>
 
     <div class="field-row">
@@ -155,7 +166,7 @@
   {# ------------------------------------------------------------------ #}
   {# Display                                                             #}
   {# ------------------------------------------------------------------ #}
-  <div class="cfg-section">
+  <div class="cfg-section" id="cfg-sec-display">
     <div class="cfg-section-title">Display Appearance</div>
 
     <div class="field-row">
@@ -205,7 +216,7 @@
   {# Schedule (quiet hours)                                              #}
   {# ------------------------------------------------------------------ #}
   <div class="cfg-section">
-    <div class="cfg-section-title">Sleep / Quiet Hours</div>
+    <div class="cfg-section-title" id="cfg-sec-schedule">Sleep / Quiet Hours</div>
     <div class="field-hint" style="padding-left:0; margin-bottom:.5rem;">
       Display refresh is paused during this window (useful for overnight).
     </div>
@@ -231,7 +242,7 @@
   {# Weather & Location                                                  #}
   {# ------------------------------------------------------------------ #}
   <div class="cfg-section">
-    <div class="cfg-section-title">Weather &amp; Location</div>
+    <div class="cfg-section-title" id="cfg-sec-weather">Weather &amp; Location</div>
 
     <div class="cred-row">
       <span class="cred-label">OWM API key</span>
@@ -272,7 +283,7 @@
   {# Birthdays                                                           #}
   {# ------------------------------------------------------------------ #}
   <div class="cfg-section">
-    <div class="cfg-section-title">Birthdays</div>
+    <div class="cfg-section-title" id="cfg-sec-birthdays">Birthdays</div>
 
     <div class="field-row">
       <label class="field-label" for="cfg-bday-source">Source</label>
@@ -304,7 +315,7 @@
   {# Event Filters                                                       #}
   {# ------------------------------------------------------------------ #}
   <div class="cfg-section">
-    <div class="cfg-section-title">Calendar &amp; Event Filters</div>
+    <div class="cfg-section-title" id="cfg-sec-filters">Calendar &amp; Event Filters</div>
 
     <div class="check-row" style="padding-left:208px; margin-bottom:.5rem;">
       <input type="checkbox" id="cfg-excl-allday" data-field="filters.exclude_all_day" {{ "checked" if cfg.filters.exclude_all_day }}>

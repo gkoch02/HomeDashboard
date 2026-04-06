@@ -8,10 +8,15 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-  <nav>
+  <nav id="main-nav">
     <span class="brand">Dashboard</span>
-    <a href="/" class="{{ 'active' if request.path == '/' }}">Status</a>
-    <a href="/config" class="{{ 'active' if request.path == '/config' }}">Config</a>
+    <button class="nav-hamburger" id="nav-hamburger" aria-label="Toggle menu" aria-expanded="false">
+      <span></span><span></span><span></span>
+    </button>
+    <div class="nav-links" id="nav-links">
+      <a href="/" class="{{ 'active' if request.path == '/' }}">Status</a>
+      <a href="/config" class="{{ 'active' if request.path == '/config' }}">Config</a>
+    </div>
     <span class="spacer"></span>
     <span class="meta">
       <span class="refresh-dot" id="refresh-dot"></span>
