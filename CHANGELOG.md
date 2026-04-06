@@ -4,6 +4,8 @@ All notable changes to Home Dashboard are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [4.3] - 2026-04-06
+
 ## [4.2.1] - 2026-04-04
 
 ### (Patch version bump for minor fixes)
