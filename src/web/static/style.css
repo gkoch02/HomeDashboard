@@ -224,6 +224,13 @@ tr:last-child td { border-bottom: none; }
   justify-content: space-between;
   align-items: flex-start;
   gap: .75rem;
+  min-width: 0;
+}
+.integration-item > div,
+.event-item > div {
+  min-width: 0;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 .event-kind {
   font-size: 10px;
