@@ -111,6 +111,19 @@ def test_read_cache_ages_stale(tmp_path):
     assert result["weather"]["staleness"] in ("stale", "expired")
 
 
+def test_read_cache_ages_timezone_aware_timestamp(tmp_path):
+    fetched_at = (datetime.now(timezone.utc) - timedelta(minutes=12)).isoformat()
+    raw = {
+        "schema_version": 2,
+        "weather": {"fetched_at": fetched_at, "data": {}},
+    }
+    (tmp_path / "dashboard_cache.json").write_text(json.dumps(raw))
+    result = read_cache_ages(str(tmp_path), {"weather": 60})
+    assert result["weather"]["fetched_at"] == fetched_at
+    assert result["weather"]["cache_age_minutes"] is not None
+    assert result["weather"]["staleness"] in ("fresh", "aging")
+
+
 # ---------------------------------------------------------------------------
 # read_quota
 # ---------------------------------------------------------------------------
