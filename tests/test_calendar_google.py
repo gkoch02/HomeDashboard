@@ -10,11 +10,9 @@ from __future__ import annotations
 import json
 import zoneinfo
 from datetime import date, datetime, timedelta, timezone
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
-
+from src.config import GoogleConfig
 from src.fetchers.calendar_google import (
     _apply_delta,
     _deser_sync_event,
@@ -28,8 +26,6 @@ from src.fetchers.calendar_google import (
     clear_service_caches,
     fetch_google_events,
 )
-from src.config import GoogleConfig
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -114,7 +110,7 @@ class TestParseEvent:
         assert event.summary == "(no title)"
 
     def test_location_captured(self):
-        item = _timed_item("Dentist", "2024-03-15T09:00:00Z", "2024-03-15T10:00:00Z")
+        item = _timed_item("Dentist", "2024-03-15T09:00:00+00:00", "2024-03-15T10:00:00+00:00")
         item["location"] = "123 Main St"
         event = _parse_event(item, "Cal")
         assert event is not None
@@ -250,14 +246,14 @@ class TestApplyDelta:
 
     def test_upsert_new_event(self):
         stored = []
-        delta = [_timed_item("New Meeting", "2024-03-15T09:00:00Z", "2024-03-15T10:00:00Z", "new1")]
+        delta = [_timed_item("New Meeting", "2024-03-15T09:00:00+00:00", "2024-03-15T10:00:00+00:00", "new1")]
         result = _apply_delta(stored, delta, "Work")
         assert len(result) == 1
         assert result[0]["summary"] == "New Meeting"
 
     def test_upsert_updates_existing(self):
         stored = [self._stored_event("evt1", "Old Title")]
-        delta = [_timed_item("New Title", "2024-03-15T09:00:00Z", "2024-03-15T10:00:00Z", "evt1")]
+        delta = [_timed_item("New Title", "2024-03-15T09:00:00+00:00", "2024-03-15T10:00:00+00:00", "evt1")]
         result = _apply_delta(stored, delta, "Work")
         assert len(result) == 1
         assert result[0]["summary"] == "New Title"
@@ -287,7 +283,9 @@ class TestApplyDelta:
 
     def test_delta_item_without_id_skipped(self):
         stored = []
-        delta = [{"summary": "No ID", "start": {"date": "2024-03-15"}, "end": {"date": "2024-03-16"}}]
+        delta = [
+            {"summary": "No ID", "start": {"date": "2024-03-15"}, "end": {"date": "2024-03-16"}}
+        ]
         result = _apply_delta(stored, delta, "Work")
         assert len(result) == 0
 
@@ -396,7 +394,7 @@ class TestFetchFull:
 
     def test_returns_events(self):
         items = [
-            _timed_item("Event A", "2024-03-15T09:00:00Z", "2024-03-15T10:00:00Z"),
+            _timed_item("Event A", "2024-03-15T09:00:00+00:00", "2024-03-15T10:00:00+00:00"),
             _allday_item("Holiday", "2024-03-17", "2024-03-18"),
         ]
         service = self._make_service(items)
@@ -418,7 +416,7 @@ class TestFetchFull:
 
     def test_pagination(self):
         page1 = {
-            "items": [_timed_item("Event 1", "2024-03-15T09:00:00Z", "2024-03-15T10:00:00Z")],
+            "items": [_timed_item("Event 1", "2024-03-15T09:00:00+00:00", "2024-03-15T10:00:00+00:00")],
             "summary": "Cal",
             "nextPageToken": "page2",
         }
@@ -472,7 +470,7 @@ class TestFetchIncremental:
         return service
 
     def test_successful_incremental(self):
-        items = [_timed_item("Updated", "2024-03-15T09:00:00Z", "2024-03-15T10:00:00Z")]
+        items = [_timed_item("Updated", "2024-03-15T09:00:00+00:00", "2024-03-15T10:00:00+00:00")]
         service = self._make_service(items)
         delta, cal, token, needs_reset = _fetch_incremental(service, "primary", "old_token")
         assert needs_reset is False
@@ -575,8 +573,8 @@ class TestFetchGoogleEvents:
 
         new_item = _timed_item(
             "New Event",
-            "2024-03-15T10:00:00Z",
-            "2024-03-15T11:00:00Z",
+            "2024-03-15T10:00:00+00:00",
+            "2024-03-15T11:00:00+00:00",
             "new_event",
         )
         incremental_result = {
@@ -597,11 +595,15 @@ class TestFetchGoogleEvents:
 
         # Verify the call used a syncToken parameter (incremental path)
         call_kwargs = events_mock.list.call_args
-        assert "syncToken" in call_kwargs.kwargs or (
-            call_kwargs.args and "syncToken" in call_kwargs.args[0]
-            if call_kwargs.args
-            else False
-        ) or any("syncToken" in str(c) for c in events_mock.list.call_args_list)
+        assert (
+            "syncToken" in call_kwargs.kwargs
+            or (
+                call_kwargs.args and "syncToken" in call_kwargs.args[0]
+                if call_kwargs.args
+                else False
+            )
+            or any("syncToken" in str(c) for c in events_mock.list.call_args_list)
+        )
 
     def test_additional_calendars_fetched(self):
         svc = self._simple_service()
@@ -626,6 +628,7 @@ class TestFetchGoogleEvents:
 
     def test_sync_token_expired_falls_back_to_full(self, tmp_path):
         from googleapiclient.errors import HttpError
+
         from src.fetchers.calendar_google import _SYNC_STATE_FILENAME
 
         existing_state = {"primary": {"sync_token": "expired_tok", "events": []}}
