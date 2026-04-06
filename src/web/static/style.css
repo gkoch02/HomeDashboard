@@ -205,3 +205,149 @@ tr:last-child td { border-bottom: none; }
 /* Misc */
 .text-muted { color: var(--text-muted); }
 .no-data { color: var(--text-muted); font-style: italic; font-size: 13px; }
+.row-actions { white-space: nowrap; }
+
+/* Buttons */
+.btn {
+  display: inline-block;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 12px;
+  cursor: pointer;
+  line-height: 1.4;
+  transition: background .15s;
+}
+.btn:hover { background: var(--bg); }
+.btn:disabled { opacity: .5; cursor: default; }
+.btn-sm { padding: 3px 8px; font-size: 11px; }
+.btn-xs { padding: 2px 6px; font-size: 11px; }
+.btn-primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+.btn-primary:hover { background: #1a202c; }
+.btn-danger { color: var(--bad); border-color: #fee2e2; background: #fff; }
+.btn-danger:hover { background: #fee2e2; }
+
+/* Action feedback */
+.action-msg {
+  min-height: 20px;
+  font-size: 12px;
+  margin-top: .5rem;
+  padding: 0 .25rem;
+}
+.action-ok  { color: #15803d; }
+.action-err { color: #b91c1c; }
+
+/* -------------------------------------------------------------------------
+   Config page
+   ------------------------------------------------------------------------- */
+
+.cfg-section { margin-bottom: 1.25rem; }
+.cfg-section-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: .6rem;
+  padding-bottom: .4rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.field-row {
+  display: flex;
+  align-items: baseline;
+  gap: .5rem;
+  margin-bottom: .5rem;
+  flex-wrap: wrap;
+}
+.field-label {
+  flex: 0 0 200px;
+  font-size: 13px;
+  color: var(--text);
+}
+.field-input-wrap { flex: 1; min-width: 140px; }
+.field-hint {
+  flex-basis: 100%;
+  padding-left: 208px;
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: -4px;
+  margin-bottom: 4px;
+}
+
+input[type="text"], input[type="number"], select, textarea {
+  width: 100%;
+  padding: 4px 7px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 13px;
+  background: var(--surface);
+  color: var(--text);
+  font-family: inherit;
+}
+input[type="time"] { padding: 3px 7px; font-size: 13px; width: auto; }
+textarea { resize: vertical; min-height: 60px; }
+input[readonly], input[disabled] { background: var(--bg); color: var(--text-muted); }
+
+.check-row {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  margin-bottom: .4rem;
+}
+.check-row label { font-size: 13px; cursor: pointer; }
+
+/* Theme grid */
+.theme-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .4rem;
+  margin-top: .4rem;
+}
+.theme-opt {
+  cursor: pointer;
+  border: 2px solid var(--border);
+  border-radius: 4px;
+  padding: 3px;
+  text-align: center;
+  font-size: 11px;
+  background: var(--surface);
+  min-width: 80px;
+  transition: border-color .15s;
+}
+.theme-opt img {
+  display: block;
+  width: 80px;
+  height: 48px;
+  object-fit: cover;
+  border-radius: 2px;
+  margin-bottom: 3px;
+  background: #e2e8f0;
+}
+.theme-opt:hover { border-color: #94a3b8; }
+.theme-opt.selected { border-color: var(--accent); background: #f0f4ff; }
+
+/* Theme schedule table */
+.sched-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.sched-table th { padding: .3rem .5rem; text-align: left; font-size: 11px;
+                  font-weight: 600; color: var(--text-muted); border-bottom: 1px solid var(--border); }
+.sched-table td { padding: .3rem .5rem; border-bottom: 1px solid var(--border); }
+.sched-table tr:last-child td { border-bottom: none; }
+
+/* Save result banners */
+#cfg-result { margin-top: .75rem; font-size: 13px; }
+.cfg-ok      { color: #15803d; font-weight: 600; margin-bottom: .25rem; }
+.cfg-errors  { color: #b91c1c; background: #fee2e2; border-radius: 4px;
+               padding: .5rem .75rem; margin-bottom: .25rem; }
+.cfg-warnings { color: #92400e; background: #fefce8; border-radius: 4px;
+                padding: .5rem .75rem; }
+.cfg-errors div, .cfg-warnings div { margin-bottom: .2rem; }
+
+/* Credential status badges */
+.cred-row { display: flex; align-items: center; gap: .5rem;
+            font-size: 13px; margin-bottom: .35rem; }
+.cred-label { flex: 0 0 200px; color: var(--text-muted); }
+.cred-set    { color: #15803d; font-weight: 600; }
+.cred-unset  { color: #b91c1c; }

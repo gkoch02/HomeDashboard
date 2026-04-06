@@ -1,0 +1,438 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — Config{% endblock %}
+
+{% block content %}
+
+{# Pass theme list to JS as JSON #}
+<script id="all-themes-json" type="application/json">{{ all_theme_options | tojson }}</script>
+
+<div class="card">
+
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+    <div>
+      <strong style="font-size:15px;">Configuration</strong>
+      <div style="font-size:12px; color:var(--text-muted); margin-top:2px;">
+        Editing config/config.yaml — note: saving rewrites the file without preserving comments.
+      </div>
+    </div>
+    <button class="btn btn-primary" onclick="saveConfig(this)">Save</button>
+  </div>
+
+  <div id="cfg-result"></div>
+
+  {# ------------------------------------------------------------------ #}
+  {# General                                                             #}
+  {# ------------------------------------------------------------------ #}
+  <div class="cfg-section">
+    <div class="cfg-section-title">General</div>
+
+    <div class="field-row">
+      <label class="field-label" for="cfg-title">Dashboard title</label>
+      <div class="field-input-wrap">
+        <input type="text" id="cfg-title" value="{{ cfg.title }}">
+      </div>
+    </div>
+
+    <div class="field-row">
+      <label class="field-label" for="cfg-timezone">Timezone</label>
+      <div class="field-input-wrap">
+        <input type="text" id="cfg-timezone" value="{{ cfg.timezone }}"
+               placeholder="local or IANA name, e.g. America/New_York">
+      </div>
+    </div>
+    <div class="field-hint">Use <code>local</code> to follow the system clock.</div>
+
+    <div class="field-row">
+      <label class="field-label" for="cfg-loglevel">Log level</label>
+      <div class="field-input-wrap">
+        <select id="cfg-loglevel">
+          {% for level in ["DEBUG", "INFO", "WARNING", "ERROR"] %}
+            <option value="{{ level }}" {{ "selected" if cfg.log_level == level }}>{{ level }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+  </div>
+
+  {# ------------------------------------------------------------------ #}
+  {# Theme                                                               #}
+  {# ------------------------------------------------------------------ #}
+  <div class="cfg-section">
+    <div class="cfg-section-title">Theme</div>
+
+    <div class="field-row">
+      <label class="field-label" for="cfg-theme">Active theme</label>
+      <div class="field-input-wrap">
+        <select id="cfg-theme" onchange="syncThemeGrid(this.value)">
+          {% for t in all_theme_options %}
+            <option value="{{ t }}" {{ "selected" if cfg.theme == t }}>{{ t }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+    <div class="field-hint">Click a thumbnail to select, or use the dropdown above.</div>
+
+    <div class="theme-grid" style="margin-top:.5rem;">
+      {% for t in concrete_themes %}
+        <div class="theme-opt {{ 'selected' if cfg.theme == t }}" data-theme="{{ t }}"
+             onclick="selectTheme('{{ t }}')">
+          <img src="/image/theme/{{ t }}" alt="{{ t }}"
+               onerror="this.style.display='none'; this.nextSibling.style.display='block'">
+          <span style="display:none; padding:14px 0; font-style:italic; font-size:10px;">no preview</span>
+          <div>{{ t }}</div>
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  {# ------------------------------------------------------------------ #}
+  {# Display                                                             #}
+  {# ------------------------------------------------------------------ #}
+  <div class="cfg-section">
+    <div class="cfg-section-title">Display</div>
+
+    <div class="field-row">
+      <label class="field-label">Model</label>
+      <div class="field-input-wrap">
+        <input type="text" value="{{ cfg.display._model }}  ({{ cfg.display._width }}×{{ cfg.display._height }})" readonly>
+      </div>
+    </div>
+    <div class="field-hint">Hardware model — change in config.yaml directly.</div>
+
+    <div class="check-row" style="padding-left:208px;">
+      <input type="checkbox" id="cfg-show-weather" {{ "checked" if cfg.display.show_weather }}>
+      <label for="cfg-show-weather">Show weather panel</label>
+    </div>
+    <div class="check-row" style="padding-left:208px;">
+      <input type="checkbox" id="cfg-show-birthdays" {{ "checked" if cfg.display.show_birthdays }}>
+      <label for="cfg-show-birthdays">Show birthdays bar</label>
+    </div>
+    <div class="check-row" style="padding-left:208px;">
+      <input type="checkbox" id="cfg-show-info" {{ "checked" if cfg.display.show_info_panel }}>
+      <label for="cfg-show-info">Show info panel (quote / system)</label>
+    </div>
+    <div class="check-row" style="padding-left:208px;">
+      <input type="checkbox" id="cfg-partial-refresh" {{ "checked" if cfg.display.enable_partial_refresh }}>
+      <label for="cfg-partial-refresh">Enable partial eInk refresh</label>
+    </div>
+
+    <div class="field-row" style="margin-top:.5rem;">
+      <label class="field-label" for="cfg-week-days">Days in week view</label>
+      <div class="field-input-wrap" style="max-width:80px;">
+        <input type="number" id="cfg-week-days" min="1" max="7" value="{{ cfg.display.week_days }}">
+      </div>
+    </div>
+
+    <div class="field-row">
+      <label class="field-label" for="cfg-max-partials">Max partial refreshes</label>
+      <div class="field-input-wrap" style="max-width:80px;">
+        <input type="number" id="cfg-max-partials" min="1" value="{{ cfg.display.max_partials_before_full }}">
+      </div>
+    </div>
+    <div class="field-hint">Full refresh is forced after this many partial updates.</div>
+  </div>
+
+  {# ------------------------------------------------------------------ #}
+  {# Schedule (quiet hours)                                              #}
+  {# ------------------------------------------------------------------ #}
+  <div class="cfg-section">
+    <div class="cfg-section-title">Quiet Hours</div>
+    <div class="field-hint" style="padding-left:0; margin-bottom:.5rem;">
+      Display refresh is paused during this window (useful for overnight).
+    </div>
+
+    <div class="field-row">
+      <label class="field-label" for="cfg-qh-start">Quiet hours start (hour 0–23)</label>
+      <div class="field-input-wrap" style="max-width:80px;">
+        <input type="number" id="cfg-qh-start" min="0" max="23"
+               value="{{ cfg.schedule.quiet_hours_start }}">
+      </div>
+    </div>
+    <div class="field-row">
+      <label class="field-label" for="cfg-qh-end">Quiet hours end (hour 0–23)</label>
+      <div class="field-input-wrap" style="max-width:80px;">
+        <input type="number" id="cfg-qh-end" min="0" max="23"
+               value="{{ cfg.schedule.quiet_hours_end }}">
+      </div>
+    </div>
+  </div>
+
+  {# ------------------------------------------------------------------ #}
+  {# Weather & Location                                                  #}
+  {# ------------------------------------------------------------------ #}
+  <div class="cfg-section">
+    <div class="cfg-section-title">Weather &amp; Location</div>
+
+    <div class="cred-row">
+      <span class="cred-label">OWM API key</span>
+      {% if cfg.weather._api_key_set %}
+        <span class="cred-set">✓ configured</span>
+      {% else %}
+        <span class="cred-unset">✗ not set — edit config.yaml directly</span>
+      {% endif %}
+    </div>
+
+    <div class="field-row">
+      <label class="field-label" for="cfg-lat">Latitude</label>
+      <div class="field-input-wrap" style="max-width:140px;">
+        <input type="number" id="cfg-lat" step="0.0001" value="{{ cfg.weather.latitude }}">
+      </div>
+    </div>
+    <div class="field-row">
+      <label class="field-label" for="cfg-lon">Longitude</label>
+      <div class="field-input-wrap" style="max-width:140px;">
+        <input type="number" id="cfg-lon" step="0.0001" value="{{ cfg.weather.longitude }}">
+      </div>
+    </div>
+    <div class="field-row">
+      <label class="field-label" for="cfg-units">Units</label>
+      <div class="field-input-wrap" style="max-width:140px;">
+        <select id="cfg-units">
+          {% for u in ["imperial", "metric", "standard"] %}
+            <option value="{{ u }}" {{ "selected" if cfg.weather.units == u }}>{{ u }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+  </div>
+
+  {# ------------------------------------------------------------------ #}
+  {# Birthdays                                                           #}
+  {# ------------------------------------------------------------------ #}
+  <div class="cfg-section">
+    <div class="cfg-section-title">Birthdays</div>
+
+    <div class="field-row">
+      <label class="field-label" for="cfg-bday-source">Source</label>
+      <div class="field-input-wrap" style="max-width:160px;">
+        <select id="cfg-bday-source">
+          {% for s in ["file", "calendar", "contacts"] %}
+            <option value="{{ s }}" {{ "selected" if cfg.birthdays.source == s }}>{{ s }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+    <div class="field-row">
+      <label class="field-label" for="cfg-bday-lookahead">Look-ahead days</label>
+      <div class="field-input-wrap" style="max-width:80px;">
+        <input type="number" id="cfg-bday-lookahead" min="1"
+               value="{{ cfg.birthdays.lookahead_days }}">
+      </div>
+    </div>
+    <div class="field-row">
+      <label class="field-label" for="cfg-bday-keyword">Calendar keyword</label>
+      <div class="field-input-wrap" style="max-width:200px;">
+        <input type="text" id="cfg-bday-keyword" value="{{ cfg.birthdays.calendar_keyword }}">
+      </div>
+    </div>
+    <div class="field-hint">Used when source is <code>calendar</code> — keyword matched against event titles.</div>
+  </div>
+
+  {# ------------------------------------------------------------------ #}
+  {# Event Filters                                                       #}
+  {# ------------------------------------------------------------------ #}
+  <div class="cfg-section">
+    <div class="cfg-section-title">Event Filters</div>
+
+    <div class="check-row" style="padding-left:208px; margin-bottom:.5rem;">
+      <input type="checkbox" id="cfg-excl-allday" {{ "checked" if cfg.filters.exclude_all_day }}>
+      <label for="cfg-excl-allday">Hide all-day events</label>
+    </div>
+
+    <div class="field-row">
+      <label class="field-label" for="cfg-excl-calendars">Exclude calendars</label>
+      <div class="field-input-wrap">
+        <textarea id="cfg-excl-calendars" rows="3"
+                  placeholder="One calendar name per line">{{ cfg.filters.exclude_calendars | join('\n') }}</textarea>
+      </div>
+    </div>
+    <div class="field-row">
+      <label class="field-label" for="cfg-excl-keywords">Exclude keywords</label>
+      <div class="field-input-wrap">
+        <textarea id="cfg-excl-keywords" rows="3"
+                  placeholder="One keyword per line">{{ cfg.filters.exclude_keywords | join('\n') }}</textarea>
+      </div>
+    </div>
+  </div>
+
+  {# ------------------------------------------------------------------ #}
+  {# Cache & Intervals                                                   #}
+  {# ------------------------------------------------------------------ #}
+  <div class="cfg-section">
+    <div class="cfg-section-title">Cache &amp; Intervals</div>
+    <div class="field-hint" style="padding-left:0; margin-bottom:.5rem;">
+      TTL: how long cached data stays usable after a fetch failure.
+      Interval: how often a live fetch is attempted (skip if cache is younger).
+    </div>
+
+    {% set cache_rows = [
+      ("cfg-wtl",  "Weather TTL (min)",             cfg.cache.weather_ttl_minutes),
+      ("cfg-wfi",  "Weather fetch interval (min)",   cfg.cache.weather_fetch_interval),
+      ("cfg-etl",  "Events TTL (min)",               cfg.cache.events_ttl_minutes),
+      ("cfg-efi",  "Events fetch interval (min)",    cfg.cache.events_fetch_interval),
+      ("cfg-btl",  "Birthdays TTL (min)",            cfg.cache.birthdays_ttl_minutes),
+      ("cfg-bfi",  "Birthdays fetch interval (min)", cfg.cache.birthdays_fetch_interval),
+      ("cfg-aqtl", "Air quality TTL (min)",          cfg.cache.air_quality_ttl_minutes),
+      ("cfg-aqfi", "Air quality fetch interval (min)", cfg.cache.air_quality_fetch_interval),
+      ("cfg-mxf",  "Max failures (breaker)",         cfg.cache.max_failures),
+      ("cfg-cool", "Cooldown minutes (breaker)",      cfg.cache.cooldown_minutes),
+    ] %}
+    {% for id, label, val in cache_rows %}
+      <div class="field-row">
+        <label class="field-label" for="{{ id }}">{{ label }}</label>
+        <div class="field-input-wrap" style="max-width:100px;">
+          <input type="number" id="{{ id }}" min="1" value="{{ val }}">
+        </div>
+      </div>
+    {% endfor %}
+
+    <div class="field-row">
+      <label class="field-label" for="cfg-qr">Quote rotation</label>
+      <div class="field-input-wrap" style="max-width:160px;">
+        <select id="cfg-qr">
+          {% for opt in ["daily", "twice_daily", "hourly"] %}
+            <option value="{{ opt }}" {{ "selected" if cfg.cache.quote_refresh == opt }}>{{ opt }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+  </div>
+
+  {# ------------------------------------------------------------------ #}
+  {# Random Theme Pool                                                   #}
+  {# ------------------------------------------------------------------ #}
+  <div class="cfg-section">
+    <div class="cfg-section-title">Random Theme Pool</div>
+    <div class="field-hint" style="padding-left:0; margin-bottom:.5rem;">
+      Only applies when <code>theme</code> is set to <code>random</code>, <code>random_daily</code>,
+      or <code>random_hourly</code>. Leave both lists empty to rotate among all eligible themes.
+    </div>
+
+    <div class="field-row">
+      <label class="field-label" for="cfg-rt-include">Include only</label>
+      <div class="field-input-wrap">
+        <textarea id="cfg-rt-include" rows="3"
+                  placeholder="One theme name per line (empty = all themes)">{{ cfg.random_theme.include | join('\n') }}</textarea>
+      </div>
+    </div>
+    <div class="field-row">
+      <label class="field-label" for="cfg-rt-exclude">Exclude</label>
+      <div class="field-input-wrap">
+        <textarea id="cfg-rt-exclude" rows="3"
+                  placeholder="One theme name per line">{{ cfg.random_theme.exclude | join('\n') }}</textarea>
+      </div>
+    </div>
+  </div>
+
+  {# ------------------------------------------------------------------ #}
+  {# Theme Schedule                                                      #}
+  {# ------------------------------------------------------------------ #}
+  <div class="cfg-section">
+    <div class="cfg-section-title">Theme Schedule</div>
+    <div class="field-hint" style="padding-left:0; margin-bottom:.5rem;">
+      Switch themes automatically at set times. The active entry is the last one whose time
+      ≤ current local time. Overrides the random theme pool. Ignored when <code>--theme</code>
+      is passed via CLI.
+    </div>
+
+    <table class="sched-table">
+      <thead>
+        <tr><th>Time (HH:MM)</th><th>Theme</th><th></th></tr>
+      </thead>
+      <tbody id="sched-tbody">
+        {% for entry in cfg.theme_schedule %}
+          {# Rows are rendered server-side; JS add/remove works on the tbody #}
+          <tr class="schedule-row">
+            <td><input type="time" class="sched-time" value="{{ entry.time }}" required></td>
+            <td>
+              <select class="sched-theme">
+                {% for t in concrete_themes %}
+                  <option value="{{ t }}" {{ "selected" if entry.theme == t }}>{{ t }}</option>
+                {% endfor %}
+              </select>
+            </td>
+            <td>
+              <button type="button" class="btn btn-xs btn-danger"
+                      onclick="this.closest('tr').remove()">✕</button>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <button type="button" class="btn btn-sm" style="margin-top:.5rem;"
+            onclick="addScheduleRow()">+ Add entry</button>
+  </div>
+
+  {# ------------------------------------------------------------------ #}
+  {# Credentials (read-only info)                                        #}
+  {# ------------------------------------------------------------------ #}
+  <div class="cfg-section">
+    <div class="cfg-section-title">Credential Status (read-only)</div>
+    <div class="field-hint" style="padding-left:0; margin-bottom:.5rem;">
+      API keys and credentials must be edited in <code>config/config.yaml</code> directly.
+    </div>
+
+    <div class="cred-row">
+      <span class="cred-label">Google service account</span>
+      {% if cfg.google._service_account_set %}
+        <span class="cred-set">✓ file found</span>
+      {% else %}
+        <span class="cred-unset">✗ not found</span>
+      {% endif %}
+    </div>
+    <div class="cred-row">
+      <span class="cred-label">Google calendar ID</span>
+      <span style="font-size:12px; color:var(--text-muted);">{{ cfg.google._calendar_id or "(not set)" }}</span>
+    </div>
+    <div class="cred-row">
+      <span class="cred-label">ICS feed URL</span>
+      {% if cfg.google._ical_url_set %}
+        <span class="cred-set">✓ configured</span>
+      {% else %}
+        <span class="cred-unset">✗ not set</span>
+      {% endif %}
+    </div>
+    <div class="cred-row">
+      <span class="cred-label">PurpleAir API key</span>
+      {% if cfg.purpleair._api_key_set %}
+        <span class="cred-set">✓ configured</span>
+      {% else %}
+        <span class="cred-unset">✗ not set</span>
+      {% endif %}
+    </div>
+    <div class="cred-row">
+      <span class="cred-label">PurpleAir sensor ID</span>
+      {% if cfg.purpleair._sensor_id_set %}
+        <span class="cred-set">✓ configured</span>
+      {% else %}
+        <span class="cred-unset">✗ not set</span>
+      {% endif %}
+    </div>
+  </div>
+
+  {# ------------------------------------------------------------------ #}
+  {# Save button (bottom)                                                #}
+  {# ------------------------------------------------------------------ #}
+  <div style="display:flex; justify-content:flex-end; padding-top:.5rem; border-top:1px solid var(--border);">
+    <button class="btn btn-primary" onclick="saveConfig(this)">Save</button>
+  </div>
+
+</div><!-- .card -->
+
+<script>
+// Sync the theme grid selection when the dropdown changes.
+function syncThemeGrid(name) {
+  document.querySelectorAll(".theme-opt").forEach(el => {
+    el.classList.toggle("selected", el.dataset.theme === name);
+  });
+}
+// Override selectTheme to also update dropdown.
+const _orig_select = window.selectTheme;
+window.selectTheme = (name) => {
+  const inp = document.getElementById("cfg-theme");
+  if (inp) inp.value = name;
+  syncThemeGrid(name);
+};
+</script>
+
+{% endblock %}

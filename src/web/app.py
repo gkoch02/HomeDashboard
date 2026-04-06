@@ -13,7 +13,9 @@ P1 blueprints (read-only status):
     image_bp    — GET /image/latest  and  GET /image/theme/<name>
     logs_bp     — GET /api/logs
 
-P2 blueprints (config controls) will be added here when implemented.
+P2 blueprints (config controls):
+    config_bp   — GET /config  GET/POST /api/config
+    actions_bp  — POST /api/trigger-refresh  /api/reset-breaker  /api/clear-cache
 """
 
 from __future__ import annotations
@@ -99,7 +101,12 @@ def create_app(
     app.register_blueprint(image_bp)
     app.register_blueprint(logs_bp)
 
-    # P2 blueprints (config_bp, actions_bp) will be registered here.
+    # P2 blueprints
+    from src.web.routes.actions import actions_bp
+    from src.web.routes.config import config_bp
+
+    app.register_blueprint(config_bp)
+    app.register_blueprint(actions_bp)
 
     logger.info(
         "Web UI started — state_dir=%s output_dir=%s",

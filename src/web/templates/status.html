@@ -65,9 +65,12 @@
     </div>
   </div>
 
-  <!-- Data sources -->
+  <!-- Data sources + actions -->
   <div class="card">
-    <div class="card-title">Data Sources</div>
+    <div class="card-title" style="display:flex; justify-content:space-between; align-items:center;">
+      <span>Data Sources</span>
+      <button class="btn btn-sm" onclick="doTriggerRefresh(this)">↻ Refresh Now</button>
+    </div>
     <table>
       <thead>
         <tr>
@@ -76,12 +79,14 @@
           <th>Cache Age</th>
           <th>Staleness</th>
           <th>API Calls</th>
+          <th></th>
         </tr>
       </thead>
       <tbody id="sources-tbody">
-        <tr><td colspan="5" class="no-data">Loading…</td></tr>
+        <tr><td colspan="6" class="no-data">Loading…</td></tr>
       </tbody>
     </table>
+    <div id="action-msg" class="action-msg"></div>
   </div>
 
 </div><!-- .grid-2 -->

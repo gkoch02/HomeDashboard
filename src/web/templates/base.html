@@ -10,7 +10,7 @@
   <nav>
     <span class="brand">Dashboard</span>
     <a href="/" class="{{ 'active' if request.path == '/' }}">Status</a>
-    {# Config link will be added when P2 is implemented #}
+    <a href="/config" class="{{ 'active' if request.path == '/config' }}">Config</a>
     <span class="spacer"></span>
     <span class="meta">
       <span class="refresh-dot" id="refresh-dot"></span>
