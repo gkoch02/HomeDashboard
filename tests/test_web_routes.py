@@ -152,6 +152,33 @@ def test_image_latest_serves_png(client, app, tmp_path):
     resp = client.get("/image/latest")
     assert resp.status_code == 200
     assert resp.content_type == "image/png"
+    assert "no-store" in resp.headers.get("Cache-Control", "")
+
+
+def test_image_latest_resolves_project_relative_output_dir(tmp_path):
+    web_yaml = tmp_path / "web.yaml"
+    web_yaml.write_text("port: 8080\n")
+    cfg_yaml = tmp_path / "config.yaml"
+    cfg_yaml.write_text("output_dir: output\n")
+
+    app = create_app(str(web_yaml), str(cfg_yaml))
+    app.config["TESTING"] = True
+    (tmp_path / "state").mkdir()
+    (tmp_path / "output").mkdir()
+    app.config["STATE_DIR"] = str(tmp_path / "state")
+    app.config["OUTPUT_DIR"] = "output"
+
+    png_bytes = (
+        b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01"
+        b"\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc\xf8\x0f\x00"
+        b"\x00\x01\x01\x00\x05\x18\xd8N\x00\x00\x00\x00IEND\xaeB`\x82"
+    )
+    (tmp_path / "output" / "latest.png").write_bytes(png_bytes)
+
+    client = app.test_client()
+    resp = client.get("/image/latest")
+    assert resp.status_code == 200
+    assert resp.content_type == "image/png"
 
 
 def test_image_theme_rejects_path_traversal(client):
