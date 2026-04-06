@@ -36,49 +36,49 @@ _write_lock = threading.Lock()
 # theme_schedule is a special case: handled explicitly as a list.
 EDITABLE_FIELD_PATHS: dict[str, tuple] = {
     # root
-    "title":                              ("title",),
-    "theme":                              ("theme",),
-    "timezone":                           ("timezone",),
-    "log_level":                          ("logging", "level"),
+    "title": ("title",),
+    "theme": ("theme",),
+    "timezone": ("timezone",),
+    "log_level": ("logging", "level"),
     # display
-    "display.show_weather":               ("display", "show_weather"),
-    "display.show_birthdays":             ("display", "show_birthdays"),
-    "display.show_info_panel":            ("display", "show_info_panel"),
-    "display.week_days":                  ("display", "week_days"),
-    "display.enable_partial_refresh":     ("display", "enable_partial_refresh"),
-    "display.max_partials_before_full":   ("display", "max_partials_before_full"),
+    "display.show_weather": ("display", "show_weather"),
+    "display.show_birthdays": ("display", "show_birthdays"),
+    "display.show_info_panel": ("display", "show_info_panel"),
+    "display.week_days": ("display", "week_days"),
+    "display.enable_partial_refresh": ("display", "enable_partial_refresh"),
+    "display.max_partials_before_full": ("display", "max_partials_before_full"),
     # schedule
-    "schedule.quiet_hours_start":         ("schedule", "quiet_hours_start"),
-    "schedule.quiet_hours_end":           ("schedule", "quiet_hours_end"),
+    "schedule.quiet_hours_start": ("schedule", "quiet_hours_start"),
+    "schedule.quiet_hours_end": ("schedule", "quiet_hours_end"),
     # weather (non-sensitive)
-    "weather.latitude":                   ("weather", "latitude"),
-    "weather.longitude":                  ("weather", "longitude"),
-    "weather.units":                      ("weather", "units"),
+    "weather.latitude": ("weather", "latitude"),
+    "weather.longitude": ("weather", "longitude"),
+    "weather.units": ("weather", "units"),
     # birthdays
-    "birthdays.source":                   ("birthdays", "source"),
-    "birthdays.lookahead_days":           ("birthdays", "lookahead_days"),
-    "birthdays.calendar_keyword":         ("birthdays", "calendar_keyword"),
+    "birthdays.source": ("birthdays", "source"),
+    "birthdays.lookahead_days": ("birthdays", "lookahead_days"),
+    "birthdays.calendar_keyword": ("birthdays", "calendar_keyword"),
     # filters
-    "filters.exclude_calendars":          ("filters", "exclude_calendars"),
-    "filters.exclude_keywords":           ("filters", "exclude_keywords"),
-    "filters.exclude_all_day":            ("filters", "exclude_all_day"),
+    "filters.exclude_calendars": ("filters", "exclude_calendars"),
+    "filters.exclude_keywords": ("filters", "exclude_keywords"),
+    "filters.exclude_all_day": ("filters", "exclude_all_day"),
     # cache
-    "cache.weather_ttl_minutes":          ("cache", "weather_ttl_minutes"),
-    "cache.events_ttl_minutes":           ("cache", "events_ttl_minutes"),
-    "cache.birthdays_ttl_minutes":        ("cache", "birthdays_ttl_minutes"),
-    "cache.weather_fetch_interval":       ("cache", "weather_fetch_interval"),
-    "cache.events_fetch_interval":        ("cache", "events_fetch_interval"),
-    "cache.birthdays_fetch_interval":     ("cache", "birthdays_fetch_interval"),
-    "cache.air_quality_ttl_minutes":      ("cache", "air_quality_ttl_minutes"),
-    "cache.air_quality_fetch_interval":   ("cache", "air_quality_fetch_interval"),
-    "cache.max_failures":                 ("cache", "max_failures"),
-    "cache.cooldown_minutes":             ("cache", "cooldown_minutes"),
-    "cache.quote_refresh":                ("cache", "quote_refresh"),
+    "cache.weather_ttl_minutes": ("cache", "weather_ttl_minutes"),
+    "cache.events_ttl_minutes": ("cache", "events_ttl_minutes"),
+    "cache.birthdays_ttl_minutes": ("cache", "birthdays_ttl_minutes"),
+    "cache.weather_fetch_interval": ("cache", "weather_fetch_interval"),
+    "cache.events_fetch_interval": ("cache", "events_fetch_interval"),
+    "cache.birthdays_fetch_interval": ("cache", "birthdays_fetch_interval"),
+    "cache.air_quality_ttl_minutes": ("cache", "air_quality_ttl_minutes"),
+    "cache.air_quality_fetch_interval": ("cache", "air_quality_fetch_interval"),
+    "cache.max_failures": ("cache", "max_failures"),
+    "cache.cooldown_minutes": ("cache", "cooldown_minutes"),
+    "cache.quote_refresh": ("cache", "quote_refresh"),
     # random_theme
-    "random_theme.include":               ("random_theme", "include"),
-    "random_theme.exclude":               ("random_theme", "exclude"),
+    "random_theme.include": ("random_theme", "include"),
+    "random_theme.exclude": ("random_theme", "exclude"),
     # theme_schedule — list of {time, theme} dicts
-    "theme_schedule":                     ("theme_schedule",),
+    "theme_schedule": ("theme_schedule",),
 }
 
 
@@ -157,15 +157,11 @@ def get_config_for_web(config_path: str) -> dict:
             "include": cfg.random_theme.include,
             "exclude": cfg.random_theme.exclude,
         },
-        "theme_schedule": [
-            {"time": e.time, "theme": e.theme} for e in cfg.theme_schedule.entries
-        ],
+        "theme_schedule": [{"time": e.time, "theme": e.theme} for e in cfg.theme_schedule.entries],
     }
 
 
-def apply_patch(
-    config_path: str, patch: dict
-) -> tuple[bool, list[dict], list[dict]]:
+def apply_patch(config_path: str, patch: dict) -> tuple[bool, list[dict], list[dict]]:
     """Validate and apply a partial config update.
 
     *patch* is a flat dict of ``{"field.path": value}`` pairs using the keys

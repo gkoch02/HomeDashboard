@@ -157,9 +157,7 @@ def test_auth_enforced_when_configured(tmp_path):
 
     web_yaml = tmp_path / "web.yaml"
     pw_hash = hash_password("secret")
-    web_yaml.write_text(
-        f"port: 8080\nauth:\n  username: admin\n  password_hash: '{pw_hash}'\n"
-    )
+    web_yaml.write_text(f"port: 8080\nauth:\n  username: admin\n  password_hash: '{pw_hash}'\n")
     cfg_yaml = tmp_path / "config.yaml"
     cfg_yaml.write_text("")
 

@@ -68,9 +68,11 @@ def test_trigger_refresh_idempotent(client, app):
 def test_reset_breaker_known_source(client, app):
     state_dir = Path(app.config["STATE_DIR"])
     breaker_path = state_dir / "dashboard_breaker_state.json"
-    breaker_path.write_text(json.dumps({
-        "weather": {"state": "open", "consecutive_failures": 5, "last_failure_at": None}
-    }))
+    breaker_path.write_text(
+        json.dumps(
+            {"weather": {"state": "open", "consecutive_failures": 5, "last_failure_at": None}}
+        )
+    )
 
     resp = client.post(
         "/api/reset-breaker",
@@ -151,11 +153,15 @@ def test_reset_breaker_preserves_other_sources(client, app):
 def test_clear_cache_single_source(client, app):
     state_dir = Path(app.config["STATE_DIR"])
     cache_path = state_dir / "dashboard_cache.json"
-    cache_path.write_text(json.dumps({
-        "schema_version": 2,
-        "weather": {"fetched_at": "2026-04-06T10:00:00", "data": {}},
-        "events": {"fetched_at": "2026-04-06T10:00:00", "data": []},
-    }))
+    cache_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 2,
+                "weather": {"fetched_at": "2026-04-06T10:00:00", "data": {}},
+                "events": {"fetched_at": "2026-04-06T10:00:00", "data": []},
+            }
+        )
+    )
 
     resp = client.post(
         "/api/clear-cache",
@@ -173,11 +179,15 @@ def test_clear_cache_single_source(client, app):
 def test_clear_cache_all(client, app):
     state_dir = Path(app.config["STATE_DIR"])
     cache_path = state_dir / "dashboard_cache.json"
-    cache_path.write_text(json.dumps({
-        "schema_version": 2,
-        "weather": {"fetched_at": "2026-04-06T10:00:00"},
-        "events": {"fetched_at": "2026-04-06T10:00:00"},
-    }))
+    cache_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 2,
+                "weather": {"fetched_at": "2026-04-06T10:00:00"},
+                "events": {"fetched_at": "2026-04-06T10:00:00"},
+            }
+        )
+    )
 
     resp = client.post(
         "/api/clear-cache",

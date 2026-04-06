@@ -51,7 +51,11 @@ def test_read_breakers_missing(tmp_path):
 
 def test_read_breakers_open(tmp_path):
     data = {
-        "weather": {"state": "open", "consecutive_failures": 3, "last_failure_at": "2026-04-06T10:00:00"}
+        "weather": {
+            "state": "open",
+            "consecutive_failures": 3,
+            "last_failure_at": "2026-04-06T10:00:00",
+        }
     }
     (tmp_path / "dashboard_breaker_state.json").write_text(json.dumps(data))
     result = read_breakers(str(tmp_path))

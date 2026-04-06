@@ -168,8 +168,16 @@ def test_get_config_for_web_no_raw_api_key(cfg_path):
 
 def test_get_config_for_web_contains_expected_sections(cfg_path):
     result = get_config_for_web(str(cfg_path))
-    for section in ("display", "schedule", "weather", "birthdays", "filters", "cache",
-                    "random_theme", "theme_schedule"):
+    for section in (
+        "display",
+        "schedule",
+        "weather",
+        "birthdays",
+        "filters",
+        "cache",
+        "random_theme",
+        "theme_schedule",
+    ):
         assert section in result, f"Missing section: {section}"
 
 
