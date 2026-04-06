@@ -106,7 +106,8 @@ def read_cache_ages(state_dir: str, ttls: dict[str, int]) -> dict[str, dict]:
         except Exception as exc:
             logger.debug("Could not read cache: %s", exc)
 
-    now = datetime.now()
+    now_local = datetime.now()
+    now_utc = datetime.now(timezone.utc)
     result: dict[str, dict] = {}
     for source in _SOURCES:
         block = raw.get(source)
@@ -115,9 +116,13 @@ def read_cache_ages(state_dir: str, ttls: dict[str, int]) -> dict[str, dict]:
             continue
         try:
             fetched_at = datetime.fromisoformat(block["fetched_at"])
-            age_minutes = (now - fetched_at).total_seconds() / 60
-            ttl = ttls.get(source, 60)
-            staleness = check_staleness(fetched_at, ttl, now=now)
+            if fetched_at.tzinfo is None:
+                age_minutes = (now_local - fetched_at).total_seconds() / 60
+                staleness = check_staleness(fetched_at, ttls.get(source, 60), now=now_local)
+            else:
+                fetched_at_utc = fetched_at.astimezone(timezone.utc)
+                age_minutes = (now_utc - fetched_at_utc).total_seconds() / 60
+                staleness = check_staleness(fetched_at_utc, ttls.get(source, 60), now=now_utc)
             result[source] = {
                 "cache_age_minutes": round(age_minutes, 1),
                 "staleness": staleness.value,
