@@ -178,7 +178,7 @@ def _build_integrations(cfg) -> list[dict]:
             "name": "Google calendar / ICS",
             "status": "ok" if (cfg.google.calendar_id and cfg.google.calendar_id != "primary") or cfg.google.ical_url else "warn",
             "detail": (
-                f"Using ICS feed" if cfg.google.ical_url else f"Calendar id: {cfg.google.calendar_id}"
+                "Using ICS feed" if cfg.google.ical_url else f"Calendar id: {cfg.google.calendar_id}"
             ),
         },
         {
