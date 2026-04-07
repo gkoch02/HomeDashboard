@@ -37,7 +37,7 @@ _DAILY_STATE_FILE = "random_theme_state.json"
 _HOURLY_STATE_FILE = "random_theme_hourly_state.json"
 # Pseudo-themes and utility views that must never appear in a rotation pool.
 _EXCLUDED_FROM_POOL: frozenset[str] = frozenset(
-    {"random", "random_daily", "random_hourly", "diags", "message"}
+    {"random", "random_daily", "random_hourly", "diags", "message", "photo"}
 )
 
 

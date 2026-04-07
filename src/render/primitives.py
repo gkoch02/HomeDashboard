@@ -1,10 +1,43 @@
+from __future__ import annotations
+
 from datetime import date, datetime
 from functools import lru_cache
+from typing import TYPE_CHECKING
 
 from PIL import ImageDraw, ImageFont
 
+if TYPE_CHECKING:
+    from PIL import Image
+
 BLACK = 0
 WHITE = 1
+
+
+def load_and_dither_image(
+    path: str,
+    size: tuple[int, int],
+    fg: int,
+    bg: int,
+) -> Image.Image:
+    """Load an image from *path*, resize to *size*, and dither to 1-bit.
+
+    *fg* and *bg* are 1-bit values (0=black, 1=white).  When *bg* is 0 (dark
+    canvas) the grayscale values are inverted so bright photo areas map to white
+    pixels, matching the expected appearance on a dark background.
+
+    Returns a PIL Image in mode ``"1"``.
+    Raises ``FileNotFoundError`` / ``OSError`` if the file cannot be opened
+    (caller is responsible for guarding against missing paths).
+    Uses ``Image.Dither.FLOYDSTEINBERG`` for the 1-bit conversion.
+    """
+    from PIL import Image as _Image
+    from PIL import ImageOps
+
+    img = _Image.open(path).convert("L")
+    img = img.resize(size, _Image.Resampling.LANCZOS)
+    if bg == 0:
+        img = ImageOps.invert(img)
+    return img.convert("1", dither=_Image.Dither.FLOYDSTEINBERG)
 
 
 def draw_text_truncated(

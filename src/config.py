@@ -49,6 +49,11 @@ class PurpleAirConfig:
 
 
 @dataclass
+class PhotoConfig:
+    path: str = ""  # absolute or relative path to image file (JPEG/PNG/etc.)
+
+
+@dataclass
 class DisplayConfig:
     model: str = "epd7in5_V2"
     width: int = 800
@@ -138,6 +143,7 @@ class Config:
     cache: CacheConfig = field(default_factory=CacheConfig)
     random_theme: RandomThemeConfig = field(default_factory=RandomThemeConfig)
     theme_schedule: ThemeScheduleConfig = field(default_factory=ThemeScheduleConfig)
+    photo: PhotoConfig = field(default_factory=PhotoConfig)
     title: str = "Home Dashboard"
     theme: str = "default"
     output_dir: str = "output"
@@ -284,6 +290,12 @@ def load_config(path: str = "config/config.yaml") -> Config:
                     )
                 )
         cfg.theme_schedule = ThemeScheduleConfig(entries=entries)
+
+    if "photo" in raw:
+        ph = raw["photo"]
+        cfg.photo = PhotoConfig(
+            path=ph.get("path", cfg.photo.path),
+        )
 
     if "output" in raw:
         cfg.output_dir = raw["output"].get("dry_run_dir", "output")

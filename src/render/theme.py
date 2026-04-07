@@ -24,7 +24,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Callable
 
 if TYPE_CHECKING:
-    from PIL import ImageDraw, ImageFont
+    from PIL import Image, ImageDraw, ImageFont
 
 FontCallable = Callable[[int], "ImageFont.FreeTypeFont"]
 
@@ -120,6 +120,12 @@ class ThemeLayout:
     overlay_fn: Callable[[ImageDraw.ImageDraw, ThemeLayout, ThemeStyle], None] | None = field(
         default=None, repr=False
     )
+    # Optional background function called BEFORE component rendering.
+    # Receives the raw PIL Image so it can paste photo/grayscale content beneath UI elements.
+    # Signature: (image, layout, style) -> None.
+    background_fn: Callable[[Image.Image, ThemeLayout, ThemeStyle], None] | None = field(
+        default=None, repr=False
+    )
 
 
 @dataclass
@@ -174,6 +180,10 @@ class ThemeStyle:
     # across the full panel height.  Useful for compact strip layouts where
     # the panel is too short to accommodate the forecast without overlap.
     show_forecast_strip: bool = True
+
+    # Photo path for the ``photo`` theme.  Set by app.py from cfg.photo.path.
+    # Ignored by all other themes (defaults to empty string).
+    photo_path: str = ""
 
     def __post_init__(self) -> None:
         """Fill in default fonts from fonts.py when callables were not provided."""
@@ -240,6 +250,7 @@ _THEME_REGISTRY: dict[str, tuple[str, str]] = {
     "sunrise": ("src.render.themes.sunrise", "sunrise_theme"),
     "scorecard": ("src.render.themes.scorecard", "scorecard_theme"),
     "tides": ("src.render.themes.tides", "tides_theme"),
+    "photo": ("src.render.themes.photo", "photo_theme"),
 }
 
 # Derived from the registry — adding a theme to _THEME_REGISTRY is all that's needed.

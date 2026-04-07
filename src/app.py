@@ -86,6 +86,8 @@ class DashboardApp:
         if theme_name != configured_theme:
             logger.info("Theme resolved to: %s", theme_name)
         theme = load_theme(theme_name)
+        if theme_name == "photo":
+            theme.style.photo_path = self.cfg.photo.path
 
         logger.info("Rendering dashboard")
         image = render_dashboard(

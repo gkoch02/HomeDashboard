@@ -59,6 +59,8 @@ def render_dashboard(
     style = theme.style
 
     image = Image.new("1", (layout.canvas_w, layout.canvas_h), style.bg)
+    if layout.background_fn is not None:
+        layout.background_fn(image, layout, style)
     draw = ImageDraw.Draw(image)
 
     now = data.fetched_at
@@ -258,7 +260,7 @@ def render_dashboard(
         image = (
             image.convert("L")
             .resize((config.width, config.height), Image.Resampling.LANCZOS)
-            .convert("1")
+            .convert("1", dither=Image.Dither.FLOYDSTEINBERG)
         )
 
     return image
