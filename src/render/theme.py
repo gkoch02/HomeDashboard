@@ -46,6 +46,10 @@ class ThemeLayout:
 
     canvas_w: int = 800
     canvas_h: int = 480
+    # "1" = 1-bit bilevel (default, all existing themes)
+    # "L" = 8-bit grayscale (opt-in for new themes that want greyscale rendering)
+    # L-mode themes must use fg=0, bg=255 in their ThemeStyle (not 0/1).
+    canvas_mode: str = "1"
     header: ComponentRegion = field(default_factory=lambda: ComponentRegion(0, 0, 800, 40))
     week_view: ComponentRegion = field(default_factory=lambda: ComponentRegion(0, 40, 800, 320))
     weather: ComponentRegion = field(default_factory=lambda: ComponentRegion(0, 360, 300, 120))

@@ -27,6 +27,7 @@ display:
   show_weather: true
   show_birthdays: true
   show_info_panel: true
+  # quantization_mode: "threshold" # threshold | floyd_steinberg | ordered
 
 google:
   service_account_path: "credentials/service_account.json"
@@ -97,6 +98,30 @@ output:
 
 logging:
   level: "INFO"
+```
+
+---
+
+## Quantization mode
+
+The `display.quantization_mode` field controls how the greyscale rendering canvas is
+converted to the 1-bit output required by the eInk display.  All built-in themes render
+in strict black/white so the choice only affects output when:
+
+- A display model with a non-default resolution is configured (the LANCZOS resize produces
+  intermediate grey pixels that must be quantized), or
+- A custom theme opts into greyscale rendering by setting `canvas_mode = "L"` in its
+  `ThemeLayout` (see [Creating your own theme](themes.md#creating-your-own-theme)).
+
+| Mode | Algorithm | When to use |
+|---|---|---|
+| `threshold` | Simple split at 128 — pixels > 128 → white, ≤ 128 → black. No dithering. | **Default.** Preserves the strict black/white look of all built-in themes. |
+| `floyd_steinberg` | Error-diffusion dithering (Pillow built-in). | Smoothest apparent grey for scaled or greyscale-rendered content. Note: the previous resize path used this algorithm implicitly — set this mode to restore that exact behavior for non-default display sizes. |
+| `ordered` | 4×4 Bayer threshold matrix (pure Python, no numpy). | Regular dot-matrix pattern; useful for structured gradients or a halftone aesthetic. |
+
+```yaml
+display:
+  quantization_mode: "threshold"   # threshold | floyd_steinberg | ordered
 ```
 
 ---

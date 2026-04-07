@@ -15,6 +15,7 @@ from src.data.models import (
     WeatherData,
 )
 from src.render.canvas import render_dashboard
+from src.render.theme import Theme, ThemeLayout, ThemeStyle
 
 
 def _make_data(today: date | None = None) -> DashboardData:
@@ -152,3 +153,51 @@ class TestRenderDashboard:
         result = render_dashboard(data, cfg)
         assert result.size == (640, 384)
         assert result.mode == "1"
+
+
+class TestGreyscaleCanvas:
+    """Verify that a theme opting in to canvas_mode='L' still returns a 1-bit image."""
+
+    def _make_l_theme(self) -> Theme:
+        """Minimal L-mode theme: full-canvas header only, no other components."""
+        layout = ThemeLayout(
+            canvas_w=200,
+            canvas_h=100,
+            canvas_mode="L",
+            draw_order=["header"],
+        )
+        # L-mode themes must use bg=255 (white) and fg=0 (black)
+        style = ThemeStyle(fg=0, bg=255)
+        return Theme(name="_test_l", layout=layout, style=style)
+
+    def test_l_canvas_theme_returns_1bit(self):
+        data = _make_data()
+        cfg = DisplayConfig(width=200, height=100)
+        theme = self._make_l_theme()
+        result = render_dashboard(data, cfg, theme=theme)
+        assert result.mode == "1"
+
+    def test_l_canvas_theme_correct_dimensions(self):
+        data = _make_data()
+        cfg = DisplayConfig(width=200, height=100)
+        theme = self._make_l_theme()
+        result = render_dashboard(data, cfg, theme=theme)
+        assert result.size == (200, 100)
+
+    def test_l_canvas_theme_non_blank(self):
+        """L-mode theme with header should draw something."""
+        data = _make_data()
+        cfg = DisplayConfig(width=200, height=100)
+        theme = self._make_l_theme()
+        result = render_dashboard(data, cfg, theme=theme)
+        assert result.getbbox() is not None, "Expected black pixels but image is all white"
+
+    def test_l_canvas_with_quantization_modes(self):
+        """All three quantization modes should return a valid 1-bit image."""
+        data = _make_data()
+        theme = self._make_l_theme()
+        for mode in ("threshold", "floyd_steinberg", "ordered"):
+            cfg = DisplayConfig(width=200, height=100, quantization_mode=mode)
+            result = render_dashboard(data, cfg, theme=theme)
+            assert result.mode == "1", f"Failed for mode={mode}"
+            assert result.size == (200, 100), f"Wrong size for mode={mode}"

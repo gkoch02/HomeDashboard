@@ -28,6 +28,7 @@ from src.render.components import (
 from src.render.components import (
     weather_full as weather_full_comp,
 )
+from src.render.quantize import quantize_for_display
 from src.render.theme import Theme, default_theme
 
 # Base resolution used when no theme is provided (legacy path).
@@ -45,9 +46,14 @@ def render_dashboard(
 ) -> Image.Image:
     """Compose all components onto a 1-bit image at the configured display resolution.
 
-    Components are drawn at the theme's base canvas size (default: 800×480).
-    If the configured display differs, the image is scaled to native resolution
-    via LANCZOS resampling before being returned.
+    Components are drawn at the theme's base canvas size (default: 800×480) using the
+    canvas mode declared by the theme (``layout.canvas_mode``; ``"1"`` for all existing
+    themes, ``"L"`` for new greyscale themes that opt in).
+
+    If the configured display differs from the canvas size, the image is scaled to native
+    resolution via LANCZOS resampling.  The final quantization step (``"L"`` → ``"1"``)
+    is applied whenever a resize occurred OR the canvas mode is ``"L"``.  The algorithm
+    used is controlled by ``config.quantization_mode`` (default: ``"threshold"``).
 
     When *theme* is ``None``, the default theme is used, producing output
     identical to the pre-theme rendering.
@@ -58,7 +64,7 @@ def render_dashboard(
     layout = theme.layout
     style = theme.style
 
-    image = Image.new("1", (layout.canvas_w, layout.canvas_h), style.bg)
+    image = Image.new(layout.canvas_mode, (layout.canvas_w, layout.canvas_h), style.bg)
     if layout.background_fn is not None:
         layout.background_fn(image, layout, style)
     draw = ImageDraw.Draw(image)
@@ -255,12 +261,17 @@ def render_dashboard(
     if layout.overlay_fn is not None:
         layout.overlay_fn(draw, layout, style)
 
-    # Scale to native display resolution when it differs from the base canvas size
-    if (config.width, config.height) != (layout.canvas_w, layout.canvas_h):
-        image = (
-            image.convert("L")
-            .resize((config.width, config.height), Image.Resampling.LANCZOS)
-            .convert("1", dither=Image.Dither.FLOYDSTEINBERG)
-        )
+    # Scale to native display resolution and/or quantize to 1-bit.
+    # Quantization is needed whenever a resize occurred (LANCZOS produces grey pixels)
+    # or the theme rendered onto a greyscale canvas (canvas_mode == "L").
+    needs_resize = (config.width, config.height) != (layout.canvas_w, layout.canvas_h)
+    needs_quantize = needs_resize or layout.canvas_mode == "L"
+
+    if needs_resize:
+        l_image = image if layout.canvas_mode == "L" else image.convert("L")
+        image = l_image.resize((config.width, config.height), Image.Resampling.LANCZOS)
+
+    if needs_quantize:
+        image = quantize_for_display(image, config.quantization_mode)
 
     return image

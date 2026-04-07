@@ -73,6 +73,7 @@ src/
 └── render/
     ├── canvas.py              # Top-level render orchestrator (dispatches to components by theme)
     ├── theme.py               # Theme system (ComponentRegion, ThemeLayout, ThemeStyle); AVAILABLE_THEMES
+    ├── quantize.py            # quantize_for_display() — converts L→"1" via threshold / floyd_steinberg / ordered
     ├── random_theme.py        # Daily/hourly random theme selection + persistence
     ├── layout.py              # Default layout constants
     ├── fonts.py               # Font loader (@lru_cache)
@@ -137,7 +138,9 @@ requirements-pi.txt            # Raspberry Pi-specific deps (gpiozero, lgpio, Wa
 Fetchers, caching, circuit breaking, and staleness are all per-source (calendar, weather, birthdays, air_quality). A weather API failure doesn't block calendar rendering. PurpleAir is fully optional — when `purpleair.api_key` and `purpleair.sensor_id` are absent, the source is silently skipped.
 
 ### Theme system
-Three-layer design: **ComponentRegion** (bounding box) → **ThemeLayout** (canvas + regions + draw order) → **ThemeStyle** (colors, fonts, spacing). Components receive region + style and draw only within bounds. Themes are frozen dataclasses.
+Three-layer design: **ComponentRegion** (bounding box) → **ThemeLayout** (canvas + regions + draw order + `canvas_mode`) → **ThemeStyle** (colors, fonts, spacing). Components receive region + style and draw only within bounds. Themes are frozen dataclasses.
+
+`ThemeLayout.canvas_mode` is `"1"` (1-bit, default — all 20 built-in themes) or `"L"` (8-bit greyscale, opt-in for new themes). L-mode themes must use `fg=0, bg=255` in `ThemeStyle` (`bg=1` is near-black in L mode, not white). The final L→`"1"` conversion is handled by `quantize_for_display()` in `render/quantize.py` and is controlled by `display.quantization_mode` in config (`threshold` / `floyd_steinberg` / `ordered`). All existing themes and display drivers are unchanged — `render_dashboard()` always returns a mode `"1"` image.
 
 Two rotation cadences are available: `theme: random_daily` (alias: `random`) picks once per day after midnight and persists to `state/random_theme_state.json`; `theme: random_hourly` picks once per hour and persists to `state/random_theme_hourly_state.json`. Both use the same `random_theme.include` / `random_theme.exclude` lists. The concrete theme name is resolved in `services/theme.py` before `load_theme()` is called — `load_theme()` itself never receives a pseudo-theme name.
 
@@ -152,6 +155,8 @@ Two rotation cadences are available: `theme: random_daily` (alias: `random`) pic
 
 ### Rendering
 Components are pure functions: `draw_*(draw, data, region, style) -> None`. No global state. Same input produces the same PNG.
+
+`render_dashboard()` creates the canvas in `layout.canvas_mode` (`"1"` for all built-in themes). After drawing and any optional overlay, a resize via LANCZOS is applied if display dimensions differ from canvas dimensions. Quantization (`quantize_for_display()`) fires whenever a resize occurred **or** the canvas is `"L"`, converting the greyscale image to final 1-bit output. The quantization algorithm is read from `config.display.quantization_mode` (default `"threshold"`). The SHA-256 image hash used for refresh suppression is always computed on the final 1-bit image.
 
 ## Key Conventions
 
@@ -183,7 +188,7 @@ Components are pure functions: `draw_*(draw, data, region, style) -> None`. No g
 
 **New component**: Create `src/render/components/my_component.py` → implement `draw_my_component(draw, data, region, style)` → add `ComponentRegion` to themes → register in `canvas.py` draw dispatch → add to theme `draw_order`.
 
-**New theme**: Create `src/render/themes/my_theme.py` → implement `my_theme() -> Theme` factory → register in `load_theme()` in `theme.py` → add name to `AVAILABLE_THEMES`. New themes are automatically included in the random rotation pool (both daily and hourly). To exclude a theme from the pool (e.g. utility or diagnostic views), add its name to `_EXCLUDED_FROM_POOL` in `src/render/random_theme.py`.
+**New theme**: Create `src/render/themes/my_theme.py` → implement `my_theme() -> Theme` factory → register in `load_theme()` in `theme.py` → add name to `AVAILABLE_THEMES`. New themes are automatically included in the random rotation pool (both daily and hourly). To exclude a theme from the pool (e.g. utility or diagnostic views), add its name to `_EXCLUDED_FROM_POOL` in `src/render/random_theme.py`. To author a greyscale theme, set `canvas_mode="L"` in `ThemeLayout` and use `fg=0, bg=255` in `ThemeStyle` — the quantize step handles the final L→`"1"` conversion automatically.
 
 **New fetcher**: Create `src/fetchers/my_fetcher.py` → use `cache.py` and `circuit_breaker.py` → integrate into `DataPipeline` in `data_pipeline.py` → extend `DashboardData` if needed → add ser/deser branch to `cache.py` `save_source()`/`load_cached_source()`. See `purpleair.py` as a reference implementation.
 
@@ -209,13 +214,19 @@ Components are pure functions: `draw_*(draw, data, region, style) -> None`. No g
 | `SpaceGrotesk-Bold.ttf` | `sg_bold` | `air_quality`, `message` |
 | `NuCore.otf` / `NuCore Condensed.otf` | *(unused — available for new themes)* | — |
 
+### `ThemeLayout` rendering fields
+
+| Field | Default | Effect |
+|---|---|---|
+| `canvas_mode` | `"1"` | PIL image mode for the internal canvas. `"1"` = 1-bit bilevel (all built-in themes). `"L"` = 8-bit greyscale (opt-in for new themes). L-mode themes must use `fg=0, bg=255` in `ThemeStyle`. |
+
 ### `ThemeStyle` fields
 
 #### Boolean / scalar flags
 
 | Field | Default | Effect |
 |---|---|---|
-| `fg` / `bg` | `0` / `1` | 1-bit color values: 0 = BLACK, 1 = WHITE |
+| `fg` / `bg` | `0` / `1` | 1-bit color values: 0 = BLACK, 1 = WHITE. For `canvas_mode="L"` themes use `fg=0, bg=255` instead. |
 | `invert_header` | `True` | Fill header bar with `fg`, draw text in `bg` |
 | `invert_today_col` | `True` | Fill today column with `fg`, draw text in `bg` |
 | `invert_allday_bars` | `True` | Filled (vs outlined) all-day event bars |
@@ -251,6 +262,8 @@ default to `None` and fall back gracefully so adding a new field never breaks ex
 - Morning startup: first run within 30 minutes after `quiet_hours_end` automatically forces a full refresh, regardless of `--force-full-refresh`
 - eInk partial refreshes degrade quality; full refresh forced after `max_partials_before_full` partials
 - Default canvas: 800×480; scaled via LANCZOS to match display resolution
+- LANCZOS resize produces greyscale pixels; those are quantized to 1-bit by `quantize_for_display()`. The default `threshold` mode differs from the previous hard `.convert("1")` which used Floyd-Steinberg by Pillow default — set `display.quantization_mode: "floyd_steinberg"` to restore the old resize behavior if needed
+- `canvas_mode = "L"` themes must use `bg=255` (not `bg=1`) in `ThemeStyle`; `bg=1` is near-black in L mode. All 20 built-in themes use `canvas_mode="1"` (default) and are unaffected
 - Image hash comparison (`last_image_hash.txt`) skips eInk writes when content unchanged
 - Health marker written to `output/last_success.txt` on every successful run (ISO timestamp)
 - Daily random theme state persists in `state/random_theme_state.json`; delete it to force a new pick mid-day

@@ -138,6 +138,7 @@ Dashboard-v4/
 │   └── render/
 │       ├── canvas.py             # Top-level render orchestrator (theme-driven)
 │       ├── theme.py              # Theme system (ComponentRegion, ThemeLayout, ThemeStyle)
+│       ├── quantize.py           # Final L→"1" quantization (threshold / floyd_steinberg / ordered)
 │       ├── random_theme.py       # Daily/hourly random theme selection + persistence
 │       ├── layout.py             # Default pixel geometry constants
 │       ├── fonts.py              # Font loader with @lru_cache
@@ -146,7 +147,7 @@ Dashboard-v4/
 │       ├── primitives.py         # Shared draw helpers (truncation, wrapping, fmt_time, events_for_day, deg_to_compass)
 │       ├── themes/               # Built-in theme factories
 │       └── components/           # One file per UI region
-├── tests/                        # Full test suite (1270+ tests)
+├── tests/                        # Full test suite (1580+ tests)
 ├── docs/                         # User and contributor documentation
 │   ├── architecture.md           # Data flow, module layers, design decisions
 │   └── ...

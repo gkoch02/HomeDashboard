@@ -49,6 +49,7 @@ class TestDefaults:
         assert d.show_weather is True
         assert d.show_birthdays is True
         assert d.show_info_panel is True
+        assert d.quantization_mode == "threshold"
 
     def test_schedule_defaults(self):
         s = ScheduleConfig()
@@ -192,6 +193,18 @@ class TestLoadConfig:
         assert cfg.display.model == "epd13in3k"
         assert cfg.display.width == 1600
         assert cfg.display.height == 1200
+
+    def test_quantization_mode_from_yaml(self, tmp_path):
+        p = tmp_path / "config.yaml"
+        p.write_text(yaml.dump({"display": {"quantization_mode": "floyd_steinberg"}}))
+        cfg = load_config(str(p))
+        assert cfg.display.quantization_mode == "floyd_steinberg"
+
+    def test_quantization_mode_ordered_from_yaml(self, tmp_path):
+        p = tmp_path / "config.yaml"
+        p.write_text(yaml.dump({"display": {"quantization_mode": "ordered"}}))
+        cfg = load_config(str(p))
+        assert cfg.display.quantization_mode == "ordered"
 
     def test_timezone_loaded_from_config(self, tmp_path):
         p = tmp_path / "config.yaml"

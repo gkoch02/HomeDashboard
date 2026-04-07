@@ -535,6 +535,58 @@ See the theme reference tables and font customization guide in [`CLAUDE.md`](../
 
 ---
 
+## Greyscale themes (opt-in)
+
+All 20 built-in themes render in strict black/white (1-bit canvas).  For themes that need
+intermediate grey values — photo backgrounds, gradients, soft shadows — you can opt in to
+greyscale rendering by setting `canvas_mode = "L"` on `ThemeLayout`:
+
+```python
+from src.render.theme import ComponentRegion, Theme, ThemeLayout, ThemeStyle
+
+def soft_theme() -> Theme:
+    return Theme(
+        name="soft",
+        layout=ThemeLayout(
+            canvas_w=800, canvas_h=480,
+            canvas_mode="L",          # ← opt in to 8-bit greyscale canvas
+            header=ComponentRegion(0, 0, 800, 40),
+            week_view=ComponentRegion(0, 40, 800, 440),
+        ),
+        style=ThemeStyle(
+            fg=0,    # black  (0 in L mode — same as always)
+            bg=255,  # white  (255 in L mode — must be 255, not 1)
+            invert_header=True,
+        ),
+    )
+```
+
+**Rules for L-mode themes:**
+
+| Rule | Reason |
+|---|---|
+| Use `fg=0, bg=255` (not `bg=1`) | In L mode, `1` is near-black (1/255 grey), not white. Existing themes use `bg=1` which is only correct in 1-bit mode. |
+| Inverted palette: `fg=255, bg=0` | `255` is white in L mode. |
+| Components draw with 0–255 fill values | Full greyscale range is available; use any value 0–255. |
+
+**How the final output is produced:**
+
+The L canvas is quantized to 1-bit at the very end of `render_dashboard()`, using the
+`display.quantization_mode` setting from `config.yaml` (default: `threshold`).  Choose
+`floyd_steinberg` or `ordered` for better apparent grey rendering:
+
+```yaml
+display:
+  quantization_mode: "floyd_steinberg"  # or "ordered" for Bayer halftone
+```
+
+See [Quantization mode](configuration.md#quantization-mode) for mode descriptions.
+
+The output contract is unchanged: `render_dashboard()` always returns a 1-bit PIL Image.
+Existing display drivers, image hashing, and dry-run preview all work without modification.
+
+---
+
 ## Typography
 
 | Font | Used for |

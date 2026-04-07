@@ -64,6 +64,7 @@ class DisplayConfig:
     show_weather: bool = True
     show_birthdays: bool = True
     show_info_panel: bool = True
+    quantization_mode: str = "threshold"
 
 
 @dataclass
@@ -231,6 +232,7 @@ def load_config(path: str = "config/config.yaml") -> Config:
             show_weather=d.get("show_weather", True),
             show_birthdays=d.get("show_birthdays", True),
             show_info_panel=d.get("show_info_panel", True),
+            quantization_mode=d.get("quantization_mode", "threshold"),
         )
 
     if "schedule" in raw:
@@ -529,6 +531,17 @@ def validate_config(
                     hint=f"Available themes: {', '.join(sorted(real_themes))}",
                 )
             )
+
+    # --- Display quantization mode ---
+    _VALID_QUANT = ("threshold", "floyd_steinberg", "ordered")
+    if cfg.display.quantization_mode not in _VALID_QUANT:
+        errors.append(
+            ConfigError(
+                field="display.quantization_mode",
+                message=f"Unknown quantization mode: '{cfg.display.quantization_mode}'",
+                hint=f"Valid modes: {', '.join(_VALID_QUANT)}",
+            )
+        )
 
     # --- Display model ---
     from src.display.driver import WAVESHARE_MODELS

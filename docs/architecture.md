@@ -39,11 +39,13 @@ CLI (main.py)
      ├─ load theme → Theme(name, style, layout)
      │
      ├─ render_dashboard()
-     │   ├─ create 800×480 canvas
+     │   ├─ create canvas at theme's declared mode ("1" or "L") and size
      │   ├─ iterate theme.layout.draw_order
      │   │   └─ dispatch to component drawers
      │   ├─ apply overlay (if theme defines one)
-     │   └─ return PIL Image
+     │   ├─ resize via LANCZOS if display ≠ canvas size  (stays in L)
+     │   ├─ quantize_for_display() if canvas is "L" or resize occurred
+     │   └─ return PIL Image (always mode "1")
      │
      └─ OutputService.publish()
          ├─ dry-run: save PNG
@@ -80,8 +82,9 @@ CLI (main.py)
 - **`services/output.py`** — Publish to display or PNG, write health marker
 
 ### Rendering
-- **`render/canvas.py`** — Top-level render: create canvas, dispatch to components
+- **`render/canvas.py`** — Top-level render: create canvas, dispatch to components, quantize to 1-bit
 - **`render/theme.py`** — Theme registry, `load_theme()`, `ThemeLayout`, `ThemeStyle`
+- **`render/quantize.py`** — `quantize_for_display(image, mode)`: converts greyscale L → mode "1" using threshold, floyd_steinberg, or ordered (Bayer) dithering
 - **`render/themes/`** — One file per theme (20 built-in themes), each exports a factory function
 - **`render/components/`** — One file per UI region: `draw_*(draw, data, region, style)`
 - **`render/random_theme.py`** — Daily/hourly random theme selection with persistence
@@ -116,10 +119,16 @@ Based on the ratio of cache age to TTL:
 ### Theme system
 Three-layer design:
 1. **`ComponentRegion(x, y, w, h, visible)`** — bounding box for a UI element
-2. **`ThemeLayout`** — canvas dimensions + regions + draw order
+2. **`ThemeLayout`** — canvas dimensions + regions + draw order + `canvas_mode`
 3. **`ThemeStyle`** — colors, fonts, spacing, inversion flags
 
 Themes are frozen dataclasses. Components are pure functions that receive `(draw, data, region, style)` and draw within bounds.
+
+**Canvas mode** (`ThemeLayout.canvas_mode`) controls the internal rendering surface:
+- `"1"` (default) — strict 1-bit bilevel. All 20 built-in themes use this. `fg=0` (black), `bg=1` (white in 1-bit mode).
+- `"L"` (opt-in) — 8-bit greyscale. New themes that need intermediate grey values (gradients, photo backgrounds) set this explicitly. **Must use `fg=0, bg=255`** in `ThemeStyle` (in L mode, `1` is near-black, not white).
+
+The final quantization step (`quantize_for_display()` in `render/quantize.py`) is applied whenever the canvas is `"L"` or a resize occurred, converting the greyscale image to the 1-bit output expected by the display drivers. The algorithm is controlled by `display.quantization_mode` in `config.yaml`.
 
 ### State vs. output separation
 - **`state/`** — Runtime state (cache, breaker, quota, sync tokens, theme state). Machine-readable, not user-facing.

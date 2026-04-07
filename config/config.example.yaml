@@ -12,6 +12,14 @@ display:
   show_weather: true
   show_birthdays: true
   show_info_panel: true
+  # Final quantization algorithm used when converting greyscale → 1-bit for display.
+  # "threshold"       – simple 128-level split; preserves strict black/white rendering
+  #                     (default; matches existing behaviour for all built-in themes)
+  # "floyd_steinberg" – error-diffusion dithering; better apparent grey for scaled output
+  #                     Note: current resize behaviour already uses floyd_steinberg via PIL
+  #                     default; set this to preserve that if you rely on non-default displays
+  # "ordered"         – 4×4 Bayer ordered dithering; structured dot-matrix pattern
+  # quantization_mode: "threshold"
 
 google:
   service_account_path: "credentials/service_account.json"
