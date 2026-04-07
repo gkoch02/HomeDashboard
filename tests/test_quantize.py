@@ -11,6 +11,7 @@ from src.render.quantize import _VALID_MODES, quantize_for_display
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _solid_L(value: int, w: int = 8, h: int = 8) -> Image.Image:
     """Return a solid greyscale image filled with *value* (0–255)."""
     img = Image.new("L", (w, h), value)
@@ -28,6 +29,7 @@ def _gradient_L(w: int = 16, h: int = 1) -> Image.Image:
 # ---------------------------------------------------------------------------
 # Return type / dimensions
 # ---------------------------------------------------------------------------
+
 
 class TestReturnContract:
     @pytest.mark.parametrize("mode", _VALID_MODES)
@@ -56,6 +58,7 @@ class TestReturnContract:
 # ---------------------------------------------------------------------------
 # Threshold mode
 # ---------------------------------------------------------------------------
+
 
 class TestThresholdMode:
     def test_pure_black_stays_black(self):
@@ -92,6 +95,7 @@ class TestThresholdMode:
 # Floyd-Steinberg mode
 # ---------------------------------------------------------------------------
 
+
 class TestFloydSteinbergMode:
     def test_pure_black_stays_black(self):
         result = quantize_for_display(_solid_L(0), mode="floyd_steinberg")
@@ -113,6 +117,7 @@ class TestFloydSteinbergMode:
 # ---------------------------------------------------------------------------
 # Ordered (Bayer) mode
 # ---------------------------------------------------------------------------
+
 
 class TestOrderedMode:
     def test_pure_black_stays_black(self):

@@ -20,6 +20,7 @@ ordered
     (``getdata`` / ``putdata``) — no numpy dependency required.
     Produces a regular dot-matrix pattern; useful for structured gradients.
 """
+
 from __future__ import annotations
 
 from PIL import Image
@@ -31,10 +32,10 @@ _VALID_MODES = ("threshold", "floyd_steinberg", "ordered")
 # (value 255) always exceeds every threshold and maps cleanly to white.
 # Entry [r][c] = threshold for pixel at (x % 4 == c, y % 4 == r).
 _BAYER_4X4: list[list[int]] = [
-    [  0, 128,  32, 160],
-    [192,  64, 224,  96],
-    [ 48, 176,  16, 144],
-    [240, 112, 208,  80],
+    [0, 128, 32, 160],
+    [192, 64, 224, 96],
+    [48, 176, 16, 144],
+    [240, 112, 208, 80],
 ]
 
 
@@ -63,10 +64,7 @@ def quantize_for_display(image: Image.Image, mode: str = "threshold") -> Image.I
     if mode == "ordered":
         return _ordered_bayer(image)
 
-    raise ValueError(
-        f"Unknown quantization mode {mode!r}. "
-        f"Valid modes: {', '.join(_VALID_MODES)}"
-    )
+    raise ValueError(f"Unknown quantization mode {mode!r}. Valid modes: {', '.join(_VALID_MODES)}")
 
 
 def _ordered_bayer(image: Image.Image) -> Image.Image:
