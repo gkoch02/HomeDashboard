@@ -11,6 +11,7 @@ The dashboard includes an optional web interface hosted directly on the Pi. It h
 - [Pages and features](#pages-and-features)
 - [Manual refresh](#manual-refresh)
 - [Accessing the UI](#accessing-the-ui)
+- [Mobile support](#mobile-support)
 - [Logs and events](#logs-and-events)
 - [Running without systemd](#running-without-systemd)
 - [Security considerations](#security-considerations)
@@ -157,11 +158,11 @@ The main landing page. Refreshes automatically every 30 seconds.
 | **System** | Uptime, load average, RAM, disk, CPU temperature, IP address |
 | **Log tail** | Last 100 lines of `output/dashboard.log` |
 
-The **Refresh Now** button in the Data Sources card header triggers an immediate dashboard run (see [Manual refresh](#manual-refresh)). If the live image has not rendered yet, the page now shows an explicit empty-state hint instead of a dead-looking blank area.
+The **Refresh Now** button in the Data Sources card header triggers an immediate dashboard run (see [Manual refresh](#manual-refresh)). If quiet hours are currently active, clicking Refresh Now shows a confirmation dialog with the active window's start and end times before proceeding. If the live image has not rendered yet, the page shows an explicit empty-state hint instead of a dead-looking blank area.
 
 Each source row also has:
-- **Reset** — reset the circuit breaker to `closed`
-- **Clear** — remove cached data for that source so the next refresh fetches live data again
+- **Reset** — reset the circuit breaker to `closed` (asks for confirmation before proceeding)
+- **Clear** — remove cached data for that source so the next refresh fetches live data again (asks for confirmation before proceeding)
 
 ### Config page (`/config`)
 
@@ -189,10 +190,15 @@ Additional config-page behavior:
 
 - **Save** first opens a review dialog showing the changed fields and their before/after values, then validates the patch before writing.
 - **Save + Refresh** uses the same review step, then writes config and requests a dashboard refresh.
-- Fatal validation errors block the save and are shown inline.
+- Fatal validation errors block the save and are shown inline with a red border on the offending field.
 - Warnings are shown but do not block saving.
-- Unsaved-change state is tracked in the UI.
+- **Unsaved-change indicator**: an "unsaved changes" badge and **Discard** button appear as soon as the first edit is made; both clear automatically on successful save. Clicking Discard reloads all fields from `/api/config` and reverts any edits (asks for confirmation first).
+- Navigating away from the page with unsaved changes triggers a browser `beforeunload` warning.
 - Existing config backups are rotated instead of silently overwritten.
+- **Theme thumbnail grid**: click a thumbnail to select a theme; double-click to open a full-size preview in a native dialog overlay (click the backdrop or ✕ to close). A hint below the grid reminds you of this.
+- **Quiet hours context hint**: a live status hint below the quiet-hours inputs shows whether quiet hours are currently active (updated from the 30-second status poll — no extra requests).
+- **Theme schedule**: duplicate times are detected client-side and flagged before the form is submitted.
+- **Latitude / Longitude**: HTML5 `min`/`max` constraints enforce valid ranges (−90–90 / −180–180) directly in the browser.
 
 **Sensitive fields** (API keys, credential file paths) are never sent to the browser. The credentials section shows only whether each credential is set or missing.
 
@@ -232,6 +238,17 @@ ssh -L 8080:localhost:8080 pi@raspberrypi.local
 ```
 
 Then open `http://localhost:8080` in your browser. The tunnel closes when you exit the SSH session.
+
+---
+
+## Mobile support
+
+The UI is fully responsive and works on phones and tablets.
+
+- **Navigation**: on screens narrower than 600 px, the nav links collapse behind a hamburger menu (☰). Tap to toggle; tapping outside the menu or navigating away closes it automatically.
+- **Touch targets**: buttons use enlarged minimum tap areas; card hover effects are suppressed on touch screens.
+- **Config page**: a scrollable pill row of section anchors appears on mobile so you can jump directly to any section without scrolling.
+- **Theme grid**: switches to a 2-column CSS grid on mobile instead of a wrapping flex row.
 
 ---
 
