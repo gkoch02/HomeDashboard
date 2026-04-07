@@ -5,8 +5,8 @@
 - [Switching themes](#switching-themes)
 - [Random rotation](#random-rotation)
 - [Time-of-day theme schedule](#time-of-day-theme-schedule)
-- [Built-in themes](#built-in-themes) — 20 themes plus pseudo-themes
-  - **Standard week-view**: [default](#default), [terminal](#terminal), [minimalist](#minimalist), [old\_fashioned](#old_fashioned), [today](#today), [fantasy](#fantasy)
+- [Built-in themes](#built-in-themes) — 21 themes plus pseudo-themes
+  - **Standard week-view**: [default](#default), [graphite](#graphite), [terminal](#terminal), [minimalist](#minimalist), [old\_fashioned](#old_fashioned), [today](#today), [fantasy](#fantasy)
   - **Full-screen focused**: [qotd](#qotd), [qotd\_invert](#qotd_invert), [fuzzyclock](#fuzzyclock), [fuzzyclock\_invert](#fuzzyclock_invert), [weather](#weather), [moonphase](#moonphase), [moonphase\_invert](#moonphase_invert)
   - **Specialized views**: [timeline](#timeline), [year\_pulse](#year_pulse), [sunrise](#sunrise), [air\_quality](#air_quality), [scorecard](#scorecard), [tides](#tides)
   - **Utility**: [message](#message), [diags](#diags)
@@ -20,7 +20,7 @@
 Switch the entire dashboard layout and visual style with one line in `config.yaml`:
 
 ```yaml
-theme: terminal   # default | terminal | minimalist | old_fashioned | today | fantasy | moonphase | moonphase_invert | qotd | qotd_invert | weather | fuzzyclock | fuzzyclock_invert | air_quality | message | diags | timeline | year_pulse | sunrise | scorecard | tides | random | random_daily | random_hourly
+theme: terminal   # default | graphite | terminal | minimalist | old_fashioned | today | fantasy | moonphase | moonphase_invert | qotd | qotd_invert | weather | fuzzyclock | fuzzyclock_invert | air_quality | message | diags | timeline | year_pulse | sunrise | scorecard | tides | random | random_daily | random_hourly
 ```
 
 Or override it from the command line without editing your config:
@@ -122,6 +122,38 @@ Classic layout. Black text on white. Filled black header, today column, and all-
 event bars. 7-day calendar grid with weather/birthdays/quote along the bottom.
 
 ![Default theme](../output/theme_default.png)
+
+### graphite
+
+The default layout rendered in native **8-bit greyscale** (`canvas_mode="L"`). The structural
+layout is identical to `default` — 40px header, 320px week grid, 120px three-panel bottom bar
+— but three greyscale-exclusive techniques add tonal depth impossible in strict 1-bit mode:
+
+- **Date cell wash**: the combined Sat/Sun date cell (the large "APRIL / 7" zone in the
+  lower-right of the week view) receives a medium-grey fill before the calendar component
+  renders. The inverted APRIL band and the large day numeral are drawn on top; the grey shows
+  through in the open space framing the date.
+- **Tonal panel washes**: the weather, birthdays, and info panels each receive a distinct
+  grey fill (weather: darkest ~37%, birthdays: ~31%, info: ~25%) before components render.
+  Where components leave whitespace — around labels, between quote lines, beside the weather
+  icon — the underlying grey tint shows through, visually separating the info zone from the
+  clean white calendar above.
+- **Soft structural borders**: after all components have drawn their solid-black lines, the
+  overlay repaints those dividers with graduated grey values (two-tone shadow at the
+  week-view/bottom-bar boundary; mid-grey vertical panel separators), so borders read as
+  shadows rather than hard edges.
+
+The full effect requires dithering. Set `display.quantization_mode` in `config.yaml`:
+
+| Mode | Effect |
+|---|---|
+| `threshold` (default) | All grey zones collapse to white (>128); theme degrades gracefully to match default |
+| `floyd_steinberg` | Recommended — clearly visible error-diffusion halftone on the date cell and all three panels |
+| `ordered` | Bayer dot-matrix texture — regular, mechanical, distinctly greyscale |
+
+Font: DM Sans geometric variable sans (same as `minimalist`, `weather`, and `fuzzyclock`).
+
+![Graphite theme](../output/theme_graphite.png)
 
 ### terminal
 
@@ -597,7 +629,7 @@ Existing display drivers, image hashing, and dry-run preview all work without mo
 | Maratype | `terminal` theme — dashboard title, day column headers, quote body |
 | UESC Display | `terminal` theme — month band, section labels, quote attribution |
 | Synthetic Genesis | `terminal` theme — large today date numeral |
-| [DM Sans](https://fonts.google.com/specimen/DM+Sans) | `minimalist` theme; `weather` theme; `fuzzyclock` theme; `timeline` theme; `diags` theme — section labels |
+| [DM Sans](https://fonts.google.com/specimen/DM+Sans) | `graphite` theme; `minimalist` theme; `weather` theme; `fuzzyclock` theme; `timeline` theme; `diags` theme — section labels |
 | [Playfair Display](https://fonts.google.com/specimen/Playfair+Display) | `old_fashioned` theme; `qotd` quote text; `moonphase` body text and quote |
 | [Cinzel](https://fonts.google.com/specimen/Cinzel) | `fantasy` theme; `old_fashioned` section labels; `moonphase` date and phase name |
 | [Space Grotesk](https://fonts.google.com/specimen/Space+Grotesk) | `air_quality` theme; `message` theme; `year_pulse` theme; `scorecard` theme — hero numbers, labels, and context |
