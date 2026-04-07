@@ -399,12 +399,19 @@ input:focus, select:focus, textarea:focus, button:focus {
   .field-hint {
     padding-left: 0;
   }
-  .check-row {
-    padding-left: 0 !important;
+  .check-row-indented {
+    padding-left: 0;
   }
   .theme-opt {
     min-width: 96px;
   }
+  /* Restore table layout for the schedule table — it has its own wrapper for overflow */
+  .sched-table, .sched-table thead, .sched-table tbody,
+  .sched-table th, .sched-table td, .sched-table tr {
+    display: revert;
+  }
+  .sched-table thead { display: table-header-group; }
+  .sched-table td::before { display: none; }
 }
 
 @media (max-width: 600px) {
@@ -605,6 +612,7 @@ input[readonly], input[disabled] { background: var(--bg); color: var(--text-mute
   margin-bottom: .4rem;
 }
 .check-row label { font-size: 13px; cursor: pointer; }
+.check-row-indented { padding-left: 208px; }
 
 /* Theme grid */
 .theme-grid {
@@ -637,6 +645,7 @@ input[readonly], input[disabled] { background: var(--bg); color: var(--text-mute
 .theme-opt.selected { border-color: var(--accent); background: #f0f4ff; }
 
 /* Theme schedule table */
+.sched-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 .sched-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .sched-table th { padding: .3rem .5rem; text-align: left; font-size: 11px;
                   font-weight: 600; color: var(--text-muted); border-bottom: 1px solid var(--border); }

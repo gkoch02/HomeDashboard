@@ -177,19 +177,19 @@
     </div>
     <div class="field-hint">Hardware model — change in config.yaml directly.</div>
 
-    <div class="check-row" style="padding-left:208px;">
+    <div class="check-row check-row-indented">
       <input type="checkbox" id="cfg-show-weather" data-field="display.show_weather" {{ "checked" if cfg.display.show_weather }}>
       <label for="cfg-show-weather">Show weather panel</label>
     </div>
-    <div class="check-row" style="padding-left:208px;">
+    <div class="check-row check-row-indented">
       <input type="checkbox" id="cfg-show-birthdays" data-field="display.show_birthdays" {{ "checked" if cfg.display.show_birthdays }}>
       <label for="cfg-show-birthdays">Show birthdays bar</label>
     </div>
-    <div class="check-row" style="padding-left:208px;">
+    <div class="check-row check-row-indented">
       <input type="checkbox" id="cfg-show-info" data-field="display.show_info_panel" {{ "checked" if cfg.display.show_info_panel }}>
       <label for="cfg-show-info">Show info panel (quote / system)</label>
     </div>
-    <div class="check-row" style="padding-left:208px;">
+    <div class="check-row check-row-indented">
       <input type="checkbox" id="cfg-partial-refresh" data-field="display.enable_partial_refresh" {{ "checked" if cfg.display.enable_partial_refresh }}>
       <label for="cfg-partial-refresh">Enable partial eInk refresh</label>
     </div>
@@ -215,8 +215,8 @@
   {# ------------------------------------------------------------------ #}
   {# Schedule (quiet hours)                                              #}
   {# ------------------------------------------------------------------ #}
-  <div class="cfg-section">
-    <div class="cfg-section-title" id="cfg-sec-schedule">Sleep / Quiet Hours</div>
+  <div class="cfg-section" id="cfg-sec-schedule">
+    <div class="cfg-section-title">Sleep / Quiet Hours</div>
     <div class="field-hint" style="padding-left:0; margin-bottom:.5rem;">
       Display refresh is paused during this window (useful for overnight).
     </div>
@@ -241,8 +241,8 @@
   {# ------------------------------------------------------------------ #}
   {# Weather & Location                                                  #}
   {# ------------------------------------------------------------------ #}
-  <div class="cfg-section">
-    <div class="cfg-section-title" id="cfg-sec-weather">Weather &amp; Location</div>
+  <div class="cfg-section" id="cfg-sec-weather">
+    <div class="cfg-section-title">Weather &amp; Location</div>
 
     <div class="cred-row">
       <span class="cred-label">OWM API key</span>
@@ -282,8 +282,8 @@
   {# ------------------------------------------------------------------ #}
   {# Birthdays                                                           #}
   {# ------------------------------------------------------------------ #}
-  <div class="cfg-section">
-    <div class="cfg-section-title" id="cfg-sec-birthdays">Birthdays</div>
+  <div class="cfg-section" id="cfg-sec-birthdays">
+    <div class="cfg-section-title">Birthdays</div>
 
     <div class="field-row">
       <label class="field-label" for="cfg-bday-source">Source</label>
@@ -314,10 +314,10 @@
   {# ------------------------------------------------------------------ #}
   {# Event Filters                                                       #}
   {# ------------------------------------------------------------------ #}
-  <div class="cfg-section">
-    <div class="cfg-section-title" id="cfg-sec-filters">Calendar &amp; Event Filters</div>
+  <div class="cfg-section" id="cfg-sec-filters">
+    <div class="cfg-section-title">Calendar &amp; Event Filters</div>
 
-    <div class="check-row" style="padding-left:208px; margin-bottom:.5rem;">
+    <div class="check-row check-row-indented" style="margin-bottom:.5rem;">
       <input type="checkbox" id="cfg-excl-allday" data-field="filters.exclude_all_day" {{ "checked" if cfg.filters.exclude_all_day }}>
       <label for="cfg-excl-allday">Hide all-day events</label>
     </div>
@@ -418,30 +418,32 @@
       Ignored when <code>--theme</code> is passed via CLI.
     </div>
 
-    <table class="sched-table">
-      <thead>
-        <tr><th>Time (HH:MM)</th><th>Theme</th><th></th></tr>
-      </thead>
-      <tbody id="sched-tbody">
-        {% for entry in cfg.theme_schedule %}
-          {# Rows are rendered server-side; JS add/remove works on the tbody #}
-          <tr class="schedule-row">
-            <td><input type="time" class="sched-time" value="{{ entry.time }}" required></td>
-            <td>
-              <select class="sched-theme">
-                {% for t in concrete_themes %}
-                  <option value="{{ t }}" {{ "selected" if entry.theme == t }}>{{ t }}</option>
-                {% endfor %}
-              </select>
-            </td>
-            <td>
-              <button type="button" class="btn btn-xs btn-danger"
-                      onclick="this.closest('tr').remove()">✕</button>
-            </td>
-          </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+    <div class="sched-table-wrap">
+      <table class="sched-table">
+        <thead>
+          <tr><th>Time (HH:MM)</th><th>Theme</th><th></th></tr>
+        </thead>
+        <tbody id="sched-tbody">
+          {% for entry in cfg.theme_schedule %}
+            {# Rows are rendered server-side; JS add/remove works on the tbody #}
+            <tr class="schedule-row">
+              <td data-label="Time"><input type="time" class="sched-time" value="{{ entry.time }}" required></td>
+              <td data-label="Theme">
+                <select class="sched-theme">
+                  {% for t in concrete_themes %}
+                    <option value="{{ t }}" {{ "selected" if entry.theme == t }}>{{ t }}</option>
+                  {% endfor %}
+                </select>
+              </td>
+              <td data-label="">
+                <button type="button" class="btn btn-xs btn-danger"
+                        onclick="this.closest('tr').remove()">✕</button>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
     <button type="button" class="btn btn-sm" style="margin-top:.5rem;"
             onclick="addScheduleRow()">+ Add entry</button>
   </div>

@@ -901,9 +901,9 @@ function addScheduleRow(time = "", theme = "") {
   const tr = document.createElement("tr");
   tr.className = "schedule-row";
   tr.innerHTML = `
-    <td><input type="time" class="sched-time" value="${time}" required></td>
-    <td><select class="sched-theme">${opts}</select></td>
-    <td><button type="button" class="btn btn-xs btn-danger" onclick="this.closest('tr').remove()">✕</button></td>
+    <td data-label="Time"><input type="time" class="sched-time" value="${time}" required></td>
+    <td data-label="Theme"><select class="sched-theme">${opts}</select></td>
+    <td data-label=""><button type="button" class="btn btn-xs btn-danger" onclick="this.closest('tr').remove()">✕</button></td>
   `;
   tbody.appendChild(tr);
 }
