@@ -6,32 +6,40 @@ import tempfile
 from datetime import datetime
 from pathlib import Path
 
+# Fallback used when no state_path is provided (e.g. tests that patch this).
 STATE_FILE = Path("/tmp/dashboard_refresh_state.json")
 
 
 class RefreshTracker:
     def __init__(
-        self, partial_count: int = 0, last_full: datetime | None = None, max_partials: int = 6
+        self,
+        partial_count: int = 0,
+        last_full: datetime | None = None,
+        max_partials: int = 6,
+        state_path: Path | None = None,
     ):
         self.partial_count = partial_count
         self.last_full = last_full
         self.max_partials = max_partials
+        self._state_path = state_path if state_path is not None else STATE_FILE
 
     @classmethod
-    def load(cls, max_partials: int = 6) -> RefreshTracker:
-        if STATE_FILE.exists():
+    def load(cls, max_partials: int = 6, state_path: Path | None = None) -> RefreshTracker:
+        path = state_path if state_path is not None else STATE_FILE
+        if path.exists():
             try:
-                data = json.loads(STATE_FILE.read_text())
+                data = json.loads(path.read_text())
                 return cls(
                     partial_count=data.get("partial_count", 0),
                     last_full=(
                         datetime.fromisoformat(data["last_full"]) if data.get("last_full") else None
                     ),
                     max_partials=max_partials,
+                    state_path=path,
                 )
             except (json.JSONDecodeError, KeyError):
                 pass
-        return cls(max_partials=max_partials)
+        return cls(max_partials=max_partials, state_path=path)
 
     def needs_full_refresh(self) -> bool:
         if self.last_full is None:
@@ -52,12 +60,13 @@ class RefreshTracker:
             "partial_count": self.partial_count,
             "last_full": self.last_full.isoformat() if self.last_full else None,
         }
-        STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
-        fd, tmp = tempfile.mkstemp(dir=STATE_FILE.parent, suffix=".tmp")
+        path = self._state_path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        fd, tmp = tempfile.mkstemp(dir=path.parent, suffix=".tmp")
         try:
             with os.fdopen(fd, "w") as f:
                 json.dump(data, f)
-            os.replace(tmp, STATE_FILE)
+            os.replace(tmp, path)
         except BaseException:
             os.unlink(tmp)
             raise
