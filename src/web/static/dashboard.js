@@ -962,8 +962,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const card = document.querySelector(".card");
     if (card) {
-      card.addEventListener("input",  () => setDirty(true));
-      card.addEventListener("change", () => setDirty(true));
+      const isDirtyEvent = e => e.target.id !== "cfg-mode";
+      card.addEventListener("input",  e => { if (isDirtyEvent(e)) setDirty(true); });
+      card.addEventListener("change", e => { if (isDirtyEvent(e)) setDirty(true); });
     }
   }
 
