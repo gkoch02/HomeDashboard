@@ -127,25 +127,29 @@ event bars. 7-day calendar grid with weather/birthdays/quote along the bottom.
 
 The default layout rendered in native **8-bit greyscale** (`canvas_mode="L"`). The structural
 layout is identical to `default` — 40px header, 320px week grid, 120px three-panel bottom bar
-— but two greyscale-exclusive techniques add visual depth impossible in strict 1-bit mode:
+— but three greyscale-exclusive techniques add tonal depth impossible in strict 1-bit mode:
 
+- **Date cell wash**: the combined Sat/Sun date cell (the large "APRIL / 7" zone in the
+  lower-right of the week view) receives a medium-grey fill before the calendar component
+  renders. The inverted APRIL band and the large day numeral are drawn on top; the grey shows
+  through in the open space framing the date.
 - **Tonal panel washes**: the weather, birthdays, and info panels each receive a distinct
-  light-grey background fill (weather: darkest, info: lightest) before components render.
-  Where components leave whitespace — around labels, between quote lines, between weather rows
-  — the underlying grey tint shows through, visually separating the info zone from the clean
-  white calendar above.
+  grey fill (weather: darkest ~37%, birthdays: ~31%, info: ~25%) before components render.
+  Where components leave whitespace — around labels, between quote lines, beside the weather
+  icon — the underlying grey tint shows through, visually separating the info zone from the
+  clean white calendar above.
 - **Soft structural borders**: after all components have drawn their solid-black lines, the
   overlay repaints those dividers with graduated grey values (two-tone shadow at the
   week-view/bottom-bar boundary; mid-grey vertical panel separators), so borders read as
   shadows rather than hard edges.
 
-The full effect is controlled by `display.quantization_mode` in `config.yaml`:
+The full effect requires dithering. Set `display.quantization_mode` in `config.yaml`:
 
 | Mode | Effect |
 |---|---|
-| `threshold` (default) | Panel washes disappear (>128 → white); grey separators survive as a single mid-grey row |
-| `floyd_steinberg` | Beautiful error-diffusion grain on each bottom panel; tonal differences become clearly visible |
-| `ordered` | Bayer dot-matrix texture on the panels — regular, mechanical, distinctly greyscale |
+| `threshold` (default) | All grey zones collapse to white (>128); theme degrades gracefully to match default |
+| `floyd_steinberg` | Recommended — clearly visible error-diffusion halftone on the date cell and all three panels |
+| `ordered` | Bayer dot-matrix texture — regular, mechanical, distinctly greyscale |
 
 Font: DM Sans geometric variable sans (same as `minimalist`, `weather`, and `fuzzyclock`).
 
