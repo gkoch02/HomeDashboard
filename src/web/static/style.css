@@ -683,8 +683,9 @@ input[readonly], input[disabled] { background: var(--bg); color: var(--text-mute
 
 /* Credential status badges */
 .cred-row { display: flex; align-items: center; gap: .5rem;
-            font-size: 13px; margin-bottom: .35rem; }
+            font-size: 13px; margin-bottom: .35rem; flex-wrap: wrap; }
 .cred-label { flex: 0 0 200px; color: var(--text-muted); }
+.cred-value { min-width: 0; overflow-wrap: break-word; word-break: break-all; }
 .cred-set    { color: #15803d; font-weight: 600; }
 .cred-unset  { color: #b91c1c; }
 
