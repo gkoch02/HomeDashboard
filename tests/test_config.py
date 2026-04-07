@@ -44,7 +44,7 @@ class TestDefaults:
         assert d.width == 800
         assert d.height == 480
         assert d.enable_partial_refresh is False
-        assert d.max_partials_before_full == 6
+        assert d.max_partials_before_full == 20
         assert d.week_days == 7
         assert d.show_weather is True
         assert d.show_birthdays is True

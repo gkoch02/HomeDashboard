@@ -27,6 +27,7 @@ class OutputService:
             model=self.cfg.display.model,
             enable_partial=self.cfg.display.enable_partial_refresh,
             max_partials=self.cfg.display.max_partials_before_full,
+            state_dir=self.cfg.state_dir,
         ).show(image, force_full=force_full)
 
         # Save latest.png so the web UI always reflects the current display.

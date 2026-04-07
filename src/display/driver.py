@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import hashlib
 import importlib
 import logging
@@ -93,7 +95,11 @@ class WaveshareDisplay(DisplayDriver):
     """Drives a Waveshare eInk display. Supports multiple models via WAVESHARE_MODELS."""
 
     def __init__(
-        self, model: str = "epd7in5_V2", enable_partial: bool = False, max_partials: int = 6
+        self,
+        model: str = "epd7in5_V2",
+        enable_partial: bool = False,
+        max_partials: int = 6,
+        state_dir: str | None = None,
     ):
         if model not in WAVESHARE_MODELS:
             raise ValueError(
@@ -102,6 +108,7 @@ class WaveshareDisplay(DisplayDriver):
         self.model = model
         self.enable_partial = enable_partial
         self.max_partials = max_partials
+        self.state_dir = state_dir
         self._epd = None
 
     @property
@@ -120,10 +127,17 @@ class WaveshareDisplay(DisplayDriver):
         return self._epd
 
     def show(self, image: Image.Image, force_full: bool = False) -> None:
+        from pathlib import Path
+
         from src.display.refresh_tracker import RefreshTracker
 
+        state_path = (
+            Path(self.state_dir) / "dashboard_refresh_state.json"
+            if self.state_dir is not None
+            else None
+        )
         epd = self._get_epd()
-        tracker = RefreshTracker.load(max_partials=self.max_partials)
+        tracker = RefreshTracker.load(max_partials=self.max_partials, state_path=state_path)
 
         try:
             if force_full or not self.enable_partial or tracker.needs_full_refresh():
@@ -134,9 +148,11 @@ class WaveshareDisplay(DisplayDriver):
                 epd.init_fast()
                 epd.display(epd.getbuffer(image))
                 tracker.record_partial()
-
-            tracker.save()
         finally:
+            try:
+                tracker.save()
+            except Exception as exc:
+                logger.warning("Could not save refresh state: %s", exc)
             try:
                 epd.sleep()
             except Exception as exc:

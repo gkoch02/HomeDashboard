@@ -7,7 +7,7 @@ display:
   # width: 800
   # height: 480
   enable_partial_refresh: true
-  max_partials_before_full: 6
+  max_partials_before_full: 20
   week_days: 7
   show_weather: true
   show_birthdays: true

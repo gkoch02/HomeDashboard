@@ -34,18 +34,18 @@ from src.fetchers.weather import fetch_weather
 
 
 class TestMaxPartialsDefault:
-    def test_dataclass_default_is_six(self):
+    def test_dataclass_default_is_twenty(self):
         d = DisplayConfig()
-        assert d.max_partials_before_full == 6
+        assert d.max_partials_before_full == 20
 
     def test_load_config_default_matches_dataclass(self, tmp_path):
         """load_config() with a display section but no max_partials should
-        produce the same default as the dataclass (6, not 5)."""
+        produce the same default as the dataclass."""
         p = tmp_path / "config.yaml"
         p.write_text(yaml.dump({"display": {"model": "epd7in5_V2"}}))
         cfg = load_config(str(p))
         assert cfg.display.max_partials_before_full == DisplayConfig().max_partials_before_full
-        assert cfg.display.max_partials_before_full == 6
+        assert cfg.display.max_partials_before_full == 20
 
 
 # ---------------------------------------------------------------------------

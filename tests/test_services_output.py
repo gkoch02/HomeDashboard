@@ -15,6 +15,7 @@ def _make_image(w: int = 800, h: int = 480) -> Image.Image:
 def _make_cfg(tmp_path: Path) -> MagicMock:
     cfg = MagicMock()
     cfg.output_dir = str(tmp_path)
+    cfg.state_dir = str(tmp_path / "state")
     cfg.display.model = "epd7in5_V2"
     cfg.display.enable_partial_refresh = False
     cfg.display.max_partials_before_full = 4
@@ -134,6 +135,7 @@ class TestPublishHardware:
             model="epd7in5_HD",
             enable_partial=True,
             max_partials=7,
+            state_dir=str(tmp_path / "state"),
         )
 
     def test_image_changed_called_with_correct_args(self, tmp_path):

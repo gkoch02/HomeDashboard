@@ -59,7 +59,7 @@ class DisplayConfig:
     width: int = 800
     height: int = 480
     enable_partial_refresh: bool = False
-    max_partials_before_full: int = 6
+    max_partials_before_full: int = 20
     week_days: int = 7
     show_weather: bool = True
     show_birthdays: bool = True
@@ -227,7 +227,7 @@ def load_config(path: str = "config/config.yaml") -> Config:
             width=d.get("width", default_w),
             height=d.get("height", default_h),
             enable_partial_refresh=d.get("enable_partial_refresh", False),
-            max_partials_before_full=d.get("max_partials_before_full", 6),
+            max_partials_before_full=d.get("max_partials_before_full", 20),
             week_days=d.get("week_days", 7),
             show_weather=d.get("show_weather", True),
             show_birthdays=d.get("show_birthdays", True),
