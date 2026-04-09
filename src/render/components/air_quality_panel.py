@@ -142,7 +142,6 @@ def _draw_aqi_hero(
     style: ThemeStyle,
 ) -> None:
     """Left: large AQI number + category label.  Right: 6-zone scale bar."""
-    fg = style.fg
     accent = _aqi_accent(style, aq.aqi)
 
     split = int(W * 0.28)  # left column width

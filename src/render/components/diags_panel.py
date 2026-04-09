@@ -149,7 +149,6 @@ def _label(
 ) -> int:
     """Draw section label with optional right-aligned source attribution.
     Returns y advanced past the label row."""
-    fg = style.fg
     lf = style.font_bold(_LABEL_SIZE)
     draw.text((x, y), text, font=lf, fill=style.primary_accent_fill())
     if source:
