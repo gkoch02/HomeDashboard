@@ -73,7 +73,7 @@ def draw_qotd(
 
     quote = _quote_for_today(today, refresh=quote_refresh)
     text = quote["text"]  # marks rendered separately, large
-    author = f"\u2014\u2002{quote['author']}"  # — thin-space author
+    author = f"\u2014 {quote['author']}"
 
     h_pad = 52  # horizontal padding from region edges
     v_pad = 28  # vertical padding at top/bottom
