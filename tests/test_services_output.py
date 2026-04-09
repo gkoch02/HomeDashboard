@@ -349,9 +349,8 @@ class TestInkyThrottleHelper:
 
     def test_does_not_throttle_after_one_hour(self, tmp_path):
         state = tmp_path / "inky_refresh_state.json"
-        state.write_text(
-            '{"last_refresh_at":"%s"}\n' % (_now() - timedelta(hours=1, minutes=1)).isoformat()
-        )
+        refreshed_at = (_now() - timedelta(hours=1, minutes=1)).isoformat()
+        state.write_text(f'{{"last_refresh_at":"{refreshed_at}"}}\n')
         assert (
             should_throttle_inky_refresh(
                 provider="inky",

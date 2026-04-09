@@ -1,7 +1,8 @@
-import logging
 import json
+import logging
 from datetime import datetime
 from pathlib import Path
+from typing import Optional
 
 from src.display.driver import DryRunDisplay, build_display_driver, image_changed
 
@@ -20,7 +21,7 @@ def _last_inky_refresh_path(state_dir: str) -> Path:
     return Path(state_dir) / _INKY_REFRESH_STATE
 
 
-def _load_last_inky_refresh(state_dir: str) -> datetime | None:
+def _load_last_inky_refresh(state_dir: str) -> Optional[datetime]:
     path = _last_inky_refresh_path(state_dir)
     if not path.exists():
         return None

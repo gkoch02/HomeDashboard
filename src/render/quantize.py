@@ -101,7 +101,7 @@ def quantize_to_palette(
     image: Image.Image,
     colors: list[tuple[int, int, int]],
     *,
-    dither: int = Image.Dither.NONE,
+    dither: Image.Dither = Image.Dither.NONE,
 ) -> Image.Image:
     """Convert an image to a limited palette and return it as RGB."""
     palette = build_palette_image(colors)

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from datetime import datetime
 from dataclasses import replace
+from datetime import datetime
 
 from PIL import Image, ImageDraw
 
@@ -126,7 +126,10 @@ def render_dashboard(
 
     image = Image.new(render_mode, (layout.canvas_w, layout.canvas_h), style.bg)
     if render_mode == "P":
-        image.putpalette(_inky_palette_image().getpalette())
+        palette = _inky_palette_image().getpalette()
+        if palette is None:
+            raise RuntimeError("Inky palette image is missing a palette")
+        image.putpalette(palette)
     if layout.background_fn is not None:
         layout.background_fn(image, layout, style)
     draw = ImageDraw.Draw(image)
