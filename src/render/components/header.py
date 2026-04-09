@@ -35,7 +35,10 @@ def draw_header(
     if style.invert_header:
         filled_rect(draw, (x, y, x + w - 1, y + h - 1), fill=style.fg)
         text_fill = style.bg
-        title_fill = style.primary_accent_fill()
+        _accent = style.primary_accent_fill()
+        # On non-Inky displays, accent_primary falls back to fg, which is invisible
+        # against the filled header bar. Use bg (contrasting) in that case.
+        title_fill = _accent if _accent != style.fg else style.bg
     else:
         text_fill = style.fg
         title_fill = style.primary_accent_fill()
