@@ -269,7 +269,6 @@ _THEME_REGISTRY: dict[str, tuple[str, str]] = {
     "scorecard": ("src.render.themes.scorecard", "scorecard_theme"),
     "tides": ("src.render.themes.tides", "tides_theme"),
     "photo": ("src.render.themes.photo", "photo_theme"),
-    "graphite": ("src.render.themes.graphite", "graphite_theme"),
 }
 
 # Derived from the registry — adding a theme to _THEME_REGISTRY is all that's needed.

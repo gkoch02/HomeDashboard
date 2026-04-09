@@ -67,7 +67,6 @@ _INKY_THEME_KEY_COLORS: dict[str, tuple[int, int]] = {
     "scorecard": (_INKY_RED, _INKY_BLUE),
     "tides": (_INKY_BLUE, _INKY_YELLOW),
     "photo": (_INKY_BLUE, _INKY_RED),
-    "graphite": (_INKY_BLUE, _INKY_RED),
 }
 
 
