@@ -10,7 +10,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 DOC_FILES = [ROOT / "README.md", ROOT / "CONTRIBUTING.md"] + sorted((ROOT / "docs").glob("*.md"))
 LINK_RE = re.compile(r"\[[^\]]+\]\(([^)]+)\)")
-HEADING_RE = re.compile(r"^##+\s+(.+)$", re.MULTILINE)
+THEME_DETAIL_RE = re.compile(r"^####\s+(.+)$", re.MULTILINE)
+GALLERY_ENTRY_RE = re.compile(r"^##\s+(.+)$", re.MULTILINE)
+
+
+def normalize_heading(heading: str) -> str:
+    return heading.strip("` ").lower().replace(" ", "_")
 
 
 def load_theme_names() -> set[str]:
@@ -39,12 +44,7 @@ def check_theme_gallery(theme_names: set[str]) -> list[str]:
     errors: list[str] = []
 
     themes_doc = (ROOT / "docs" / "themes.md").read_text()
-    headings = {h.strip("` ").lower().replace(" ", "_") for h in HEADING_RE.findall(themes_doc)}
-    detail_headings = {
-        name
-        for name in headings
-        if name in theme_names
-    }
+    detail_headings = {normalize_heading(h) for h in THEME_DETAIL_RE.findall(themes_doc)}
     missing_in_themes = sorted(theme_names - detail_headings)
     extra_in_themes = sorted(detail_headings - theme_names)
     for name in missing_in_themes:
@@ -54,8 +54,8 @@ def check_theme_gallery(theme_names: set[str]) -> list[str]:
 
     gallery_doc = (ROOT / "docs" / "color-themes.md").read_text()
     gallery_headings = {
-        h.strip("` ").lower().replace(" ", "_")
-        for h in HEADING_RE.findall(gallery_doc)
+        normalize_heading(h)
+        for h in GALLERY_ENTRY_RE.findall(gallery_doc)
         if h.strip() not in {"Color Themes"}
     }
     missing_in_gallery = sorted(theme_names - gallery_headings)
