@@ -70,6 +70,14 @@ _AQI_ZONES: list[tuple[int, str]] = [
 _AQI_MAX = 500
 
 
+def _aqi_accent(style: ThemeStyle, aqi: int) -> int:
+    if aqi <= 50:
+        return style.accent_good if style.accent_good is not None else style.fg
+    if aqi <= 150:
+        return style.accent_warn if style.accent_warn is not None else style.fg
+    return style.accent_alert if style.accent_alert is not None else style.fg
+
+
 def draw_air_quality_full(
     draw: ImageDraw.ImageDraw,
     data: DashboardData,
@@ -135,6 +143,7 @@ def _draw_aqi_hero(
 ) -> None:
     """Left: large AQI number + category label.  Right: 6-zone scale bar."""
     fg = style.fg
+    accent = _aqi_accent(style, aq.aqi)
 
     split = int(W * 0.28)  # left column width
     pad = 20
@@ -160,12 +169,12 @@ def _draw_aqi_hero(
             break
         aqi_size -= 4
 
-    draw.text((lx, label_bottom), aqi_str, font=aqi_font, fill=fg)
+    draw.text((lx, label_bottom), aqi_str, font=aqi_font, fill=accent)
     aqi_bottom = label_bottom + text_height(aqi_font)
 
     # Category text
     cat_font = style.font_medium(24)
-    draw.text((lx, aqi_bottom + 4), aq.category, font=cat_font, fill=fg)
+    draw.text((lx, aqi_bottom + 4), aq.category, font=cat_font, fill=accent)
 
     # ── Right: 6-zone scale bar ──────────────────────────────────────────
     rx0 = x0 + split
@@ -191,6 +200,7 @@ def _draw_scale_bar(
     """Horizontal 6-zone AQI health scale with filled progress and tick."""
     fg = style.fg
     bg = style.bg
+    accent = _aqi_accent(style, aqi)
 
     # Clamp to valid range
     aqi_clamped = max(0, min(aqi, _AQI_MAX))
@@ -207,7 +217,7 @@ def _draw_scale_bar(
 
     # Fill from left to fill_x (solid black = "used up" portion)
     if fill_x > bar_x + 1:
-        filled_rect(draw, (bar_x + 1, bar_y + 1, fill_x, bar_y + bar_h - 1), fill=fg)
+        filled_rect(draw, (bar_x + 1, bar_y + 1, fill_x, bar_y + bar_h - 1), fill=accent)
 
     # Zone dividers and labels
     label_font = style.font_regular(12)
@@ -228,7 +238,7 @@ def _draw_scale_bar(
             (zone_mid_x - lw // 2, bar_y + bar_h + 4),
             zone_label,
             font=label_font,
-            fill=fg,
+            fill=accent if aqi_clamped <= upper else fg,
         )
         prev_bound = upper
 
@@ -238,7 +248,7 @@ def _draw_scale_bar(
     tri_h = 6
     draw.polygon(
         [(tri_cx, tri_top + tri_h), (tri_cx - 4, tri_top), (tri_cx + 4, tri_top)],
-        fill=fg,
+        fill=accent,
     )
 
 

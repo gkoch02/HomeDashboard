@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 from datetime import datetime
+from dataclasses import replace
 
 from PIL import Image, ImageDraw
 
 from src.config import DisplayConfig
 from src.data.models import DashboardData
+from src.display.driver import get_display_spec
 from src.render.components import (
     air_quality_panel,
     birthday_bar,
@@ -28,12 +30,69 @@ from src.render.components import (
 from src.render.components import (
     weather_full as weather_full_comp,
 )
-from src.render.quantize import quantize_for_display
+from src.render.quantize import INKY_SPECTRA6_PALETTE, quantize_for_display, quantize_to_palette
 from src.render.theme import Theme, default_theme
 
 # Base resolution used when no theme is provided (legacy path).
 _BASE_W = 800
 _BASE_H = 480
+
+_INKY_BLACK = 0
+_INKY_WHITE = 1
+_INKY_RED = 2
+_INKY_BLUE = 3
+_INKY_YELLOW = 4
+_INKY_GREEN = 5
+
+
+def _resolve_render_mode(layout_mode: str, config: DisplayConfig) -> str:
+    spec = get_display_spec(config.provider, config.model)
+    if spec is None:
+        return layout_mode
+    if spec.render_mode != "RGB":
+        return layout_mode
+    if layout_mode == "L":
+        return "L"
+    return "P"
+
+
+def _resolve_style(theme: Theme, render_mode: str, config: DisplayConfig):
+    style = theme.style
+    if config.provider != "inky":
+        return replace(
+            style,
+            accent_info=style.fg if style.accent_info is None else style.accent_info,
+            accent_warn=style.fg if style.accent_warn is None else style.accent_warn,
+            accent_alert=style.fg if style.accent_alert is None else style.accent_alert,
+            accent_good=style.fg if style.accent_good is None else style.accent_good,
+        )
+    if render_mode == "P":
+        return replace(
+            style,
+            fg=_INKY_BLACK if style.fg == 0 else _INKY_WHITE,
+            bg=_INKY_BLACK if style.bg == 0 else _INKY_WHITE,
+            accent_info=_INKY_BLUE if style.accent_info is None else style.accent_info,
+            accent_warn=_INKY_YELLOW if style.accent_warn is None else style.accent_warn,
+            accent_alert=_INKY_RED if style.accent_alert is None else style.accent_alert,
+            accent_good=_INKY_GREEN if style.accent_good is None else style.accent_good,
+        )
+    return replace(
+        style,
+        accent_info=style.fg if style.accent_info is None else style.accent_info,
+        accent_warn=style.fg if style.accent_warn is None else style.accent_warn,
+        accent_alert=style.fg if style.accent_alert is None else style.accent_alert,
+        accent_good=style.fg if style.accent_good is None else style.accent_good,
+    )
+
+
+def _inky_palette_image() -> Image.Image:
+    palette = Image.new("P", (1, 1))
+    flat: list[int] = []
+    for r, g, b in INKY_SPECTRA6_PALETTE:
+        flat.extend([r, g, b])
+    flat.extend([0] * (768 - len(flat)))
+    palette.putpalette(flat)
+    return palette
 
 
 def render_dashboard(
@@ -62,9 +121,12 @@ def render_dashboard(
         theme = default_theme()
 
     layout = theme.layout
-    style = theme.style
+    render_mode = _resolve_render_mode(layout.canvas_mode, config)
+    style = _resolve_style(theme, render_mode, config)
 
-    image = Image.new(layout.canvas_mode, (layout.canvas_w, layout.canvas_h), style.bg)
+    image = Image.new(render_mode, (layout.canvas_w, layout.canvas_h), style.bg)
+    if render_mode == "P":
+        image.putpalette(_inky_palette_image().getpalette())
     if layout.background_fn is not None:
         layout.background_fn(image, layout, style)
     draw = ImageDraw.Draw(image)
@@ -265,13 +327,19 @@ def render_dashboard(
     # Quantization is needed whenever a resize occurred (LANCZOS produces grey pixels)
     # or the theme rendered onto a greyscale canvas (canvas_mode == "L").
     needs_resize = (config.width, config.height) != (layout.canvas_w, layout.canvas_h)
-    needs_quantize = needs_resize or layout.canvas_mode == "L"
+    target_is_color = config.provider == "inky"
+    needs_quantize = (needs_resize or layout.canvas_mode == "L") and not target_is_color
 
     if needs_resize:
-        l_image = image if layout.canvas_mode == "L" else image.convert("L")
-        image = l_image.resize((config.width, config.height), Image.Resampling.LANCZOS)
+        if target_is_color:
+            image = image.convert("RGB").resize((config.width, config.height), Image.Resampling.LANCZOS)
+        else:
+            l_image = image if layout.canvas_mode == "L" else image.convert("L")
+            image = l_image.resize((config.width, config.height), Image.Resampling.LANCZOS)
 
     if needs_quantize:
         image = quantize_for_display(image, config.quantization_mode)
+    elif target_is_color:
+        image = quantize_to_palette(image, INKY_SPECTRA6_PALETTE)
 
     return image

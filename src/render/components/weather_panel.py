@@ -24,6 +24,14 @@ from src.render.primitives import (
 from src.render.theme import ComponentRegion, ThemeStyle
 
 
+def _aqi_accent(style: ThemeStyle, aqi: int) -> int:
+    if aqi <= 50:
+        return style.accent_good if style.accent_good is not None else style.fg
+    if aqi <= 150:
+        return style.accent_warn if style.accent_warn is not None else style.fg
+    return style.accent_alert if style.accent_alert is not None else style.fg
+
+
 def draw_weather(
     draw: ImageDraw.ImageDraw,
     weather: WeatherData | None,
@@ -308,6 +316,7 @@ def _draw_aqi_column(
     style: ThemeStyle,
 ) -> None:
     """Draw a compact AQI summary filling one forecast column."""
+    accent = _aqi_accent(style, air_quality.aqi)
     icon_font = weather_icon_font(14)
     val_font = style.font_semibold(11)
     lbl_font = style.font_regular(10)
@@ -341,7 +350,7 @@ def _draw_aqi_column(
         (cx + (col_w - icon_w) // 2 - icon_bbox[0], ty - icon_bbox[1]),
         _GLYPH_AQI,
         font=icon_font,
-        fill=style.fg,
+        fill=accent,
     )
     ty += icon_h + gap
 
@@ -351,7 +360,7 @@ def _draw_aqi_column(
         (cx + (col_w - val_w) // 2 - val_bbox[0], ty - val_bbox[1]),
         val_str,
         font=val_font,
-        fill=style.fg,
+        fill=accent,
     )
     ty += val_h + gap
 
@@ -361,7 +370,7 @@ def _draw_aqi_column(
         (cx + (col_w - lbl_w) // 2 - lbl_bbox[0], ty - lbl_bbox[1]),
         category,
         font=lbl_font,
-        fill=style.fg,
+        fill=accent,
     )
 
 
@@ -375,7 +384,8 @@ def _draw_alert_column(
     style: ThemeStyle,
 ) -> None:
     """Draw an inverted alert bar filling one forecast column."""
-    filled_rect(draw, (cx, top, cx + col_w - 1, top + col_h - 1), fill=style.fg)
+    fill = style.accent_alert if style.accent_alert is not None else style.fg
+    filled_rect(draw, (cx, top, cx + col_w - 1, top + col_h - 1), fill=fill)
 
     alert_font = style.font_semibold(10)
     label = f"! {alert_event}"

@@ -143,6 +143,10 @@ class ThemeStyle:
     # 1-bit color values: 0 = BLACK, 1 = WHITE
     fg: int = 0
     bg: int = 1
+    accent_info: int | None = None
+    accent_warn: int | None = None
+    accent_alert: int | None = None
+    accent_good: int | None = None
 
     # Which regions use inverted color (fg fill + bg text)
     invert_header: bool = True

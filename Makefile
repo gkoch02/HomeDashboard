@@ -1,11 +1,23 @@
 .PHONY: dry test deploy setup install check previews version lint fmt \
-        pi-install pi-enable pi-status pi-logs configure \
+        pi-install install-display-drivers pi-enable pi-status pi-logs configure \
         web-enable web-status web-logs
 
 VENV = venv/bin/python
 
 _check-venv:
 	@test -f $(VENV) || { echo "ERROR: venv not found. Run 'make setup' first."; exit 1; }
+
+install-display-drivers: _check-venv
+	@echo "==> Installing display driver libraries..."
+	@echo "  Installing Inky Python package from requirements-pi.txt..."
+	@$(VENV) -c "import inky; print('  Inky: OK')"
+	@echo "  Installing Waveshare EPD library..."
+	rm -rf /tmp/waveshare-epd
+	git clone --depth=1 --filter=blob:none --sparse https://github.com/waveshare/e-Paper /tmp/waveshare-epd
+	git -C /tmp/waveshare-epd sparse-checkout set RaspberryPi_JetsonNano/python
+	venv/bin/pip install --quiet /tmp/waveshare-epd/RaspberryPi_JetsonNano/python/
+	rm -rf /tmp/waveshare-epd
+	@$(VENV) -c "import waveshare_epd; print('  Waveshare EPD: OK')"
 
 version: _check-venv
 	@$(VENV) -m src.main --version
@@ -88,13 +100,7 @@ pi-install:
 	venv/bin/pip install --quiet --upgrade pip
 	venv/bin/pip install -r requirements.txt -r requirements-pi.txt
 	@echo ""
-	@echo "==> Installing Waveshare EPD library..."
-	rm -rf /tmp/waveshare-epd
-	git clone --depth=1 --filter=blob:none --sparse https://github.com/waveshare/e-Paper /tmp/waveshare-epd
-	git -C /tmp/waveshare-epd sparse-checkout set RaspberryPi_JetsonNano/python
-	venv/bin/pip install --quiet /tmp/waveshare-epd/RaspberryPi_JetsonNano/python/
-	rm -rf /tmp/waveshare-epd
-	venv/bin/python -c "import waveshare_epd; print('  Waveshare EPD: OK')"
+	@$(MAKE) install-display-drivers
 	@echo ""
 	@mkdir -p credentials output state
 	@if [ ! -f config/config.yaml ]; then \
@@ -110,6 +116,7 @@ pi-install:
 	@echo "  Next steps:"
 	@echo "    make configure   -- fill in your API keys"
 	@echo "    make dry         -- preview with dummy data"
+	@echo "    If using Inky: set display.provider=inky and display.model=impression_7_3_2025"
 	@echo "    make pi-enable   -- start the refresh timer"
 	@echo "============================================"
 
@@ -178,6 +185,7 @@ setup:
 	@if [ -f /proc/device-tree/model ] && grep -q "Raspberry Pi" /proc/device-tree/model 2>/dev/null; then \
 		echo "Raspberry Pi detected — installing Pi-specific dependencies..."; \
 		venv/bin/pip install -r requirements-pi.txt; \
+		$(MAKE) install-display-drivers; \
 	fi
 	@mkdir -p credentials output state
 	@if [ ! -f config/config.yaml ]; then \

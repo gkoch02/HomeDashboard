@@ -26,6 +26,14 @@ from __future__ import annotations
 from PIL import Image
 
 _VALID_MODES = ("threshold", "floyd_steinberg", "ordered")
+INKY_SPECTRA6_PALETTE: list[tuple[int, int, int]] = [
+    (0, 0, 0),  # black
+    (255, 255, 255),  # white
+    (220, 44, 44),  # red
+    (44, 92, 180),  # blue
+    (240, 208, 56),  # yellow
+    (44, 160, 96),  # green
+]
 
 # 4×4 Bayer matrix, threshold values scaled to 0–240 (base 0–15 × 16).
 # Using ×16 (not ×17) keeps the maximum threshold at 240, so a pure-white pixel
@@ -76,3 +84,25 @@ def _ordered_bayer(image: Image.Image) -> Image.Image:
     out = Image.new("L", (w, h))
     out.putdata(quantized)
     return out.convert("1")
+
+
+def build_palette_image(colors: list[tuple[int, int, int]]) -> Image.Image:
+    """Return a tiny palette image usable with Pillow quantize()."""
+    palette = Image.new("P", (1, 1))
+    flat: list[int] = []
+    for r, g, b in colors:
+        flat.extend([r, g, b])
+    flat.extend([0] * (768 - len(flat)))
+    palette.putpalette(flat)
+    return palette
+
+
+def quantize_to_palette(
+    image: Image.Image,
+    colors: list[tuple[int, int, int]],
+    *,
+    dither: int = Image.Dither.NONE,
+) -> Image.Image:
+    """Convert an image to a limited palette and return it as RGB."""
+    palette = build_palette_image(colors)
+    return image.convert("RGB").quantize(palette=palette, dither=dither).convert("RGB")

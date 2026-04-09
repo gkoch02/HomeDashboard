@@ -2,3 +2,4 @@ RPi.GPIO>=0.7
 spidev>=3.5
 lgpio>=0.2
 gpiozero>=2.0
+inky>=2.0

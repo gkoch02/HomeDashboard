@@ -55,6 +55,7 @@ class PhotoConfig:
 
 @dataclass
 class DisplayConfig:
+    provider: str = "waveshare"
     model: str = "epd7in5_V2"
     width: int = 800
     height: int = 480
@@ -211,18 +212,21 @@ def load_config(path: str = "config/config.yaml") -> Config:
 
     if "display" in raw:
         d = raw["display"]
+        provider = str(d.get("provider", "waveshare"))
         model = d.get("model", "epd7in5_V2")
 
-        # Auto-derive native dimensions from model when not explicitly set in YAML
+        # Auto-derive native dimensions from provider/model when not explicitly set in YAML
         default_w, default_h = 800, 480
         if "width" not in d or "height" not in d:
-            from src.display.driver import WAVESHARE_MODELS
+            from src.display.driver import get_display_spec
 
-            if model in WAVESHARE_MODELS:
-                default_w = WAVESHARE_MODELS[model][1]
-                default_h = WAVESHARE_MODELS[model][2]
+            spec = get_display_spec(provider, model)
+            if spec is not None:
+                default_w = spec.width
+                default_h = spec.height
 
         cfg.display = DisplayConfig(
+            provider=provider,
             model=model,
             width=d.get("width", default_w),
             height=d.get("height", default_h),
@@ -543,17 +547,49 @@ def validate_config(
             )
         )
 
-    # --- Display model ---
-    from src.display.driver import WAVESHARE_MODELS
+    # --- Display provider/model ---
+    from src.display.driver import get_display_spec, supported_display_models
 
-    if cfg.display.model not in WAVESHARE_MODELS:
+    valid_providers = {"waveshare", "inky"}
+    if cfg.display.provider not in valid_providers:
+        errors.append(
+            ConfigError(
+                field="display.provider",
+                message=f"Unknown display provider: '{cfg.display.provider}'",
+                hint=f"Supported providers: {', '.join(sorted(valid_providers))}",
+            )
+        )
+    elif get_display_spec(cfg.display.provider, cfg.display.model) is None:
         warnings.append(
             ConfigWarning(
                 field="display.model",
-                message=f"Unknown display model: '{cfg.display.model}'",
-                hint=f"Supported models: {', '.join(sorted(WAVESHARE_MODELS))}",
+                message=(
+                    f"Unknown display model: '{cfg.display.model}' "
+                    f"for provider '{cfg.display.provider}'"
+                ),
+                hint=(
+                    "Supported models: "
+                    f"{', '.join(supported_display_models(cfg.display.provider))}"
+                ),
             )
         )
+    else:
+        spec = get_display_spec(cfg.display.provider, cfg.display.model)
+        if (
+            spec is not None
+            and not spec.supports_partial_refresh
+            and cfg.display.enable_partial_refresh
+        ):
+            warnings.append(
+                ConfigWarning(
+                    field="display.enable_partial_refresh",
+                    message=(
+                        f"Partial refresh is not supported for "
+                        f"{cfg.display.provider}:{cfg.display.model}."
+                    ),
+                    hint="Set display.enable_partial_refresh to false.",
+                )
+            )
 
     # --- Birthdays ---
     if cfg.birthdays.source == "file":

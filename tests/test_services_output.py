@@ -1,11 +1,12 @@
 """Tests for src/services/output.py (OutputService)."""
 
+from datetime import datetime, timedelta
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from PIL import Image
 
-from src.services.output import OutputService
+from src.services.output import OutputService, should_throttle_inky_refresh
 
 
 def _make_image(w: int = 800, h: int = 480) -> Image.Image:
@@ -16,6 +17,7 @@ def _make_cfg(tmp_path: Path) -> MagicMock:
     cfg = MagicMock()
     cfg.output_dir = str(tmp_path)
     cfg.state_dir = str(tmp_path / "state")
+    cfg.display.provider = "waveshare"
     cfg.display.model = "epd7in5_V2"
     cfg.display.enable_partial_refresh = False
     cfg.display.max_partials_before_full = 4
@@ -26,6 +28,10 @@ def _make_tz():
     import zoneinfo
 
     return zoneinfo.ZoneInfo("UTC")
+
+
+def _now() -> datetime:
+    return datetime(2026, 4, 8, 12, 0)
 
 
 # ---------------------------------------------------------------------------
@@ -40,23 +46,25 @@ class TestPublishDryRun:
         mock_display = MagicMock()
 
         with patch("src.services.output.DryRunDisplay", return_value=mock_display) as mock_cls:
-            svc.publish(image, dry_run=True, force_full=False)
+            svc.publish(image, dry_run=True, force_full=False, now=_now(), theme_name="default")
 
         mock_cls.assert_called_once_with(output_dir=str(tmp_path))
         mock_display.show.assert_called_once_with(image)
 
     def test_dry_run_returns_immediately_no_waveshare(self, tmp_path):
-        """dry_run=True must never touch WaveshareDisplay."""
+        """dry_run=True must never touch the hardware driver factory."""
         svc = OutputService(_make_cfg(tmp_path), _make_tz())
         image = _make_image()
 
         with (
             patch("src.services.output.DryRunDisplay", return_value=MagicMock()),
             patch("src.services.output.image_changed") as mock_changed,
+            patch("src.services.output.build_display_driver") as mock_build,
         ):
-            svc.publish(image, dry_run=True, force_full=False)
+            svc.publish(image, dry_run=True, force_full=False, now=_now(), theme_name="default")
 
         mock_changed.assert_not_called()
+        mock_build.assert_not_called()
 
     def test_dry_run_force_full_still_uses_dry_run_display(self, tmp_path):
         svc = OutputService(_make_cfg(tmp_path), _make_tz())
@@ -64,7 +72,7 @@ class TestPublishDryRun:
         mock_display = MagicMock()
 
         with patch("src.services.output.DryRunDisplay", return_value=mock_display):
-            svc.publish(image, dry_run=True, force_full=True)
+            svc.publish(image, dry_run=True, force_full=True, now=_now(), theme_name="default")
 
         mock_display.show.assert_called_once_with(image)
 
@@ -82,11 +90,11 @@ class TestPublishHardware:
 
         with (
             patch("src.services.output.image_changed", return_value=False),
-            patch("src.display.driver.WaveshareDisplay") as mock_ws,
+            patch("src.services.output.build_display_driver") as mock_build,
         ):
-            svc.publish(image, dry_run=False, force_full=False)
+            svc.publish(image, dry_run=False, force_full=False, now=_now(), theme_name="default")
 
-        mock_ws.assert_not_called()
+        mock_build.assert_not_called()
 
     def test_image_changed_calls_waveshare(self, tmp_path):
         svc = OutputService(_make_cfg(tmp_path), _make_tz())
@@ -95,9 +103,9 @@ class TestPublishHardware:
 
         with (
             patch("src.services.output.image_changed", return_value=True),
-            patch("src.display.driver.WaveshareDisplay", return_value=mock_display),
+            patch("src.services.output.build_display_driver", return_value=mock_display),
         ):
-            svc.publish(image, dry_run=False, force_full=False)
+            svc.publish(image, dry_run=False, force_full=False, now=_now(), theme_name="default")
 
         mock_display.show.assert_called_once_with(image, force_full=False)
 
@@ -109,14 +117,15 @@ class TestPublishHardware:
 
         with (
             patch("src.services.output.image_changed", return_value=False),
-            patch("src.display.driver.WaveshareDisplay", return_value=mock_display),
+            patch("src.services.output.build_display_driver", return_value=mock_display),
         ):
-            svc.publish(image, dry_run=False, force_full=True)
+            svc.publish(image, dry_run=False, force_full=True, now=_now(), theme_name="default")
 
         mock_display.show.assert_called_once_with(image, force_full=True)
 
     def test_waveshare_constructed_with_config_values(self, tmp_path):
         cfg = _make_cfg(tmp_path)
+        cfg.display.provider = "waveshare"
         cfg.display.model = "epd7in5_HD"
         cfg.display.enable_partial_refresh = True
         cfg.display.max_partials_before_full = 7
@@ -127,11 +136,12 @@ class TestPublishHardware:
 
         with (
             patch("src.services.output.image_changed", return_value=True),
-            patch("src.display.driver.WaveshareDisplay", return_value=mock_display) as mock_cls,
+            patch("src.services.output.build_display_driver", return_value=mock_display) as mock_cls,
         ):
-            svc.publish(image, dry_run=False, force_full=False)
+            svc.publish(image, dry_run=False, force_full=False, now=_now(), theme_name="default")
 
         mock_cls.assert_called_once_with(
+            provider="waveshare",
             model="epd7in5_HD",
             enable_partial=True,
             max_partials=7,
@@ -144,9 +154,9 @@ class TestPublishHardware:
 
         with (
             patch("src.services.output.image_changed", return_value=False) as mock_changed,
-            patch("src.display.driver.WaveshareDisplay"),
+            patch("src.services.output.build_display_driver"),
         ):
-            svc.publish(image, dry_run=False, force_full=False)
+            svc.publish(image, dry_run=False, force_full=False, now=_now(), theme_name="default")
 
         mock_changed.assert_called_once_with(image, str(tmp_path))
 
@@ -157,9 +167,9 @@ class TestPublishHardware:
 
         with (
             patch("src.services.output.image_changed", return_value=True),
-            patch("src.display.driver.WaveshareDisplay", return_value=MagicMock()),
+            patch("src.services.output.build_display_driver", return_value=MagicMock()),
         ):
-            svc.publish(image, dry_run=False, force_full=False)
+            svc.publish(image, dry_run=False, force_full=False, now=_now(), theme_name="default")
 
         assert (tmp_path / "latest.png").exists()
 
@@ -170,9 +180,9 @@ class TestPublishHardware:
 
         with (
             patch("src.services.output.image_changed", return_value=False),
-            patch("src.display.driver.WaveshareDisplay", return_value=MagicMock()),
+            patch("src.services.output.build_display_driver", return_value=MagicMock()),
         ):
-            svc.publish(image, dry_run=False, force_full=False)
+            svc.publish(image, dry_run=False, force_full=False, now=_now(), theme_name="default")
 
         assert not (tmp_path / "latest.png").exists()
 
@@ -185,13 +195,173 @@ class TestPublishHardware:
 
         with (
             patch("src.services.output.image_changed", return_value=True),
-            patch("src.display.driver.WaveshareDisplay", return_value=MagicMock()),
+            patch("src.services.output.build_display_driver", return_value=MagicMock()),
             patch.object(image, "save", side_effect=OSError("disk full")),
             caplog.at_level(logging.WARNING, logger="src.services.output"),
         ):
-            svc.publish(image, dry_run=False, force_full=False)  # must not raise
+            svc.publish(image, dry_run=False, force_full=False, now=_now(), theme_name="default")
 
         assert "latest.png" in caplog.text
+
+    def test_inky_driver_built_with_provider(self, tmp_path):
+        cfg = _make_cfg(tmp_path)
+        cfg.display.provider = "inky"
+        cfg.display.model = "impression_7_3_2025"
+        cfg.display.enable_partial_refresh = True
+        svc = OutputService(cfg, _make_tz())
+        image = Image.new("RGB", (800, 480), "white")
+        mock_display = MagicMock()
+
+        with (
+            patch("src.services.output.image_changed", return_value=True),
+            patch("src.services.output.build_display_driver", return_value=mock_display) as mock_cls,
+        ):
+            svc.publish(image, dry_run=False, force_full=False, now=_now(), theme_name="default")
+
+        mock_cls.assert_called_once_with(
+            provider="inky",
+            model="impression_7_3_2025",
+            enable_partial=True,
+            max_partials=4,
+            state_dir=str(tmp_path / "state"),
+        )
+
+    def test_inky_non_fuzzyclock_throttles_within_one_hour(self, tmp_path):
+        cfg = _make_cfg(tmp_path)
+        cfg.display.provider = "inky"
+        cfg.display.model = "impression_7_3_2025"
+        svc = OutputService(cfg, _make_tz())
+        image = Image.new("RGB", (800, 480), "white")
+        state_dir = Path(cfg.state_dir)
+        state_dir.mkdir(parents=True, exist_ok=True)
+        (state_dir / "inky_refresh_state.json").write_text(
+            '{"last_refresh_at":"2026-04-08T11:30:00"}\n'
+        )
+
+        with (
+            patch("src.services.output.image_changed", return_value=True) as mock_changed,
+            patch("src.services.output.build_display_driver") as mock_build,
+        ):
+            svc.publish(
+                image,
+                dry_run=False,
+                force_full=False,
+                now=datetime(2026, 4, 8, 12, 0),
+                theme_name="default",
+            )
+
+        mock_changed.assert_not_called()
+        mock_build.assert_not_called()
+
+    def test_inky_fuzzyclock_bypasses_hourly_throttle(self, tmp_path):
+        cfg = _make_cfg(tmp_path)
+        cfg.display.provider = "inky"
+        cfg.display.model = "impression_7_3_2025"
+        svc = OutputService(cfg, _make_tz())
+        image = Image.new("RGB", (800, 480), "white")
+        state_dir = Path(cfg.state_dir)
+        state_dir.mkdir(parents=True, exist_ok=True)
+        (state_dir / "inky_refresh_state.json").write_text(
+            '{"last_refresh_at":"2026-04-08T11:30:00"}\n'
+        )
+
+        with (
+            patch("src.services.output.image_changed", return_value=True),
+            patch("src.services.output.build_display_driver", return_value=MagicMock()) as mock_build,
+        ):
+            svc.publish(
+                image,
+                dry_run=False,
+                force_full=False,
+                now=datetime(2026, 4, 8, 12, 0),
+                theme_name="fuzzyclock",
+            )
+
+        mock_build.assert_called_once()
+
+    def test_inky_force_full_bypasses_hourly_throttle(self, tmp_path):
+        cfg = _make_cfg(tmp_path)
+        cfg.display.provider = "inky"
+        cfg.display.model = "impression_7_3_2025"
+        svc = OutputService(cfg, _make_tz())
+        image = Image.new("RGB", (800, 480), "white")
+        state_dir = Path(cfg.state_dir)
+        state_dir.mkdir(parents=True, exist_ok=True)
+        (state_dir / "inky_refresh_state.json").write_text(
+            '{"last_refresh_at":"2026-04-08T11:30:00"}\n'
+        )
+
+        with (
+            patch("src.services.output.image_changed", return_value=False),
+            patch("src.services.output.build_display_driver", return_value=MagicMock()) as mock_build,
+        ):
+            svc.publish(
+                image,
+                dry_run=False,
+                force_full=True,
+                now=datetime(2026, 4, 8, 12, 0),
+                theme_name="default",
+            )
+
+        mock_build.assert_called_once()
+
+
+class TestInkyThrottleHelper:
+    def test_non_inky_never_throttled(self, tmp_path):
+        assert (
+            should_throttle_inky_refresh(
+                provider="waveshare",
+                theme_name="default",
+                now=_now(),
+                state_dir=str(tmp_path),
+                force_full=False,
+            )
+            is False
+        )
+
+    def test_fuzzyclock_theme_never_throttled(self, tmp_path):
+        state = tmp_path / "inky_refresh_state.json"
+        state.write_text('{"last_refresh_at":"2026-04-08T11:30:00"}\n')
+        assert (
+            should_throttle_inky_refresh(
+                provider="inky",
+                theme_name="fuzzyclock_invert",
+                now=_now(),
+                state_dir=str(tmp_path),
+                force_full=False,
+            )
+            is False
+        )
+
+    def test_throttles_when_last_refresh_under_one_hour(self, tmp_path):
+        state = tmp_path / "inky_refresh_state.json"
+        state.write_text('{"last_refresh_at":"2026-04-08T11:30:00"}\n')
+        assert (
+            should_throttle_inky_refresh(
+                provider="inky",
+                theme_name="default",
+                now=_now(),
+                state_dir=str(tmp_path),
+                force_full=False,
+            )
+            is True
+        )
+
+    def test_does_not_throttle_after_one_hour(self, tmp_path):
+        state = tmp_path / "inky_refresh_state.json"
+        state.write_text(
+            '{"last_refresh_at":"%s"}\n' % (_now() - timedelta(hours=1, minutes=1)).isoformat()
+        )
+        assert (
+            should_throttle_inky_refresh(
+                provider="inky",
+                theme_name="default",
+                now=_now(),
+                state_dir=str(tmp_path),
+                force_full=False,
+            )
+            is False
+        )
 
 
 # ---------------------------------------------------------------------------

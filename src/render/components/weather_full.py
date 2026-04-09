@@ -382,7 +382,7 @@ def _draw_detail_strip(draw, weather, today, x0, y0, W, H, style, *, air_quality
 
 def _draw_alert_banner(draw, weather, x0, y0, W, H, style):
     """Inverted banner showing weather alerts."""
-    fg = style.fg
+    fg = style.accent_alert if style.accent_alert is not None else style.fg
     bg = style.bg
 
     filled_rect(draw, (x0, y0, x0 + W - 1, y0 + H - 1), fill=fg)

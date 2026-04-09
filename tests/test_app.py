@@ -144,10 +144,9 @@ class TestMigrateStateFiles:
 class TestResolveNow:
     def test_no_date_override_returns_current_time(self, tmp_path):
         app = _make_app(tmp_path, date=None)
-        before = datetime.now()
+        before = datetime.now(app.tz)
         result = app._resolve_now()
-        after = datetime.now()
-        # Result should be within the range (ignoring tz comparison; just check date)
+        after = datetime.now(app.tz)
         assert before.date() <= result.date() <= after.date()
 
     def test_date_override_sets_correct_date(self, tmp_path):
@@ -369,6 +368,8 @@ class TestRun:
         mock_render.assert_called_once()
         mock_publish.assert_called_once()
         mock_marker.assert_called_once()
+        assert mock_publish.call_args.kwargs["theme_name"] == "default"
+        assert "now" in mock_publish.call_args.kwargs
 
     def test_theme_override_arg_used_directly(self, tmp_path):
         app = self._make_full_app(tmp_path, dummy=True, theme="minimalist")

@@ -40,6 +40,11 @@ class TestValidateConfigErrors:
         errors, _ = validate_config(cfg)
         assert any(e.field == "birthdays.source" for e in errors)
 
+    def test_unknown_display_provider_is_error(self):
+        cfg = Config(display=DisplayConfig(provider="future", model="whatever"))
+        errors, _ = validate_config(cfg)
+        assert any(e.field == "display.provider" for e in errors)
+
 
 class TestValidateConfigWarnings:
     def test_missing_service_account_file(self, tmp_path):
@@ -81,6 +86,22 @@ class TestValidateConfigWarnings:
         cfg = Config(display=DisplayConfig(model="epd7in5_V2"))
         _, warnings = validate_config(cfg)
         assert not any(w.field == "display.model" for w in warnings)
+
+    def test_known_inky_model_no_warning(self):
+        cfg = Config(display=DisplayConfig(provider="inky", model="impression_7_3_2025"))
+        _, warnings = validate_config(cfg)
+        assert not any(w.field == "display.model" for w in warnings)
+
+    def test_inky_partial_refresh_warns(self):
+        cfg = Config(
+            display=DisplayConfig(
+                provider="inky",
+                model="impression_7_3_2025",
+                enable_partial_refresh=True,
+            )
+        )
+        _, warnings = validate_config(cfg)
+        assert any(w.field == "display.enable_partial_refresh" for w in warnings)
 
     def test_missing_birthday_file_warns(self, tmp_path):
         cfg = Config(birthdays=BirthdayConfig(source="file", file_path=str(tmp_path / "nope.json")))

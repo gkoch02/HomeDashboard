@@ -50,9 +50,12 @@ echo ""
 echo "Press Enter to keep the current value shown in [brackets]."
 echo ""
 
-# --- Display model ---
+# --- Display provider/model ---
 echo "--- Display ---"
-echo "  Supported models: epd7in5 epd7in5_V2 epd7in5_V3 epd7in5b_V2 epd7in5_HD epd9in7 epd13in3k"
+echo "  Providers: waveshare, inky"
+echo "  Waveshare models: epd7in5 epd7in5_V2 epd7in5_V3 epd7in5b_V2 epd7in5_HD epd9in7 epd13in3k"
+echo "  Inky models: impression_7_3_2025"
+prompt "Display provider" "$(current provider)" DISPLAY_PROVIDER
 prompt "Display model" "$(current model)" DISPLAY_MODEL
 echo ""
 
@@ -88,19 +91,20 @@ echo ""
 # ---------------------------------------------------------------------------
 # Write values into config.yaml using Python for reliable YAML editing
 # ---------------------------------------------------------------------------
-venv/bin/python - "$CONFIG" "$DISPLAY_MODEL" "$WEATHER_KEY" "$LAT" "$LON" "$UNITS" "$TIMEZONE" "$CALENDAR_ID" "$PA_KEY" "$PA_SENSOR" <<'PYEOF'
+venv/bin/python - "$CONFIG" "$DISPLAY_PROVIDER" "$DISPLAY_MODEL" "$WEATHER_KEY" "$LAT" "$LON" "$UNITS" "$TIMEZONE" "$CALENDAR_ID" "$PA_KEY" "$PA_SENSOR" <<'PYEOF'
 import re, sys
 
 config_path = sys.argv[1]
-display_model = sys.argv[2]
-weather_key = sys.argv[3]
-lat = sys.argv[4]
-lon = sys.argv[5]
-units = sys.argv[6]
-tz = sys.argv[7]
-calendar_id = sys.argv[8]
-pa_key = sys.argv[9]
-pa_sensor = sys.argv[10]
+display_provider = sys.argv[2]
+display_model = sys.argv[3]
+weather_key = sys.argv[4]
+lat = sys.argv[5]
+lon = sys.argv[6]
+units = sys.argv[7]
+tz = sys.argv[8]
+calendar_id = sys.argv[9]
+pa_key = sys.argv[10]
+pa_sensor = sys.argv[11]
 
 with open(config_path) as f:
     text = f.read()
@@ -123,6 +127,7 @@ def q(v):
     except (ValueError, TypeError):
         return '"{}"'.format(v.replace('\\', '\\\\').replace('"', '\\"')) if v else '""'
 
+text = set_scalar(text, "provider", q(display_provider))
 text = set_scalar(text, "model", q(display_model))
 
 # Weather section — api_key appears multiple times; target only the weather one

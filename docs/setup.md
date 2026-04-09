@@ -227,12 +227,23 @@ python3 -m venv venv
 venv/bin/pip install -r requirements.txt -r requirements-pi.txt
 ```
 
-### Step 4 -- Waveshare display drivers
+### Step 4 -- Display drivers
+
+Install the package that matches your `display.provider`:
+
+#### Waveshare
 
 ```bash
 git clone --depth=1 https://github.com/waveshare/e-Paper /tmp/waveshare-epd
 venv/bin/pip install /tmp/waveshare-epd/RaspberryPi_JetsonNano/python/
 venv/bin/python -c "import waveshare_epd; print('OK')"
+```
+
+#### Pimoroni Inky Impression
+
+```bash
+venv/bin/pip install inky
+venv/bin/python -c "from inky.auto import auto; print('OK')"
 ```
 
 ### Step 5 -- Configure and test
@@ -287,19 +298,20 @@ dependencies, then `make pi-enable` to start the timer.
 
 ## Supported Displays
 
-| Model | Resolution | Notes |
-|---|---|---|
-| `epd7in5` | 640x384 | V1 (older) |
-| `epd7in5_V2` | 800x480 | **Default / recommended** |
-| `epd7in5_V3` | 800x480 | V3 variant |
-| `epd7in5b_V2` | 800x480 | B/W/Red model -- renders B&W only |
-| `epd7in5_HD` | 880x528 | HD variant |
-| `epd9in7` | 1200x825 | 9.7 inch |
-| `epd13in3k` | 1600x1200 | 13.3 inch |
+| Provider | Model | Resolution | Notes |
+|---|---|---|---|
+| `waveshare` | `epd7in5` | 640x384 | V1 (older) |
+| `waveshare` | `epd7in5_V2` | 800x480 | **Default / recommended Waveshare** |
+| `waveshare` | `epd7in5_V3` | 800x480 | V3 variant |
+| `waveshare` | `epd7in5b_V2` | 800x480 | B/W/Red model; dashboard currently renders B/W only |
+| `waveshare` | `epd7in5_HD` | 880x528 | HD variant |
+| `waveshare` | `epd9in7` | 1200x825 | 9.7 inch |
+| `waveshare` | `epd13in3k` | 1600x1200 | 13.3 inch |
+| `inky` | `impression_7_3_2025` | 800x480 | Pimoroni Inky Impression 7.3" 2025 Edition, Spectra 6 |
 
-Set `display.model` in `config.yaml`. Width and height are derived automatically from the
-model. The dashboard renders at 800x480 base resolution and scales to the display's native
-resolution via LANCZOS resampling.
+Set both `display.provider` and `display.model` in `config.yaml`. Width and height are
+derived automatically from the selected backend/model. The dashboard renders at 800x480 base
+resolution and scales to the display's native resolution when needed.
 
 ---
 

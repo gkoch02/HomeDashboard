@@ -1,4 +1,4 @@
-"""Tests for src/display/driver.py — DryRunDisplay and WAVESHARE_MODELS."""
+"""Tests for src/display/driver.py — display registries and drivers."""
 
 from unittest.mock import MagicMock, patch
 
@@ -6,9 +6,13 @@ import pytest
 from PIL import Image
 
 from src.display.driver import (
+    INKY_MODELS,
     WAVESHARE_MODELS,
     DryRunDisplay,
+    InkyDisplay,
     WaveshareDisplay,
+    build_display_driver,
+    get_display_spec,
     image_changed,
 )
 
@@ -106,6 +110,22 @@ class TestWaveshareModels:
         for name, (module_path, w, h) in WAVESHARE_MODELS.items():
             assert module_path.startswith("waveshare_epd."), name
             assert w > 0 and h > 0, name
+
+
+class TestInkyModels:
+    def test_registry_contains_2025_model(self):
+        assert "impression_7_3_2025" in INKY_MODELS
+
+    def test_2025_model_dimensions(self):
+        w, h = INKY_MODELS["impression_7_3_2025"]
+        assert w == 800
+        assert h == 480
+
+    def test_display_spec_for_inky(self):
+        spec = get_display_spec("inky", "impression_7_3_2025")
+        assert spec is not None
+        assert spec.render_mode == "RGB"
+        assert spec.supports_partial_refresh is False
 
 
 class TestWaveshareDisplayInit:
@@ -241,6 +261,72 @@ class TestWaveshareDisplayHardware:
         epd.init.assert_called_once()
         epd.Clear.assert_called_once()
         epd.sleep.assert_called_once()
+
+
+class TestInkyDisplayInit:
+    def test_valid_model_accepted(self):
+        d = InkyDisplay(model="impression_7_3_2025")
+        assert d.model == "impression_7_3_2025"
+
+    def test_unknown_model_raises(self):
+        with pytest.raises(ValueError, match="Unknown Inky model"):
+            InkyDisplay(model="inky_does_not_exist")
+
+    def test_native_dimensions(self):
+        d = InkyDisplay(model="impression_7_3_2025")
+        assert d.native_width == 800
+        assert d.native_height == 480
+
+
+class TestInkyDisplayHardware:
+    def _make_mock_device(self):
+        device = MagicMock()
+        device.set_image = MagicMock()
+        device.show = MagicMock()
+        return device
+
+    def test_get_device_imports_inky_auto(self):
+        device = self._make_mock_device()
+        mod = MagicMock()
+        mod.auto.return_value = device
+        d = InkyDisplay(model="impression_7_3_2025")
+        with patch("importlib.import_module", return_value=mod):
+            result = d._get_device()
+        assert result is device
+
+    def test_show_converts_to_rgb(self):
+        device = self._make_mock_device()
+        d = InkyDisplay(model="impression_7_3_2025")
+        image = Image.new("1", (800, 480), 1)
+        with patch.object(d, "_get_device", return_value=device):
+            d.show(image)
+        shown = device.set_image.call_args.args[0]
+        assert shown.mode == "RGB"
+        device.show.assert_called_once()
+
+    def test_clear_displays_blank_rgb_image(self):
+        device = self._make_mock_device()
+        d = InkyDisplay(model="impression_7_3_2025")
+        with patch.object(d, "_get_device", return_value=device):
+            d.clear()
+        shown = device.set_image.call_args.args[0]
+        assert shown.mode == "RGB"
+        assert shown.size == (800, 480)
+        device.show.assert_called_once()
+
+
+class TestBuildDisplayDriver:
+    def test_builds_waveshare_driver(self):
+        driver = build_display_driver(provider="waveshare", model="epd7in5_V2")
+        assert isinstance(driver, WaveshareDisplay)
+
+    def test_builds_inky_driver(self):
+        driver = build_display_driver(provider="inky", model="impression_7_3_2025")
+        assert isinstance(driver, InkyDisplay)
+
+    def test_unknown_provider_raises(self):
+        with pytest.raises(ValueError, match="Unknown display provider"):
+            build_display_driver(provider="future", model="x")
 
 
 class TestImageChanged:

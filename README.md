@@ -1,8 +1,8 @@
 # Home Dashboard
 
 Home Dashboard is a low-maintenance eInk wall display for family logistics: calendar,
-weather, birthdays, and other glanceable daily context on a Raspberry Pi with a Waveshare
-display. It's designed to be calm, readable, and reliable for unattended use, with quiet
+weather, birthdays, and other glanceable daily context on a Raspberry Pi with a supported
+eInk display. It's designed to be calm, readable, and reliable for unattended use, with quiet
 hours, caching, graceful fallback behavior, and a handful of well-designed themes. Advanced
 customization is available, but the default setup is optimized to get something useful on
 the wall fast.
@@ -52,7 +52,7 @@ SSH into your Pi, then run these commands from the project directory:
 ```bash
 git clone https://github.com/gkoch02/Dashboard-v4.git ~/home-dashboard
 cd ~/home-dashboard
-make pi-install    # apt deps, SPI, Python venv, Waveshare drivers — all in one
+make pi-install    # apt deps, SPI, Python venv, display drivers — all in one
 make configure     # interactive prompts fill in your API keys and settings
 make dry           # render a preview with dummy data — no hardware needed
 make pi-enable     # install and start the systemd refresh timer
@@ -76,6 +76,7 @@ That's it. The dashboard starts refreshing every 5 minutes automatically.
 `config/config.yaml`. Run it after `make pi-install`.
 
 ```
+Display provider [waveshare]:
 Display model [epd7in5_V2]:
 OpenWeatherMap API key:
 Latitude:
@@ -89,6 +90,9 @@ PurpleAir sensor ID (optional, press Enter to skip):
 
 Existing values are shown as defaults — it is safe to re-run at any time to change a
 setting. The wizard ends by running `make check` to validate your configuration.
+
+For the Inky Impression 7.3" 2025 Edition, choose `display.provider: inky` and
+`display.model: impression_7_3_2025`.
 
 **Google service account JSON** cannot be fetched automatically — it requires a
 one-time browser download from Google Cloud Console. The wizard guides you through
@@ -104,7 +108,7 @@ For supported display models and hardware recommendations, see the
 
 ## Prerequisites
 
-- **Hardware**: Raspberry Pi 3, 4, or 5 with a [supported Waveshare eInk display](docs/setup.md#supported-displays)
+- **Hardware**: Raspberry Pi 3, 4, or 5 with a [supported eInk display](docs/setup.md#supported-displays)
 - **Software**: Raspberry Pi OS (Bookworm or later), Python 3.9+
 - **Network**: Internet connection for API calls (weather, calendar)
 - **Accounts**: Free [OpenWeatherMap API key](https://openweathermap.org/api) for weather; Google Calendar (ICS feed or service account) for events

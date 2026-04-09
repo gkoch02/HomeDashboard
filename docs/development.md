@@ -26,7 +26,8 @@
 
 | Command | What it does |
 |---|---|
-| `make pi-install` | apt deps, SPI enable, Python venv, Waveshare drivers — full Pi setup in one command |
+| `make pi-install` | apt deps, SPI enable, Python venv, Inky + Waveshare display drivers — full Pi setup in one command |
+| `make install-display-drivers` | Reinstall/verify the hardware driver libraries inside the current venv |
 | `make configure` | Interactive wizard: fills `config/config.yaml` with your API keys and settings |
 | `make pi-enable` | Generate and install systemd service (with correct paths) + enable timer |
 | `make pi-status` | Show timer status, last service run, and recent log tail |

@@ -4,6 +4,7 @@ import hashlib
 import importlib
 import logging
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
@@ -23,7 +24,57 @@ WAVESHARE_MODELS: dict[str, tuple[str, int, int]] = {
     "epd13in3k": ("waveshare_epd.epd13in3k", 1600, 1200),
 }
 
+INKY_MODELS: dict[str, tuple[int, int]] = {
+    "impression_7_3_2025": (800, 480),
+}
+
 _HASH_FILENAME = "last_image_hash.txt"
+
+
+@dataclass(frozen=True)
+class DisplaySpec:
+    provider: str
+    model: str
+    width: int
+    height: int
+    render_mode: str
+    supports_partial_refresh: bool
+
+
+def _build_display_specs() -> dict[tuple[str, str], DisplaySpec]:
+    specs: dict[tuple[str, str], DisplaySpec] = {}
+    for model, (_, width, height) in WAVESHARE_MODELS.items():
+        specs[("waveshare", model)] = DisplaySpec(
+            provider="waveshare",
+            model=model,
+            width=width,
+            height=height,
+            render_mode="1",
+            supports_partial_refresh=True,
+        )
+    for model, (width, height) in INKY_MODELS.items():
+        specs[("inky", model)] = DisplaySpec(
+            provider="inky",
+            model=model,
+            width=width,
+            height=height,
+            render_mode="RGB",
+            supports_partial_refresh=False,
+        )
+    return specs
+
+
+DISPLAY_SPECS: dict[tuple[str, str], DisplaySpec] = _build_display_specs()
+
+
+def get_display_spec(provider: str, model: str) -> DisplaySpec | None:
+    return DISPLAY_SPECS.get((provider, model))
+
+
+def supported_display_models(provider: str | None = None) -> list[str]:
+    if provider is None:
+        return sorted(model for _, model in DISPLAY_SPECS)
+    return sorted(model for spec_provider, model in DISPLAY_SPECS if spec_provider == provider)
 
 
 def image_hash(image: Image.Image) -> str:
@@ -163,3 +214,62 @@ class WaveshareDisplay(DisplayDriver):
         epd.init()
         epd.Clear()
         epd.sleep()
+
+
+class InkyDisplay(DisplayDriver):
+    """Drive a Pimoroni Inky display via the `inky` library."""
+
+    def __init__(self, model: str = "impression_7_3_2025"):
+        if model not in INKY_MODELS:
+            raise ValueError(
+                f"Unknown Inky model '{model}'. Supported models: {sorted(INKY_MODELS)}"
+            )
+        self.model = model
+        self._device = None
+
+    @property
+    def native_width(self) -> int:
+        return INKY_MODELS[self.model][0]
+
+    @property
+    def native_height(self) -> int:
+        return INKY_MODELS[self.model][1]
+
+    def _get_device(self):
+        if self._device is None:
+            module = importlib.import_module("inky.auto")
+            auto = getattr(module, "auto")
+            self._device = auto(ask_user=False, verbose=False)
+        return self._device
+
+    def show(self, image: Image.Image, force_full: bool = False) -> None:
+        del force_full  # Inky does not expose partial/full refresh control here.
+        device = self._get_device()
+        device.set_image(image.convert("RGB"))
+        device.show()
+
+    def clear(self) -> None:
+        device = self._get_device()
+        blank = Image.new("RGB", (self.native_width, self.native_height), (255, 255, 255))
+        device.set_image(blank)
+        device.show()
+
+
+def build_display_driver(
+    *,
+    provider: str,
+    model: str,
+    enable_partial: bool = False,
+    max_partials: int = 6,
+    state_dir: str | None = None,
+) -> DisplayDriver:
+    if provider == "waveshare":
+        return WaveshareDisplay(
+            model=model,
+            enable_partial=enable_partial,
+            max_partials=max_partials,
+            state_dir=state_dir,
+        )
+    if provider == "inky":
+        return InkyDisplay(model=model)
+    raise ValueError(f"Unknown display provider '{provider}'. Supported providers: inky, waveshare")

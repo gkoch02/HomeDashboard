@@ -1,7 +1,12 @@
 display:
-  # Waveshare display model — sets native resolution automatically.
-  # Supported models: epd7in5 (640x384), epd7in5_V2 (800x480), epd7in5_V3 (800x480),
+  # Display backend/provider.
+  # "waveshare" = Waveshare e-Paper HATs using the waveshare_epd Python package.
+  # "inky"      = Pimoroni Inky Impression panels using the inky Python package.
+  provider: "waveshare"
+  # Display model — sets native resolution automatically.
+  # Waveshare models: epd7in5 (640x384), epd7in5_V2 (800x480), epd7in5_V3 (800x480),
   #   epd7in5b_V2 (800x480), epd7in5_HD (880x528), epd9in7 (1200x825), epd13in3k (1600x1200)
+  # Inky models: impression_7_3_2025 (800x480)
   model: "epd7in5_V2"
   # width/height are derived automatically from `model`. Override here only if needed.
   # width: 800
@@ -12,6 +17,8 @@ display:
   show_weather: true
   show_birthdays: true
   show_info_panel: true
+  # Partial refresh is only supported by some Waveshare models. Inky Impression
+  # panels always do full refreshes, so leave this false when provider: inky.
   # Final quantization algorithm used when converting greyscale → 1-bit for display.
   # "threshold"       – simple 128-level split; preserves strict black/white rendering
   #                     (default; matches existing behaviour for all built-in themes)

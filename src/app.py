@@ -98,7 +98,13 @@ class DashboardApp:
             quote_refresh=self.cfg.cache.quote_refresh,
             message_text=getattr(self.args, "message", None),
         )
-        self.output.publish(image, dry_run=self.args.dry_run, force_full=force_full)
+        self.output.publish(
+            image,
+            dry_run=self.args.dry_run,
+            force_full=force_full,
+            now=now,
+            theme_name=theme_name,
+        )
         self.output.write_health_marker()
         logger.info("Done")
 

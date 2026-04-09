@@ -433,7 +433,7 @@ class TestMainLiveDataPath:
                 patch("src.data_pipeline.DataPipeline.fetch", return_value=fake_data),
                 patch("src.services.output.image_changed", return_value=True),
                 patch("src.services.run_policy.in_quiet_hours", return_value=False),
-                patch("src.display.driver.WaveshareDisplay", return_value=mock_display),
+                patch("src.services.output.build_display_driver", return_value=mock_display),
             ):
                 main()
 

@@ -40,6 +40,7 @@ class TestDefaults:
 
     def test_display_defaults(self):
         d = DisplayConfig()
+        assert d.provider == "waveshare"
         assert d.model == "epd7in5_V2"
         assert d.width == 800
         assert d.height == 480
@@ -165,9 +166,23 @@ class TestLoadConfig:
         p = tmp_path / "config.yaml"
         p.write_text(yaml.dump({"display": {"model": "epd9in7"}}))
         cfg = load_config(str(p))
+        assert cfg.display.provider == "waveshare"
         assert cfg.display.model == "epd9in7"
         assert cfg.display.width == 1200
         assert cfg.display.height == 825
+
+    def test_inky_model_auto_derives_dimensions(self, tmp_path):
+        p = tmp_path / "config.yaml"
+        p.write_text(
+            yaml.dump(
+                {"display": {"provider": "inky", "model": "impression_7_3_2025"}}
+            )
+        )
+        cfg = load_config(str(p))
+        assert cfg.display.provider == "inky"
+        assert cfg.display.model == "impression_7_3_2025"
+        assert cfg.display.width == 800
+        assert cfg.display.height == 480
 
     def test_model_explicit_dimensions_override(self, tmp_path):
         """Explicit width/height in YAML take precedence over model defaults."""

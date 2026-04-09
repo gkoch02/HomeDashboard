@@ -154,6 +154,28 @@ class TestRenderDashboard:
         assert result.size == (640, 384)
         assert result.mode == "1"
 
+    def test_inky_target_returns_rgb_image(self):
+        data = _make_data()
+        cfg = DisplayConfig(provider="inky", model="impression_7_3_2025", width=800, height=480)
+        result = render_dashboard(data, cfg)
+        assert result.size == (800, 480)
+        assert result.mode == "RGB"
+
+    def test_inky_target_uses_limited_palette(self):
+        data = _make_data()
+        cfg = DisplayConfig(provider="inky", model="impression_7_3_2025", width=800, height=480)
+        result = render_dashboard(data, cfg)
+        colors = {tuple(px) for px in result.getdata()}
+        allowed = {
+            (0, 0, 0),
+            (255, 255, 255),
+            (220, 44, 44),
+            (44, 92, 180),
+            (240, 208, 56),
+            (44, 160, 96),
+        }
+        assert colors <= allowed
+
 
 class TestGreyscaleCanvas:
     """Verify that a theme opting in to canvas_mode='L' still returns a 1-bit image."""
