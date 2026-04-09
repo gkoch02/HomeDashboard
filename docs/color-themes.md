@@ -2,7 +2,9 @@
 
 # Color Themes
 
-This page is a visual gallery of the current dry-run theme previews. Click any preview to open the full PNG.
+Audience: operators browsing the current preview gallery.
+
+This page is gallery-only. For theme behavior, random rotation, and configuration, use [Themes](themes.md). For preview generation workflows, use [Color Theme Previews](color-theme-previews.md).
 
 - [Air Quality](#air-quality)
 - [Default](#default)
@@ -10,7 +12,6 @@ This page is a visual gallery of the current dry-run theme previews. Click any p
 - [Fantasy](#fantasy)
 - [Fuzzyclock](#fuzzyclock)
 - [Fuzzyclock Invert](#fuzzyclock-invert)
-- [Graphite](#graphite)
 - [Message](#message)
 - [Minimalist](#minimalist)
 - [Moonphase](#moonphase)
@@ -53,10 +54,6 @@ This page is a visual gallery of the current dry-run theme previews. Click any p
 ## Fuzzyclock Invert
 
 [![Fuzzyclock Invert preview](../output/theme_fuzzyclock_invert_inky.png)](../output/theme_fuzzyclock_invert_inky.png)
-
-## Graphite
-
-[![Graphite preview](../output/theme_graphite_inky.png)](../output/theme_graphite_inky.png)
 
 ## Message
 
@@ -121,9 +118,3 @@ This page is a visual gallery of the current dry-run theme previews. Click any p
 ## Year Pulse
 
 [![Year Pulse preview](../output/theme_year_pulse_inky.png)](../output/theme_year_pulse_inky.png)
-
----
-
-For preview generation details, file naming, and batch workflows, see
-[Color Theme Previews](color-theme-previews.md). For theme descriptions and configuration, see
-[Themes](themes.md).

@@ -1,138 +1,118 @@
 # Contributing to Dashboard-v4
 
+Audience: contributors changing code, tests, or documentation.
+
+Use this page for contribution workflow and guardrails. For architecture details, see [docs/architecture.md](docs/architecture.md). For day-to-day dev commands and repo layout, see [docs/development.md](docs/development.md).
+
 ## Local Setup
 
 ```bash
 git clone <repo-url> && cd Dashboard-v4
-make setup              # creates venv, installs deps, copies config template
-make dry                # preview with dummy data → output/latest.png
+make setup
+make dry
 ```
 
-## Development Commands
+## Core Commands
 
 ```bash
-make test               # run pytest
-make lint               # ruff check src/ tests/
-make fmt                # ruff format src/ tests/
-make dry                # preview with dummy data
-make previews           # generate all theme previews
-make check              # validate config/config.yaml
+make test         # run pytest
+make lint         # ruff check src/ tests/
+make fmt          # ruff format src/ tests/
+make dry          # preview with dummy data
+make previews     # generate theme previews
+make check        # validate config/config.yaml
+make docs-check   # validate markdown links and theme inventories
 ```
 
-## Code Style
+## Contribution Rules
 
-- **Max line length**: 100 characters
-- **Formatter**: ruff format (configured in `pyproject.toml`)
-- **Linter**: ruff check with rules E, F, W, I (isort), UP (pyupgrade)
-- **Imports**: stdlib → third-party → local (`src.*`), sorted by ruff
-- **Type annotations**: use `from __future__ import annotations` for forward refs; prefer `X | None` over `Optional[X]`
+- Keep docs aligned with user-facing behavior when themes, setup flow, or config shape change.
+- Prefer updating canonical docs instead of duplicating explanations across pages.
+- Run `make lint`, `make test`, and `make docs-check` before opening a PR when your change touches code or docs.
+- Do not document removed themes, deprecated config fields, or speculative behavior.
 
-Run `make lint` and `make fmt` before committing.
+## Adding a Theme
 
-## Project Structure
+1. Create `src/render/themes/my_theme.py`.
+2. Return a `Theme` built from the current theme API:
 
-```
-src/
-├── main.py                     # CLI entry point
-├── app.py                      # DashboardApp orchestrator
-├── config.py                   # YAML config → dataclasses
-├── data_pipeline.py            # Concurrent fetch orchestration
-├── data/models.py              # Pure dataclasses (no I/O)
-├── fetchers/                   # Data source adapters
-│   ├── calendar.py             # Dispatcher + birthday extraction
-│   ├── calendar_google.py      # Google Calendar API + sync
-│   ├── calendar_ical.py        # ICS feed fetching
-│   ├── weather.py              # OpenWeatherMap
-│   ├── purpleair.py            # PurpleAir sensor
-│   ├── host.py                 # System metrics
-│   ├── cache.py                # Per-source JSON cache
-│   ├── circuit_breaker.py      # Per-source circuit breaker
-│   └── quota_tracker.py        # Daily API call counter
-├── services/                   # Orchestration policy
-│   ├── run_policy.py           # Quiet hours, morning startup
-│   ├── theme.py                # Theme name resolution
-│   └── output.py               # Publish image, health marker
-├── display/                    # Display hardware abstraction
-│   ├── driver.py               # DryRunDisplay, WaveshareDisplay
-│   └── refresh_tracker.py      # Partial/full refresh tracking
-└── render/                     # Rendering system
-    ├── canvas.py               # Top-level render orchestrator
-    ├── theme.py                # Theme registry + dataclasses
-    ├── themes/                 # One file per theme
-    ├── components/             # One file per UI region
-    ├── random_theme.py         # Daily/hourly random selection
-    ├── fonts.py                # Font loader
-    ├── primitives.py           # Shared draw utilities
-    └── icons.py                # Weather icon mapping
+```python
+from src.render.theme import ComponentRegion, Theme, ThemeLayout, ThemeStyle
 
-tests/                          # pytest tests (mirrors src/ structure)
-state/                          # Runtime state (gitignored)
-output/                         # PNGs, logs (gitignored except latest.png)
+
+def my_theme() -> Theme:
+    style = ThemeStyle(
+        fg=0,
+        bg=1,
+        invert_header=True,
+        show_borders=True,
+    )
+    layout = ThemeLayout(
+        header=ComponentRegion(0, 0, 800, 40),
+        week_view=ComponentRegion(0, 40, 800, 320),
+        weather=ComponentRegion(0, 360, 300, 120),
+        birthdays=ComponentRegion(300, 360, 250, 120),
+        info=ComponentRegion(550, 360, 250, 120),
+        draw_order=["header", "week_view", "weather", "birthdays", "info"],
+    )
+    return Theme(name="my_theme", style=style, layout=layout)
 ```
 
-See [docs/architecture.md](docs/architecture.md) for detailed data flow and design decisions.
+3. Register the theme in `src/render/theme.py` by adding it to `_THEME_REGISTRY`.
+4. If it should never appear in rotation, add it to `_EXCLUDED_FROM_POOL` in `src/render/random_theme.py`.
+5. If the theme is user-facing, update:
+   - `docs/themes.md`
+   - `docs/color-themes.md` if it has a gallery preview
+   - any theme lists in config or setup docs that are intended to be exhaustive
+6. Generate previews and confirm they render cleanly:
 
-## How to Add a Theme
+```bash
+venv/bin/python -m src.main --dry-run --dummy --theme my_theme
+```
 
-1. Create `src/render/themes/my_theme.py`
-2. Implement a factory function:
-   ```python
-   from src.render.theme import ComponentRegion, Theme, ThemeLayout, ThemeStyle
+For greyscale custom themes, set `ThemeLayout.canvas_mode = "L"` and use `fg=0, bg=255` in `ThemeStyle`.
 
-   def my_theme() -> Theme:
-       style = ThemeStyle(bg_color="white", fg_color="black", ...)
-       layout = ThemeLayout(
-           canvas_width=800, canvas_height=480,
-           header=ComponentRegion(0, 0, 800, 40),
-           week=ComponentRegion(0, 40, 560, 380),
-           weather=ComponentRegion(560, 40, 240, 200),
-           info=ComponentRegion(560, 240, 240, 180),
-           draw_order=["header", "week", "weather", "info"],
-       )
-       return Theme(name="my_theme", style=style, layout=layout)
-   ```
-3. Register in `src/render/theme.py`:
-   ```python
-   _THEME_REGISTRY["my_theme"] = ("src.render.themes.my_theme", "my_theme")
-   ```
-4. Add to `AVAILABLE_THEMES` (automatic from registry)
-5. To exclude from random rotation, add to `_EXCLUDED_FROM_POOL` in `random_theme.py`
-6. Run `make dry -- --theme my_theme` to preview
+## Adding a Fetcher or Data Source
 
-## How to Add a Fetcher/Data Source
+1. Create the fetcher module in `src/fetchers/`.
+2. Return typed data models from `src/data/models.py`.
+3. Add cache serialization support in `src/fetchers/cache.py`.
+4. Integrate the source into `src/data_pipeline.py`.
+5. Extend `DashboardData` if the source becomes part of the render pipeline.
+6. Add tests that mock all external I/O.
+7. Update operator docs if the source introduces new config or new UI behavior.
 
-1. Create `src/fetchers/my_source.py`
-   - Use `requests` with a timeout for external APIs
-   - Return a dataclass from `data/models.py`
-2. Add the model to `data/models.py` if needed
-3. Add cache serialization in `cache.py` (`save_source`/`load_cached_source`)
-4. Integrate into `data_pipeline.py`:
-   - Add TTL/interval to `__init__`
-   - Add to `_launch_fetches` and `_resolve_source` flow
-5. Add to `DashboardData` if it's a new field
-6. See `purpleair.py` as a reference implementation
+## Adding a Config Option
 
-## How to Add a Config Option
+1. Add the field to the relevant dataclass in `src/config.py`.
+2. Parse the YAML key in `load_config()` if needed.
+3. Add validation in `validate_config()` when invalid input should be surfaced clearly.
+4. Update `config/config.example.yaml`.
+5. Update `docs/configuration.md` if the field is operator-facing.
+6. Update any setup or web UI docs that depend on that field.
 
-1. Add field to the relevant dataclass in `config.py` (with a default)
-2. Add parsing in `load_config()` if the YAML key differs from the field name
-3. Add validation in `validate_config()` if applicable
-4. Add to `config/config.example.yaml` with a comment
-5. Use in the relevant module
+## Docs Update Policy
+
+When changing any of these areas, update the canonical docs in the same PR:
+
+- Theme inventory or behavior: `docs/themes.md`
+- Preview gallery content: `docs/color-themes.md`
+- Config schema or defaults: `docs/configuration.md`
+- Setup, install, auth, or recovery flow: `README.md`, `docs/setup.md`, or `docs/web-ui.md`
+- Contributor workflow or architecture: `docs/development.md`, `docs/architecture.md`, or `CLAUDE.md`
 
 ## Testing
 
-- Tests use `pytest` with `unittest.mock.patch`
-- Each public function should have at least one test
-- Use `tmp_path` fixture for files, not real directories
-- Mock external APIs — never make real network calls in tests
-- Run `make test` to verify all tests pass
+- Use `pytest` with mocks for external APIs and file I/O.
+- Use `tmp_path` for temporary files.
+- Do not make real network calls in tests.
+- Add or update documentation checks when you introduce a new exhaustive list.
 
 ## PR Checklist
 
-- [ ] `make test` passes (all tests green)
-- [ ] `make lint` passes (no ruff errors)
-- [ ] `make fmt` produces no changes (code formatted)
-- [ ] New features have tests
-- [ ] CLAUDE.md updated if module structure changed
-- [ ] `config.example.yaml` updated if new config options added
+- [ ] `make test` passes
+- [ ] `make lint` passes
+- [ ] `make fmt` leaves no changes
+- [ ] `make docs-check` passes when docs or user-facing behavior changed
+- [ ] Tests were added or updated for behavior changes
+- [ ] Canonical docs were updated for any user-facing change

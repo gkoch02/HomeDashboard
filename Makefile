@@ -1,4 +1,4 @@
-.PHONY: dry test deploy setup install check previews version lint fmt \
+.PHONY: dry test deploy setup install check previews version lint fmt docs-check \
         pi-install install-display-drivers pi-enable pi-status pi-logs configure \
         web-enable web-status web-logs
 
@@ -44,6 +44,9 @@ fmt: _check-venv
 
 check: _check-venv
 	$(VENV) -m src.main --check-config
+
+docs-check:
+	python3 scripts/check_docs.py
 
 PI_USER ?= pi
 PI_HOST ?= dashboard

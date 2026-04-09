@@ -148,7 +148,7 @@ Your existing config is fully compatible. These are opt-in additions:
 | Feature | How to enable |
 |---|---|
 | **Versioning** (`--version` flag) | Run `python -m src.main --version` or `make version` to print the current version |
-| **Themes** (built-in layouts) | Add `theme: terminal` (or `minimalist`, `old_fashioned`, `today`, `fantasy`, `moonphase`, `moonphase_invert`, `qotd`, `qotd_invert`, `weather`, `air_quality`, `fuzzyclock`, `fuzzyclock_invert`, `diags`) to `config.yaml`, or pass `--theme THEME` on the command line |
+| **Themes** (built-in layouts) | Set `theme: <theme_name>` in `config.yaml`, or pass `--theme THEME` on the command line. See [Themes](themes.md) for the current live theme catalog. |
 | **Random theme rotation** | Set `theme: random_daily` (once per day) or `theme: random_hourly` (once per hour); optionally add a `random_theme:` block to include/exclude specific themes |
 | **Event filtering** | Add a `filters:` block — hide events by calendar name, keyword, or all-day status |
 | **Configurable cache TTLs** | Add a `cache:` block to tune per-source TTL and fetch intervals |
