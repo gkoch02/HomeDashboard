@@ -243,8 +243,17 @@ venv/bin/python -c "import waveshare_epd; print('OK')"
 
 ```bash
 venv/bin/pip install inky
-venv/bin/python -c "from inky.auto import auto; print('OK')"
 ```
+
+On Raspberry Pi OS Bookworm (and later), the kernel SPI driver claims the chip-select
+pin (GPIO8) which conflicts with the Inky library's lgpio usage.  Release it with:
+
+```bash
+echo "dtoverlay=spi0-0cs" | sudo tee -a /boot/firmware/config.txt
+sudo reboot
+```
+
+On older Pi OS the config file is `/boot/config.txt` instead.
 
 ### Step 5 -- Configure and test
 
