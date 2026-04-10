@@ -316,6 +316,7 @@ class TestInkyDisplayHardware:
             d.show(image)
         shown = device.set_image.call_args.args[0]
         assert shown.mode == "RGB"
+        assert device.set_image.call_args.kwargs.get("saturation") == 1.0
         device.show.assert_called_once()
 
     def test_clear_displays_blank_rgb_image(self):

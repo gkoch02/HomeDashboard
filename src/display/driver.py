@@ -254,7 +254,7 @@ class InkyDisplay(DisplayDriver):
     def show(self, image: Image.Image, force_full: bool = False) -> None:
         del force_full  # Inky does not expose partial/full refresh control here.
         device = self._get_device()
-        device.set_image(image.convert("RGB"))
+        device.set_image(image.convert("RGB"), saturation=1.0)
         device.show()
 
     def clear(self) -> None:
