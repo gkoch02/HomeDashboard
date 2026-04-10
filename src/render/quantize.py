@@ -29,10 +29,10 @@ _VALID_MODES = ("threshold", "floyd_steinberg", "ordered")
 INKY_SPECTRA6_PALETTE: list[tuple[int, int, int]] = [
     (0, 0, 0),  # black
     (255, 255, 255),  # white
-    (220, 44, 44),  # red
-    (44, 92, 180),  # blue
-    (240, 208, 56),  # yellow
-    (44, 160, 96),  # green
+    (255, 0, 0),  # red
+    (0, 0, 255),  # blue
+    (255, 220, 0),  # yellow
+    (0, 180, 0),  # green
 ]
 
 # 4×4 Bayer matrix, threshold values scaled to 0–240 (base 0–15 × 16).

@@ -140,15 +140,16 @@ class ThemeStyle:
     when left as ``None``, via ``__post_init__``.
     """
 
-    # 1-bit color values: 0 = BLACK, 1 = WHITE
-    fg: int = 0
-    bg: int = 1
-    accent_info: int | None = None
-    accent_warn: int | None = None
-    accent_alert: int | None = None
-    accent_good: int | None = None
-    accent_primary: int | None = None
-    accent_secondary: int | None = None
+    # Color values.  For 1-bit / L-mode rendering these are integers (0/1 or 0–255).
+    # For Inky RGB rendering _resolve_style replaces them with (R, G, B) tuples.
+    fg: int | tuple[int, int, int] = 0
+    bg: int | tuple[int, int, int] = 1
+    accent_info: int | tuple[int, int, int] | None = None
+    accent_warn: int | tuple[int, int, int] | None = None
+    accent_alert: int | tuple[int, int, int] | None = None
+    accent_good: int | tuple[int, int, int] | None = None
+    accent_primary: int | tuple[int, int, int] | None = None
+    accent_secondary: int | tuple[int, int, int] | None = None
 
     # Which regions use inverted color (fg fill + bg text)
     invert_header: bool = True
@@ -223,11 +224,11 @@ class ThemeStyle:
         }.get(self.label_font_weight, self.font_bold)
         return fn(self.label_font_size)  # type: ignore[misc]
 
-    def primary_accent_fill(self) -> int:
+    def primary_accent_fill(self) -> int | tuple[int, int, int]:
         """Return the general-purpose primary accent fill for the current backend."""
         return self.fg if self.accent_primary is None else self.accent_primary
 
-    def secondary_accent_fill(self) -> int:
+    def secondary_accent_fill(self) -> int | tuple[int, int, int]:
         """Return the softer secondary accent fill for the current backend."""
         return self.fg if self.accent_secondary is None else self.accent_secondary
 

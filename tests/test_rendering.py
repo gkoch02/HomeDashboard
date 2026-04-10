@@ -169,10 +169,10 @@ class TestRenderDashboard:
         allowed = {
             (0, 0, 0),
             (255, 255, 255),
-            (220, 44, 44),
-            (44, 92, 180),
-            (240, 208, 56),
-            (44, 160, 96),
+            (255, 0, 0),
+            (0, 0, 255),
+            (255, 220, 0),
+            (0, 180, 0),
         }
         assert colors <= allowed
 
@@ -180,11 +180,12 @@ class TestRenderDashboard:
         cfg = DisplayConfig(provider="inky", model="impression_7_3_2025", width=800, height=480)
         style = _resolve_style(
             Theme(name="fuzzyclock", layout=ThemeLayout(), style=ThemeStyle()),
-            render_mode="P",
+            render_mode="RGB",
             config=cfg,
         )
-        assert style.accent_primary == 4
-        assert style.accent_secondary == 3
+        # fuzzyclock key colors: primary=yellow (4), secondary=blue (3)
+        assert style.accent_primary == (255, 220, 0)
+        assert style.accent_secondary == (0, 0, 255)
 
 
 class TestGreyscaleCanvas:
