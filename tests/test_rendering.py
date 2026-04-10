@@ -161,20 +161,12 @@ class TestRenderDashboard:
         assert result.size == (800, 480)
         assert result.mode == "RGB"
 
-    def test_inky_target_uses_limited_palette(self):
+    def test_inky_target_returns_rgb_mode(self):
+        """Inky output stays as RGB — pre-quantization is left to the Inky library."""
         data = _make_data()
         cfg = DisplayConfig(provider="inky", model="impression_7_3_2025", width=800, height=480)
         result = render_dashboard(data, cfg)
-        colors = {tuple(px) for px in result.getdata()}
-        allowed = {
-            (0, 0, 0),
-            (255, 255, 255),
-            (255, 0, 0),
-            (0, 0, 255),
-            (255, 220, 0),
-            (0, 180, 0),
-        }
-        assert colors <= allowed
+        assert result.mode == "RGB"
 
     def test_inky_theme_gets_theme_specific_key_accents(self):
         cfg = DisplayConfig(provider="inky", model="impression_7_3_2025", width=800, height=480)
@@ -184,7 +176,7 @@ class TestRenderDashboard:
             config=cfg,
         )
         # fuzzyclock key colors: primary=yellow (4), secondary=blue (3)
-        assert style.accent_primary == (255, 220, 0)
+        assert style.accent_primary == (255, 255, 0)
         assert style.accent_secondary == (0, 0, 255)
 
 

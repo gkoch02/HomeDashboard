@@ -30,7 +30,7 @@ from src.render.components import (
 from src.render.components import (
     weather_full as weather_full_comp,
 )
-from src.render.quantize import INKY_SPECTRA6_PALETTE, quantize_for_display, quantize_to_palette
+from src.render.quantize import INKY_SPECTRA6_PALETTE, quantize_for_display
 from src.render.theme import Theme, default_theme
 
 # Base resolution used when no theme is provided (legacy path).
@@ -366,7 +366,8 @@ def render_dashboard(
 
     if needs_quantize:
         image = quantize_for_display(image, config.quantization_mode)
-    elif target_is_color:
-        image = quantize_to_palette(image, INKY_SPECTRA6_PALETTE)
+    # Inky: no pre-quantization — the Inky library maps to physical inks using its own
+    # calibrated palette.  Pre-quantizing with an approximated palette causes grey
+    # anti-aliased pixels to snap to the wrong ink color (e.g. grey → green).
 
     return image

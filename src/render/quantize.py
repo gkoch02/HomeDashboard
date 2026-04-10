@@ -31,7 +31,7 @@ INKY_SPECTRA6_PALETTE: list[tuple[int, int, int]] = [
     (255, 255, 255),  # white
     (255, 0, 0),  # red
     (0, 0, 255),  # blue
-    (255, 220, 0),  # yellow
+    (255, 255, 0),  # yellow
     (0, 180, 0),  # green
 ]
 
