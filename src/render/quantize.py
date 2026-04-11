@@ -32,13 +32,13 @@ _VALID_MODES = ("threshold", "floyd_steinberg", "ordered")
 # Using the SATURATED values guarantees zero quantization error when set_image is called
 # with saturation=1.0, so every solid fill maps unambiguously to the correct physical ink.
 INKY_SPECTRA6_PALETTE: list[tuple[int, int, int]] = [
-    (0, 0, 0),        # 0 black
+    (0, 0, 0),  # 0 black
     (217, 242, 255),  # 1 white  (NOT 255,255,255 — that maps to Clear ink, not White)
-    (3, 124, 76),     # 2 green
-    (27, 46, 198),    # 3 blue
-    (245, 80, 34),    # 4 red
-    (255, 255, 68),   # 5 yellow
-    (239, 121, 44),   # 6 orange
+    (3, 124, 76),  # 2 green
+    (27, 46, 198),  # 3 blue
+    (245, 80, 34),  # 4 red
+    (255, 255, 68),  # 5 yellow
+    (239, 121, 44),  # 6 orange
 ]
 
 # 4×4 Bayer matrix, threshold values scaled to 0–240 (base 0–15 × 16).
