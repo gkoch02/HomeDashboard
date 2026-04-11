@@ -16,10 +16,17 @@ Configuration::
     photo:
       path: /home/pi/wallpaper.jpg
 
-The photo is converted to grayscale, resized to fit the canvas with LANCZOS
-resampling, and dithered to 1-bit using Floyd-Steinberg diffusion before being
-pasted onto the canvas.  For dark-canvas variants (``fg=1, bg=0``) the
-grayscale values are inverted so bright photo areas appear as white pixels.
+**Waveshare / 1-bit path** — photo is converted to grayscale, resized with
+LANCZOS, and dithered to 1-bit via Floyd-Steinberg.
+
+**Inky Spectra 6 / RGB path** — photo is resized with LANCZOS and quantized to
+the 6-color Spectra 6 palette using Floyd-Steinberg error diffusion against a
+*blended* reference palette (50/50 mix of the physical SATURATED colors and
+pure ideal hues, mirroring ``InkyE673._palette_blend(saturation=0.5)``).  The
+blended palette forms correct hue decision boundaries — e.g. sky blue maps to
+blue rather than white — while still being close enough to the physical colors
+that ``InkyDisplay.show()`` can unambiguously recover the correct hardware index
+for each quantized pixel.
 """
 
 from __future__ import annotations
@@ -52,19 +59,20 @@ def _draw_photo_background(
         return
     try:
         if image.mode == "RGB":
-            # Inky color path: boost saturation so colours map to the correct
-            # palette hues, then quantize with Bayer ordered dithering + perceptual
-            # (redmean) colour matching.  This avoids the chaotic speckle produced
-            # by Floyd-Steinberg on a sparse 6-colour palette.
+            # Inky Spectra 6 color path: resize then quantize to 6-color palette
+            # using Floyd-Steinberg error diffusion against the blended reference
+            # palette.  The blended palette (50/50 SATURATED + DESATURATED) gives
+            # each hue a vibrant enough reference that nearest-color matching works
+            # correctly — without it, many mid-tone blues/greens/reds map to white
+            # because the physical SATURATED colors are too dark/muted.
             from PIL import Image as _Image
-            from PIL import ImageEnhance
 
-            from src.render.quantize import INKY_SPECTRA6_PALETTE, quantize_to_palette_ordered
+            from src.render.quantize import blend_inky_palette, quantize_to_palette_fs
 
             img = _Image.open(path).convert("RGB")
             img = img.resize((layout.canvas_w, layout.canvas_h), _Image.Resampling.LANCZOS)
-            img = ImageEnhance.Color(img).enhance(1.8)
-            img = quantize_to_palette_ordered(img, INKY_SPECTRA6_PALETTE)
+            blended = blend_inky_palette(0.5)
+            img = quantize_to_palette_fs(img, blended)
             image.paste(img)
         else:
             from src.render.primitives import load_and_dither_image

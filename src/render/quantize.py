@@ -31,6 +31,14 @@ _VALID_MODES = ("threshold", "floyd_steinberg", "ordered")
 # Inky Impression 7.3" 2025 Spectra 6 panel.  Ordering matches the controller's
 # color LUT; controller position 4 is unused (skipped by the e673 remap).
 #   0=Black, 1=White, 2=Yellow, 3=Red, 4=Blue, 5=Green
+#
+# These are the PHYSICAL display output colors — dark/muted values that match
+# what the ink actually produces.  They are used by InkyDisplay.show() for the
+# final palette-index lookup.  Do NOT use these alone as the quantization
+# reference palette for photos: because these values are so dark, many vivid or
+# mid-tone pixels end up closest to "white" and map incorrectly.  Instead, use
+# blend_inky_palette() which mixes these with INKY_SPECTRA6_DESATURATED_PALETTE
+# to create better hue decision boundaries (same approach as InkyE673._palette_blend).
 INKY_SPECTRA6_PALETTE: list[tuple[int, int, int]] = [
     (0, 0, 0),  # 0 black
     (161, 164, 165),  # 1 white
@@ -39,6 +47,46 @@ INKY_SPECTRA6_PALETTE: list[tuple[int, int, int]] = [
     (61, 59, 94),  # 4 blue
     (58, 91, 70),  # 5 green
 ]
+
+# DESATURATED_PALETTE from InkyE673 — the pure/ideal hue references.
+# Blending with INKY_SPECTRA6_PALETTE at 50/50 produces reference colors that
+# correctly represent each hue region in RGB space (e.g. blue = ~(30,29,174)
+# vs. the physical (61,59,94) which is too dark to reliably distinguish from
+# white when doing nearest-color matching on typical photo pixels).
+INKY_SPECTRA6_DESATURATED_PALETTE: list[tuple[int, int, int]] = [
+    (0, 0, 0),  # 0 black
+    (255, 255, 255),  # 1 white
+    (255, 255, 0),  # 2 yellow
+    (255, 0, 0),  # 3 red
+    (0, 0, 255),  # 4 blue
+    (0, 255, 0),  # 5 green
+]
+
+
+def blend_inky_palette(saturation: float = 0.5) -> list[tuple[int, int, int]]:
+    """Return a quantization reference palette blended between the physical Spectra 6
+    colors (saturation=1.0) and the pure ideal hues (saturation=0.0).
+
+    Mirrors ``InkyE673._palette_blend()``.  At the default saturation=0.5 each color
+    is a 50/50 mix, e.g. blue → ~(30, 29, 174) instead of the physical (61, 59, 94).
+    These blended values form correct hue decision boundaries for nearest-color
+    matching on typical photo pixels:
+
+    - Sky blue (70, 130, 200): dist to blended blue=112, dist to blended white=160  → blue ✓
+    - Same pixel vs SATURATED:  dist to blue=128,         dist to white=103          → white ✗
+
+    The quantized image's pixels (snapped to blended colors) are then correctly
+    remapped to hardware indices by InkyDisplay.show(), which uses Euclidean distance
+    against device.SATURATED_PALETTE — each blended color is unambiguously closest
+    to its corresponding SATURATED entry.
+    """
+    result = []
+    for s, d in zip(INKY_SPECTRA6_PALETTE, INKY_SPECTRA6_DESATURATED_PALETTE):
+        r = int(s[0] * saturation + d[0] * (1.0 - saturation))
+        g = int(s[1] * saturation + d[1] * (1.0 - saturation))
+        b = int(s[2] * saturation + d[2] * (1.0 - saturation))
+        result.append((r, g, b))
+    return result
 
 # 4×4 Bayer matrix, threshold values scaled to 0–240 (base 0–15 × 16).
 # Using ×16 (not ×17) keeps the maximum threshold at 240, so a pure-white pixel
@@ -227,6 +275,128 @@ def _quantize_palette_ordered_python(
         if x == w:
             x = 0
             y += 1
+
+    out = Image.new("RGB", (w, h))
+    out.putdata(result)
+    return out
+
+
+def quantize_to_palette_fs(
+    image: Image.Image,
+    colors: list[tuple[int, int, int]],
+) -> Image.Image:
+    """Palette-quantize using Floyd-Steinberg error diffusion.
+
+    Produces more natural-looking dither for photographic content than ordered
+    Bayer dithering — error is distributed to neighbouring pixels rather than
+    applied as a fixed threshold pattern, so colour transitions look organic
+    rather than grid-like.
+
+    This is the same dithering method used by ``InkyE673.set_image()`` but
+    implemented without PIL's ``quantize(palette=...)`` API, which calls a
+    deprecated internal C path that assigns wrong palette indices with Pillow 10+.
+
+    Args:
+        image:  Source image (any mode; converted to RGB internally).
+        colors: Target palette as a list of (R, G, B) tuples.
+
+    Returns:
+        PIL Image in ``"RGB"`` mode with all pixels snapped to *colors*.
+    """
+    try:
+        import numpy as np
+
+        return _quantize_palette_fs_numpy(image, colors, np)
+    except ImportError:
+        return _quantize_palette_fs_python(image, colors)
+
+
+def _quantize_palette_fs_numpy(
+    image: Image.Image,
+    colors: list[tuple[int, int, int]],
+    np,  # passed in to avoid re-importing
+) -> Image.Image:
+    w, h = image.size
+    # Float32 buffer accumulates error in-place across the whole image.
+    buf = np.array(image.convert("RGB"), dtype=np.float32)  # H×W×3
+    pal = np.array(colors, dtype=np.float32)  # N×3
+
+    for y in range(h):
+        for x in range(w):
+            old = buf[y, x].clip(0.0, 255.0)
+            # Nearest palette color by Euclidean squared distance.
+            diff = pal - old  # N×3
+            dist = (diff * diff).sum(axis=1)  # N
+            idx = int(dist.argmin())
+            new = pal[idx]
+            buf[y, x] = new
+            err = old - new  # quantization error
+            # Distribute error: right=7/16, below-left=3/16, below=5/16, below-right=1/16
+            if x + 1 < w:
+                buf[y, x + 1] += err * (7.0 / 16.0)
+            if y + 1 < h:
+                if x > 0:
+                    buf[y + 1, x - 1] += err * (3.0 / 16.0)
+                buf[y + 1, x] += err * (5.0 / 16.0)
+                if x + 1 < w:
+                    buf[y + 1, x + 1] += err * (1.0 / 16.0)
+
+    return Image.fromarray(buf.clip(0.0, 255.0).astype(np.uint8), mode="RGB")
+
+
+def _quantize_palette_fs_python(
+    image: Image.Image,
+    colors: list[tuple[int, int, int]],
+) -> Image.Image:
+    """Pure-Python Floyd-Steinberg fallback (no numpy required)."""
+    w, h = image.size
+    raw = list(image.convert("RGB").getdata())
+    # Mutable float buffer; each entry is [r, g, b].
+    buf: list[list[float]] = [[float(p[0]), float(p[1]), float(p[2])] for p in raw]
+    result: list[tuple[int, int, int]] = [(0, 0, 0)] * (w * h)
+
+    for y in range(h):
+        for x in range(w):
+            i = y * w + x
+            or_ = max(0.0, min(255.0, buf[i][0]))
+            og = max(0.0, min(255.0, buf[i][1]))
+            ob = max(0.0, min(255.0, buf[i][2]))
+            # Nearest palette color by Euclidean squared distance.
+            best_d = 1e18
+            best_c = colors[0]
+            for c in colors:
+                dr = or_ - c[0]
+                dg = og - c[1]
+                db = ob - c[2]
+                d = dr * dr + dg * dg + db * db
+                if d < best_d:
+                    best_d = d
+                    best_c = c
+            result[i] = best_c
+            er = or_ - best_c[0]
+            eg = og - best_c[1]
+            eb = ob - best_c[2]
+            if x + 1 < w:
+                j = y * w + x + 1
+                buf[j][0] += er * (7.0 / 16.0)
+                buf[j][1] += eg * (7.0 / 16.0)
+                buf[j][2] += eb * (7.0 / 16.0)
+            if y + 1 < h:
+                row_below = (y + 1) * w
+                if x > 0:
+                    j = row_below + x - 1
+                    buf[j][0] += er * (3.0 / 16.0)
+                    buf[j][1] += eg * (3.0 / 16.0)
+                    buf[j][2] += eb * (3.0 / 16.0)
+                j = row_below + x
+                buf[j][0] += er * (5.0 / 16.0)
+                buf[j][1] += eg * (5.0 / 16.0)
+                buf[j][2] += eb * (5.0 / 16.0)
+                if x + 1 < w:
+                    j = row_below + x + 1
+                    buf[j][0] += er * (1.0 / 16.0)
+                    buf[j][1] += eg * (1.0 / 16.0)
+                    buf[j][2] += eb * (1.0 / 16.0)
 
     out = Image.new("RGB", (w, h))
     out.putdata(result)
