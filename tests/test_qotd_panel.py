@@ -16,6 +16,7 @@ from src.render.components.qotd_panel import (
 )
 from src.render.fonts import bold as jakarta_bold
 from src.render.theme import ComponentRegion
+from src.render.themes.qotd import qotd_theme
 
 
 def _make_draw(w: int = 800, h: int = 480):
@@ -196,6 +197,11 @@ class TestDrawQotd:
                 renders.add(hashlib.md5(img.tobytes()).hexdigest())
 
         assert len(renders) > 1
+
+    def test_qotd_theme_exposes_qotd_specific_accent_overrides(self):
+        style = qotd_theme().style
+        assert style.accent_primary == 4
+        assert style.accent_info == 5
 
 
 # ---------------------------------------------------------------------------

@@ -33,6 +33,10 @@ from src.render.theme import ComponentRegion, Theme, ThemeLayout, ThemeStyle
 
 BANNER_H = 80  # height of the bottom weather strip
 
+# Inky Spectra 6 palette indices used by src.render.canvas.
+_INKY_BLUE = 4
+_INKY_GREEN = 5
+
 
 def qotd_theme() -> Theme:
     """Return the QOTD theme."""
@@ -59,6 +63,8 @@ def qotd_theme() -> Theme:
         style=ThemeStyle(
             fg=0,  # black ink on white paper
             bg=1,
+            accent_info=_INKY_GREEN,
+            accent_primary=_INKY_BLUE,
             invert_header=False,
             invert_today_col=False,
             invert_allday_bars=False,

@@ -72,6 +72,41 @@ _INKY_THEME_KEY_COLORS: dict[str, tuple[int, int]] = {
 }
 
 
+def _resolve_inky_explicit_color(
+    value: int | tuple[int, int, int] | None,
+    fallback: tuple[int, int, int],
+) -> tuple[int, int, int]:
+    """Resolve an explicit theme color for Inky RGB output.
+
+    Themes may specify an RGB tuple directly or use a Spectra 6 palette index
+    to override an accent role without baking backend-specific RGB values into
+    the theme module.
+    """
+    if value is None:
+        return fallback
+    if isinstance(value, tuple):
+        return value
+    if 0 <= value < len(INKY_SPECTRA6_PALETTE):
+        return INKY_SPECTRA6_PALETTE[value]
+    return fallback
+
+
+def _resolve_mono_explicit_color(
+    value: int | tuple[int, int, int] | None,
+    fallback: int | tuple[int, int, int],
+    *,
+    allow_grayscale: bool,
+) -> int | tuple[int, int, int]:
+    """Resolve explicit accent colors for monochrome or greyscale backends."""
+    if value is None:
+        return fallback
+    if isinstance(value, tuple):
+        return fallback
+    if allow_grayscale:
+        return value if 0 <= value <= 255 else fallback
+    return value if value in (0, 1) else fallback
+
+
 def _resolve_render_mode(layout_mode: str, config: DisplayConfig) -> str:
     spec = get_display_spec(config.provider, config.model)
     if spec is None:
@@ -86,15 +121,28 @@ def _resolve_render_mode(layout_mode: str, config: DisplayConfig) -> str:
 def _resolve_style(theme: Theme, render_mode: str, config: DisplayConfig):
     style = theme.style
     if config.provider != "inky":
+        allow_grayscale = render_mode == "L"
         return replace(
             style,
-            accent_info=style.fg if style.accent_info is None else style.accent_info,
-            accent_warn=style.fg if style.accent_warn is None else style.accent_warn,
-            accent_alert=style.fg if style.accent_alert is None else style.accent_alert,
-            accent_good=style.fg if style.accent_good is None else style.accent_good,
-            accent_primary=style.fg if style.accent_primary is None else style.accent_primary,
+            accent_info=_resolve_mono_explicit_color(
+                style.accent_info, style.fg, allow_grayscale=allow_grayscale
+            ),
+            accent_warn=_resolve_mono_explicit_color(
+                style.accent_warn, style.fg, allow_grayscale=allow_grayscale
+            ),
+            accent_alert=_resolve_mono_explicit_color(
+                style.accent_alert, style.fg, allow_grayscale=allow_grayscale
+            ),
+            accent_good=_resolve_mono_explicit_color(
+                style.accent_good, style.fg, allow_grayscale=allow_grayscale
+            ),
+            accent_primary=_resolve_mono_explicit_color(
+                style.accent_primary, style.fg, allow_grayscale=allow_grayscale
+            ),
             accent_secondary=(
-                style.fg if style.accent_secondary is None else style.accent_secondary
+                _resolve_mono_explicit_color(
+                    style.accent_secondary, style.fg, allow_grayscale=allow_grayscale
+                )
             ),
         )
     if render_mode == "RGB":
@@ -104,23 +152,27 @@ def _resolve_style(theme: Theme, render_mode: str, config: DisplayConfig):
             style,
             fg=pal[_INKY_BLACK] if style.fg == 0 else pal[_INKY_WHITE],
             bg=pal[_INKY_BLACK] if style.bg == 0 else pal[_INKY_WHITE],
-            accent_info=pal[_INKY_BLUE] if style.accent_info is None else style.accent_info,
-            accent_warn=pal[_INKY_YELLOW] if style.accent_warn is None else style.accent_warn,
-            accent_alert=pal[_INKY_RED] if style.accent_alert is None else style.accent_alert,
-            accent_good=pal[_INKY_GREEN] if style.accent_good is None else style.accent_good,
-            accent_primary=pal[primary] if style.accent_primary is None else style.accent_primary,
+            accent_info=_resolve_inky_explicit_color(style.accent_info, pal[_INKY_BLUE]),
+            accent_warn=_resolve_inky_explicit_color(style.accent_warn, pal[_INKY_YELLOW]),
+            accent_alert=_resolve_inky_explicit_color(style.accent_alert, pal[_INKY_RED]),
+            accent_good=_resolve_inky_explicit_color(style.accent_good, pal[_INKY_GREEN]),
+            accent_primary=_resolve_inky_explicit_color(style.accent_primary, pal[primary]),
             accent_secondary=(
-                pal[secondary] if style.accent_secondary is None else style.accent_secondary
+                _resolve_inky_explicit_color(style.accent_secondary, pal[secondary])
             ),
         )
     return replace(
         style,
-        accent_info=style.fg if style.accent_info is None else style.accent_info,
-        accent_warn=style.fg if style.accent_warn is None else style.accent_warn,
-        accent_alert=style.fg if style.accent_alert is None else style.accent_alert,
-        accent_good=style.fg if style.accent_good is None else style.accent_good,
-        accent_primary=style.fg if style.accent_primary is None else style.accent_primary,
-        accent_secondary=style.fg if style.accent_secondary is None else style.accent_secondary,
+        accent_info=_resolve_mono_explicit_color(style.accent_info, style.fg, allow_grayscale=True),
+        accent_warn=_resolve_mono_explicit_color(style.accent_warn, style.fg, allow_grayscale=True),
+        accent_alert=_resolve_mono_explicit_color(style.accent_alert, style.fg, allow_grayscale=True),
+        accent_good=_resolve_mono_explicit_color(style.accent_good, style.fg, allow_grayscale=True),
+        accent_primary=_resolve_mono_explicit_color(
+            style.accent_primary, style.fg, allow_grayscale=True
+        ),
+        accent_secondary=_resolve_mono_explicit_color(
+            style.accent_secondary, style.fg, allow_grayscale=True
+        ),
     )
 
 

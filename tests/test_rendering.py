@@ -15,6 +15,7 @@ from src.data.models import (
     WeatherData,
 )
 from src.render.canvas import _resolve_style, render_dashboard
+from src.render.themes.qotd import qotd_theme
 from src.render.theme import Theme, ThemeLayout, ThemeStyle
 
 
@@ -179,6 +180,18 @@ class TestRenderDashboard:
         # Values are the exact InkyE673 SATURATED_PALETTE entries.
         assert style.accent_primary == (208, 190, 71)
         assert style.accent_secondary == (61, 59, 94)
+
+    def test_qotd_inky_theme_honors_explicit_accent_overrides(self):
+        cfg = DisplayConfig(provider="inky", model="impression_7_3_2025", width=800, height=480)
+        style = _resolve_style(qotd_theme(), render_mode="RGB", config=cfg)
+        assert style.accent_primary == (61, 59, 94)
+        assert style.accent_info == (58, 91, 70)
+
+    def test_qotd_waveshare_explicit_inky_accents_fall_back_to_fg(self):
+        cfg = DisplayConfig()
+        style = _resolve_style(qotd_theme(), render_mode="1", config=cfg)
+        assert style.accent_primary == style.fg
+        assert style.accent_info == style.fg
 
 
 class TestGreyscaleCanvas:

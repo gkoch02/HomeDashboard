@@ -87,7 +87,7 @@ def draw_qotd(
 
     for size in (64, 60, 56, 52, 48, 44, 40, 36, 32, 28, 24, 20):
         q_font = quote_font_fn(size)
-        a_size = max(13, int(size * 0.52))
+        a_size = max(16, int(size * 0.64))
         a_font = style.font_semibold(a_size)
         lines = _wrap_lines(text, q_font, max_w)
         lh = text_height(q_font)
@@ -105,7 +105,7 @@ def draw_qotd(
     # Fallback: force size 20, allow up to 8 lines
     if not best_lines:
         best_quote_font = quote_font_fn(20)
-        best_attr_font = style.font_semibold(13)
+        best_attr_font = style.font_semibold(16)
         best_lines = _wrap_lines(text, best_quote_font, max_w)[:8]
 
     lh = text_height(best_quote_font)
