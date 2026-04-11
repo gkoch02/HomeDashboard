@@ -43,7 +43,6 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-
 def _draw_photo_background(
     image: Image.Image,
     layout: ThemeLayout,
