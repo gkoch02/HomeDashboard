@@ -106,8 +106,9 @@ class TestLoadAndDitherImage:
 
 
 class TestDrawPhotoBackground:
-    def _make_canvas(self) -> Image.Image:
-        return Image.new("1", (800, 480), 1)
+    def _make_canvas(self, mode: str = "1") -> Image.Image:
+        fill = 1 if mode == "1" else (255, 255, 255) if mode == "RGB" else 255
+        return Image.new(mode, (800, 480), fill)
 
     def _make_layout(self) -> ThemeLayout:
         return ThemeLayout(canvas_w=800, canvas_h=480)
@@ -147,6 +148,29 @@ class TestDrawPhotoBackground:
         # After dithering a mid-grey image onto a white canvas we expect some black pixels
         # A purely white canvas would have all bytes == 0xFF; mixed dithering produces others.
         assert canvas.tobytes() != bytes([0xFF] * len(canvas.tobytes()))
+
+    def test_rgb_canvas_pastes_color_image(self, grey_png: Path):
+        """On an RGB canvas (Inky path), the photo is quantized to palette colors, not 1-bit."""
+        canvas = self._make_canvas(mode="RGB")
+        layout = self._make_layout()
+        style = self._make_style(path=str(grey_png))
+        _draw_photo_background(canvas, layout, style)
+        assert canvas.mode == "RGB"
+        # The canvas should have been modified (no longer all-white)
+        white_canvas = bytes([255] * len(canvas.tobytes()))
+        assert canvas.tobytes() != white_canvas
+
+    def test_rgb_canvas_pixels_are_palette_colors(self, grey_png: Path):
+        """All pixels on the RGB canvas should be one of the 6 Inky palette colors."""
+        from src.render.quantize import INKY_SPECTRA6_PALETTE
+
+        canvas = self._make_canvas(mode="RGB")
+        layout = self._make_layout()
+        style = self._make_style(path=str(grey_png))
+        _draw_photo_background(canvas, layout, style)
+        palette_set = set(INKY_SPECTRA6_PALETTE)
+        pixels = set(canvas.getdata())
+        assert pixels <= palette_set
 
 
 # ---------------------------------------------------------------------------
@@ -233,3 +257,18 @@ class TestPhotoThemeRendering:
         img = render_dashboard(data, DisplayConfig(), title="Test", theme=theme)
         assert img.mode == "1"
         assert img.size == (800, 480)
+
+    def test_renders_inky_rgb_with_color_photo(self, gradient_png: Path):
+        """Photo theme on an Inky RGB display should produce an RGB image with palette colors."""
+        from src.render.quantize import INKY_SPECTRA6_PALETTE
+
+        data = self._dummy_data()
+        theme = load_theme("photo")
+        theme.style.photo_path = str(gradient_png)
+        cfg = DisplayConfig(provider="inky", model="impression_7_3_2025")
+        img = render_dashboard(data, cfg, title="Test", theme=theme)
+        assert img.mode == "RGB"
+        palette_set = set(INKY_SPECTRA6_PALETTE)
+        # All pixels in the photo region (above the header bar) must be palette colors
+        pixels = set(img.crop((0, 0, img.width, img.height - 50)).getdata())
+        assert pixels <= palette_set

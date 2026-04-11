@@ -51,15 +51,27 @@ def _draw_photo_background(
         logger.warning("photo theme: image not found: %s", path)
         return
     try:
-        from src.render.primitives import load_and_dither_image
+        if image.mode == "RGB":
+            # Inky color path: quantize to the Spectra 6 palette so the photo
+            # renders in color rather than being dithered to black-and-white first.
+            from PIL import Image as _Image
 
-        dithered = load_and_dither_image(
-            path,
-            (layout.canvas_w, layout.canvas_h),
-            style.fg,
-            style.bg,
-        )
-        image.paste(dithered)
+            from src.render.quantize import INKY_SPECTRA6_PALETTE, quantize_to_palette
+
+            img = _Image.open(path).convert("RGB")
+            img = img.resize((layout.canvas_w, layout.canvas_h), _Image.Resampling.LANCZOS)
+            img = quantize_to_palette(img, INKY_SPECTRA6_PALETTE, dither=_Image.Dither.FLOYDSTEINBERG)
+            image.paste(img)
+        else:
+            from src.render.primitives import load_and_dither_image
+
+            dithered = load_and_dither_image(
+                path,
+                (layout.canvas_w, layout.canvas_h),
+                style.fg,
+                style.bg,
+            )
+            image.paste(dithered)
     except Exception as exc:  # noqa: BLE001
         logger.warning("photo theme: failed to load image %s: %s", path, exc)
 
