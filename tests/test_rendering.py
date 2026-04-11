@@ -175,10 +175,10 @@ class TestRenderDashboard:
             render_mode="RGB",
             config=cfg,
         )
-        # fuzzyclock key colors: primary=yellow (idx 5), secondary=blue (idx 3)
-        # Values are the exact SATURATED_PALETTE entries for zero-error ink matching.
-        assert style.accent_primary == (255, 255, 68)
-        assert style.accent_secondary == (27, 46, 198)
+        # fuzzyclock key colors: primary=yellow (InkyE673 idx 2), secondary=blue (idx 4)
+        # Values are the exact InkyE673 SATURATED_PALETTE entries.
+        assert style.accent_primary == (208, 190, 71)
+        assert style.accent_secondary == (61, 59, 94)
 
 
 class TestGreyscaleCanvas:

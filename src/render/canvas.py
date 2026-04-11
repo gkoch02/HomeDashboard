@@ -37,15 +37,14 @@ from src.render.theme import Theme, default_theme
 _BASE_W = 800
 _BASE_H = 480
 
-# Indices into INKY_SPECTRA6_PALETTE — must match the Inky library's physical ink ordering:
-# 0=Black, 1=White, 2=Green, 3=Blue, 4=Red, 5=Yellow, 6=Orange
+# Indices into INKY_SPECTRA6_PALETTE — matches InkyE673 (inky_e673.py) controller ordering:
+# 0=Black, 1=White, 2=Yellow, 3=Red, 4=Blue, 5=Green  (no Orange on Spectra 6)
 _INKY_BLACK = 0
 _INKY_WHITE = 1
-_INKY_GREEN = 2
-_INKY_BLUE = 3
-_INKY_RED = 4
-_INKY_YELLOW = 5
-_INKY_ORANGE = 6
+_INKY_YELLOW = 2
+_INKY_RED = 3
+_INKY_BLUE = 4
+_INKY_GREEN = 5
 
 _INKY_THEME_KEY_COLORS: dict[str, tuple[int, int]] = {
     "default": (_INKY_BLUE, _INKY_RED),

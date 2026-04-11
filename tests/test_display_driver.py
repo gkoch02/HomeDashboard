@@ -132,10 +132,10 @@ class TestInkyModels:
         for model in INKY_MODELS:
             assert model in INKY_MODEL_INIT, f"INKY_MODEL_INIT missing entry for '{model}'"
 
-    def test_2025_model_init_uses_inky_impressions_7(self):
+    def test_2025_model_init_uses_inky_e673(self):
         module_path, class_name, kwargs = INKY_MODEL_INIT["impression_7_3_2025"]
         assert module_path == "inky"
-        assert class_name == "Inky_Impressions_7"
+        assert class_name == "InkyE673"
         assert kwargs == {}
 
 
@@ -294,15 +294,15 @@ class TestInkyDisplayHardware:
         device = MagicMock()
         device.set_image = MagicMock()
         device.show = MagicMock()
-        # SATURATED_PALETTE is accessed by show() to build the quantization palette.
+        # InkyE673 SATURATED_PALETTE: 6 ink colours + Clear at index 6.
+        # Order: 0=Black, 1=White, 2=Yellow, 3=Red, 4=Blue, 5=Green, 6=Clear
         device.SATURATED_PALETTE = [
             [0, 0, 0],
-            [217, 242, 255],
-            [3, 124, 76],
-            [27, 46, 198],
-            [245, 80, 34],
-            [255, 255, 68],
-            [239, 121, 44],
+            [161, 164, 165],
+            [208, 190, 71],
+            [156, 72, 75],
+            [61, 59, 94],
+            [58, 91, 70],
             [255, 255, 255],
         ]
         return device
@@ -311,7 +311,7 @@ class TestInkyDisplayHardware:
         device = self._make_mock_device()
         mock_cls = MagicMock(return_value=device)
         mod = MagicMock()
-        mod.Inky_Impressions_7 = mock_cls
+        mod.InkyE673 = mock_cls
         d = InkyDisplay(model="impression_7_3_2025")
         with patch("importlib.import_module", return_value=mod) as mock_import:
             result = d._get_device()
@@ -320,23 +320,23 @@ class TestInkyDisplayHardware:
         assert result is device
 
     def test_show_writes_correct_palette_index_to_buf(self):
-        # show() bypasses set_image() entirely — it computes nearest SATURATED_PALETTE
-        # index per pixel via numpy and writes a 2-D (height × width) uint8 array to
-        # device.buf, matching set_image()'s reshape((rows, cols)) output so that
-        # show()'s flip/rotation logic operates on correctly-shaped data.
+        # show() bypasses set_image() entirely — computes nearest SATURATED_PALETTE index
+        # per pixel via numpy, applies the InkyE673 controller remap [0,1,2,3,5,6], and
+        # writes a 2-D (height × width) array to device.buf so show()'s flip/rotation works.
         import numpy as np
 
         device = self._make_mock_device()
         d = InkyDisplay(model="impression_7_3_2025")
-        # Solid blue image — SATURATED_PALETTE index 3 = (27, 46, 198), distance 0.
-        image = Image.new("RGB", (800, 480), (27, 46, 198))
+        # Solid blue image — InkyE673 SATURATED_PALETTE index 4 = (61, 59, 94), nearest.
+        # After remap [0,1,2,3,5,6]: remap[4] = 5 → controller position 5.
+        image = Image.new("RGB", (800, 480), (61, 59, 94))
         with patch.object(d, "_get_device", return_value=device):
             d.show(image)
         device.set_image.assert_not_called()
         device.show.assert_called_once()
         assert device.buf.shape == (480, 800)  # 2-D (height, width), matches set_image()
         assert device.buf.dtype == np.uint8
-        assert np.all(device.buf == 3)  # blue = index 3 in SATURATED_PALETTE
+        assert np.all(device.buf == 5)  # palette idx 4 (blue) → remap[4] = controller 5
 
     def test_clear_fills_buf_with_white_index(self):
         import numpy as np

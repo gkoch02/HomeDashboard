@@ -27,18 +27,17 @@ from PIL import Image
 
 _VALID_MODES = ("threshold", "floyd_steinberg", "ordered")
 
-# Exact SATURATED_PALETTE from Inky_Impressions_7, in the Inky library's physical ink order:
-#   0=Black, 1=White, 2=Green, 3=Blue, 4=Red, 5=Yellow, 6=Orange
-# Using the SATURATED values guarantees zero quantization error when set_image is called
-# with saturation=1.0, so every solid fill maps unambiguously to the correct physical ink.
+# SATURATED_PALETTE from InkyE673 (inky_e673.py) — the correct driver for the
+# Inky Impression 7.3" 2025 Spectra 6 panel.  Ordering matches the controller's
+# color LUT; controller position 4 is unused (skipped by the e673 remap).
+#   0=Black, 1=White, 2=Yellow, 3=Red, 4=Blue, 5=Green
 INKY_SPECTRA6_PALETTE: list[tuple[int, int, int]] = [
     (0, 0, 0),  # 0 black
-    (217, 242, 255),  # 1 white  (NOT 255,255,255 — that maps to Clear ink, not White)
-    (3, 124, 76),  # 2 green
-    (27, 46, 198),  # 3 blue
-    (245, 80, 34),  # 4 red
-    (255, 255, 68),  # 5 yellow
-    (239, 121, 44),  # 6 orange
+    (161, 164, 165),  # 1 white
+    (208, 190, 71),  # 2 yellow
+    (156, 72, 75),  # 3 red
+    (61, 59, 94),  # 4 blue
+    (58, 91, 70),  # 5 green
 ]
 
 # 4×4 Bayer matrix, threshold values scaled to 0–240 (base 0–15 × 16).

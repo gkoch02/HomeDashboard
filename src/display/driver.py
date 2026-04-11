@@ -31,8 +31,10 @@ INKY_MODELS: dict[str, tuple[int, int]] = {
 # Maps Inky model name → (module_path, class_name, init_kwargs).
 # Direct instantiation is used instead of inky.auto.auto() because some hardware
 # revisions (e.g. impression_7_3_2025) do not expose EEPROM data for auto-detection.
+# The 2025 Spectra 6 7.3" panel uses InkyE673 (inky_e673.py), NOT Inky_Impressions_7
+# (inky_ac073tc1a.py) which is the older 7-color/orange driver for a different panel.
 INKY_MODEL_INIT: dict[str, tuple[str, str, dict]] = {
-    "impression_7_3_2025": ("inky", "Inky_Impressions_7", {}),
+    "impression_7_3_2025": ("inky", "InkyE673", {}),
 }
 
 _HASH_FILENAME = "last_image_hash.txt"
@@ -259,16 +261,18 @@ class InkyDisplay(DisplayDriver):
         # inky_ac073tc1a.py's set_image() uses the deprecated image.im.convert("P", ...)
         # internal Pillow API which assigns wrong palette indices with Pillow 10+.
         # Pillow's .quantize(palette=...) also calls this broken path internally.
-        # Bypass set_image() entirely: compute nearest SATURATED_PALETTE index per pixel
-        # via numpy (always available via inky's own dependency) and write a 2-D
-        # (height × width) uint8 index array to device.buf.  The inky library's show()
-        # reads self.buf as 2-D so it can apply flip/rotation before flattening and
-        # packing into 4-bit pairs for the AC073TC1A controller.
+        # Bypass set_image() entirely — it uses broken PIL internal APIs with Pillow 10+.
+        # Compute nearest SATURATED_PALETTE index per pixel via numpy, then apply the
+        # InkyE673 controller remap [0,1,2,3,5,6] that skips controller position 4
+        # (matching inky_e673.py's set_image() remap step).  Write a 2-D (H×W) array
+        # to device.buf so show()'s flip/rotation transforms work on correctly-shaped data.
+        _REMAP = np.array([0, 1, 2, 3, 5, 6], dtype=np.uint8)
         rgb = np.array(image.convert("RGB"), dtype=np.int32)  # (H, W, 3)
-        palette = np.array(device.SATURATED_PALETTE, dtype=np.int32)  # (N, 3)
+        # Use only the 6 ink colours — SATURATED_PALETTE may include Clear at index 6.
+        palette = np.array(device.SATURATED_PALETTE[: len(_REMAP)], dtype=np.int32)  # (6, 3)
         diff = rgb[:, :, np.newaxis, :] - palette[np.newaxis, np.newaxis, :, :]
-        # Result shape (H, W) — matches set_image()'s reshape((rows, cols)) output.
-        device.buf = np.argmin(np.sum(diff**2, axis=3), axis=2).astype(np.uint8)
+        logical_idx = np.argmin(np.sum(diff**2, axis=3), axis=2).astype(np.uint8)  # (H, W)
+        device.buf = _REMAP[logical_idx]  # (H, W), controller positions
         device.show()
 
     def clear(self) -> None:
