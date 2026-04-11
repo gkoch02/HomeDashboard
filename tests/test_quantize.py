@@ -301,9 +301,7 @@ class TestBlendInkyPalette:
         blended = blend_inky_palette(0.5)
         saturated = list(INKY_SPECTRA6_PALETTE)
         for idx, b in enumerate(blended):
-            distances = [
-                math.sqrt(sum((b[c] - s[c]) ** 2 for c in range(3))) for s in saturated
-            ]
+            distances = [math.sqrt(sum((b[c] - s[c]) ** 2 for c in range(3))) for s in saturated]
             nearest = distances.index(min(distances))
             assert nearest == idx, (
                 f"Blended color {b} (index {idx}) maps to SATURATED index {nearest} "

@@ -88,6 +88,7 @@ def blend_inky_palette(saturation: float = 0.5) -> list[tuple[int, int, int]]:
         result.append((r, g, b))
     return result
 
+
 # 4×4 Bayer matrix, threshold values scaled to 0–240 (base 0–15 × 16).
 # Using ×16 (not ×17) keeps the maximum threshold at 240, so a pure-white pixel
 # (value 255) always exceeds every threshold and maps cleanly to white.
