@@ -321,9 +321,9 @@ class TestInkyDisplayHardware:
 
     def test_show_writes_correct_palette_index_to_buf(self):
         # show() bypasses set_image() entirely — it computes nearest SATURATED_PALETTE
-        # index per pixel via numpy and writes a flat uint8 array to device.buf.
-        # This avoids the broken image.im.convert("P", ...) path in inky_ac073tc1a.py
-        # which assigns wrong palette indices with Pillow 10+.
+        # index per pixel via numpy and writes a 2-D (height × width) uint8 array to
+        # device.buf, matching set_image()'s reshape((rows, cols)) output so that
+        # show()'s flip/rotation logic operates on correctly-shaped data.
         import numpy as np
 
         device = self._make_mock_device()
@@ -334,7 +334,7 @@ class TestInkyDisplayHardware:
             d.show(image)
         device.set_image.assert_not_called()
         device.show.assert_called_once()
-        assert device.buf.shape == (800 * 480,)
+        assert device.buf.shape == (480, 800)  # 2-D (height, width), matches set_image()
         assert device.buf.dtype == np.uint8
         assert np.all(device.buf == 3)  # blue = index 3 in SATURATED_PALETTE
 
@@ -347,7 +347,7 @@ class TestInkyDisplayHardware:
             d.clear()
         device.set_image.assert_not_called()
         device.show.assert_called_once()
-        assert device.buf.shape == (800 * 480,)
+        assert device.buf.shape == (480, 800)  # 2-D (height, width), matches set_image()
         assert device.buf.dtype == np.uint8
         assert np.all(device.buf == 1)  # 1 = White ink
 

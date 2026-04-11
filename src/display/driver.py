@@ -260,13 +260,15 @@ class InkyDisplay(DisplayDriver):
         # internal Pillow API which assigns wrong palette indices with Pillow 10+.
         # Pillow's .quantize(palette=...) also calls this broken path internally.
         # Bypass set_image() entirely: compute nearest SATURATED_PALETTE index per pixel
-        # via numpy (always available via inky's own dependency) and write the flattened
-        # index array directly to device.buf — the same layout set_image() would produce —
-        # so device.show() packs and transmits the correct ink indices to the hardware.
+        # via numpy (always available via inky's own dependency) and write a 2-D
+        # (height × width) uint8 index array to device.buf.  The inky library's show()
+        # reads self.buf as 2-D so it can apply flip/rotation before flattening and
+        # packing into 4-bit pairs for the AC073TC1A controller.
         rgb = np.array(image.convert("RGB"), dtype=np.int32)  # (H, W, 3)
         palette = np.array(device.SATURATED_PALETTE, dtype=np.int32)  # (N, 3)
         diff = rgb[:, :, np.newaxis, :] - palette[np.newaxis, np.newaxis, :, :]
-        device.buf = np.argmin(np.sum(diff**2, axis=3), axis=2).astype(np.uint8).flatten()
+        # Result shape (H, W) — matches set_image()'s reshape((rows, cols)) output.
+        device.buf = np.argmin(np.sum(diff**2, axis=3), axis=2).astype(np.uint8)
         device.show()
 
     def clear(self) -> None:
@@ -274,9 +276,9 @@ class InkyDisplay(DisplayDriver):
 
         device = self._get_device()
         # White ink is always palette index 1 in Inky Spectra 6 displays.
-        # Write directly to device.buf (same 1-D layout as show()) rather than calling
-        # set_image(), which would hit the broken image.im.convert() path.
-        device.buf = np.ones(self.native_height * self.native_width, dtype=np.uint8)
+        # Write a 2-D (height × width) array directly to device.buf, matching the
+        # shape that set_image() would produce, so show()'s flip/rotation logic works.
+        device.buf = np.ones((self.native_height, self.native_width), dtype=np.uint8)
         device.show()
 
 
