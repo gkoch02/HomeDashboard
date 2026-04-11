@@ -57,7 +57,9 @@ _CI = 7  # content inset — one pixel inside the inner border (INNER=6)
 # ---------------------------------------------------------------------------
 
 
-def _diamond(draw: ImageDraw.ImageDraw, cx: int, cy: int, r: int, fill: int) -> None:
+def _diamond(
+    draw: ImageDraw.ImageDraw, cx: int, cy: int, r: int, fill: int | tuple[int, int, int]
+) -> None:
     """Draw a solid diamond (rotated square) ornament."""
     draw.polygon([(cx, cy - r), (cx + r, cy), (cx, cy + r), (cx - r, cy)], fill=fill)
 
@@ -92,11 +94,12 @@ def _corner_ornament(
     draw: ImageDraw.ImageDraw,
     cx: int,
     cy: int,
-    fill: int,
+    fill: int | tuple[int, int, int],
+    contrast: int | tuple[int, int, int],
 ) -> None:
-    """Draw a corner ornament: concentric diamond + inner dot."""
+    """Draw a corner ornament: concentric diamond + inner dot in the contrasting colour."""
     _diamond(draw, cx, cy, 7, fill)
-    _diamond(draw, cx, cy, 3, 1 - fill)  # inner diamond in opposite color
+    _diamond(draw, cx, cy, 3, contrast)
 
 
 def _draw_fantasy_overlay(
@@ -138,7 +141,7 @@ def _draw_fantasy_overlay(
         (INNER, H - INNER - 1),
         (W - INNER - 1, H - INNER - 1),
     ]:
-        _corner_ornament(draw, cx, cy, fg)
+        _corner_ornament(draw, cx, cy, fg, bg)
 
     # ------------------------------------------------------------------
     # 3. Header bottom border — double rule with centre ornament

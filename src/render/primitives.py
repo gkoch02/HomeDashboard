@@ -16,8 +16,8 @@ WHITE = 1
 def load_and_dither_image(
     path: str,
     size: tuple[int, int],
-    fg: int,
-    bg: int,
+    fg: int | tuple[int, int, int],
+    bg: int | tuple[int, int, int],
 ) -> Image.Image:
     """Load an image from *path*, resize to *size*, and dither to 1-bit.
 

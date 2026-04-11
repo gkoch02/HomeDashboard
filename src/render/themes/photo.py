@@ -56,7 +56,8 @@ def _draw_photo_background(
             # palette hues, then quantize with Bayer ordered dithering + perceptual
             # (redmean) colour matching.  This avoids the chaotic speckle produced
             # by Floyd-Steinberg on a sparse 6-colour palette.
-            from PIL import Image as _Image, ImageEnhance
+            from PIL import Image as _Image
+            from PIL import ImageEnhance
 
             from src.render.quantize import INKY_SPECTRA6_PALETTE, quantize_to_palette_ordered
 

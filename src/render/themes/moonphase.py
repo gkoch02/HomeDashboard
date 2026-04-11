@@ -39,7 +39,7 @@ def _leaf_bud(
     x: int,
     y: int,
     direction: str,
-    fill: int,
+    fill: int | tuple[int, int, int],
 ) -> None:
     """Draw a small 3px triangular leaf bud pointing outward."""
     if direction == "up":
@@ -57,7 +57,7 @@ def _small_star(
     cx: int,
     cy: int,
     size: int,
-    fill: int,
+    fill: int | tuple[int, int, int],
 ) -> None:
     """Draw a small cross-shaped star."""
     draw.line([(cx - size, cy), (cx + size, cy)], fill=fill, width=1)
@@ -76,7 +76,7 @@ def _corner_flourish(
     cx: int,
     cy: int,
     quadrant: int,
-    fill: int,
+    fill: int | tuple[int, int, int],
 ) -> None:
     """Draw a small floral arc flourish at a corner.
 
