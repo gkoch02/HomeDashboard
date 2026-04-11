@@ -35,14 +35,13 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from src.render.theme import ComponentRegion, Theme, ThemeLayout, ThemeStyle
+from src.render.theme import Theme, ThemeLayout, ThemeStyle
 
 if TYPE_CHECKING:
     from PIL import Image
 
 logger = logging.getLogger(__name__)
 
-_INFO_BAR_H = 50  # height of the bottom info bar in pixels
 
 
 def _draw_photo_background(
@@ -116,17 +115,12 @@ def photo_theme() -> Theme:
     layout = ThemeLayout(
         canvas_w=800,
         canvas_h=480,
-        # Reuse the header component at the bottom of the canvas as an info bar.
-        header=ComponentRegion(0, 480 - _INFO_BAR_H, 800, _INFO_BAR_H),
-        draw_order=["header"],
+        draw_order=[],
         background_fn=_draw_photo_background,
     )
     style = ThemeStyle(
         fg=0,
         bg=1,
-        invert_header=True,  # inverted bar at bottom (black fill, white text)
-        invert_today_col=False,
-        invert_allday_bars=False,
         show_borders=False,
     )
     return Theme(name="photo", style=style, layout=layout)

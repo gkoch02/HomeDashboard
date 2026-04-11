@@ -192,18 +192,11 @@ class TestPhotoThemeFactory:
     def test_has_background_fn(self):
         assert photo_theme().layout.background_fn is not None
 
-    def test_draw_order_is_header_only(self):
-        assert photo_theme().layout.draw_order == ["header"]
+    def test_draw_order_is_empty(self):
+        assert photo_theme().layout.draw_order == []
 
-    def test_header_at_bottom(self):
-        theme = photo_theme()
-        header = theme.layout.header
-        # Bottom 50 px of 480-px canvas
-        assert header.y == 480 - 50
-        assert header.h == 50
-
-    def test_invert_header_true(self):
-        assert photo_theme().style.invert_header is True
+    def test_no_header_region(self):
+        assert photo_theme().layout.header is None
 
     def test_show_borders_false(self):
         assert photo_theme().style.show_borders is False
