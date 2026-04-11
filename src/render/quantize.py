@@ -91,6 +91,143 @@ def _ordered_bayer(image: Image.Image) -> Image.Image:
     return out.convert("1")
 
 
+def _redmean_sq(
+    r1: int, g1: int, b1: int,
+    r2: int, g2: int, b2: int,
+) -> float:
+    """Perceptually-weighted squared color distance (redmean approximation).
+
+    More accurate than Euclidean RGB for perceived hue differences, especially
+    in the red channel.  No trigonometry or expensive colour-space conversions.
+    """
+    r_mean = (r1 + r2) * 0.5
+    dr = r1 - r2
+    dg = g1 - g2
+    db = b1 - b2
+    return (
+        (2.0 + r_mean * (1.0 / 256.0)) * dr * dr
+        + 4.0 * dg * dg
+        + (2.0 + (255.0 - r_mean) * (1.0 / 256.0)) * db * db
+    )
+
+
+def quantize_to_palette_ordered(
+    image: Image.Image,
+    colors: list[tuple[int, int, int]],
+    *,
+    bayer_strength: int = 24,
+) -> Image.Image:
+    """Palette-quantize using 4×4 Bayer ordered dithering and perceptual colour matching.
+
+    Unlike Floyd-Steinberg, ordered dithering produces a regular halftone-like
+    pattern instead of chaotic error-diffusion streaks, which looks significantly
+    cleaner on sparse palettes like the Inky Spectra 6.  Colour matching uses the
+    redmean perceptual distance approximation for more accurate hue mapping than
+    Euclidean RGB.
+
+    Uses a numpy fast path when numpy is importable; falls back to pure Python.
+
+    Args:
+        image:          Source image (any mode; converted to RGB internally).
+        colors:         Target palette as a list of (R, G, B) tuples.
+        bayer_strength: Per-channel dither magnitude in [0, 127].  Default 24 gives
+                        ±12 per channel — enough to smooth palette boundaries without
+                        obvious noise.
+
+    Returns:
+        PIL Image in ``"RGB"`` mode with all pixels snapped to *colors*.
+    """
+    try:
+        import numpy as np
+        return _quantize_palette_ordered_numpy(image, colors, bayer_strength, np)
+    except ImportError:
+        return _quantize_palette_ordered_python(image, colors, bayer_strength)
+
+
+def _quantize_palette_ordered_numpy(
+    image: Image.Image,
+    colors: list[tuple[int, int, int]],
+    bayer_strength: int,
+    np,  # passed in to avoid re-importing
+) -> Image.Image:
+    w, h = image.size
+    rgb = np.array(image.convert("RGB"), dtype=np.float32)  # H×W×3
+
+    # Build tiled Bayer offset map (same 4×4 tile repeated across the canvas)
+    bayer_base = np.array(_BAYER_4X4, dtype=np.float32)
+    bayer_tiled = np.tile(bayer_base, ((h + 3) // 4, (w + 3) // 4))[:h, :w]  # H×W
+    offset = (bayer_tiled - 120.0) * (bayer_strength / 240.0)
+    rgb_d = np.clip(rgb + offset[:, :, np.newaxis], 0.0, 255.0)  # H×W×3
+
+    pal = np.array(colors, dtype=np.float32)  # N×3
+    # Redmean: weight depends on mean of image-pixel red and palette red channels
+    r_d = rgb_d[:, :, 0]  # H×W
+    r_p = pal[:, 0]        # N
+    r_mean = (r_d[:, :, np.newaxis] + r_p[np.newaxis, np.newaxis, :]) * 0.5  # H×W×N
+
+    diff = rgb_d[:, :, np.newaxis, :] - pal[np.newaxis, np.newaxis, :, :]  # H×W×N×3
+    dr, dg, db = diff[:, :, :, 0], diff[:, :, :, 1], diff[:, :, :, 2]
+    dist = (
+        (2.0 + r_mean / 256.0) * dr * dr
+        + 4.0 * dg * dg
+        + (2.0 + (255.0 - r_mean) / 256.0) * db * db
+    )  # H×W×N
+
+    pal_u8 = np.array(colors, dtype=np.uint8)
+    result = pal_u8[np.argmin(dist, axis=2)]  # H×W×3
+    return Image.fromarray(result, mode="RGB")
+
+
+def _quantize_palette_ordered_python(
+    image: Image.Image,
+    colors: list[tuple[int, int, int]],
+    bayer_strength: int,
+) -> Image.Image:
+    w, h = image.size
+    rgb_img = image.convert("RGB")
+    # Avoid deprecated getdata() by using tobytes + frombytes round-trip via getdata fallback
+    raw = list(rgb_img.getdata())  # list of (r,g,b) tuples
+    result: list[tuple[int, int, int]] = []
+
+    x = y = 0
+    for pix in raw:
+        r, g, b = pix[0], pix[1], pix[2]
+        offset = (_BAYER_4X4[y & 3][x & 3] - 120) * bayer_strength // 240
+        r2 = r + offset
+        g2 = g + offset
+        b2 = b + offset
+        if r2 < 0:
+            r2 = 0
+        elif r2 > 255:
+            r2 = 255
+        if g2 < 0:
+            g2 = 0
+        elif g2 > 255:
+            g2 = 255
+        if b2 < 0:
+            b2 = 0
+        elif b2 > 255:
+            b2 = 255
+
+        best_dist = 1e18
+        best_color = colors[0]
+        for c in colors:
+            d = _redmean_sq(r2, g2, b2, c[0], c[1], c[2])
+            if d < best_dist:
+                best_dist = d
+                best_color = c
+        result.append(best_color)
+
+        x += 1
+        if x == w:
+            x = 0
+            y += 1
+
+    out = Image.new("RGB", (w, h))
+    out.putdata(result)
+    return out
+
+
 def build_palette_image(colors: list[tuple[int, int, int]]) -> Image.Image:
     """Return a tiny palette image usable with Pillow quantize()."""
     palette = Image.new("P", (1, 1))

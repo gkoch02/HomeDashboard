@@ -6,10 +6,12 @@ Covers:
 - _draw_photo_background() with an empty path is a no-op
 - _draw_photo_background() with a missing path logs a warning without error
 - _draw_photo_background() with a valid image pastes onto the canvas
+- _draw_photo_background() on an RGB canvas (Inky) quantizes to palette colors via Bayer
 - photo_theme() factory returns a correctly configured Theme object
 - photo theme is registered in AVAILABLE_THEMES and loads correctly
 - photo theme is excluded from the random rotation pool
 - render_dashboard() with the photo theme produces a valid 1-bit image
+- render_dashboard() with photo theme on Inky produces RGB image with palette-only pixels
 """
 
 from __future__ import annotations
