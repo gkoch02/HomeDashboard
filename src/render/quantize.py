@@ -92,8 +92,12 @@ def _ordered_bayer(image: Image.Image) -> Image.Image:
 
 
 def _redmean_sq(
-    r1: int, g1: int, b1: int,
-    r2: int, g2: int, b2: int,
+    r1: int,
+    g1: int,
+    b1: int,
+    r2: int,
+    g2: int,
+    b2: int,
 ) -> float:
     """Perceptually-weighted squared color distance (redmean approximation).
 
@@ -139,6 +143,7 @@ def quantize_to_palette_ordered(
     """
     try:
         import numpy as np
+
         return _quantize_palette_ordered_numpy(image, colors, bayer_strength, np)
     except ImportError:
         return _quantize_palette_ordered_python(image, colors, bayer_strength)
@@ -162,7 +167,7 @@ def _quantize_palette_ordered_numpy(
     pal = np.array(colors, dtype=np.float32)  # N×3
     # Redmean: weight depends on mean of image-pixel red and palette red channels
     r_d = rgb_d[:, :, 0]  # H×W
-    r_p = pal[:, 0]        # N
+    r_p = pal[:, 0]  # N
     r_mean = (r_d[:, :, np.newaxis] + r_p[np.newaxis, np.newaxis, :]) * 0.5  # H×W×N
 
     diff = rgb_d[:, :, np.newaxis, :] - pal[np.newaxis, np.newaxis, :, :]  # H×W×N×3
