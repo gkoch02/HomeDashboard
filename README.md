@@ -9,7 +9,7 @@ Home Dashboard is a low-maintenance eInk wall display for family logistics on a 
 For a first install on a Raspberry Pi:
 
 ```bash
-git clone https://github.com/gkoch02/Dashboard-v4.git ~/home-dashboard
+git clone https://github.com/gkoch02/HomeDashboard.git ~/home-dashboard
 cd ~/home-dashboard
 make pi-install
 make configure

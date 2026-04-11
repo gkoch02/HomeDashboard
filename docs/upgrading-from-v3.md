@@ -19,7 +19,7 @@ SSH into your Pi. Your v3 installation is likely in `~/home-dashboard`.
 
 ```bash
 # On the Pi
-git clone https://github.com/gkoch02/Dashboard-v4.git ~/home-dashboard-v4
+git clone https://github.com/gkoch02/HomeDashboard.git ~/home-dashboard-v4
 ```
 
 ### 2. Copy your config and credentials from v3
@@ -85,8 +85,8 @@ All commands below run on your **dev machine** unless noted otherwise.
 ### 1. Clone v4
 
 ```bash
-git clone https://github.com/gkoch02/Dashboard-v4.git
-cd Dashboard-v4
+git clone https://github.com/gkoch02/HomeDashboard.git
+cd HomeDashboard
 ```
 
 ### 2. Copy your config and credentials from v3
