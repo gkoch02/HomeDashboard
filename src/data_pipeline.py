@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from concurrent.futures import Future, ThreadPoolExecutor
-from datetime import datetime
+from datetime import date, datetime
 
 from src.data.models import (
     AirQualityData,
@@ -109,12 +109,16 @@ class DataPipeline:
         tz=None,
         force_refresh: bool = False,
         ignore_breakers: bool = False,
+        event_window_start: date | None = None,
+        event_window_days: int = 7,
     ):
         self.cfg = cfg
         self.cache_dir = cache_dir
         self.tz = tz
         self.force_refresh = force_refresh
         self.ignore_breakers = ignore_breakers
+        self.event_window_start = event_window_start
+        self.event_window_days = event_window_days
         self.fetched_at = datetime.now(tz) if tz is not None else datetime.now()
 
         cache_cfg = cfg.cache
@@ -291,7 +295,13 @@ class DataPipeline:
                 futures["events"] = pool.submit(
                     retry_fetch,
                     "Calendar",
-                    lambda: fetch_events(self.cfg.google, tz=self.tz, cache_dir=self.cache_dir),
+                    lambda: fetch_events(
+                        self.cfg.google,
+                        days=self.event_window_days,
+                        start_date=self.event_window_start,
+                        tz=self.tz,
+                        cache_dir=self.cache_dir,
+                    ),
                 )
             if not weather_skip:
                 futures["weather"] = pool.submit(

@@ -16,6 +16,7 @@ from src.render.components import (
     header,
     info_panel,
     message_panel,
+    monthly_panel,
     moonphase_panel,
     qotd_panel,
     scorecard_panel,
@@ -65,6 +66,7 @@ _INKY_THEME_KEY_COLORS: dict[str, tuple[int, int]] = {
     "message": (_INKY_RED, _INKY_BLUE),
     "timeline": (_INKY_BLUE, _INKY_RED),
     "year_pulse": (_INKY_GREEN, _INKY_BLUE),
+    "monthly": (_INKY_YELLOW, _INKY_RED),
     "sunrise": (_INKY_YELLOW, _INKY_RED),
     "scorecard": (_INKY_RED, _INKY_BLUE),
     "tides": (_INKY_BLUE, _INKY_YELLOW),
@@ -203,6 +205,12 @@ def render_dashboard(
 
     layout = theme.layout
     render_mode = _resolve_render_mode(layout.canvas_mode, config)
+    if (
+        config.provider == "inky"
+        and layout.canvas_mode == "L"
+        and layout.prefer_color_on_inky
+    ):
+        render_mode = "RGB"
     style = _resolve_style(theme, render_mode, config)
 
     image = Image.new(render_mode, (layout.canvas_w, layout.canvas_h), style.bg)
@@ -351,6 +359,13 @@ def render_dashboard(
             region=layout.year_pulse,
             style=style,
         ),
+        "monthly": lambda: monthly_panel.draw_monthly(
+            draw,
+            data,
+            today,
+            region=layout.monthly,
+            style=style,
+        ),
         "sunrise": lambda: sunrise_panel.draw_sunrise(
             draw,
             data,
@@ -419,7 +434,8 @@ def render_dashboard(
             image = l_image.resize((config.width, config.height), Image.Resampling.LANCZOS)
 
     if needs_quantize:
-        image = quantize_for_display(image, config.quantization_mode)
+        quant_mode = layout.preferred_quantization_mode or config.quantization_mode
+        image = quantize_for_display(image, quant_mode)
     # Inky: no pre-quantization — the Inky library maps to physical inks using its own
     # calibrated palette.  Pre-quantizing with an approximated palette causes grey
     # anti-aliased pixels to snap to the wrong ink color (e.g. grey → green).

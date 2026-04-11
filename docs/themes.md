@@ -25,7 +25,7 @@ Use this page for:
 Set one concrete theme in `config.yaml`:
 
 ```yaml
-theme: terminal   # default | terminal | minimalist | old_fashioned | today | fantasy | moonphase | moonphase_invert | qotd | qotd_invert | weather | fuzzyclock | fuzzyclock_invert | air_quality | message | diags | timeline | year_pulse | sunrise | scorecard | tides | photo | random | random_daily | random_hourly
+theme: terminal   # default | terminal | minimalist | old_fashioned | today | fantasy | moonphase | moonphase_invert | qotd | qotd_invert | weather | fuzzyclock | fuzzyclock_invert | air_quality | message | diags | timeline | year_pulse | monthly | sunrise | scorecard | tides | photo | random | random_daily | random_hourly
 ```
 
 Or override it from the CLI:
@@ -123,6 +123,7 @@ The active entry is the last row whose `time` is less than or equal to the curre
 | `air_quality` | indoor/outdoor AQI dashboard | PurpleAir-first full-screen layout |
 | `timeline` | busy-day planning | Single-day hourly timeline |
 | `year_pulse` | longer-horizon planning | Year progress plus upcoming events and birthdays |
+| `monthly` | month-at-a-glance planning | Traditional month grid with event-density heatmap |
 | `sunrise` | daylight-oriented planning | Sun arc, day/night split, compact footer metrics |
 | `scorecard` | big-number metrics | KPI tiles for weather, AQI, calendar, and system data |
 | `tides` | maximum information density | Alternating horizontal bands spanning many data sources |
@@ -238,6 +239,15 @@ Year progress plus a compact upcoming-items list for longer-horizon planning.
 
 ![Year Pulse theme](../output/theme_year_pulse.png)
 
+#### monthly
+
+Full-screen wall-calendar month view with day cells shaded by event density.
+Waveshare uses a crisp monochrome month grid with compact density indicators; Inky uses a warm yellow-orange-red ramp.
+
+![Monthly theme](../output/theme_monthly.png)
+
+[![Monthly Inky theme](../output/theme_monthly_inky.png)](../output/theme_monthly_inky.png)
+
 #### sunrise
 
 Sun arc and day/night split layout organized around daylight.
@@ -289,7 +299,7 @@ Bundled font families used by the current built-in themes:
 | Font | Used by |
 |---|---|
 | Plus Jakarta Sans | default and general fallback |
-| DM Sans | `minimalist`, `weather`, `fuzzyclock`, `timeline`, `diags` |
+| DM Sans | `minimalist`, `weather`, `fuzzyclock`, `timeline`, `diags`, `monthly` |
 | Playfair Display | `old_fashioned`, `qotd`, `moonphase` |
 | Cinzel | `fantasy`, `old_fashioned`, `moonphase` accents |
 | Space Grotesk | `air_quality`, `message`, `year_pulse`, `scorecard` |

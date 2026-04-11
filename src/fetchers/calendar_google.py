@@ -119,6 +119,7 @@ def _save_sync_state(state: dict, cache_dir: str) -> None:
 def fetch_google_events(
     cfg: GoogleConfig,
     days: int = 7,
+    start_date: date | None = None,
     tz: tzinfo | None = None,
     cache_dir: str | None = None,
 ) -> list[CalendarEvent]:
@@ -130,9 +131,9 @@ def fetch_google_events(
     service = _build_service(cfg)
 
     today = _today(tz)
-    # Start from Monday of the current week to match the Mon–Sun week view
-    week_start = today - timedelta(days=today.weekday())
-    time_min = datetime.combine(week_start, datetime.min.time()).astimezone(timezone.utc)
+    # Start from Monday of the current week by default to match the standard week view.
+    window_start = start_date if start_date is not None else today - timedelta(days=today.weekday())
+    time_min = datetime.combine(window_start, datetime.min.time()).astimezone(timezone.utc)
     time_max = time_min + timedelta(days=days)
 
     sync_state = _load_sync_state(cache_dir) if cache_dir else {}
@@ -144,8 +145,12 @@ def fetch_google_events(
         cal_state = sync_state.get(cal_id, {})
         sync_token: str | None = cal_state.get("sync_token")
         stored: list[dict] = cal_state.get("events", [])
+        stored_start = cal_state.get("window_start")
+        stored_end = cal_state.get("window_end")
+        requested_start = time_min.date().isoformat()
+        requested_end = time_max.date().isoformat()
 
-        if sync_token:
+        if sync_token and stored_start == requested_start and stored_end == requested_end:
             delta_items, cal_name, new_token, needs_reset = _fetch_incremental(
                 service, cal_id, sync_token, tz=tz
             )
@@ -155,7 +160,12 @@ def fetch_google_events(
             else:
                 merged = _apply_delta(stored, delta_items, cal_name, tz=tz)
                 week_events = _filter_to_window(merged, time_min, time_max, tz=tz)
-                sync_state[cal_id] = {"sync_token": new_token, "events": merged}
+                sync_state[cal_id] = {
+                    "sync_token": new_token,
+                    "events": merged,
+                    "window_start": requested_start,
+                    "window_end": requested_end,
+                }
                 events.extend(week_events)
                 logger.info(
                     "Incremental sync %s: %d delta items → %d in week window",
@@ -165,11 +175,23 @@ def fetch_google_events(
                 )
                 continue  # skip full sync below
 
+        elif sync_token:
+            logger.info(
+                "Stored sync window for %s (%s → %s) does not match requested window (%s → %s); performing full sync",
+                cal_id,
+                stored_start,
+                stored_end,
+                requested_start,
+                requested_end,
+            )
+
         # Full sync (first run or after sync token expiry)
         cal_events, cal_name, new_token = _fetch_full(service, cal_id, time_min, time_max, tz=tz)
         sync_state[cal_id] = {
             "sync_token": new_token,
             "events": [_ser_sync_event(e) for e in cal_events],
+            "window_start": requested_start,
+            "window_end": requested_end,
         }
         events.extend(cal_events)
         logger.info("Full sync %s: %d events, token=%s", cal_id, len(cal_events), bool(new_token))

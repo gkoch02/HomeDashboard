@@ -1,4 +1,4 @@
-"""Smoke tests for the timeline and year_pulse themes.
+"""Smoke tests for the timeline, year_pulse, and monthly themes.
 
 Each test renders the theme with dummy data and asserts basic image properties:
 correct size, 1-bit mode, and non-blank output.  Component-level unit tests
@@ -39,6 +39,9 @@ class TestThemeRegistration:
     def test_year_pulse_in_available_themes(self):
         assert "year_pulse" in AVAILABLE_THEMES
 
+    def test_monthly_in_available_themes(self):
+        assert "monthly" in AVAILABLE_THEMES
+
     def test_load_timeline(self):
         theme = load_theme("timeline")
         assert theme.name == "timeline"
@@ -46,6 +49,10 @@ class TestThemeRegistration:
     def test_load_year_pulse(self):
         theme = load_theme("year_pulse")
         assert theme.name == "year_pulse"
+
+    def test_load_monthly(self):
+        theme = load_theme("monthly")
+        assert theme.name == "monthly"
 
 
 # ---------------------------------------------------------------------------
@@ -94,6 +101,33 @@ class TestYearPulseTheme:
         theme = load_theme("year_pulse")
         assert theme.layout.year_pulse.visible is True
         assert theme.layout.year_pulse.h == 340
+
+
+class TestMonthlyTheme:
+    def test_renders_correct_size(self):
+        img = _render("monthly")
+        assert img.size == (800, 480)
+
+    def test_renders_1bit_on_waveshare(self):
+        img = _render("monthly")
+        assert img.mode == "1"
+
+    def test_renders_non_blank(self):
+        img = _render("monthly")
+        assert not all(p == 255 for p in img.tobytes()), "Image is blank"
+
+    def test_layout_monthly_region_visible(self):
+        theme = load_theme("monthly")
+        assert theme.layout.monthly.visible is True
+        assert theme.layout.monthly.h == 480
+        assert theme.layout.prefer_color_on_inky is True
+
+    def test_renders_rgb_for_inky(self):
+        data = generate_dummy_data(now=FIXED_NOW)
+        theme = load_theme("monthly")
+        config = DisplayConfig(provider="inky", model="impression_7_3_2025", width=800, height=480)
+        img = render_dashboard(data, config, title="Test Dashboard", theme=theme)
+        assert img.mode == "RGB"
 
 
 # ---------------------------------------------------------------------------
@@ -289,3 +323,42 @@ class TestYearPulsePanel:
         data = DashboardData(events=[], birthdays=bdays)
         # Should not raise
         _build_countdowns(data, today)
+
+
+class TestMonthlyPanel:
+    def test_month_grid_is_six_weeks(self):
+        from src.render.components.monthly_panel import _month_grid_dates
+
+        days = _month_grid_dates(date(2026, 4, 5))
+        assert len(days) == 42
+        assert days.count(None) > 0
+        assert date(2026, 4, 1) in days
+
+    def test_density_counts_multiday_all_day_events(self):
+        from src.render.components.monthly_panel import _density_by_day, _month_grid_dates
+
+        today = date(2026, 4, 5)
+        grid = _month_grid_dates(today)
+        event = CalendarEvent(
+            "Trip",
+            datetime(2026, 4, 7, 0, 0),
+            datetime(2026, 4, 10, 0, 0),
+            is_all_day=True,
+        )
+        counts = _density_by_day([event], grid)
+        assert counts[date(2026, 4, 7)] == 1
+        assert counts[date(2026, 4, 8)] == 1
+        assert counts[date(2026, 4, 9)] == 1
+
+    def test_density_counts_timed_events_on_start_day(self):
+        from src.render.components.monthly_panel import _density_by_day, _month_grid_dates
+
+        today = date(2026, 4, 5)
+        grid = _month_grid_dates(today)
+        event = CalendarEvent(
+            "Meeting",
+            datetime(2026, 4, 7, 9, 0),
+            datetime(2026, 4, 7, 10, 0),
+        )
+        counts = _density_by_day([event], grid)
+        assert counts[date(2026, 4, 7)] == 1

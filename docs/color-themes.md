@@ -14,6 +14,7 @@ This page is gallery-only. For theme behavior, random rotation, and configuratio
 - [Fuzzyclock Invert](#fuzzyclock-invert)
 - [Message](#message)
 - [Minimalist](#minimalist)
+- [Monthly](#monthly)
 - [Moonphase](#moonphase)
 - [Moonphase Invert](#moonphase-invert)
 - [Old Fashioned](#old-fashioned)
@@ -62,6 +63,12 @@ This page is gallery-only. For theme behavior, random rotation, and configuratio
 ## Minimalist
 
 [![Minimalist preview](../output/theme_minimalist_inky.png)](../output/theme_minimalist_inky.png)
+
+## Monthly
+
+Month-at-a-glance wall calendar with an Inky-only yellow-orange-red density ramp.
+
+[![Monthly preview](../output/theme_monthly_inky.png)](../output/theme_monthly_inky.png)
 
 ## Moonphase
 

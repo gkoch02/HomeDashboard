@@ -5,7 +5,7 @@ Used by ``main.py --dummy`` to render a dashboard without API credentials.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone, tzinfo
+from datetime import date, datetime, timedelta, timezone, tzinfo
 
 from src.data.models import (
     AirQualityData,
@@ -20,7 +20,12 @@ from src.data.models import (
 )
 
 
-def generate_dummy_data(tz: tzinfo | None = None, now: datetime | None = None) -> DashboardData:
+def generate_dummy_data(
+    tz: tzinfo | None = None,
+    now: datetime | None = None,
+    event_window_start: date | None = None,
+    event_window_days: int = 7,
+) -> DashboardData:
     """Create realistic dummy data for development/testing.
 
     *now* overrides the current datetime (useful for dry-run with --date).
@@ -32,174 +37,181 @@ def generate_dummy_data(tz: tzinfo | None = None, now: datetime | None = None) -
 
     # Find Monday of this week — matches the week_view rendering which is also Monday-based
     week_start = today - timedelta(days=today.weekday())
+    pattern_start = event_window_start if event_window_start is not None else week_start
+    week_offsets = max(1, (event_window_days + 6) // 7)
 
-    def _at(day_offset: int, hour: int, minute: int = 0) -> datetime:
+    def _at(base_start: date, day_offset: int, hour: int, minute: int = 0) -> datetime:
         return datetime.combine(
-            week_start + timedelta(days=day_offset),
+            base_start + timedelta(days=day_offset),
             datetime.min.time().replace(hour=hour, minute=minute),
         )
 
-    events = [
+    def _week_pattern(base_start: date) -> list[CalendarEvent]:
+        return [
         # Monday (col 0) — Normal weekday (2 events, threshold ≤4)
         CalendarEvent(
             summary="Team Standup",
-            start=_at(0, 9),
-            end=_at(0, 9, 30),
+            start=_at(base_start, 0, 9),
+            end=_at(base_start, 0, 9, 30),
             location="Zoom",
         ),
         CalendarEvent(
             summary="1:1 with Alex",
-            start=_at(0, 14),
-            end=_at(0, 14, 30),
+            start=_at(base_start, 0, 14),
+            end=_at(base_start, 0, 14, 30),
             location="Conference Room B",
         ),
         # Tuesday (col 1) — Compact weekday (6 events, threshold 5–7)
         CalendarEvent(
             summary="Morning Standup",
-            start=_at(1, 9),
-            end=_at(1, 9, 15),
+            start=_at(base_start, 1, 9),
+            end=_at(base_start, 1, 9, 15),
         ),
         CalendarEvent(
             summary="Dentist Appointment",
-            start=_at(1, 10),
-            end=_at(1, 11),
+            start=_at(base_start, 1, 10),
+            end=_at(base_start, 1, 11),
             location="123 Main St, Suite 4",
         ),
         CalendarEvent(
             summary="Sprint Review",
-            start=_at(1, 11),
-            end=_at(1, 12),
+            start=_at(base_start, 1, 11),
+            end=_at(base_start, 1, 12),
         ),
         CalendarEvent(
             summary="Lunch with Team",
-            start=_at(1, 12),
-            end=_at(1, 13),
+            start=_at(base_start, 1, 12),
+            end=_at(base_start, 1, 13),
             location="Tartine Manufactory",
         ),
         CalendarEvent(
             summary="Design Sync",
-            start=_at(1, 15, 30),
-            end=_at(1, 16),
+            start=_at(base_start, 1, 15, 30),
+            end=_at(base_start, 1, 16),
         ),
         CalendarEvent(
             summary="Code Review",
-            start=_at(1, 16, 30),
-            end=_at(1, 17, 30),
+            start=_at(base_start, 1, 16, 30),
+            end=_at(base_start, 1, 17, 30),
         ),
         # Wednesday–Friday: multi-day conference (spanning bar)
         CalendarEvent(
             summary="Tech Conference",
-            start=datetime.combine(week_start + timedelta(days=2), datetime.min.time()),
-            end=datetime.combine(week_start + timedelta(days=5), datetime.min.time()),
+            start=datetime.combine(base_start + timedelta(days=2), datetime.min.time()),
+            end=datetime.combine(base_start + timedelta(days=5), datetime.min.time()),
             is_all_day=True,
         ),
         CalendarEvent(
             summary="Yoga",
-            start=_at(2, 17, 30),
-            end=_at(2, 18, 30),
+            start=_at(base_start, 2, 17, 30),
+            end=_at(base_start, 2, 18, 30),
             location="Studio 12",
         ),
         # Thursday (col 3) — Dense weekday (8 events, threshold ≥8)
         CalendarEvent(
             summary="Morning Standup",
-            start=_at(3, 9),
-            end=_at(3, 9, 15),
+            start=_at(base_start, 3, 9),
+            end=_at(base_start, 3, 9, 15),
         ),
         CalendarEvent(
             summary="Project Planning",
-            start=_at(3, 10),
-            end=_at(3, 11, 30),
+            start=_at(base_start, 3, 10),
+            end=_at(base_start, 3, 11, 30),
         ),
         CalendarEvent(
             summary="Architecture Review",
-            start=_at(3, 11, 30),
-            end=_at(3, 12, 30),
+            start=_at(base_start, 3, 11, 30),
+            end=_at(base_start, 3, 12, 30),
             location="Conf Room A",
         ),
         CalendarEvent(
             summary="HR Check-in",
-            start=_at(3, 13),
-            end=_at(3, 13, 30),
+            start=_at(base_start, 3, 13),
+            end=_at(base_start, 3, 13, 30),
         ),
         CalendarEvent(
             summary="Stakeholder Briefing",
-            start=_at(3, 13, 30),
-            end=_at(3, 14, 30),
+            start=_at(base_start, 3, 13, 30),
+            end=_at(base_start, 3, 14, 30),
             location="Board Room",
         ),
         CalendarEvent(
             summary="Coffee with Sam",
-            start=_at(3, 15),
-            end=_at(3, 15, 45),
+            start=_at(base_start, 3, 15),
+            end=_at(base_start, 3, 15, 45),
             location="Blue Bottle, Market St",
         ),
         CalendarEvent(
             summary="Bug Triage",
-            start=_at(3, 15, 45),
-            end=_at(3, 16, 15),
+            start=_at(base_start, 3, 15, 45),
+            end=_at(base_start, 3, 16, 15),
         ),
         CalendarEvent(
             summary="Sprint Retro",
-            start=_at(3, 16, 30),
-            end=_at(3, 17, 30),
+            start=_at(base_start, 3, 16, 30),
+            end=_at(base_start, 3, 17, 30),
         ),
         # Friday (col 4)
         CalendarEvent(
             summary="Demo Day",
-            start=_at(4, 14),
-            end=_at(4, 15),
+            start=_at(base_start, 4, 14),
+            end=_at(base_start, 4, 15),
             location="Main Auditorium",
         ),
         # Friday (col 4) — extra events
         CalendarEvent(
             summary="Weekly Wrap-up",
-            start=_at(4, 9),
-            end=_at(4, 9, 30),
+            start=_at(base_start, 4, 9),
+            end=_at(base_start, 4, 9, 30),
         ),
         CalendarEvent(
             summary="Lunch & Learn",
-            start=_at(4, 12),
-            end=_at(4, 13),
+            start=_at(base_start, 4, 12),
+            end=_at(base_start, 4, 13),
             location="Rooftop Lounge",
         ),
         # Saturday (col 5) — Normal weekend
         CalendarEvent(
             summary="Farmers Market",
-            start=_at(5, 9),
-            end=_at(5, 11),
+            start=_at(base_start, 5, 9),
+            end=_at(base_start, 5, 11),
         ),
         CalendarEvent(
             summary="Bike Ride",
-            start=_at(5, 12),
-            end=_at(5, 14),
+            start=_at(base_start, 5, 12),
+            end=_at(base_start, 5, 14),
             location="Golden Gate Park",
         ),
         CalendarEvent(
             summary="Dinner Party",
-            start=_at(5, 19),
-            end=_at(5, 22),
+            start=_at(base_start, 5, 19),
+            end=_at(base_start, 5, 22),
             location="Chris & Dana's",
         ),
         # Sunday (col 6)
         CalendarEvent(
             summary="Weekend",
-            start=datetime.combine(week_start + timedelta(days=6), datetime.min.time()),
-            end=datetime.combine(week_start + timedelta(days=7), datetime.min.time()),
+            start=datetime.combine(base_start + timedelta(days=6), datetime.min.time()),
+            end=datetime.combine(base_start + timedelta(days=7), datetime.min.time()),
             is_all_day=True,
         ),
         CalendarEvent(
             summary="Morning Run",
-            start=_at(6, 7, 30),
-            end=_at(6, 8, 15),
+            start=_at(base_start, 6, 7, 30),
+            end=_at(base_start, 6, 8, 15),
             location="Embarcadero",
         ),
         CalendarEvent(
             summary="Brunch",
-            start=_at(6, 10),
-            end=_at(6, 12),
+            start=_at(base_start, 6, 10),
+            end=_at(base_start, 6, 12),
             location="The Griddle Cafe",
         ),
     ]
+
+    events = []
+    for week in range(week_offsets):
+        events.extend(_week_pattern(pattern_start + timedelta(days=7 * week)))
 
     dummy_tz = tz if tz is not None else timezone.utc
     weather = WeatherData(

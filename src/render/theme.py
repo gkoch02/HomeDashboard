@@ -21,12 +21,13 @@ Adding a new theme requires only two steps:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING, Callable, Literal
 
 if TYPE_CHECKING:
     from PIL import Image, ImageDraw, ImageFont
 
 FontCallable = Callable[[int], "ImageFont.FreeTypeFont"]
+QuantizationMode = Literal["threshold", "floyd_steinberg", "ordered"]
 
 
 @dataclass
@@ -103,6 +104,11 @@ class ThemeLayout:
     year_pulse: ComponentRegion = field(
         default_factory=lambda: ComponentRegion(0, 40, 800, 360, visible=False)
     )
+    # Used by the ``monthly`` theme for a full-canvas month grid heatmap.
+    # Hidden by default so existing themes are not affected.
+    monthly: ComponentRegion = field(
+        default_factory=lambda: ComponentRegion(0, 0, 800, 480, visible=False)
+    )
     # Used by the ``sunrise`` theme for the sun-arc + split-schedule panel.
     sunrise: ComponentRegion = field(
         default_factory=lambda: ComponentRegion(0, 0, 800, 480, visible=False)
@@ -130,6 +136,11 @@ class ThemeLayout:
     background_fn: Callable[[Image.Image, ThemeLayout, ThemeStyle], None] | None = field(
         default=None, repr=False
     )
+    # Allow an L-mode theme to render on RGB canvases for Inky while preserving
+    # greyscale output on Waveshare.
+    prefer_color_on_inky: bool = False
+    # Optional quantization preference for L-mode themes on 1-bit backends.
+    preferred_quantization_mode: QuantizationMode | None = None
 
 
 @dataclass
@@ -266,6 +277,7 @@ _THEME_REGISTRY: dict[str, tuple[str, str]] = {
     "message": ("src.render.themes.message", "message_theme"),
     "timeline": ("src.render.themes.timeline", "timeline_theme"),
     "year_pulse": ("src.render.themes.year_pulse", "year_pulse_theme"),
+    "monthly": ("src.render.themes.monthly", "monthly_theme"),
     "sunrise": ("src.render.themes.sunrise", "sunrise_theme"),
     "scorecard": ("src.render.themes.scorecard", "scorecard_theme"),
     "tides": ("src.render.themes.tides", "tides_theme"),

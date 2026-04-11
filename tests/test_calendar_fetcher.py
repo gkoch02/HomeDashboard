@@ -928,6 +928,51 @@ class TestFetchEventsIntegration:
         # Incremental sync: no new events, but stored event still in window
         assert mock_service.events().list().execute.call_count == 2
 
+    @patch("src.fetchers.calendar_google._build_service")
+    def test_fetch_events_window_change_forces_full_sync(self, mock_build):
+        monday = date(2026, 4, 6)
+        event_start = datetime.combine(monday + timedelta(days=1), datetime.min.time().replace(hour=9))
+        event_end_iso = (event_start + timedelta(hours=1)).replace(tzinfo=timezone.utc).isoformat()
+        mock_service = MagicMock()
+        mock_build.return_value = mock_service
+
+        weekly_full = {
+            "summary": "Work",
+            "items": [
+                {
+                    "id": "e1",
+                    "summary": "Weekly Event",
+                    "start": {"dateTime": event_start.replace(tzinfo=timezone.utc).isoformat()},
+                    "end": {"dateTime": event_end_iso},
+                }
+            ],
+            "nextSyncToken": "tok_week",
+        }
+        monthly_full = {
+            "summary": "Work",
+            "items": [
+                {
+                    "id": "e2",
+                    "summary": "Monthly Event",
+                    "start": {"dateTime": event_start.replace(tzinfo=timezone.utc).isoformat()},
+                    "end": {"dateTime": event_end_iso},
+                }
+            ],
+            "nextSyncToken": "tok_month",
+        }
+        mock_service.events().list().execute.side_effect = [weekly_full, monthly_full]
+
+        from src.fetchers.calendar import fetch_events
+
+        cfg = GoogleConfig()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            fetch_events(cfg, start_date=monday, days=7, cache_dir=tmpdir)
+            events = fetch_events(cfg, start_date=date(2026, 3, 29), days=35, cache_dir=tmpdir)
+
+        assert len(events) == 1
+        assert events[0].summary == "Monthly Event"
+        assert mock_service.events().list().execute.call_count == 2
+
 
 # ---------------------------------------------------------------------------
 # ICS feed fetching
@@ -1070,6 +1115,28 @@ class TestICalFetcher:
         events = fetch_events(cfg, tz=tz)
 
         assert events == []
+
+    @patch("src.fetchers.calendar_ical.requests.get")
+    def test_event_inside_custom_start_date_window_included(self, mock_get):
+        tz = zoneinfo.ZoneInfo("America/New_York")
+        start_date = date(2026, 3, 29)
+        inside = start_date + timedelta(days=20)
+
+        dtstart = datetime.combine(inside, datetime.min.time().replace(hour=10)).replace(tzinfo=tz)
+        dtend = dtstart + timedelta(hours=1)
+        dtstart_str = dtstart.astimezone(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        dtend_str = dtend.astimezone(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+
+        ics = _make_ics(_timed_vevent("uid-custom", "Monthly Window Event", dtstart_str, dtend_str))
+        mock_get.return_value = self._make_response(ics)
+
+        cfg = GoogleConfig(ical_url="https://example.com/cal.ics")
+        from src.fetchers.calendar import fetch_events
+
+        events = fetch_events(cfg, start_date=start_date, days=35, tz=tz)
+
+        assert len(events) == 1
+        assert events[0].summary == "Monthly Window Event"
 
     # --- X-WR-CALNAME used as calendar_name ---
 

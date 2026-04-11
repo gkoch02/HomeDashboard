@@ -179,7 +179,7 @@ class TestLoadData:
         fake_data = MagicMock()
 
         with patch("src.app.generate_dummy_data", return_value=fake_data) as mock_gen:
-            result = app._load_data(now, force_full=False)
+            result = app._load_data(now, force_full=False, theme_name="default", event_window_start=None, event_window_days=7)
 
         mock_gen.assert_called_once()
         assert result is fake_data
@@ -189,7 +189,7 @@ class TestLoadData:
         now = datetime(2025, 6, 1, 10, 0)
 
         with patch("src.app.generate_dummy_data", return_value=MagicMock()) as mock_gen:
-            app._load_data(now, force_full=False)
+            app._load_data(now, force_full=False, theme_name="default", event_window_start=None, event_window_days=7)
 
         call_kwargs = mock_gen.call_args
         assert call_kwargs.kwargs.get("tz") == app.tz
@@ -203,7 +203,7 @@ class TestLoadData:
         mock_pipeline.fetch.return_value = fake_data
 
         with patch("src.app.DataPipeline", return_value=mock_pipeline) as mock_cls:
-            result = app._load_data(now, force_full=True)
+            result = app._load_data(now, force_full=True, theme_name="default", event_window_start=None, event_window_days=7)
 
         mock_cls.assert_called_once()
         mock_pipeline.fetch.assert_called_once()
@@ -216,10 +216,47 @@ class TestLoadData:
         mock_pipeline.fetch.return_value = MagicMock()
 
         with patch("src.app.DataPipeline", return_value=mock_pipeline) as mock_cls:
-            app._load_data(now, force_full=True)
+            app._load_data(now, force_full=True, theme_name="default", event_window_start=None, event_window_days=7)
 
         init_kwargs = mock_cls.call_args.kwargs
         assert init_kwargs.get("force_refresh") is True
+
+    def test_monthly_theme_passes_expanded_event_window(self, tmp_path):
+        from datetime import date
+
+        app = _make_app(tmp_path, dummy=False)
+        now = datetime(2025, 6, 1, 10, 0)
+        mock_pipeline = MagicMock()
+        mock_pipeline.fetch.return_value = MagicMock()
+
+        with patch("src.app.DataPipeline", return_value=mock_pipeline) as mock_cls:
+            app._load_data(
+                now,
+                force_full=False,
+                theme_name="monthly",
+                event_window_start=date(2025, 6, 1),
+                event_window_days=35,
+            )
+
+        init_kwargs = mock_cls.call_args.kwargs
+        assert init_kwargs.get("event_window_start") == date(2025, 6, 1)
+        assert init_kwargs.get("event_window_days") == 35
+
+
+class TestEventWindowForTheme:
+    def test_default_theme_uses_week_window(self, tmp_path):
+        app = _make_app(tmp_path)
+        start, days = app._event_window_for_theme("default", datetime(2026, 4, 11, 10, 0))
+        assert start is None
+        assert days == 7
+
+    def test_monthly_theme_uses_visible_month_grid_window(self, tmp_path):
+        from datetime import date
+
+        app = _make_app(tmp_path)
+        start, days = app._event_window_for_theme("monthly", datetime(2026, 4, 11, 10, 0))
+        assert start == date(2026, 3, 29)
+        assert days == 35
 
 
 # ---------------------------------------------------------------------------

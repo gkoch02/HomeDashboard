@@ -84,7 +84,7 @@ Example full batch for all concrete themes:
 
 ```bash
 for theme in air_quality default diags fantasy fuzzyclock fuzzyclock_invert \
-             message minimalist moonphase moonphase_invert old_fashioned photo qotd \
+             message minimalist monthly moonphase moonphase_invert old_fashioned photo qotd \
              qotd_invert scorecard sunrise terminal tides timeline today weather year_pulse; do
   if [ "$theme" = "message" ]; then
     python3 -m src.main --config /path/to/inky-config.yaml --dry-run --dummy \

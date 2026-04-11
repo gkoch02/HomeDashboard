@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 def fetch_from_ical(
     urls: list[str],
     days: int = 7,
+    start_date=None,
     tz: tzinfo | None = None,
 ) -> list[CalendarEvent]:
     """Fetch and parse calendar events from one or more ICS feed URLs.
@@ -36,8 +37,8 @@ def fetch_from_ical(
         )
 
     today = _today(tz)
-    week_start = today - timedelta(days=today.weekday())
-    time_min = datetime.combine(week_start, datetime.min.time()).astimezone(timezone.utc)
+    window_start = start_date if start_date is not None else today - timedelta(days=today.weekday())
+    time_min = datetime.combine(window_start, datetime.min.time()).astimezone(timezone.utc)
     time_max = time_min + timedelta(days=days)
 
     all_events: list[CalendarEvent] = []

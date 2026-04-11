@@ -1,7 +1,8 @@
 import logging
 import shutil
+from calendar import Calendar
 from datetime import date as _date
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from src.config import resolve_tz
@@ -78,13 +79,15 @@ class DashboardApp:
         if force_full and not self.args.force_full_refresh:
             logger.info("Morning startup — forcing full refresh")
 
-        data = self._load_data(now, force_full)
-        data = self._apply_filters(data)
-
         configured_theme = self.args.theme if self.args.theme is not None else self.cfg.theme
         theme_name = resolve_theme_name(self.cfg, self.args.theme, now=now)
         if theme_name != configured_theme:
             logger.info("Theme resolved to: %s", theme_name)
+        event_window_start, event_window_days = self._event_window_for_theme(theme_name, now)
+
+        data = self._load_data(now, force_full, theme_name, event_window_start, event_window_days)
+        data = self._apply_filters(data)
+
         theme = load_theme(theme_name)
         if theme_name == "photo":
             theme.style.photo_path = self.cfg.photo.path
@@ -116,10 +119,22 @@ class DashboardApp:
             logger.info("Dry-run date overridden to: %s", now.date())
         return now
 
-    def _load_data(self, now: datetime, force_full: bool):
+    def _load_data(
+        self,
+        now: datetime,
+        force_full: bool,
+        theme_name: str,
+        event_window_start: _date | None,
+        event_window_days: int,
+    ):
         if self.args.dummy:
             logger.info("Using dummy data")
-            return generate_dummy_data(tz=self.tz, now=now)
+            return generate_dummy_data(
+                tz=self.tz,
+                now=now,
+                event_window_start=event_window_start,
+                event_window_days=event_window_days,
+            )
 
         pipeline = DataPipeline(
             self.cfg,
@@ -127,8 +142,22 @@ class DashboardApp:
             tz=self.tz,
             force_refresh=force_full,
             ignore_breakers=self.args.ignore_breakers,
+            event_window_start=event_window_start,
+            event_window_days=event_window_days,
         )
         return pipeline.fetch()
+
+    def _event_window_for_theme(
+        self, theme_name: str, now: datetime
+    ) -> tuple[_date | None, int]:
+        if theme_name != "monthly":
+            return None, 7
+        today = now.date()
+        cal = Calendar(firstweekday=6)
+        weeks = cal.monthdatescalendar(today.year, today.month)
+        grid_start = weeks[0][0]
+        grid_end = weeks[-1][-1] + timedelta(days=1)
+        return grid_start, (grid_end - grid_start).days
 
     def _apply_filters(self, data):
         if (

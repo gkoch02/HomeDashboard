@@ -104,6 +104,7 @@ _fetch_from_ical = fetch_from_ical
 def fetch_events(
     cfg: GoogleConfig,
     days: int = 7,
+    start_date: date | None = None,
     tz: tzinfo | None = None,
     cache_dir: str | None = None,
 ) -> list[CalendarEvent]:
@@ -117,9 +118,9 @@ def fetch_events(
     """
     if cfg.ical_url:
         urls = [cfg.ical_url] + list(cfg.additional_ical_urls)
-        return fetch_from_ical(urls, days=days, tz=tz)
+        return fetch_from_ical(urls, days=days, start_date=start_date, tz=tz)
 
-    return fetch_google_events(cfg, days=days, tz=tz, cache_dir=cache_dir)
+    return fetch_google_events(cfg, days=days, start_date=start_date, tz=tz, cache_dir=cache_dir)
 
 
 # ---------------------------------------------------------------------------
