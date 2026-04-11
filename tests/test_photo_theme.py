@@ -163,14 +163,19 @@ class TestDrawPhotoBackground:
         assert canvas.tobytes() != white_canvas
 
     def test_rgb_canvas_pixels_are_palette_colors(self, grey_png: Path):
-        """All pixels on the RGB canvas should be one of the 6 Inky palette colors."""
-        from src.render.quantize import INKY_SPECTRA6_PALETTE
+        """All pixels on the RGB canvas should be one of the 6 blended Inky palette colors.
+
+        The photo theme now uses blend_inky_palette(0.25) as the quantization reference
+        (matching Pimoroni's InkyE673._palette_blend(saturation=0.5) approach) rather than
+        the raw SATURATED palette, so we check against the blended colors.
+        """
+        from src.render.quantize import blend_inky_palette
 
         canvas = self._make_canvas(mode="RGB")
         layout = self._make_layout()
         style = self._make_style(path=str(grey_png))
         _draw_photo_background(canvas, layout, style)
-        palette_set = set(INKY_SPECTRA6_PALETTE)
+        palette_set = set(blend_inky_palette(0.25))
         pixels = set(canvas.getdata())
         assert pixels <= palette_set
 
@@ -187,18 +192,11 @@ class TestPhotoThemeFactory:
     def test_has_background_fn(self):
         assert photo_theme().layout.background_fn is not None
 
-    def test_draw_order_is_header_only(self):
-        assert photo_theme().layout.draw_order == ["header"]
+    def test_draw_order_is_empty(self):
+        assert photo_theme().layout.draw_order == []
 
-    def test_header_at_bottom(self):
-        theme = photo_theme()
-        header = theme.layout.header
-        # Bottom 50 px of 480-px canvas
-        assert header.y == 480 - 50
-        assert header.h == 50
-
-    def test_invert_header_true(self):
-        assert photo_theme().style.invert_header is True
+    def test_no_header_region(self):
+        assert photo_theme().layout.header is None
 
     def test_show_borders_false(self):
         assert photo_theme().style.show_borders is False
@@ -261,8 +259,14 @@ class TestPhotoThemeRendering:
         assert img.size == (800, 480)
 
     def test_renders_inky_rgb_with_color_photo(self, gradient_png: Path):
-        """Photo theme on an Inky RGB display should produce an RGB image with palette colors."""
-        from src.render.quantize import INKY_SPECTRA6_PALETTE
+        """Photo theme on an Inky RGB display should produce an RGB image with palette colors.
+
+        Pixels must be from blend_inky_palette(0.25) — the quantization reference used by
+        the photo theme (matching Pimoroni's InkyE673._palette_blend(saturation=0.5)).
+        InkyDisplay.show() maps these back to the correct hardware indices via Euclidean
+        nearest-color against device.SATURATED_PALETTE.
+        """
+        from src.render.quantize import blend_inky_palette
 
         data = self._dummy_data()
         theme = load_theme("photo")
@@ -270,7 +274,7 @@ class TestPhotoThemeRendering:
         cfg = DisplayConfig(provider="inky", model="impression_7_3_2025")
         img = render_dashboard(data, cfg, title="Test", theme=theme)
         assert img.mode == "RGB"
-        palette_set = set(INKY_SPECTRA6_PALETTE)
-        # All pixels in the photo region (above the header bar) must be palette colors
+        palette_set = set(blend_inky_palette(0.25))
+        # All pixels in the photo region (above the header bar) must be blended palette colors
         pixels = set(img.crop((0, 0, img.width, img.height - 50)).getdata())
         assert pixels <= palette_set

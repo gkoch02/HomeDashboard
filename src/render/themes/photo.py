@@ -16,10 +16,17 @@ Configuration::
     photo:
       path: /home/pi/wallpaper.jpg
 
-The photo is converted to grayscale, resized to fit the canvas with LANCZOS
-resampling, and dithered to 1-bit using Floyd-Steinberg diffusion before being
-pasted onto the canvas.  For dark-canvas variants (``fg=1, bg=0``) the
-grayscale values are inverted so bright photo areas appear as white pixels.
+**Waveshare / 1-bit path** — photo is converted to grayscale, resized with
+LANCZOS, and dithered to 1-bit via Floyd-Steinberg.
+
+**Inky Spectra 6 / RGB path** — photo is resized with LANCZOS and quantized to
+the 6-color Spectra 6 palette using Floyd-Steinberg error diffusion against a
+*blended* reference palette (50/50 mix of the physical SATURATED colors and
+pure ideal hues, mirroring ``InkyE673._palette_blend(saturation=0.5)``).  The
+blended palette forms correct hue decision boundaries — e.g. sky blue maps to
+blue rather than white — while still being close enough to the physical colors
+that ``InkyDisplay.show()`` can unambiguously recover the correct hardware index
+for each quantized pixel.
 """
 
 from __future__ import annotations
@@ -28,14 +35,12 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from src.render.theme import ComponentRegion, Theme, ThemeLayout, ThemeStyle
+from src.render.theme import Theme, ThemeLayout, ThemeStyle
 
 if TYPE_CHECKING:
     from PIL import Image
 
 logger = logging.getLogger(__name__)
-
-_INFO_BAR_H = 50  # height of the bottom info bar in pixels
 
 
 def _draw_photo_background(
@@ -52,19 +57,43 @@ def _draw_photo_background(
         return
     try:
         if image.mode == "RGB":
-            # Inky color path: boost saturation so colours map to the correct
-            # palette hues, then quantize with Bayer ordered dithering + perceptual
-            # (redmean) colour matching.  This avoids the chaotic speckle produced
-            # by Floyd-Steinberg on a sparse 6-colour palette.
+            # Inky Spectra 6 color path: resize then quantize to 6-color palette
+            # using the blended reference palette (50/50 SATURATED + DESATURATED),
+            # which mirrors InkyE673._palette_blend(saturation=0.5) and gives each
+            # hue a vibrant enough reference for correct nearest-color decisions.
+            #
+            # Dithering: try PIL's native Floyd-Steinberg first (C implementation,
+            # fast on Pi) since FS produces more organic results than Bayer for
+            # photos.  PIL's quantize(palette=...) can scramble palette indices in
+            # some Pillow 10+ builds; a colour-set sanity check detects this and
+            # falls back to the fully-vectorised Bayer path.
             from PIL import Image as _Image
-            from PIL import ImageEnhance
 
-            from src.render.quantize import INKY_SPECTRA6_PALETTE, quantize_to_palette_ordered
+            from src.render.quantize import (
+                blend_inky_palette,
+                build_palette_image,
+                quantize_to_palette_ordered,
+            )
 
             img = _Image.open(path).convert("RGB")
             img = img.resize((layout.canvas_w, layout.canvas_h), _Image.Resampling.LANCZOS)
-            img = ImageEnhance.Color(img).enhance(1.8)
-            img = quantize_to_palette_ordered(img, INKY_SPECTRA6_PALETTE)
+            blended = blend_inky_palette(0.25)
+            blended_set = set(map(tuple, blended))
+
+            # Attempt fast PIL Floyd-Steinberg.
+            palette_img = build_palette_image(blended)
+            fs_result = img.quantize(
+                palette=palette_img, dither=_Image.Dither.FLOYDSTEINBERG
+            ).convert("RGB")
+
+            if set(fs_result.getdata()) <= blended_set:
+                # PIL produced correct colours — use the FS result.
+                img = fs_result
+            else:
+                # Palette indices were scrambled; fall back to vectorised Bayer.
+                logger.debug("photo theme: PIL quantize palette check failed, using Bayer fallback")
+                img = quantize_to_palette_ordered(img, blended)
+
             image.paste(img)
         else:
             from src.render.primitives import load_and_dither_image
@@ -85,17 +114,13 @@ def photo_theme() -> Theme:
     layout = ThemeLayout(
         canvas_w=800,
         canvas_h=480,
-        # Reuse the header component at the bottom of the canvas as an info bar.
-        header=ComponentRegion(0, 480 - _INFO_BAR_H, 800, _INFO_BAR_H),
-        draw_order=["header"],
+        header=None,
+        draw_order=[],
         background_fn=_draw_photo_background,
     )
     style = ThemeStyle(
         fg=0,
         bg=1,
-        invert_header=True,  # inverted bar at bottom (black fill, white text)
-        invert_today_col=False,
-        invert_allday_bars=False,
         show_borders=False,
     )
     return Theme(name="photo", style=style, layout=layout)

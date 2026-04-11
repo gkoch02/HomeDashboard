@@ -7,8 +7,12 @@ from PIL import Image
 
 from src.render.quantize import (
     _VALID_MODES,
+    INKY_SPECTRA6_DESATURATED_PALETTE,
+    INKY_SPECTRA6_PALETTE,
     _redmean_sq,
+    blend_inky_palette,
     quantize_for_display,
+    quantize_to_palette_fs,
     quantize_to_palette_ordered,
 )
 
@@ -242,11 +246,138 @@ class TestQuantizeToPaletteOrdered:
 
     def test_inky_palette_all_pixels_valid(self):
         """Using the real Inky Spectra 6 palette, all output pixels must be palette members."""
-        from src.render.quantize import INKY_SPECTRA6_PALETTE
-
         img = Image.new("RGB", (16, 16))
         pixels = [(x * 16, y * 16, (x + y) * 8) for y in range(16) for x in range(16)]
         img.putdata(pixels)
         result = quantize_to_palette_ordered(img, INKY_SPECTRA6_PALETTE)
         palette_set = set(INKY_SPECTRA6_PALETTE)
         assert set(result.getdata()) <= palette_set
+
+
+# ---------------------------------------------------------------------------
+# blend_inky_palette
+# ---------------------------------------------------------------------------
+
+
+class TestBlendInkyPalette:
+    def test_returns_six_entries(self):
+        assert len(blend_inky_palette()) == 6
+
+    def test_saturation_zero_equals_desaturated(self):
+        result = blend_inky_palette(saturation=0.0)
+        assert result == list(INKY_SPECTRA6_DESATURATED_PALETTE)
+
+    def test_saturation_one_equals_saturated(self):
+        result = blend_inky_palette(saturation=1.0)
+        assert result == list(INKY_SPECTRA6_PALETTE)
+
+    def test_saturation_half_is_midpoint(self):
+        """At 0.5, each channel should be the integer midpoint of SATURATED and DESATURATED."""
+        result = blend_inky_palette(saturation=0.5)
+        for i, (s, d) in enumerate(zip(INKY_SPECTRA6_PALETTE, INKY_SPECTRA6_DESATURATED_PALETTE)):
+            expected = (
+                int(s[0] * 0.5 + d[0] * 0.5),
+                int(s[1] * 0.5 + d[1] * 0.5),
+                int(s[2] * 0.5 + d[2] * 0.5),
+            )
+            assert result[i] == expected
+
+    def test_blended_blue_is_more_vibrant_than_saturated(self):
+        """Blended blue should have a higher blue channel than the physical SATURATED blue."""
+        saturated_blue = INKY_SPECTRA6_PALETTE[4]
+        blended_blue = blend_inky_palette(0.5)[4]
+        assert blended_blue[2] > saturated_blue[2], (
+            f"Blended blue {blended_blue} should have higher B than SATURATED {saturated_blue}"
+        )
+
+    def test_blended_colors_map_back_to_saturated_indices(self):
+        """Each blended color must be nearest (Euclidean) to its own SATURATED equivalent.
+
+        This ensures InkyDisplay.show()'s nearest-neighbor match against device.SATURATED_PALETTE
+        will correctly recover the right hardware index for every quantized pixel.
+        """
+        import math
+
+        blended = blend_inky_palette(0.5)
+        saturated = list(INKY_SPECTRA6_PALETTE)
+        for idx, b in enumerate(blended):
+            distances = [math.sqrt(sum((b[c] - s[c]) ** 2 for c in range(3))) for s in saturated]
+            nearest = distances.index(min(distances))
+            assert nearest == idx, (
+                f"Blended color {b} (index {idx}) maps to SATURATED index {nearest} "
+                f"instead of {idx}. Distances: {distances}"
+            )
+
+
+# ---------------------------------------------------------------------------
+# quantize_to_palette_fs
+# ---------------------------------------------------------------------------
+
+
+_SMALL_PALETTE_FS = [
+    (0, 0, 0),  # black
+    (255, 255, 255),  # white
+    (255, 0, 0),  # red
+    (0, 0, 255),  # blue
+]
+
+
+class TestQuantizeToPaletteFs:
+    def _solid_rgb(self, r: int, g: int, b: int, w: int = 8, h: int = 8) -> Image.Image:
+        return Image.new("RGB", (w, h), (r, g, b))
+
+    def test_returns_rgb_image(self):
+        result = quantize_to_palette_fs(self._solid_rgb(128, 128, 128), _SMALL_PALETTE_FS)
+        assert result.mode == "RGB"
+
+    def test_preserves_size(self):
+        img = self._solid_rgb(128, 128, 128, w=40, h=30)
+        result = quantize_to_palette_fs(img, _SMALL_PALETTE_FS)
+        assert result.size == (40, 30)
+
+    def test_all_pixels_are_palette_colors(self):
+        img = Image.new("RGB", (32, 32))
+        pixels = [(x * 8, y * 8, 128) for y in range(32) for x in range(32)]
+        img.putdata(pixels)
+        result = quantize_to_palette_fs(img, _SMALL_PALETTE_FS)
+        palette_set = set(map(tuple, _SMALL_PALETTE_FS))
+        assert set(result.getdata()) <= palette_set
+
+    def test_pure_red_maps_to_red(self):
+        """A solid pure-red image should quantize to all red — zero error to diffuse."""
+        result = quantize_to_palette_fs(self._solid_rgb(255, 0, 0), _SMALL_PALETTE_FS)
+        assert set(result.getdata()) == {(255, 0, 0)}
+
+    def test_pure_black_maps_to_black(self):
+        result = quantize_to_palette_fs(self._solid_rgb(0, 0, 0), _SMALL_PALETTE_FS)
+        assert set(result.getdata()) == {(0, 0, 0)}
+
+    def test_inky_palette_all_pixels_valid(self):
+        """Using the real Inky Spectra 6 palette, all output pixels must be palette members."""
+        img = Image.new("RGB", (16, 16))
+        pixels = [(x * 16, y * 16, (x + y) * 8) for y in range(16) for x in range(16)]
+        img.putdata(pixels)
+        result = quantize_to_palette_fs(img, INKY_SPECTRA6_PALETTE)
+        palette_set = set(INKY_SPECTRA6_PALETTE)
+        assert set(result.getdata()) <= palette_set
+
+    def test_medium_blue_maps_to_blue_with_blended_palette(self):
+        """Sky-blue (70,130,200) should map to blue with the blended palette, not white.
+
+        This is the key regression for the photo theme fix: with the raw SATURATED
+        palette this pixel maps to white (dist=103 vs dist=128); with the blended
+        palette it correctly maps to blue (dist=112 vs dist=160).
+        """
+        blended = blend_inky_palette(0.5)
+        blended_blue = blended[4]  # index 4 = blue
+        img = self._solid_rgb(70, 130, 200)
+        result = quantize_to_palette_fs(img, blended)
+        # Dominant color must be the blended blue (at least 50% of pixels)
+        pixel_counts: dict = {}
+        for p in result.getdata():
+            pixel_counts[p] = pixel_counts.get(p, 0) + 1
+        dominant = max(pixel_counts, key=lambda k: pixel_counts[k])
+        assert dominant == blended_blue, (
+            f"Sky-blue (70,130,200) mapped to {dominant} but expected blended blue {blended_blue}. "
+            f"Full distribution: {pixel_counts}"
+        )
