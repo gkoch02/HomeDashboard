@@ -51,15 +51,31 @@ def _draw_photo_background(
         logger.warning("photo theme: image not found: %s", path)
         return
     try:
-        from src.render.primitives import load_and_dither_image
+        if image.mode == "RGB":
+            # Inky color path: boost saturation so colours map to the correct
+            # palette hues, then quantize with Bayer ordered dithering + perceptual
+            # (redmean) colour matching.  This avoids the chaotic speckle produced
+            # by Floyd-Steinberg on a sparse 6-colour palette.
+            from PIL import Image as _Image
+            from PIL import ImageEnhance
 
-        dithered = load_and_dither_image(
-            path,
-            (layout.canvas_w, layout.canvas_h),
-            style.fg,
-            style.bg,
-        )
-        image.paste(dithered)
+            from src.render.quantize import INKY_SPECTRA6_PALETTE, quantize_to_palette_ordered
+
+            img = _Image.open(path).convert("RGB")
+            img = img.resize((layout.canvas_w, layout.canvas_h), _Image.Resampling.LANCZOS)
+            img = ImageEnhance.Color(img).enhance(1.8)
+            img = quantize_to_palette_ordered(img, INKY_SPECTRA6_PALETTE)
+            image.paste(img)
+        else:
+            from src.render.primitives import load_and_dither_image
+
+            dithered = load_and_dither_image(
+                path,
+                (layout.canvas_w, layout.canvas_h),
+                style.fg,
+                style.bg,
+            )
+            image.paste(dithered)
     except Exception as exc:  # noqa: BLE001
         logger.warning("photo theme: failed to load image %s: %s", path, exc)
 
