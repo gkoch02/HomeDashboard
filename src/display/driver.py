@@ -263,8 +263,8 @@ class InkyDisplay(DisplayDriver):
         # via numpy (always available via inky's own dependency) and write the flattened
         # index array directly to device.buf — the same layout set_image() would produce —
         # so device.show() packs and transmits the correct ink indices to the hardware.
-        rgb = np.array(image.convert("RGB"), dtype=np.int32)           # (H, W, 3)
-        palette = np.array(device.SATURATED_PALETTE, dtype=np.int32)   # (N, 3)
+        rgb = np.array(image.convert("RGB"), dtype=np.int32)  # (H, W, 3)
+        palette = np.array(device.SATURATED_PALETTE, dtype=np.int32)  # (N, 3)
         diff = rgb[:, :, np.newaxis, :] - palette[np.newaxis, np.newaxis, :, :]
         device.buf = np.argmin(np.sum(diff**2, axis=3), axis=2).astype(np.uint8).flatten()
         device.show()

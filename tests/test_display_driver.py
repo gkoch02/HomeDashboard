@@ -296,8 +296,14 @@ class TestInkyDisplayHardware:
         device.show = MagicMock()
         # SATURATED_PALETTE is accessed by show() to build the quantization palette.
         device.SATURATED_PALETTE = [
-            [0, 0, 0], [217, 242, 255], [3, 124, 76], [27, 46, 198],
-            [245, 80, 34], [255, 255, 68], [239, 121, 44], [255, 255, 255],
+            [0, 0, 0],
+            [217, 242, 255],
+            [3, 124, 76],
+            [27, 46, 198],
+            [245, 80, 34],
+            [255, 255, 68],
+            [239, 121, 44],
+            [255, 255, 255],
         ]
         return device
 
