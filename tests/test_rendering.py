@@ -15,8 +15,8 @@ from src.data.models import (
     WeatherData,
 )
 from src.render.canvas import _resolve_style, render_dashboard
-from src.render.themes.qotd import qotd_theme
 from src.render.theme import Theme, ThemeLayout, ThemeStyle
+from src.render.themes.qotd import qotd_theme
 
 
 def _make_data(today: date | None = None) -> DashboardData:
