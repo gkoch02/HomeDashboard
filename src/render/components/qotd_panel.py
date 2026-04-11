@@ -157,7 +157,7 @@ def draw_qotd(
     y += attr_gap - line_gap
     aw = int(best_attr_font.getlength(author))  # type: ignore[union-attr]
     ax = region.x + (region.w - aw) // 2
-    draw.text((ax, y), author, font=best_attr_font, fill=style.secondary_accent_fill())
+    draw.text((ax, y), author, font=best_attr_font, fill=style.accent_info or style.fg)
 
 
 # ---------------------------------------------------------------------------

@@ -30,18 +30,20 @@ from src.render.components import (
 from src.render.components import (
     weather_full as weather_full_comp,
 )
-from src.render.quantize import INKY_SPECTRA6_PALETTE, quantize_for_display, quantize_to_palette
+from src.render.quantize import INKY_SPECTRA6_PALETTE, quantize_for_display
 from src.render.theme import Theme, default_theme
 
 # Base resolution used when no theme is provided (legacy path).
 _BASE_W = 800
 _BASE_H = 480
 
+# Indices into INKY_SPECTRA6_PALETTE — matches InkyE673 (inky_e673.py) controller ordering:
+# 0=Black, 1=White, 2=Yellow, 3=Red, 4=Blue, 5=Green  (no Orange on Spectra 6)
 _INKY_BLACK = 0
 _INKY_WHITE = 1
-_INKY_RED = 2
-_INKY_BLUE = 3
-_INKY_YELLOW = 4
+_INKY_YELLOW = 2
+_INKY_RED = 3
+_INKY_BLUE = 4
 _INKY_GREEN = 5
 
 _INKY_THEME_KEY_COLORS: dict[str, tuple[int, int]] = {
@@ -51,7 +53,7 @@ _INKY_THEME_KEY_COLORS: dict[str, tuple[int, int]] = {
     "old_fashioned": (_INKY_RED, _INKY_YELLOW),
     "today": (_INKY_BLUE, _INKY_RED),
     "fantasy": (_INKY_RED, _INKY_YELLOW),
-    "qotd": (_INKY_BLUE, _INKY_RED),
+    "qotd": (_INKY_RED, _INKY_BLUE),
     "qotd_invert": (_INKY_YELLOW, _INKY_RED),
     "weather": (_INKY_BLUE, _INKY_YELLOW),
     "fuzzyclock": (_INKY_YELLOW, _INKY_BLUE),
@@ -78,7 +80,7 @@ def _resolve_render_mode(layout_mode: str, config: DisplayConfig) -> str:
         return layout_mode
     if layout_mode == "L":
         return "L"
-    return "P"
+    return "RGB"
 
 
 def _resolve_style(theme: Theme, render_mode: str, config: DisplayConfig):
@@ -95,19 +97,20 @@ def _resolve_style(theme: Theme, render_mode: str, config: DisplayConfig):
                 style.fg if style.accent_secondary is None else style.accent_secondary
             ),
         )
-    if render_mode == "P":
+    if render_mode == "RGB":
+        pal = INKY_SPECTRA6_PALETTE
         primary, secondary = _INKY_THEME_KEY_COLORS.get(theme.name, (_INKY_BLUE, _INKY_RED))
         return replace(
             style,
-            fg=_INKY_BLACK if style.fg == 0 else _INKY_WHITE,
-            bg=_INKY_BLACK if style.bg == 0 else _INKY_WHITE,
-            accent_info=_INKY_BLUE if style.accent_info is None else style.accent_info,
-            accent_warn=_INKY_YELLOW if style.accent_warn is None else style.accent_warn,
-            accent_alert=_INKY_RED if style.accent_alert is None else style.accent_alert,
-            accent_good=_INKY_GREEN if style.accent_good is None else style.accent_good,
-            accent_primary=primary if style.accent_primary is None else style.accent_primary,
+            fg=pal[_INKY_BLACK] if style.fg == 0 else pal[_INKY_WHITE],
+            bg=pal[_INKY_BLACK] if style.bg == 0 else pal[_INKY_WHITE],
+            accent_info=pal[_INKY_BLUE] if style.accent_info is None else style.accent_info,
+            accent_warn=pal[_INKY_YELLOW] if style.accent_warn is None else style.accent_warn,
+            accent_alert=pal[_INKY_RED] if style.accent_alert is None else style.accent_alert,
+            accent_good=pal[_INKY_GREEN] if style.accent_good is None else style.accent_good,
+            accent_primary=pal[primary] if style.accent_primary is None else style.accent_primary,
             accent_secondary=(
-                secondary if style.accent_secondary is None else style.accent_secondary
+                pal[secondary] if style.accent_secondary is None else style.accent_secondary
             ),
         )
     return replace(
@@ -119,16 +122,6 @@ def _resolve_style(theme: Theme, render_mode: str, config: DisplayConfig):
         accent_primary=style.fg if style.accent_primary is None else style.accent_primary,
         accent_secondary=style.fg if style.accent_secondary is None else style.accent_secondary,
     )
-
-
-def _inky_palette_image() -> Image.Image:
-    palette = Image.new("P", (1, 1))
-    flat: list[int] = []
-    for r, g, b in INKY_SPECTRA6_PALETTE:
-        flat.extend([r, g, b])
-    flat.extend([0] * (768 - len(flat)))
-    palette.putpalette(flat)
-    return palette
 
 
 def render_dashboard(
@@ -161,11 +154,6 @@ def render_dashboard(
     style = _resolve_style(theme, render_mode, config)
 
     image = Image.new(render_mode, (layout.canvas_w, layout.canvas_h), style.bg)
-    if render_mode == "P":
-        palette = _inky_palette_image().getpalette()
-        if palette is None:
-            raise RuntimeError("Inky palette image is missing a palette")
-        image.putpalette(palette)
     if layout.background_fn is not None:
         layout.background_fn(image, layout, style)
     draw = ImageDraw.Draw(image)
@@ -380,7 +368,8 @@ def render_dashboard(
 
     if needs_quantize:
         image = quantize_for_display(image, config.quantization_mode)
-    elif target_is_color:
-        image = quantize_to_palette(image, INKY_SPECTRA6_PALETTE)
+    # Inky: no pre-quantization — the Inky library maps to physical inks using its own
+    # calibrated palette.  Pre-quantizing with an approximated palette causes grey
+    # anti-aliased pixels to snap to the wrong ink color (e.g. grey → green).
 
     return image

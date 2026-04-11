@@ -6,6 +6,7 @@ import pytest
 from PIL import Image
 
 from src.display.driver import (
+    INKY_MODEL_INIT,
     INKY_MODELS,
     WAVESHARE_MODELS,
     DryRunDisplay,
@@ -126,6 +127,16 @@ class TestInkyModels:
         assert spec is not None
         assert spec.render_mode == "RGB"
         assert spec.supports_partial_refresh is False
+
+    def test_all_models_have_init_entry(self):
+        for model in INKY_MODELS:
+            assert model in INKY_MODEL_INIT, f"INKY_MODEL_INIT missing entry for '{model}'"
+
+    def test_2025_model_init_uses_inky_e673(self):
+        module_path, class_name, kwargs = INKY_MODEL_INIT["impression_7_3_2025"]
+        assert module_path == "inky"
+        assert class_name == "InkyE673"
+        assert kwargs == {}
 
 
 class TestWaveshareDisplayInit:
@@ -283,36 +294,62 @@ class TestInkyDisplayHardware:
         device = MagicMock()
         device.set_image = MagicMock()
         device.show = MagicMock()
+        # InkyE673 SATURATED_PALETTE: 6 ink colours + Clear at index 6.
+        # Order: 0=Black, 1=White, 2=Yellow, 3=Red, 4=Blue, 5=Green, 6=Clear
+        device.SATURATED_PALETTE = [
+            [0, 0, 0],
+            [161, 164, 165],
+            [208, 190, 71],
+            [156, 72, 75],
+            [61, 59, 94],
+            [58, 91, 70],
+            [255, 255, 255],
+        ]
         return device
 
-    def test_get_device_imports_inky_auto(self):
+    def test_get_device_uses_direct_init(self):
         device = self._make_mock_device()
+        mock_cls = MagicMock(return_value=device)
         mod = MagicMock()
-        mod.auto.return_value = device
+        mod.InkyE673 = mock_cls
         d = InkyDisplay(model="impression_7_3_2025")
-        with patch("importlib.import_module", return_value=mod):
+        with patch("importlib.import_module", return_value=mod) as mock_import:
             result = d._get_device()
+        mock_import.assert_called_once_with("inky")
+        mock_cls.assert_called_once_with()
         assert result is device
 
-    def test_show_converts_to_rgb(self):
+    def test_show_writes_correct_palette_index_to_buf(self):
+        # show() bypasses set_image() entirely — computes nearest SATURATED_PALETTE index
+        # per pixel via numpy, applies the InkyE673 controller remap [0,1,2,3,5,6], and
+        # writes a 2-D (height × width) array to device.buf so show()'s flip/rotation works.
+        import numpy as np
+
         device = self._make_mock_device()
         d = InkyDisplay(model="impression_7_3_2025")
-        image = Image.new("1", (800, 480), 1)
+        # Solid blue image — InkyE673 SATURATED_PALETTE index 4 = (61, 59, 94), nearest.
+        # After remap [0,1,2,3,5,6]: remap[4] = 5 → controller position 5.
+        image = Image.new("RGB", (800, 480), (61, 59, 94))
         with patch.object(d, "_get_device", return_value=device):
             d.show(image)
-        shown = device.set_image.call_args.args[0]
-        assert shown.mode == "RGB"
+        device.set_image.assert_not_called()
         device.show.assert_called_once()
+        assert device.buf.shape == (480, 800)  # 2-D (height, width), matches set_image()
+        assert device.buf.dtype == np.uint8
+        assert np.all(device.buf == 5)  # palette idx 4 (blue) → remap[4] = controller 5
 
-    def test_clear_displays_blank_rgb_image(self):
+    def test_clear_fills_buf_with_white_index(self):
+        import numpy as np
+
         device = self._make_mock_device()
         d = InkyDisplay(model="impression_7_3_2025")
         with patch.object(d, "_get_device", return_value=device):
             d.clear()
-        shown = device.set_image.call_args.args[0]
-        assert shown.mode == "RGB"
-        assert shown.size == (800, 480)
+        device.set_image.assert_not_called()
         device.show.assert_called_once()
+        assert device.buf.shape == (480, 800)  # 2-D (height, width), matches set_image()
+        assert device.buf.dtype == np.uint8
+        assert np.all(device.buf == 1)  # 1 = White ink
 
 
 class TestBuildDisplayDriver:

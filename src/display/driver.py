@@ -28,6 +28,15 @@ INKY_MODELS: dict[str, tuple[int, int]] = {
     "impression_7_3_2025": (800, 480),
 }
 
+# Maps Inky model name → (module_path, class_name, init_kwargs).
+# Direct instantiation is used instead of inky.auto.auto() because some hardware
+# revisions (e.g. impression_7_3_2025) do not expose EEPROM data for auto-detection.
+# The 2025 Spectra 6 7.3" panel uses InkyE673 (inky_e673.py), NOT Inky_Impressions_7
+# (inky_ac073tc1a.py) which is the older 7-color/orange driver for a different panel.
+INKY_MODEL_INIT: dict[str, tuple[str, str, dict]] = {
+    "impression_7_3_2025": ("inky", "InkyE673", {}),
+}
+
 _HASH_FILENAME = "last_image_hash.txt"
 
 
@@ -238,21 +247,42 @@ class InkyDisplay(DisplayDriver):
 
     def _get_device(self):
         if self._device is None:
-            module = importlib.import_module("inky.auto")
-            auto = getattr(module, "auto")
-            self._device = auto(ask_user=False, verbose=False)
+            module_path, class_name, kwargs = INKY_MODEL_INIT[self.model]
+            mod = importlib.import_module(module_path)
+            cls = getattr(mod, class_name)
+            self._device = cls(**kwargs)
         return self._device
 
     def show(self, image: Image.Image, force_full: bool = False) -> None:
         del force_full  # Inky does not expose partial/full refresh control here.
+        import numpy as np
+
         device = self._get_device()
-        device.set_image(image.convert("RGB"))
+        # inky_ac073tc1a.py's set_image() uses the deprecated image.im.convert("P", ...)
+        # internal Pillow API which assigns wrong palette indices with Pillow 10+.
+        # Pillow's .quantize(palette=...) also calls this broken path internally.
+        # Bypass set_image() entirely — it uses broken PIL internal APIs with Pillow 10+.
+        # Compute nearest SATURATED_PALETTE index per pixel via numpy, then apply the
+        # InkyE673 controller remap [0,1,2,3,5,6] that skips controller position 4
+        # (matching inky_e673.py's set_image() remap step).  Write a 2-D (H×W) array
+        # to device.buf so show()'s flip/rotation transforms work on correctly-shaped data.
+        _REMAP = np.array([0, 1, 2, 3, 5, 6], dtype=np.uint8)
+        rgb = np.array(image.convert("RGB"), dtype=np.int32)  # (H, W, 3)
+        # Use only the 6 ink colours — SATURATED_PALETTE may include Clear at index 6.
+        palette = np.array(device.SATURATED_PALETTE[: len(_REMAP)], dtype=np.int32)  # (6, 3)
+        diff = rgb[:, :, np.newaxis, :] - palette[np.newaxis, np.newaxis, :, :]
+        logical_idx = np.argmin(np.sum(diff**2, axis=3), axis=2).astype(np.uint8)  # (H, W)
+        device.buf = _REMAP[logical_idx]  # (H, W), controller positions
         device.show()
 
     def clear(self) -> None:
+        import numpy as np
+
         device = self._get_device()
-        blank = Image.new("RGB", (self.native_width, self.native_height), (255, 255, 255))
-        device.set_image(blank)
+        # White ink is always palette index 1 in Inky Spectra 6 displays.
+        # Write a 2-D (height × width) array directly to device.buf, matching the
+        # shape that set_image() would produce, so show()'s flip/rotation logic works.
+        device.buf = np.ones((self.native_height, self.native_width), dtype=np.uint8)
         device.show()
 
 

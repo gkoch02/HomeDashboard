@@ -26,13 +26,18 @@ from __future__ import annotations
 from PIL import Image
 
 _VALID_MODES = ("threshold", "floyd_steinberg", "ordered")
+
+# SATURATED_PALETTE from InkyE673 (inky_e673.py) — the correct driver for the
+# Inky Impression 7.3" 2025 Spectra 6 panel.  Ordering matches the controller's
+# color LUT; controller position 4 is unused (skipped by the e673 remap).
+#   0=Black, 1=White, 2=Yellow, 3=Red, 4=Blue, 5=Green
 INKY_SPECTRA6_PALETTE: list[tuple[int, int, int]] = [
-    (0, 0, 0),  # black
-    (255, 255, 255),  # white
-    (220, 44, 44),  # red
-    (44, 92, 180),  # blue
-    (240, 208, 56),  # yellow
-    (44, 160, 96),  # green
+    (0, 0, 0),  # 0 black
+    (161, 164, 165),  # 1 white
+    (208, 190, 71),  # 2 yellow
+    (156, 72, 75),  # 3 red
+    (61, 59, 94),  # 4 blue
+    (58, 91, 70),  # 5 green
 ]
 
 # 4×4 Bayer matrix, threshold values scaled to 0–240 (base 0–15 × 16).
