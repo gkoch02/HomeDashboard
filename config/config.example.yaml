@@ -89,7 +89,7 @@ logging:
 
 # Cache TTL — controls how long cached data is considered usable after a fetch failure.
 # Data older than 4x the TTL is discarded entirely (EXPIRED).
-# cache:
+# cache:  # uncomment this line to enable section
 #   weather_ttl_minutes: 60       # 1 hour
 #   events_ttl_minutes: 120       # 2 hours
 #   birthdays_ttl_minutes: 1440   # 24 hours
@@ -106,7 +106,7 @@ logging:
 #   quote_refresh: daily               # daily (default) | twice_daily | hourly
 
 # Event filtering — hide events from the display without removing them from cache.
-# filters:
+# filters:  # uncomment this line to enable section
 #   exclude_calendars: ["Holidays", "Spam Calendar"]
 #   exclude_keywords: ["OOO", "Block", "Focus Time"]
 #   exclude_all_day: false
@@ -118,7 +118,7 @@ logging:
 # The image is converted to grayscale, resized to fit the canvas, and dithered
 # to 1-bit using Floyd-Steinberg diffusion.  A header bar at the bottom of the
 # display shows the dashboard title and timestamp.
-# photo:
+# photo:  # uncomment this line to enable section
 #   path: /home/pi/wallpaper.jpg
 
 # UI theme — controls overall layout, proportions, and visual style.
@@ -136,7 +136,7 @@ logging:
 # Random theme rotation — only relevant when theme is "random_daily" or "random_hourly".
 # Daily state persists in output/random_theme_state.json.
 # Hourly state persists in output/random_theme_hourly_state.json.
-# random_theme:
+# random_theme:  # uncomment this line to enable section
 #   include: []  # Allowlist: only rotate among these themes (empty = all themes)
 #   exclude: []  # Denylist: never use these themes
 #                # Example: exclude: ["fantasy", "qotd"]
@@ -146,7 +146,7 @@ logging:
 # Each entry maps a start time (HH:MM, 24-hour) to a concrete theme name.
 # The active theme is the last entry whose time is <= the current local time.
 # When no entry applies (all start after the current time), normal theme/random logic runs.
-# theme_schedule:
+# theme_schedule:  # uncomment this line to enable section
 #   - time: "06:00"
 #     theme: "default"
 #   - time: "20:00"
