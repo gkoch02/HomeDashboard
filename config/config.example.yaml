@@ -89,27 +89,27 @@ logging:
 
 # Cache TTL — controls how long cached data is considered usable after a fetch failure.
 # Data older than 4x the TTL is discarded entirely (EXPIRED).
-# cache:
-#   weather_ttl_minutes: 60       # 1 hour
-#   events_ttl_minutes: 120       # 2 hours
-#   birthdays_ttl_minutes: 1440   # 24 hours
-#   # Fetch intervals — skip API calls when cached data is younger than this
-#   weather_fetch_interval: 30    # 30 minutes
-#   events_fetch_interval: 120    # 2 hours
-#   birthdays_fetch_interval: 1440  # 24 hours
-#   air_quality_ttl_minutes: 30        # 30 minutes
-#   air_quality_fetch_interval: 15     # 15 minutes
-#   # How often the displayed quote rotates. Uses a date-based hash so the same
-#   # slot always shows the same quote (stable within the bucket, varies between).
-#   # With 144 bundled quotes: daily ≈ 144-day cycle, twice_daily ≈ 72-day cycle,
-#   # hourly ≈ 6-day cycle. Hash-based (not sequential), so repeats can occur.
-#   quote_refresh: daily               # daily (default) | twice_daily | hourly
+cache:
+  # weather_ttl_minutes: 60       # 1 hour
+  # events_ttl_minutes: 120       # 2 hours
+  # birthdays_ttl_minutes: 1440   # 24 hours
+  # Fetch intervals — skip API calls when cached data is younger than this
+  # weather_fetch_interval: 30    # 30 minutes
+  # events_fetch_interval: 120    # 2 hours
+  # birthdays_fetch_interval: 1440  # 24 hours
+  # air_quality_ttl_minutes: 30        # 30 minutes
+  # air_quality_fetch_interval: 15     # 15 minutes
+  # How often the displayed quote rotates. Uses a date-based hash so the same
+  # slot always shows the same quote (stable within the bucket, varies between).
+  # With 144 bundled quotes: daily ≈ 144-day cycle, twice_daily ≈ 72-day cycle,
+  # hourly ≈ 6-day cycle. Hash-based (not sequential), so repeats can occur.
+  # quote_refresh: daily               # daily (default) | twice_daily | hourly
 
 # Event filtering — hide events from the display without removing them from cache.
-# filters:
-#   exclude_calendars: ["Holidays", "Spam Calendar"]
-#   exclude_keywords: ["OOO", "Block", "Focus Time"]
-#   exclude_all_day: false
+filters:
+  # exclude_calendars: ["Holidays", "Spam Calendar"]
+  # exclude_keywords: ["OOO", "Block", "Focus Time"]
+  # exclude_all_day: false
 
 # Dashboard title displayed in the header bar.
 # title: "Home Dashboard"
@@ -118,8 +118,8 @@ logging:
 # The image is converted to grayscale, resized to fit the canvas, and dithered
 # to 1-bit using Floyd-Steinberg diffusion.  A header bar at the bottom of the
 # display shows the dashboard title and timestamp.
-# photo:
-#   path: /home/pi/wallpaper.jpg
+photo:
+  # path: /home/pi/wallpaper.jpg
 
 # UI theme — controls overall layout, proportions, and visual style.
 # Options: default | terminal | minimalist | old_fashioned | today | fantasy |
@@ -136,20 +136,20 @@ logging:
 # Random theme rotation — only relevant when theme is "random_daily" or "random_hourly".
 # Daily state persists in output/random_theme_state.json.
 # Hourly state persists in output/random_theme_hourly_state.json.
-# random_theme:
-#   include: []  # Allowlist: only rotate among these themes (empty = all themes)
-#   exclude: []  # Denylist: never use these themes
-#                # Example: exclude: ["fantasy", "qotd"]
+random_theme:
+  # include: []  # Allowlist: only rotate among these themes (empty = all themes)
+  # exclude: []  # Denylist: never use these themes
+  #              # Example: exclude: ["fantasy", "qotd"]
 
 # Time-of-day theme schedule — automatically switches themes at configured times.
 # Checked before random/explicit theme logic. Ignored when --theme is passed via CLI.
 # Each entry maps a start time (HH:MM, 24-hour) to a concrete theme name.
 # The active theme is the last entry whose time is <= the current local time.
 # When no entry applies (all start after the current time), normal theme/random logic runs.
-# theme_schedule:
-#   - time: "06:00"
-#     theme: "default"
-#   - time: "20:00"
-#     theme: "minimalist"
-#   - time: "22:00"
-#     theme: "fuzzyclock_invert"
+theme_schedule:
+  # - time: "06:00"
+  #   theme: "default"
+  # - time: "20:00"
+  #   theme: "minimalist"
+  # - time: "22:00"
+  #   theme: "fuzzyclock_invert"
