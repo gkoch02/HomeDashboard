@@ -1,6 +1,7 @@
 """Tests for the P2 config editor — config_editor.py and /api/config routes."""
 
 import json
+import logging
 from pathlib import Path
 from unittest.mock import patch
 
@@ -13,6 +14,7 @@ from src.web.config_editor import (
     EDITABLE_FIELD_PATHS,
     _apply_to_raw,
     _load_raw_yaml,
+    _write_raw_yaml,
     apply_patch,
     get_config_for_web,
     list_config_backups,
@@ -497,3 +499,152 @@ def test_post_config_requires_csrf(client):
         content_type="application/json",
     )
     assert resp.status_code == 403
+
+
+# ---------------------------------------------------------------------------
+# Failure-mode tests for internal helpers
+# ---------------------------------------------------------------------------
+
+
+def test_load_raw_yaml_returns_empty_on_missing_file(tmp_path):
+    assert _load_raw_yaml(str(tmp_path / "does-not-exist.yaml")) == {}
+
+
+def test_load_raw_yaml_returns_empty_for_empty_file(tmp_path):
+    p = tmp_path / "empty.yaml"
+    p.write_text("")
+    assert _load_raw_yaml(str(p)) == {}
+
+
+def test_load_raw_yaml_swallows_parse_error(tmp_path, caplog):
+    p = tmp_path / "broken.yaml"
+    p.write_text(":::not valid yaml:::\n- [unbalanced\n")
+
+    with caplog.at_level(logging.WARNING, logger="src.web.config_editor"):
+        result = _load_raw_yaml(str(p))
+    assert result == {}
+    assert any("Could not load" in rec.message for rec in caplog.records)
+
+
+def test_apply_to_raw_silently_drops_unknown_fields():
+    out = _apply_to_raw({}, {"nonexistent.field": 42, "title": "Kept"})
+    assert out == {"title": "Kept"}
+
+
+def test_apply_to_raw_theme_schedule_non_list_resets_to_empty():
+    out = _apply_to_raw({"theme_schedule": [1, 2, 3]}, {"theme_schedule": "not a list"})
+    assert out["theme_schedule"] == []
+
+
+def test_apply_to_raw_rebuilds_nested_dict_when_leaf_is_scalar():
+    """If an existing value at a non-leaf path is not a dict, it must be replaced."""
+    raw = {"display": "broken-scalar"}
+    out = _apply_to_raw(raw, {"display.show_weather": True})
+    assert out["display"] == {"show_weather": True}
+
+
+def test_apply_patch_rejects_invalid_theme_schedule_time(tmp_path):
+    """theme_schedule entries with a malformed time are a hard validation error."""
+    cfg_path = tmp_path / "config.yaml"
+    cfg_path.write_text("title: T\n")
+    saved, errors, _warnings = apply_patch(
+        str(cfg_path),
+        {"theme_schedule": [{"time": "not-a-time", "theme": "default"}]},
+    )
+    assert saved is False
+    assert errors
+    assert any("Invalid time" in e["message"] for e in errors)
+    # File must NOT have changed on validation failure.
+    assert yaml.safe_load(cfg_path.read_text()) == {"title": "T"}
+
+
+def test_apply_patch_warnings_do_not_block_save(tmp_path):
+    """Unknown theme names are warnings — save should proceed and persist."""
+    cfg_path = tmp_path / "config.yaml"
+    cfg_path.write_text("title: T\n")
+    saved, errors, warnings = apply_patch(str(cfg_path), {"theme": "not-a-real-theme"})
+    assert saved is True
+    assert errors == []
+    assert warnings  # warning emitted
+    assert yaml.safe_load(cfg_path.read_text())["theme"] == "not-a-real-theme"
+
+
+def test_write_raw_yaml_creates_backup_timestamp_on_repeat_save(tmp_path):
+    """A second save with an existing .bak should rotate it to a timestamped file."""
+    cfg_path = tmp_path / "config.yaml"
+    cfg_path.write_text("title: Original\n")
+
+    # First save: creates .bak from the original.
+    _write_raw_yaml(str(cfg_path), {"title": "First"})
+    bak = cfg_path.with_suffix(".yaml.bak")
+    assert bak.exists()
+    assert yaml.safe_load(bak.read_text())["title"] == "Original"
+
+    # Second save: previous .bak must be rotated to a timestamped copy.
+    _write_raw_yaml(str(cfg_path), {"title": "Second"})
+    timestamped = list(tmp_path.glob("config.yaml.bak.*"))
+    assert len(timestamped) == 1
+    assert yaml.safe_load(timestamped[0].read_text())["title"] == "Original"
+    # Fresh .bak reflects the first-saved content.
+    assert yaml.safe_load(bak.read_text())["title"] == "First"
+
+
+def test_write_raw_yaml_cleans_up_tempfile_on_yaml_dump_failure(tmp_path):
+    """If yaml.dump raises during the atomic write, the .tmp file must be removed."""
+    cfg_path = tmp_path / "config.yaml"
+
+    def _boom(*args, **kwargs):
+        raise RuntimeError("yaml exploded")
+
+    with patch("src.web.config_editor.yaml.dump", side_effect=_boom):
+        with pytest.raises(RuntimeError):
+            _write_raw_yaml(str(cfg_path), {"title": "X"})
+
+    # No stale .tmp files left behind, target file not created.
+    assert not any(p.suffix == ".tmp" for p in tmp_path.iterdir())
+    assert not cfg_path.exists()
+
+
+def test_write_raw_yaml_backup_io_error_is_non_fatal(tmp_path, caplog):
+    """A failing backup step should log a warning but allow the save to proceed."""
+    cfg_path = tmp_path / "config.yaml"
+    cfg_path.write_text("title: Original\n")
+
+    # Force Path.read_bytes (the backup copy step) to raise — the save must still
+    # succeed after logging a warning.
+    with caplog.at_level(logging.WARNING, logger="src.web.config_editor"):
+        with patch(
+            "src.web.config_editor.Path.read_bytes",
+            side_effect=OSError("cannot read source for backup"),
+        ):
+            _write_raw_yaml(str(cfg_path), {"title": "After"})
+
+    # The target file was still updated despite the backup failure.
+    assert yaml.safe_load(cfg_path.read_text())["title"] == "After"
+    assert any("Could not write config backup" in rec.message for rec in caplog.records)
+
+
+def test_restore_latest_backup_no_backup_returns_false(tmp_path):
+    cfg_path = tmp_path / "config.yaml"
+    cfg_path.write_text("title: T\n")
+    ok, msg = restore_latest_backup(str(cfg_path))
+    assert ok is False
+    assert "No backup" in msg
+
+
+def test_restore_latest_backup_rejects_invalid_backup(tmp_path):
+    cfg_path = tmp_path / "config.yaml"
+    cfg_path.write_text("title: Original\n")
+    bak = cfg_path.with_suffix(".yaml.bak")
+    # A bad quantization_mode is a hard validation error (not just a warning).
+    bak.write_text("display:\n  quantization_mode: bogus-mode\n")
+
+    ok, msg = restore_latest_backup(str(cfg_path))
+    assert ok is False
+    assert "failed validation" in msg
+    # Original config must remain untouched.
+    assert yaml.safe_load(cfg_path.read_text())["title"] == "Original"
+
+
+def test_list_config_backups_missing_parent_returns_empty(tmp_path):
+    assert list_config_backups(str(tmp_path / "nope" / "config.yaml")) == []

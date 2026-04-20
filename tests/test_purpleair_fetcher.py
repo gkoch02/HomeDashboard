@@ -258,3 +258,80 @@ class TestFetchAirQuality:
         assert call_kwargs[1]["headers"]["X-API-Key"] == "test-key"
         assert "pm2.5_60minute" in call_kwargs[1]["params"]["fields"]
         assert "pm1.0_atm" in call_kwargs[1]["params"]["fields"]
+
+
+# ---------------------------------------------------------------------------
+# Payload-shape robustness (covers _sensor_payload_to_dict edge branches)
+# ---------------------------------------------------------------------------
+
+
+def _make_payload_response(payload):
+    resp = MagicMock()
+    resp.status_code = 200
+    resp.json.return_value = payload
+    return resp
+
+
+class TestSensorPayloadShape:
+    def test_malformed_fields_not_a_list_is_handled(self, cfg):
+        """When 'fields' is present but not a list, we fall through to 'no PM2.5' error."""
+        resp = _make_payload_response({"fields": "not-a-list", "data": [[1.0]]})
+        with patch("src.fetchers.purpleair.requests.Session") as mock_session_cls:
+            mock_session = MagicMock()
+            mock_session_cls.return_value.__enter__.return_value = mock_session
+            mock_session.get.return_value = resp
+            with pytest.raises(RuntimeError, match="PM2.5"):
+                fetch_air_quality(cfg)
+
+    def test_missing_data_list_is_handled(self, cfg):
+        """When 'data' is missing/empty, we fall through to 'no PM2.5' error."""
+        resp = _make_payload_response({"fields": ["pm2.5_60minute"], "data": []})
+        with patch("src.fetchers.purpleair.requests.Session") as mock_session_cls:
+            mock_session = MagicMock()
+            mock_session_cls.return_value.__enter__.return_value = mock_session
+            mock_session.get.return_value = resp
+            with pytest.raises(RuntimeError, match="PM2.5"):
+                fetch_air_quality(cfg)
+
+    def test_data_as_flat_row_list(self, cfg):
+        """data = [<scalar>, ...] (not list-of-rows) is also accepted."""
+        resp = _make_payload_response(
+            {"fields": ["pm2.5_60minute", "pm1.0_atm"], "data": [12.0, 4.0]}
+        )
+        with patch("src.fetchers.purpleair.requests.Session") as mock_session_cls:
+            mock_session = MagicMock()
+            mock_session_cls.return_value.__enter__.return_value = mock_session
+            mock_session.get.return_value = resp
+            result = fetch_air_quality(cfg)
+        assert result.pm25 == 12.0
+        assert result.pm1 == 4.0
+
+    def test_non_json_response_raises_runtime_error(self, cfg):
+        resp = MagicMock()
+        resp.status_code = 200
+        resp.json.side_effect = ValueError("expecting value")
+        with patch("src.fetchers.purpleair.requests.Session") as mock_session_cls:
+            mock_session = MagicMock()
+            mock_session_cls.return_value.__enter__.return_value = mock_session
+            mock_session.get.return_value = resp
+            with pytest.raises(RuntimeError, match="non-JSON"):
+                fetch_air_quality(cfg)
+
+    def test_sensor_field_with_unparseable_value_is_skipped(self, cfg):
+        """_first_float skips values that can't be converted to float."""
+        resp = _make_payload_response(
+            {
+                "sensor": {
+                    "pm2.5_60minute": "not-a-number",
+                    "pm2.5_60minute_a": 15.0,  # fallback succeeds
+                    "temperature": {"nested": "garbage"},  # bad type
+                }
+            }
+        )
+        with patch("src.fetchers.purpleair.requests.Session") as mock_session_cls:
+            mock_session = MagicMock()
+            mock_session_cls.return_value.__enter__.return_value = mock_session
+            mock_session.get.return_value = resp
+            result = fetch_air_quality(cfg)
+        assert result.pm25 == 15.0
+        assert result.temperature is None

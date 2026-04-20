@@ -381,3 +381,88 @@ class TestQuantizeToPaletteFs:
             f"Sky-blue (70,130,200) mapped to {dominant} but expected blended blue {blended_blue}. "
             f"Full distribution: {pixel_counts}"
         )
+
+
+# ---------------------------------------------------------------------------
+# Pure-Python fallbacks (no numpy). Exercised by forcing ``import numpy`` to fail.
+# ---------------------------------------------------------------------------
+
+
+class TestPythonFallbacks:
+    """Drive the pure-Python branches by shadowing ``numpy`` with a failing import."""
+
+    @staticmethod
+    def _force_no_numpy(monkeypatch):
+        import builtins
+        import sys
+
+        real_import = builtins.__import__
+
+        def fake_import(name, *args, **kwargs):
+            if name == "numpy" or name.startswith("numpy."):
+                raise ImportError("numpy unavailable for this test")
+            return real_import(name, *args, **kwargs)
+
+        # Remove any cached numpy module so the import statement runs through the shim.
+        monkeypatch.setattr(builtins, "__import__", fake_import)
+        for mod in list(sys.modules):
+            if mod == "numpy" or mod.startswith("numpy."):
+                monkeypatch.delitem(sys.modules, mod, raising=False)
+
+    def _solid_rgb(self, r, g, b, w=4, h=4):
+        return Image.new("RGB", (w, h), (r, g, b))
+
+    def test_ordered_palette_falls_back_to_python_without_numpy(self, monkeypatch):
+        self._force_no_numpy(monkeypatch)
+        palette = [(0, 0, 0), (255, 255, 255)]
+        img = self._solid_rgb(250, 250, 250, w=4, h=4)
+        result = quantize_to_palette_ordered(img, palette, bayer_strength=0)
+        assert result.mode == "RGB"
+        assert result.size == (4, 4)
+        # Every output pixel must be drawn from the palette.
+        palette_set = set(palette)
+        assert set(result.getdata()) <= palette_set
+
+    def test_fs_palette_falls_back_to_python_without_numpy(self, monkeypatch):
+        self._force_no_numpy(monkeypatch)
+        palette = [(0, 0, 0), (255, 0, 0), (0, 0, 255), (255, 255, 255)]
+        # Mixed-color image so the Floyd-Steinberg error diffusion actually propagates.
+        img = Image.new("RGB", (3, 3))
+        img.putdata(
+            [
+                (255, 0, 0),
+                (128, 128, 128),
+                (0, 0, 255),
+                (64, 64, 64),
+                (200, 200, 200),
+                (0, 0, 0),
+                (255, 255, 255),
+                (10, 10, 10),
+                (100, 0, 0),
+            ]
+        )
+        result = quantize_to_palette_fs(img, palette)
+        assert result.mode == "RGB"
+        assert result.size == (3, 3)
+        assert set(result.getdata()) <= set(palette)
+
+    def test_ordered_python_fallback_respects_bayer_threshold(self, monkeypatch):
+        """A mid-grey pixel with bayer_strength>0 should produce a mix of black and
+        white — never all one colour."""
+        self._force_no_numpy(monkeypatch)
+        palette = [(0, 0, 0), (255, 255, 255)]
+        img = self._solid_rgb(128, 128, 128, w=4, h=4)
+        result = quantize_to_palette_ordered(img, palette, bayer_strength=240)
+        data = set(result.getdata())
+        # With the 4×4 Bayer pattern spanning the full matrix, we should see both
+        # black and white pixels.
+        assert (0, 0, 0) in data
+        assert (255, 255, 255) in data
+
+    def test_fs_python_fallback_handles_1x1_image(self, monkeypatch):
+        """Edge case: width and height both 1 — no error diffusion neighbours exist."""
+        self._force_no_numpy(monkeypatch)
+        palette = [(0, 0, 0), (255, 255, 255)]
+        img = self._solid_rgb(10, 10, 10, w=1, h=1)
+        result = quantize_to_palette_fs(img, palette)
+        assert list(result.getdata()) == [(0, 0, 0)]

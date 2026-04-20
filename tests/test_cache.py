@@ -497,6 +497,158 @@ class TestLoadCachedSourceUnknownSourcePaths:
             assert result is None
 
 
+class TestLoadCachedSourceWithMetadata:
+    """Cover the branches of load_cached_source_with_metadata()."""
+
+    def test_returns_none_when_file_missing(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            assert load_cached_source_with_metadata("weather", tmpdir) is None
+
+    def test_returns_none_on_unreadable_json(self, caplog):
+        import logging
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            (Path(tmpdir) / "dashboard_cache.json").write_text("{not valid json")
+            with caplog.at_level(logging.WARNING, logger="src.fetchers.cache"):
+                result = load_cached_source_with_metadata("weather", tmpdir)
+        assert result is None
+        assert "Cache read failed" in caplog.text
+
+    def test_events_block_returns_metadata(self):
+        """v2 events block with extra metadata returns (events, fetched_at, metadata)."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            v2 = {
+                "schema_version": 2,
+                "events": {
+                    "fetched_at": "2024-03-15T08:00:00",
+                    "data": [],
+                    "sync_token": "token-abc",
+                },
+            }
+            (Path(tmpdir) / "dashboard_cache.json").write_text(json.dumps(v2))
+            result = load_cached_source_with_metadata("events", tmpdir)
+        assert result is not None
+        events, fetched_at, metadata = result
+        assert events == []
+        assert fetched_at == datetime(2024, 3, 15, 8, 0, 0)
+        assert metadata == {"sync_token": "token-abc"}
+
+    def test_weather_empty_block_returns_none_metadata(self):
+        """A v2 weather block with no data → (None, ...) with empty metadata."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            v2 = {
+                "schema_version": 2,
+                "weather": {"fetched_at": "2024-03-15T08:00:00", "data": None},
+            }
+            (Path(tmpdir) / "dashboard_cache.json").write_text(json.dumps(v2))
+            result = load_cached_source_with_metadata("weather", tmpdir)
+        assert result is not None
+        data, _, metadata = result
+        assert data is None
+        assert metadata == {}
+
+    def test_air_quality_block_round_trips(self):
+        """Covers the air_quality deserialisation branch in load_cached_source_with_metadata."""
+        from src.data.models import AirQualityData
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            aq = AirQualityData(aqi=42, category="Good", pm25=9.0, pm10=12.0, sensor_id=123)
+            save_source("air_quality", aq, datetime(2024, 3, 15, 8, 0, 0), tmpdir)
+            result = load_cached_source_with_metadata("air_quality", tmpdir)
+        assert result is not None
+        loaded, _, _ = result
+        assert loaded.aqi == 42
+        assert loaded.category == "Good"
+
+    def test_air_quality_empty_data_branch(self):
+        """The ``if block.get('data') else None`` branch for air_quality."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            v2 = {
+                "schema_version": 2,
+                "air_quality": {"fetched_at": "2024-03-15T08:00:00", "data": None},
+            }
+            (Path(tmpdir) / "dashboard_cache.json").write_text(json.dumps(v2))
+            result = load_cached_source_with_metadata("air_quality", tmpdir)
+        assert result is not None
+        data, _, _ = result
+        assert data is None
+
+    def test_unknown_source_in_v2_returns_none(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            v2 = {
+                "schema_version": 2,
+                "custom": {"fetched_at": "2024-03-15T08:00:00", "data": []},
+            }
+            (Path(tmpdir) / "dashboard_cache.json").write_text(json.dumps(v2))
+            result = load_cached_source_with_metadata("custom", tmpdir)
+        assert result is None
+
+    def test_block_with_bad_timestamp_logs_and_returns_none(self, caplog):
+        import logging
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            v2 = {
+                "schema_version": 2,
+                "weather": {"fetched_at": "NOT_A_TIMESTAMP", "data": {"x": "y"}},
+            }
+            (Path(tmpdir) / "dashboard_cache.json").write_text(json.dumps(v2))
+            with caplog.at_level(logging.WARNING, logger="src.fetchers.cache"):
+                result = load_cached_source_with_metadata("weather", tmpdir)
+        assert result is None
+        assert "decode failed" in caplog.text
+
+    def test_v1_fallback_returns_events_with_empty_metadata(self):
+        """Legacy v1 cache files produce an empty metadata dict."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            v1 = {
+                "fetched_at": "2024-03-15T08:00:00",
+                "events": [
+                    {
+                        "summary": "Old",
+                        "start": "2024-03-15T09:00:00",
+                        "end": "2024-03-15T10:00:00",
+                        "is_all_day": False,
+                        "location": None,
+                        "calendar_name": None,
+                    }
+                ],
+                "weather": None,
+                "birthdays": [],
+            }
+            (Path(tmpdir) / "dashboard_cache.json").write_text(json.dumps(v1))
+            result = load_cached_source_with_metadata("events", tmpdir)
+        assert result is not None
+        events, _, metadata = result
+        assert len(events) == 1
+        assert metadata == {}
+
+    def test_v1_fallback_returns_none_for_unknown_source(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            v1 = {
+                "fetched_at": "2024-03-15T08:00:00",
+                "events": [],
+                "weather": None,
+                "birthdays": [],
+            }
+            (Path(tmpdir) / "dashboard_cache.json").write_text(json.dumps(v1))
+            result = load_cached_source_with_metadata("air_quality", tmpdir)
+        assert result is None
+
+    def test_v1_fallback_parse_error_returns_none(self):
+        """If _deserialise_v1 raises, with-metadata loader returns None."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # v1 with an unparseable timestamp — _deserialise_v1 will blow up.
+            v1 = {
+                "fetched_at": "totally-broken",
+                "events": "not-a-list",
+                "weather": None,
+                "birthdays": [],
+            }
+            (Path(tmpdir) / "dashboard_cache.json").write_text(json.dumps(v1))
+            result = load_cached_source_with_metadata("events", tmpdir)
+        assert result is None
+
+
 class TestAtomicWriteCleanup:
     def test_temp_file_cleaned_up_on_write_failure(self):
         """If json.dump fails, the temp file should be removed."""

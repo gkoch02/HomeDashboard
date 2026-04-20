@@ -307,4 +307,144 @@ class TestUrlHostname:
 
     def test_invalid_url_returns_original(self):
         result = _url_hostname("not a url")
-        assert isinstance(result, str)
+        # urlparse of "not a url" gives hostname=None → falls back to input.
+        assert result == "not a url"
+
+    def test_url_hostname_swallows_exception(self):
+        """If urlparse raises, _url_hostname returns the original string."""
+        with patch(
+            "src.fetchers.calendar_ical.urlparse",
+            side_effect=ValueError("boom"),
+        ):
+            assert _url_hostname("https://example.com/cal.ics") == "https://example.com/cal.ics"
+
+
+# ---------------------------------------------------------------------------
+# Additional coverage: uncommon VEVENT / fetch branches
+# ---------------------------------------------------------------------------
+
+
+class TestAdditionalCoverage:
+    def test_event_with_unrecognised_dtstart_type_returns_none(self):
+        """A VEVENT whose DTSTART isn't a date or datetime is skipped."""
+        from icalendar import Calendar
+
+        ical_text = (
+            "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\n"
+            "SUMMARY:Malformed\r\n"
+            "DTSTART:20260404T100000Z\r\n"
+            "UID:malformed-1\r\n"
+            "END:VEVENT\r\nEND:VCALENDAR\r\n"
+        )
+        cal = Calendar.from_ical(ical_text)
+        for comp in cal.walk():
+            if comp.name == "VEVENT":
+                # Mutate the parsed component so .dt is a string — exercises the
+                # "unrecognised DTSTART type" branch.
+                dtstart = comp["DTSTART"]
+                dtstart.dt = "not a date"
+                assert _parse_ical_event(comp, "cal") is None
+
+    def test_timed_event_with_date_only_dtend(self):
+        """DTSTART is datetime but DTEND is a plain date — end is combined to midnight."""
+        from icalendar import Calendar
+
+        ical_text = (
+            "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\n"
+            "SUMMARY:Oddly Typed\r\n"
+            "DTSTART:20260404T100000Z\r\n"
+            "DTEND;VALUE=DATE:20260405\r\n"
+            "UID:odd-1\r\n"
+            "END:VEVENT\r\nEND:VCALENDAR\r\n"
+        )
+        cal = Calendar.from_ical(ical_text)
+        for comp in cal.walk():
+            if comp.name == "VEVENT":
+                event = _parse_ical_event(comp, "cal")
+                assert event is not None
+                assert event.is_all_day is False
+                # End snapped to midnight of DTEND date.
+                assert event.end.hour == 0
+                assert event.end.minute == 0
+
+    def test_allday_event_with_duration(self):
+        """All-day DTSTART with a DURATION property — DURATION extends the end date."""
+        from icalendar import Calendar
+
+        ical_text = (
+            "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\n"
+            "SUMMARY:Multi-day Offsite\r\n"
+            "DTSTART;VALUE=DATE:20260404\r\n"
+            "DURATION:P3D\r\n"
+            "UID:allday-dur-1\r\n"
+            "END:VEVENT\r\nEND:VCALENDAR\r\n"
+        )
+        cal = Calendar.from_ical(ical_text)
+        for comp in cal.walk():
+            if comp.name == "VEVENT":
+                event = _parse_ical_event(comp, "cal")
+                assert event is not None
+                assert event.is_all_day is True
+                assert (event.end - event.start).days == 3
+
+    def test_allday_event_with_datetime_dtend(self):
+        """All-day DTSTART but DTEND is a datetime — tzinfo is stripped."""
+        from icalendar import Calendar
+
+        ical_text = (
+            "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\n"
+            "SUMMARY:All-day\r\n"
+            "DTSTART;VALUE=DATE:20260404\r\n"
+            "DTEND:20260405T000000Z\r\n"
+            "UID:allday-dtend-1\r\n"
+            "END:VEVENT\r\nEND:VCALENDAR\r\n"
+        )
+        cal = Calendar.from_ical(ical_text)
+        for comp in cal.walk():
+            if comp.name == "VEVENT":
+                event = _parse_ical_event(comp, "cal")
+                assert event is not None
+                assert event.is_all_day is True
+                assert event.end.tzinfo is None
+
+    @patch("src.fetchers.calendar_ical.requests.get")
+    def test_calendar_without_x_wr_calname_falls_back_to_hostname(self, mock_get):
+        """When X-WR-CALNAME is absent, events are labelled with the URL hostname."""
+        today = date.today()
+        monday = today - timedelta(days=today.weekday())
+        event_day = monday + timedelta(days=1)
+
+        ical_text = (
+            "BEGIN:VCALENDAR\r\nVERSION:2.0\r\n"  # no X-WR-CALNAME
+            "BEGIN:VEVENT\r\n"
+            f"DTSTART:{event_day.strftime('%Y%m%d')}T100000Z\r\n"
+            f"DTEND:{event_day.strftime('%Y%m%d')}T110000Z\r\n"
+            "SUMMARY:No Name Feed\r\nUID:nn-1\r\n"
+            "END:VEVENT\r\nEND:VCALENDAR\r\n"
+        )
+        mock_get.return_value = _mock_response(ical_text)
+        events = fetch_from_ical(["https://calendar.example.org/feed.ics"])
+        assert events
+        assert all(e.calendar_name == "calendar.example.org" for e in events)
+
+    @patch("src.fetchers.calendar_ical.requests.get")
+    def test_naive_datetime_events_are_kept_within_window(self, mock_get):
+        """VEVENTs without timezone info are filtered in naive local time."""
+        today = date.today()
+        monday = today - timedelta(days=today.weekday())
+        event_day = monday + timedelta(days=1)
+
+        ical_text = (
+            "BEGIN:VCALENDAR\r\nVERSION:2.0\r\n"
+            "X-WR-CALNAME:Floating\r\n"
+            "BEGIN:VEVENT\r\n"
+            # Note: no Z suffix, no TZID → floating (naive) datetime
+            f"DTSTART:{event_day.strftime('%Y%m%d')}T120000\r\n"
+            f"DTEND:{event_day.strftime('%Y%m%d')}T130000\r\n"
+            "SUMMARY:Floating Event\r\nUID:f-1\r\n"
+            "END:VEVENT\r\nEND:VCALENDAR\r\n"
+        )
+        mock_get.return_value = _mock_response(ical_text)
+        events = fetch_from_ical(["https://example.com/cal.ics"])  # no tz argument
+        assert len(events) == 1
+        assert events[0].summary == "Floating Event"

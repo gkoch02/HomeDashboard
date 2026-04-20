@@ -4,8 +4,14 @@ from datetime import date, datetime, timedelta, timezone
 
 from PIL import Image, ImageDraw
 
-from src.data.models import DayForecast, WeatherAlert, WeatherData
-from src.render.components.weather_panel import _fmt_time, draw_weather
+from src.data.models import AirQualityData, DayForecast, WeatherAlert, WeatherData
+from src.render.components.weather_panel import (
+    _aqi_accent,
+    _draw_aqi_column,
+    _fmt_time,
+    draw_weather,
+)
+from src.render.theme import ThemeStyle
 
 
 def _make_draw(w: int = 800, h: int = 480):
@@ -355,3 +361,106 @@ class TestFmtTime:
         dt = datetime(2024, 3, 15, 8, 0, tzinfo=timezone.utc)
         result = _fmt_time(dt)
         assert ":00" not in result
+
+
+def _make_aqi(aqi=42, category="Good", **kwargs):
+    return AirQualityData(aqi=aqi, category=category, pm25=kwargs.pop("pm25", 9.0), **kwargs)
+
+
+def _make_forecast(day_count=3):
+    base = date(2026, 4, 20)
+    return [
+        DayForecast(
+            date=base + timedelta(days=i + 1),
+            icon="01d",
+            description="clear",
+            high=60 + i,
+            low=50 + i,
+            precip_chance=0.15,
+        )
+        for i in range(day_count)
+    ]
+
+
+class TestAQIForecastColumn:
+    """Exercises the air-quality column that replaces a forecast slot when AQ data exists."""
+
+    def test_aqi_column_renders_when_air_quality_present(self):
+        weather = _make_weather(forecast=_make_forecast(3))
+        aqi = _make_aqi(aqi=42, category="Good")
+        img, draw = _make_draw()
+        draw_weather(draw, weather, today=date(2026, 4, 20), air_quality=aqi)
+        # Something was rendered — the image is no longer blank white.
+        assert img.getbbox() is not None
+
+    def test_aqi_column_truncates_long_category_label(self):
+        """Long category labels are truncated with an ellipsis so they fit the column."""
+        weather = _make_weather(forecast=_make_forecast(3))
+        aqi = _make_aqi(
+            aqi=175,
+            category="Unhealthy for Sensitive Groups with Extra Long Descriptor",
+        )
+        img, draw = _make_draw()
+        # Use a narrow region so truncation kicks in.
+        from src.render.theme import ComponentRegion
+
+        region = ComponentRegion(0, 0, 160, 200)
+        draw_weather(
+            draw,
+            weather,
+            today=date(2026, 4, 20),
+            air_quality=aqi,
+            region=region,
+        )
+        assert img.getbbox() is not None
+
+    def test_aqi_column_suppressed_when_alerts_present(self):
+        """When there is 1 alert, there are 2 forecast columns + alert column — no AQI column."""
+        weather = _make_weather(
+            forecast=_make_forecast(3),
+            alerts=[WeatherAlert(event="Heat Advisory")],
+        )
+        aqi = _make_aqi(aqi=42, category="Good")
+        img, draw = _make_draw()
+        draw_weather(draw, weather, today=date(2026, 4, 20), air_quality=aqi)
+        # No crash; rendering path ran without AQI-specific column.
+        assert img.getbbox() is not None
+
+    def test_draw_aqi_column_direct(self):
+        """Directly exercise _draw_aqi_column in isolation."""
+        img, draw = _make_draw(w=200, h=100)
+        style = ThemeStyle()
+        aqi = _make_aqi(aqi=87, category="Moderate")
+        _draw_aqi_column(draw, aqi, cx=0, top=0, col_w=80, col_h=80, style=style)
+        assert img.getbbox() is not None
+
+
+class TestAQIAccent:
+    def test_good_uses_accent_good(self):
+        style = ThemeStyle(accent_good=1, fg=0)
+        assert _aqi_accent(style, 20) == 1
+
+    def test_good_falls_back_to_fg_when_accent_unset(self):
+        style = ThemeStyle(fg=7)
+        assert _aqi_accent(style, 20) == 7
+
+    def test_moderate_uses_accent_warn(self):
+        style = ThemeStyle(accent_warn=2, fg=0)
+        # AQI 51–150 range
+        assert _aqi_accent(style, 100) == 2
+        assert _aqi_accent(style, 150) == 2  # upper boundary inclusive
+
+    def test_unhealthy_uses_accent_alert(self):
+        style = ThemeStyle(accent_alert=3, fg=0)
+        assert _aqi_accent(style, 200) == 3
+        assert _aqi_accent(style, 500) == 3
+
+    def test_boundary_51_is_warn_not_good(self):
+        style = ThemeStyle(accent_good=1, accent_warn=2, accent_alert=3, fg=0)
+        assert _aqi_accent(style, 50) == 1  # still good
+        assert _aqi_accent(style, 51) == 2  # transition
+
+    def test_boundary_151_is_alert(self):
+        style = ThemeStyle(accent_good=1, accent_warn=2, accent_alert=3, fg=0)
+        assert _aqi_accent(style, 150) == 2
+        assert _aqi_accent(style, 151) == 3

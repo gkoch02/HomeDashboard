@@ -2,6 +2,7 @@
 
 import json
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -248,3 +249,70 @@ def test_clear_cache_missing_source_returns_400(client):
         headers=_csrf_headers(client),
     )
     assert resp.status_code == 400
+
+
+# ---------------------------------------------------------------------------
+# Failure-path tests: each endpoint's ``except Exception`` branch returns 500.
+# ---------------------------------------------------------------------------
+
+
+def test_trigger_refresh_returns_500_on_io_error(client):
+    headers = _csrf_headers(client)
+    with patch("src.web.routes.actions.Path.touch", side_effect=OSError("disk full")):
+        resp = client.post("/api/trigger-refresh", headers=headers)
+    assert resp.status_code == 500
+    body = json.loads(resp.data)
+    assert body["ok"] is False
+    assert "disk full" in body["error"]
+
+
+def test_reset_breaker_returns_500_on_write_failure(client):
+    headers = _csrf_headers(client)
+    with patch(
+        "src.web.routes.actions._atomic_write_json",
+        side_effect=OSError("no space left"),
+    ):
+        resp = client.post(
+            "/api/reset-breaker",
+            data=json.dumps({"source": "weather"}),
+            content_type="application/json",
+            headers=headers,
+        )
+    assert resp.status_code == 500
+    body = json.loads(resp.data)
+    assert body["ok"] is False
+    assert "no space" in body["error"]
+
+
+def test_clear_cache_returns_500_on_write_failure(client):
+    headers = _csrf_headers(client)
+    with patch(
+        "src.web.routes.actions._atomic_write_json",
+        side_effect=OSError("io broke"),
+    ):
+        resp = client.post(
+            "/api/clear-cache",
+            data=json.dumps({"source": "all"}),
+            content_type="application/json",
+            headers=headers,
+        )
+    assert resp.status_code == 500
+    body = json.loads(resp.data)
+    assert body["ok"] is False
+    assert "io broke" in body["error"]
+
+
+def test_atomic_write_json_cleans_up_tempfile_on_failure(tmp_path):
+    """If json.dump raises, the tempfile should be unlinked and the exception re-raised."""
+    from src.web.routes.actions import _atomic_write_json
+
+    target = tmp_path / "out.json"
+
+    # Something that json can't serialise should trigger cleanup.
+    unserialisable = {"bad": {object()}}
+    with pytest.raises(TypeError):
+        _atomic_write_json(target, unserialisable)
+
+    # No .tmp leftovers in the directory.
+    assert not any(p.suffix == ".tmp" for p in tmp_path.iterdir())
+    assert not target.exists()

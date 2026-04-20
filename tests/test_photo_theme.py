@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 from PIL import Image
@@ -26,6 +27,7 @@ from src.config import DisplayConfig
 from src.dummy_data import generate_dummy_data
 from src.render.canvas import render_dashboard
 from src.render.primitives import load_and_dither_image
+from src.render.quantize import blend_inky_palette
 from src.render.theme import AVAILABLE_THEMES, ThemeLayout, ThemeStyle, load_theme
 from src.render.themes.photo import _draw_photo_background, photo_theme
 
@@ -161,6 +163,46 @@ class TestDrawPhotoBackground:
         # The canvas should have been modified (no longer all-white)
         white_canvas = bytes([255] * len(canvas.tobytes()))
         assert canvas.tobytes() != white_canvas
+
+    def test_rgb_canvas_falls_back_to_bayer_when_pil_quantize_scrambles_palette(
+        self, grey_png: Path, caplog
+    ):
+        """If PIL's FS quantize produces pixels outside the blended palette, the
+        photo theme should fall back to the Bayer path."""
+        canvas = self._make_canvas(mode="RGB")
+        layout = self._make_layout()
+        style = self._make_style(path=str(grey_png))
+
+        # Produce an image that deliberately has a pixel outside the blended palette,
+        # so the "set(fs_result.getdata()) <= blended_set" check fails.
+        bad_fs = Image.new("RGB", (800, 480), (42, 42, 42))
+
+        with patch.object(
+            Image.Image,
+            "quantize",
+            lambda self, **kw: bad_fs.convert("P"),
+        ):
+            with caplog.at_level(logging.DEBUG, logger="src.render.themes.photo"):
+                _draw_photo_background(canvas, layout, style)
+
+        # After the fallback, the canvas pixels must all be blended palette colours.
+        palette_set = set(blend_inky_palette(0.25))
+        assert set(canvas.getdata()) <= palette_set
+
+    def test_exception_during_load_is_logged_and_swallowed(self, caplog, grey_png: Path):
+        """An unexpected exception inside the dither path should log and not propagate."""
+        canvas = self._make_canvas()
+        layout = self._make_layout()
+        style = self._make_style(path=str(grey_png))
+
+        with patch(
+            "src.render.primitives.load_and_dither_image",
+            side_effect=RuntimeError("dither broke"),
+        ):
+            with caplog.at_level(logging.WARNING, logger="src.render.themes.photo"):
+                _draw_photo_background(canvas, layout, style)
+
+        assert any("failed to load image" in rec.message for rec in caplog.records)
 
     def test_rgb_canvas_pixels_are_palette_colors(self, grey_png: Path):
         """All pixels on the RGB canvas should be one of the 6 blended Inky palette colors.
