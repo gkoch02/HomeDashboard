@@ -244,8 +244,9 @@ white on the eInk panel rather than rendering as solid black.
 - Portraits and high-contrast scenes dither best on Waveshare's 1-bit panel.
 - For Inky Spectra 6, photos with naturally warm or limited palettes (sunsets, sepia
   prints) match the panel's color gamut more faithfully than full-color modern photos.
-- Run `make dry --theme photo` (or `venv/bin/python -m src.main --dry-run --theme photo`)
-  to preview the dithered output in `output/latest.png` before deploying to the Pi.
+- Run `venv/bin/python -m src.main --dry-run --dummy --theme photo` to preview the
+  dithered output in `output/latest.png` before deploying to the Pi. (`make dry` does
+  not pass through `--theme`, so invoke the module directly when overriding the theme.)
 - The `photo` theme is **excluded** from the random rotation pool — pick it explicitly
   via `theme: photo` rather than relying on randomization.
 
