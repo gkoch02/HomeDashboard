@@ -283,10 +283,12 @@ A few operator notes:
 - **Retention is unbounded.** The file only grows. Rotate or truncate it manually if it
   becomes unwieldy. `state/` is on the same disk as the rest of the project, so a runaway
   log can fill the SD card on small Pi installs.
-- **It is sensitive.** The file logs *what* changed (e.g. "saved theme: minimalist") and
-  *who* made the change in multi-user setups (via the authenticated username). Treat it
-  with the same care as `web.yaml`: do not commit it, do not paste it into bug reports
-  without redaction.
+- **It is sensitive but not user-attributed.** The file logs *what* changed (e.g.
+  "saved theme: minimalist") and the field set involved, but it does **not** record
+  the authenticated username — basic-auth gates access at the request boundary and
+  is not threaded into `append_event`. Don't rely on this log for per-user
+  accountability in shared deployments. Treat it with the same care as `web.yaml`:
+  do not commit it, do not paste it into bug reports without redaction.
 - **It is best-effort.** Write failures are logged at DEBUG level and silently swallowed
   so a missing/unwritable `state/` directory never breaks the UI.
 - **It is read-truncated.** The status page's "Recent Events" card only loads the most
