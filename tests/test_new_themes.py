@@ -220,6 +220,89 @@ class TestTimelinePanel:
         col_values = sorted(cols.values())
         assert col_values == [0, 1]
 
+    def test_renders_with_default_region(self):
+        """When region=None, line 52 fallback ComponentRegion(0,40,800,360) is used."""
+        from src.render.components.timeline_panel import draw_timeline
+
+        draw, img = self._make_draw()
+        draw_timeline(draw, [], date(2026, 4, 5), FIXED_NOW, region=None, style=None)
+        assert img.mode == "1"
+
+    def test_hour_label_break_when_y_exceeds_region(self):
+        """A very short region forces the `if y > y0 + h: break` branch (line 81)."""
+        from src.render.components.timeline_panel import draw_timeline
+        from src.render.theme import ComponentRegion
+
+        draw, img = self._make_draw()
+        # Tiny height means the very first hour line falls outside the region.
+        draw_timeline(draw, [], date(2026, 4, 5), FIXED_NOW, region=ComponentRegion(0, 0, 800, 4))
+        assert img.mode == "1"
+
+    def test_renders_outlined_allday_bars(self):
+        """invert_allday_bars=False exercises the outline branch (lines 124-125)."""
+        from dataclasses import replace as dc_replace
+
+        from src.render.components.timeline_panel import draw_timeline
+        from src.render.theme import ComponentRegion, ThemeStyle
+
+        draw, img = self._make_draw()
+        style = dc_replace(ThemeStyle(), invert_allday_bars=False)
+        events = [
+            CalendarEvent(
+                summary="All-day Picnic",
+                start=datetime(2026, 4, 5, 0, 0),
+                end=datetime(2026, 4, 6, 0, 0),
+                is_all_day=True,
+            ),
+        ]
+        draw_timeline(
+            draw,
+            events,
+            date(2026, 4, 5),
+            FIXED_NOW,
+            region=ComponentRegion(0, 0, 800, 360),
+            style=style,
+        )
+        # No assertions on pixel content — just confirm no crash.
+        assert img.mode == "1"
+
+    def test_event_outside_visible_range_is_skipped(self):
+        """An event entirely before _START_HOUR clamps to start==end, hitting line 155."""
+        from src.render.components.timeline_panel import draw_timeline
+        from src.render.theme import ComponentRegion
+
+        draw, img = self._make_draw()
+        events = [
+            # Whole event is before 7am — start_min and end_min both clamp to 0
+            CalendarEvent(
+                summary="Pre-dawn",
+                start=datetime(2026, 4, 5, 3, 0),
+                end=datetime(2026, 4, 5, 5, 0),
+            ),
+        ]
+        draw_timeline(
+            draw, events, date(2026, 4, 5), FIXED_NOW, region=ComponentRegion(0, 0, 800, 360)
+        )
+        assert img.mode == "1"
+
+    def test_minutes_from_start_with_date_input(self):
+        """_minutes_from_start should accept a date (not datetime) — covers line 194."""
+        from src.render.components.timeline_panel import _minutes_from_start
+
+        # When `dt` is a date object equal to today, the (hour - _START_HOUR) calc
+        # would crash on a date — but the dt_date == today branch falls through.
+        # Use a date != today to exercise both the date assignment AND the < today branch.
+        result = _minutes_from_start(date(2026, 4, 4), date(2026, 4, 5))
+        assert result == 0  # earlier date → 0
+
+    def test_minutes_from_start_future_date_returns_end_of_window(self):
+        """A future date should return _VISIBLE_HOURS * 60 — covers line 197 else branch."""
+        from src.render.components.timeline_panel import _minutes_from_start
+
+        result = _minutes_from_start(datetime(2026, 4, 6, 8, 0), date(2026, 4, 5))
+        # 14 visible hours × 60 = 840
+        assert result == 14 * 60
+
 
 # ---------------------------------------------------------------------------
 # Year pulse panel unit tests

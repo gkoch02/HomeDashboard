@@ -271,6 +271,17 @@ def test_api_logs_caps_at_max(client, app, tmp_path):
     assert len(data["lines"]) <= 500  # hard cap
 
 
+def test_api_logs_invalid_lines_falls_back_to_default(client, app):
+    """Non-integer ?lines= should be coerced to the default (100) — covers lines 23-24."""
+    output_dir = Path(app.config["OUTPUT_DIR"])
+    (output_dir / "dashboard.log").write_text("\n".join(f"line {i}" for i in range(150)))
+    resp = client.get("/api/logs?lines=not-a-number")
+    assert resp.status_code == 200
+    data = json.loads(resp.data)
+    # Default _DEFAULT_LINES is 100
+    assert len(data["lines"]) == 100
+
+
 # ---------------------------------------------------------------------------
 # Auth
 # ---------------------------------------------------------------------------

@@ -2,6 +2,7 @@
 
 import json
 import logging
+import os
 from pathlib import Path
 from unittest.mock import patch
 
@@ -648,3 +649,108 @@ def test_restore_latest_backup_rejects_invalid_backup(tmp_path):
 
 def test_list_config_backups_missing_parent_returns_empty(tmp_path):
     assert list_config_backups(str(tmp_path / "nope" / "config.yaml")) == []
+
+
+# ---------------------------------------------------------------------------
+# Defensive branches: stat / cleanup / validation failures
+# ---------------------------------------------------------------------------
+
+
+def test_list_config_backups_skips_unstatable_entries(tmp_path):
+    """A backup file whose stat() raises OSError must be silently skipped (line 110-111)."""
+    cfg = tmp_path / "config.yaml"
+    cfg.write_text("title: T\n")
+    (tmp_path / "config.yaml.bak").write_text("title: A\n")
+    (tmp_path / "config.yaml.bak.20240101-000000").write_text("title: B\n")
+
+    real_stat = Path.stat
+    call = {"n": 0}
+
+    def fake_stat(self, *args, **kwargs):
+        # Make the first matching backup raise; the second succeeds.
+        if self.name.startswith("config.yaml.bak"):
+            call["n"] += 1
+            if call["n"] == 1:
+                raise OSError("permission denied")
+        return real_stat(self, *args, **kwargs)
+
+    with patch("pathlib.Path.stat", new=fake_stat):
+        result = list_config_backups(str(cfg), limit=5)
+
+    # One backup got skipped; the other still appears.
+    assert len(result) == 1
+
+
+def test_restore_latest_backup_wraps_unexpected_exception(tmp_path):
+    """An unexpected exception during restore is wrapped in (False, str(exc)) (line 132-133)."""
+    from src.web.config_editor import restore_latest_backup as _restore
+
+    cfg = tmp_path / "config.yaml"
+    cfg.write_text("title: T\n")
+    bak = tmp_path / "config.yaml.bak"
+    bak.write_text("title: B\n")
+
+    with patch(
+        "src.web.config_editor._load_raw_yaml",
+        side_effect=RuntimeError("disk burst into flames"),
+    ):
+        ok, msg = _restore(str(cfg))
+    assert ok is False
+    assert "disk burst into flames" in msg
+
+
+def test_write_raw_yaml_swallows_backup_temp_cleanup_error(tmp_path, caplog):
+    """If the backup write fails AND the temp cleanup also fails, the save still proceeds.
+
+    Exercises lines 281-282 (``except OSError: pass`` after backup tempfile cleanup).
+    """
+    import logging
+
+    from src.web.config_editor import _write_raw_yaml
+
+    cfg = tmp_path / "config.yaml"
+    cfg.write_text("title: Existing\n")
+
+    real_replace = os.replace
+    real_unlink = os.unlink
+
+    def replace_first_fails(src, dst):
+        # The first os.replace is for the backup; fail it.
+        if str(dst).endswith(".bak"):
+            raise OSError("backup blocked")
+        return real_replace(src, dst)
+
+    def unlink_fails(path):
+        if ".bak.tmp" in str(path):
+            raise OSError("cleanup blocked")
+        return real_unlink(path)
+
+    with (
+        patch("src.web.config_editor.os.replace", side_effect=replace_first_fails),
+        patch("src.web.config_editor.os.unlink", side_effect=unlink_fails),
+        caplog.at_level(logging.WARNING),
+    ):
+        _write_raw_yaml(str(cfg), {"title": "After"})
+
+    # Save proceeded (warning logged, but no exception).
+    assert any("backup" in rec.message.lower() for rec in caplog.records)
+
+
+def test_validate_raw_swallows_temp_cleanup_error(tmp_path):
+    """If unlinking the validation tempfile fails, the result is still returned (line 333-334)."""
+    import os as _os
+
+    from src.web.config_editor import _validate_raw
+
+    real_unlink = _os.unlink
+
+    def unlink_fails(path):
+        if path.endswith(".yaml"):
+            raise OSError("cleanup blocked")
+        return real_unlink(path)
+
+    with patch("src.web.config_editor.os.unlink", side_effect=unlink_fails):
+        # Valid YAML so no validation error should be raised by load_config.
+        errors, warnings = _validate_raw({"title": "T"})
+    # Result is returned regardless of cleanup failure.
+    assert isinstance(errors, list) or errors == [] or hasattr(errors, "__iter__")
