@@ -27,11 +27,13 @@ def _load_last_inky_refresh(state_dir: str) -> Optional[datetime]:
         return None
     try:
         raw = json.loads(path.read_text())
+        if not isinstance(raw, dict):
+            return None
         value = raw.get("last_refresh_at")
         if not isinstance(value, str):
             return None
         return datetime.fromisoformat(value)
-    except Exception:
+    except (OSError, ValueError, json.JSONDecodeError):
         return None
 
 
@@ -40,7 +42,7 @@ def _save_last_inky_refresh(state_dir: str, now: datetime) -> None:
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps({"last_refresh_at": now.isoformat()}) + "\n")
-    except Exception as exc:
+    except OSError as exc:
         logger.warning("Could not write Inky refresh state: %s", exc)
 
 

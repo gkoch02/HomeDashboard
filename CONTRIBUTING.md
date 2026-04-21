@@ -16,6 +16,7 @@ make dry
 
 ```bash
 make test         # run pytest
+make coverage     # run pytest with coverage report (htmlcov/index.html)
 make lint         # ruff check src/ tests/
 make fmt          # ruff format src/ tests/
 make dry          # preview with dummy data
@@ -107,6 +108,7 @@ When changing any of these areas, update the canonical docs in the same PR:
 - Use `tmp_path` for temporary files.
 - Do not make real network calls in tests.
 - Add or update documentation checks when you introduce a new exhaustive list.
+- Coverage is enforced at ≥90% via `pytest-cov` (`fail_under` in `pyproject.toml`); current coverage is ~99%. Run `make coverage` to see missing lines and an HTML report at `htmlcov/index.html`. New defensive branches should ship with tests.
 
 ## PR Checklist
 

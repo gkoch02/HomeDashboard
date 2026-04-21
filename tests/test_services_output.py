@@ -1,12 +1,19 @@
 """Tests for src/services/output.py (OutputService)."""
 
+import json
+import logging
 from datetime import datetime, timedelta
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from PIL import Image
 
-from src.services.output import OutputService, should_throttle_inky_refresh
+from src.services.output import (
+    OutputService,
+    _load_last_inky_refresh,
+    _save_last_inky_refresh,
+    should_throttle_inky_refresh,
+)
 
 
 def _make_image(w: int = 800, h: int = 480) -> Image.Image:
@@ -404,8 +411,6 @@ class TestWriteHealthMarker:
         assert (tmp_path / "nested" / "output" / "last_success.txt").exists()
 
     def test_write_failure_logs_warning_and_does_not_raise(self, tmp_path, caplog):
-        import logging
-
         svc = OutputService(_make_cfg(tmp_path), _make_tz())
 
         with caplog.at_level(logging.WARNING, logger="src.services.output"):
@@ -413,3 +418,53 @@ class TestWriteHealthMarker:
                 svc.write_health_marker()  # must not raise
 
         assert "last_success.txt" in caplog.text
+
+
+# ---------------------------------------------------------------------------
+# Inky refresh state I/O — defensive branches
+# ---------------------------------------------------------------------------
+
+
+class TestLoadLastInkyRefreshDefensive:
+    def test_returns_none_when_state_file_missing(self, tmp_path):
+        # No file at all → returns None directly (no exception path).
+        assert _load_last_inky_refresh(str(tmp_path)) is None
+
+    def test_returns_none_when_value_is_not_a_string(self, tmp_path):
+        """Triggers the `if not isinstance(value, str): return None` branch."""
+        (tmp_path / "inky_refresh_state.json").write_text(json.dumps({"last_refresh_at": 12345}))
+        assert _load_last_inky_refresh(str(tmp_path)) is None
+
+    def test_returns_none_when_value_key_missing(self, tmp_path):
+        """value is None → not a string → return None."""
+        (tmp_path / "inky_refresh_state.json").write_text(json.dumps({}))
+        assert _load_last_inky_refresh(str(tmp_path)) is None
+
+    def test_returns_none_on_unparseable_json(self, tmp_path):
+        """Triggers the trailing `except Exception: return None`."""
+        (tmp_path / "inky_refresh_state.json").write_text("not-json{{{")
+        assert _load_last_inky_refresh(str(tmp_path)) is None
+
+    def test_returns_none_on_invalid_iso_timestamp(self, tmp_path):
+        """fromisoformat raises ValueError → except branch returns None."""
+        (tmp_path / "inky_refresh_state.json").write_text(
+            json.dumps({"last_refresh_at": "totally-not-a-date"})
+        )
+        assert _load_last_inky_refresh(str(tmp_path)) is None
+
+    def test_returns_none_when_json_root_is_not_an_object(self, tmp_path):
+        """Valid JSON that isn't a dict (e.g. a list or string) must not raise."""
+        (tmp_path / "inky_refresh_state.json").write_text(json.dumps([]))
+        assert _load_last_inky_refresh(str(tmp_path)) is None
+        (tmp_path / "inky_refresh_state.json").write_text(json.dumps("x"))
+        assert _load_last_inky_refresh(str(tmp_path)) is None
+
+
+class TestSaveLastInkyRefreshDefensive:
+    def test_save_failure_logs_warning_and_does_not_raise(self, tmp_path, caplog):
+        """A write failure must be caught and surfaced as a warning."""
+        with caplog.at_level(logging.WARNING, logger="src.services.output"):
+            with patch("pathlib.Path.write_text", side_effect=OSError("disk full")):
+                _save_last_inky_refresh(str(tmp_path), datetime(2026, 4, 8, 12, 0))
+
+        assert "Inky refresh state" in caplog.text

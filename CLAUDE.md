@@ -9,6 +9,7 @@ Python eInk dashboard for Raspberry Pi. Displays a weekly calendar (Google Calen
 ```bash
 make setup          # Create venv, install deps, copy config template
 make test           # Run pytest
+make coverage       # Run pytest with coverage report (term-missing + HTML in htmlcov/)
 make dry            # Preview with dummy data → output/latest.png
 make previews       # Generate all theme preview PNGs → output/theme_*.png
 make check          # Validate config/config.yaml
@@ -37,7 +38,7 @@ ruff format src/ tests/                        # Format
 - **icalendar** — ICS feed parsing (used when `google.ical_url` is configured)
 - **PyYAML** — config parsing
 - **Flask 3 + Waitress** — optional web UI (`requirements-web.txt`; `pip install -e ".[web]"`)
-- **pytest** — testing (with unittest.mock)
+- **pytest** — testing (with unittest.mock); coverage via **pytest-cov** (target: ≥90%, currently ~99%)
 - **ruff** — linting and formatting (max line length: 100)
 
 ## Repository Structure
@@ -173,7 +174,7 @@ Components are pure functions: `draw_*(draw, data, region, style) -> None`. No g
 - **Dataclass-first**: pure data models with no I/O in `src/data/models.py`
 - **Config mirrors YAML**: dataclass hierarchy in `config.py` matches YAML structure; all fields optional with defaults
 - **Max line length**: 100 characters
-- **Testing**: heavy use of `unittest.mock.patch`; fixtures for temp dirs and dummy data; every public render function has dedicated smoke tests plus logic unit tests
+- **Testing**: heavy use of `unittest.mock.patch`; fixtures for temp dirs and dummy data; every public render function has dedicated smoke tests plus logic unit tests. Coverage gate is `fail_under = 90` in `pyproject.toml` (`[tool.coverage.report]`). Run `make coverage` to print missing lines and write an HTML report to `htmlcov/`. `src/_version.py` and `src/main.py` are omitted from coverage
 - **Thread safety**: cache operations use `threading.Lock()`
 - **Graceful degradation**: fetch failure → load cached → use stale data → staleness indicator in header
 - **Error boundaries**: credential loading failures, malformed API responses, and cache write errors are caught and logged without crashing the app

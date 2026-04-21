@@ -1,4 +1,4 @@
-.PHONY: dry test deploy setup install check previews version lint fmt docs-check \
+.PHONY: dry test coverage deploy setup install check previews version lint fmt docs-check \
         pi-install install-display-drivers pi-enable pi-status pi-logs configure \
         web-enable web-status web-logs
 
@@ -35,6 +35,9 @@ previews: _check-venv
 
 test: _check-venv
 	$(VENV) -m pytest tests/ -v
+
+coverage: _check-venv
+	$(VENV) -m pytest --cov-report=html
 
 lint: _check-venv
 	$(VENV) -m ruff check src/ tests/

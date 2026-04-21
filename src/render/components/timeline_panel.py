@@ -85,8 +85,6 @@ def draw_timeline(
             label = f"{hour}a"
         elif hour == 12:
             label = "12p"
-        elif hour == 24:
-            label = "12a"
         else:
             label = f"{hour - 12}p"
 
@@ -187,13 +185,13 @@ def draw_timeline(
 
 
 def _minutes_from_start(dt: datetime, today: date) -> int:
-    """Return minutes offset from _START_HOUR on *today*."""
-    if isinstance(dt, datetime):
-        dt_date = dt.date()
-    else:
-        dt_date = dt
+    """Return minutes offset from _START_HOUR on *today*.
+
+    Off-day events clamp to the start (previous day) or end (next day) of the
+    visible window so they don't render outside it.
+    """
+    dt_date = dt.date()
     if dt_date != today:
-        # Event starts previous day or next day — clamp
         return 0 if dt_date < today else _VISIBLE_HOURS * 60
     return (dt.hour - _START_HOUR) * 60 + dt.minute
 

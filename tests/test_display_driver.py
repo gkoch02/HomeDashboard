@@ -15,6 +15,7 @@ from src.display.driver import (
     build_display_driver,
     get_display_spec,
     image_changed,
+    supported_display_models,
 )
 
 
@@ -111,6 +112,30 @@ class TestWaveshareModels:
         for name, (module_path, w, h) in WAVESHARE_MODELS.items():
             assert module_path.startswith("waveshare_epd."), name
             assert w > 0 and h > 0, name
+
+
+class TestSupportedDisplayModels:
+    """Cover the provider-filter and no-filter branches."""
+
+    def test_no_provider_returns_all_models_sorted(self):
+        models = supported_display_models()
+        assert models == sorted(models)
+        # Should include both Inky and Waveshare models.
+        assert "impression_7_3_2025" in models
+        assert "epd7in5_V2" in models
+
+    def test_filter_to_inky_returns_only_inky_models(self):
+        models = supported_display_models(provider="inky")
+        assert "impression_7_3_2025" in models
+        assert "epd7in5_V2" not in models
+
+    def test_filter_to_waveshare_returns_only_waveshare_models(self):
+        models = supported_display_models(provider="waveshare")
+        assert "epd7in5_V2" in models
+        assert "impression_7_3_2025" not in models
+
+    def test_unknown_provider_returns_empty(self):
+        assert supported_display_models(provider="bogus") == []
 
 
 class TestInkyModels:
@@ -263,6 +288,45 @@ class TestWaveshareDisplayHardware:
             with pytest.raises(RuntimeError):
                 d.show(image)
         epd.sleep.assert_called_once()
+
+    def test_show_swallows_tracker_save_error(self, caplog):
+        """A failure in tracker.save() must be logged but never propagate."""
+        import logging
+
+        epd = self._make_mock_epd()
+        tracker = MagicMock()
+        tracker.needs_full_refresh.return_value = True
+        tracker.save.side_effect = OSError("disk full")
+
+        d = WaveshareDisplay(model="epd7in5_V2")
+        image = Image.new("1", (800, 480), 1)
+        with (
+            patch.object(d, "_get_epd", return_value=epd),
+            patch("src.display.refresh_tracker.RefreshTracker.load", return_value=tracker),
+            caplog.at_level(logging.WARNING),
+        ):
+            d.show(image)  # must not raise
+        epd.sleep.assert_called_once()
+        assert any("save refresh state" in rec.message for rec in caplog.records)
+
+    def test_show_swallows_epd_sleep_error(self, caplog):
+        """A failure in epd.sleep() must be logged but never propagate."""
+        import logging
+
+        epd = self._make_mock_epd()
+        epd.sleep.side_effect = RuntimeError("sleep failed")
+        tracker = MagicMock()
+        tracker.needs_full_refresh.return_value = True
+
+        d = WaveshareDisplay(model="epd7in5_V2")
+        image = Image.new("1", (800, 480), 1)
+        with (
+            patch.object(d, "_get_epd", return_value=epd),
+            patch("src.display.refresh_tracker.RefreshTracker.load", return_value=tracker),
+            caplog.at_level(logging.WARNING),
+        ):
+            d.show(image)  # must not raise
+        assert any("EPD sleep failed" in rec.message for rec in caplog.records)
 
     def test_clear(self):
         epd = self._make_mock_epd()

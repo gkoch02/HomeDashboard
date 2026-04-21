@@ -32,6 +32,7 @@ Use this page for local workflow, dev commands, and repo orientation. For archit
 | `make dry` | render `output/latest.png` with dummy data |
 | `make previews` | generate standard theme preview PNGs |
 | `make test` | run the full pytest suite |
+| `make coverage` | run pytest with coverage; prints missing lines and writes `htmlcov/index.html` |
 | `make lint` | run `ruff check src/ tests/` |
 | `make fmt` | run `ruff format src/ tests/` |
 | `make check` | validate `config/config.yaml` |
@@ -119,6 +120,7 @@ Key code areas:
 
 - ruff
 - pytest
+- pytest-cov (coverage gate: ≥90%, configured in `pyproject.toml`)
 - mypy
 
 ### Optional

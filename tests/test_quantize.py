@@ -466,3 +466,67 @@ class TestPythonFallbacks:
         img = self._solid_rgb(10, 10, 10, w=1, h=1)
         result = quantize_to_palette_fs(img, palette)
         assert list(result.getdata()) == [(0, 0, 0)]
+
+    def test_ordered_python_fallback_clips_overflow_high(self, monkeypatch):
+        """A near-white pixel + max bayer offset overflows past 255 → clipped to 255.
+
+        Exercises the ``elif r2 > 255: r2 = 255`` branches in
+        ``_quantize_palette_ordered_python``.  Without clipping, redmean distance
+        would be miscomputed for these pixels.
+        """
+        self._force_no_numpy(monkeypatch)
+        palette = [(0, 0, 0), (255, 255, 255)]
+        img = self._solid_rgb(254, 254, 254, w=4, h=4)
+        result = quantize_to_palette_ordered(img, palette, bayer_strength=240)
+        # All output pixels should still be in the palette and skewed white.
+        assert set(result.getdata()) <= set(palette)
+        assert (255, 255, 255) in set(result.getdata())
+
+    def test_ordered_python_fallback_clips_underflow_low(self, monkeypatch):
+        """A near-black pixel + min bayer offset underflows past 0 → clipped to 0.
+
+        Exercises the ``if r2 < 0: r2 = 0`` branches in
+        ``_quantize_palette_ordered_python``.
+        """
+        self._force_no_numpy(monkeypatch)
+        palette = [(0, 0, 0), (255, 255, 255)]
+        img = self._solid_rgb(1, 1, 1, w=4, h=4)
+        result = quantize_to_palette_ordered(img, palette, bayer_strength=240)
+        assert set(result.getdata()) <= set(palette)
+        assert (0, 0, 0) in set(result.getdata())
+
+
+# ---------------------------------------------------------------------------
+# quantize_to_palette — Pillow-based palette conversion
+# ---------------------------------------------------------------------------
+
+
+class TestQuantizeToPalette:
+    """Cover the public ``quantize_to_palette`` wrapper around Pillow's quantize."""
+
+    def test_returns_rgb_image(self):
+        from src.render.quantize import quantize_to_palette
+
+        img = Image.new("RGB", (4, 4), (200, 0, 0))
+        result = quantize_to_palette(img, [(0, 0, 0), (255, 0, 0), (255, 255, 255)])
+        assert result.mode == "RGB"
+        assert result.size == (4, 4)
+
+    def test_all_pixels_are_palette_colors(self):
+        from src.render.quantize import quantize_to_palette
+
+        palette = [(0, 0, 0), (255, 0, 0), (0, 0, 255), (255, 255, 255)]
+        img = Image.new("RGB", (4, 4), (200, 50, 50))
+        result = quantize_to_palette(img, palette)
+        assert set(result.getdata()) <= set(palette)
+
+
+def test_build_palette_image_pads_to_768_entries():
+    """``build_palette_image`` must pad the palette to a full 256-color entry table."""
+    from src.render.quantize import build_palette_image
+
+    pal = build_palette_image([(255, 0, 0), (0, 255, 0)])
+    assert pal.mode == "P"
+    raw = pal.getpalette()
+    # Pillow may report exactly the data we put in, but the first 6 bytes are our colors.
+    assert raw[:6] == [255, 0, 0, 0, 255, 0]

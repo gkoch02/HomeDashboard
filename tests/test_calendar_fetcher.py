@@ -1309,3 +1309,100 @@ class TestICalFetcher:
         mock_build.assert_called_once()
         assert len(events) == 1
         assert events[0].summary == "Regular Meeting"
+
+
+# ---------------------------------------------------------------------------
+# People API service builder — covers _build_people_service / cache helpers.
+# ---------------------------------------------------------------------------
+
+
+class TestBuildPeopleService:
+    """Cover lines 57, 65-66, 76-93 of src/fetchers/calendar.py."""
+
+    def test_clear_people_service_cache(self):
+        from src.fetchers.calendar import _clear_people_service_cache, _people_service_cache
+
+        _people_service_cache["sentinel"] = "value"
+        _clear_people_service_cache()
+        assert _people_service_cache == {}
+
+    def test_clear_service_caches_clears_both(self):
+        from src.fetchers.calendar import _people_service_cache, clear_service_caches
+
+        _people_service_cache["foo"] = "bar"
+        clear_service_caches()
+        assert _people_service_cache == {}
+
+    def test_build_people_service_loads_credentials(self):
+        from src.fetchers.calendar import _build_people_service, _clear_people_service_cache
+
+        _clear_people_service_cache()
+        cfg = GoogleConfig(service_account_path="/tmp/sa.json", contacts_email="user@example.com")
+        fake_creds = MagicMock()
+        fake_creds.with_subject.return_value = fake_creds
+        fake_service = MagicMock()
+        with (
+            patch(
+                "google.oauth2.service_account.Credentials.from_service_account_file",
+                return_value=fake_creds,
+            ) as mock_from_file,
+            patch("googleapiclient.discovery.build", return_value=fake_service) as mock_build,
+        ):
+            result = _build_people_service(cfg)
+
+        assert result is fake_service
+        mock_from_file.assert_called_once_with(
+            "/tmp/sa.json",
+            scopes=["https://www.googleapis.com/auth/contacts.readonly"],
+        )
+        fake_creds.with_subject.assert_called_once_with("user@example.com")
+        mock_build.assert_called_once()
+        assert mock_build.call_args.kwargs["cache_discovery"] is False
+
+    def test_build_people_service_caches_by_path_and_email(self):
+        from src.fetchers.calendar import _build_people_service, _clear_people_service_cache
+
+        _clear_people_service_cache()
+        cfg = GoogleConfig(service_account_path="/tmp/sa.json", contacts_email="user@example.com")
+        fake_creds = MagicMock()
+        fake_creds.with_subject.return_value = fake_creds
+        with (
+            patch(
+                "google.oauth2.service_account.Credentials.from_service_account_file",
+                return_value=fake_creds,
+            ),
+            patch("googleapiclient.discovery.build") as mock_build,
+        ):
+            _build_people_service(cfg)
+            _build_people_service(cfg)
+            assert mock_build.call_count == 1
+
+    def test_build_people_service_skips_subject_when_no_email(self):
+        from src.fetchers.calendar import _build_people_service, _clear_people_service_cache
+
+        _clear_people_service_cache()
+        cfg = GoogleConfig(service_account_path="/tmp/sa.json", contacts_email="")
+        fake_creds = MagicMock()
+        with (
+            patch(
+                "google.oauth2.service_account.Credentials.from_service_account_file",
+                return_value=fake_creds,
+            ),
+            patch("googleapiclient.discovery.build"),
+        ):
+            _build_people_service(cfg)
+        fake_creds.with_subject.assert_not_called()
+
+    def test_build_people_service_wraps_credential_load_error(self):
+        from src.fetchers.calendar import _build_people_service, _clear_people_service_cache
+
+        _clear_people_service_cache()
+        cfg = GoogleConfig(
+            service_account_path="/tmp/missing.json", contacts_email="user@example.com"
+        )
+        with patch(
+            "google.oauth2.service_account.Credentials.from_service_account_file",
+            side_effect=FileNotFoundError("not found"),
+        ):
+            with pytest.raises(RuntimeError, match="/tmp/missing.json"):
+                _build_people_service(cfg)
