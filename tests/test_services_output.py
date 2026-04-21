@@ -452,6 +452,13 @@ class TestLoadLastInkyRefreshDefensive:
         )
         assert _load_last_inky_refresh(str(tmp_path)) is None
 
+    def test_returns_none_when_json_root_is_not_an_object(self, tmp_path):
+        """Valid JSON that isn't a dict (e.g. a list or string) must not raise."""
+        (tmp_path / "inky_refresh_state.json").write_text(json.dumps([]))
+        assert _load_last_inky_refresh(str(tmp_path)) is None
+        (tmp_path / "inky_refresh_state.json").write_text(json.dumps("x"))
+        assert _load_last_inky_refresh(str(tmp_path)) is None
+
 
 class TestSaveLastInkyRefreshDefensive:
     def test_save_failure_logs_warning_and_does_not_raise(self, tmp_path, caplog):

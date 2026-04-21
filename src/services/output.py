@@ -27,6 +27,8 @@ def _load_last_inky_refresh(state_dir: str) -> Optional[datetime]:
         return None
     try:
         raw = json.loads(path.read_text())
+        if not isinstance(raw, dict):
+            return None
         value = raw.get("last_refresh_at")
         if not isinstance(value, str):
             return None
