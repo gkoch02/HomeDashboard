@@ -321,6 +321,20 @@ class TestMainDateFlag:
 class TestMainLiveDataPath:
     """Tests for the non-dummy data fetch path and image-change logic."""
 
+    @pytest.fixture(autouse=True)
+    def _stable_run_policy(self):
+        """Pin run-policy gates so tests are independent of wall-clock time.
+
+        Without this, CI runs between 06:00-06:29 local force a full refresh
+        via is_morning_startup(), which bypasses the image-unchanged early
+        return and reaches build_display_driver -> waveshare_epd import.
+        """
+        with (
+            patch("src.app.should_force_full_refresh", return_value=False),
+            patch("src.app.should_skip_refresh", return_value=False),
+        ):
+            yield
+
     def test_dry_run_without_dummy_calls_pipeline_fetch(self, tmp_path):
         config_path = tmp_path / "config.yaml"
         _write_minimal_config(config_path)
@@ -414,8 +428,6 @@ class TestMainLiveDataPath:
             with (
                 patch("src.data_pipeline.DataPipeline.fetch", return_value=fake_data),
                 patch("src.services.output.image_changed", return_value=False) as mock_changed,
-                patch("src.services.run_policy.in_quiet_hours", return_value=False),
-                patch("src.services.run_policy.is_morning_startup", return_value=False),
             ):
                 main()
 
@@ -444,7 +456,6 @@ class TestMainLiveDataPath:
             with (
                 patch("src.data_pipeline.DataPipeline.fetch", return_value=fake_data),
                 patch("src.services.output.image_changed", return_value=True),
-                patch("src.services.run_policy.in_quiet_hours", return_value=False),
                 patch("src.services.output.build_display_driver", return_value=mock_display),
             ):
                 main()
