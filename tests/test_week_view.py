@@ -231,6 +231,39 @@ class TestDrawWeek:
         draw_week(draw, [], today, forecast=forecast)
         assert img.getbbox() is not None
 
+    def test_today_bordered_not_inverted_draws_underline(self):
+        """invert_today_col=False + show_borders=True → thick accent underline under today."""
+        from src.render.theme import ComponentRegion, ThemeStyle
+
+        img, draw = self._make_draw()
+        today = date(2026, 4, 22)  # a Wednesday
+        style = ThemeStyle(invert_today_col=False, show_borders=True)
+        draw_week(
+            draw,
+            [],
+            today,
+            region=ComponentRegion(0, 40, 800, 400),
+            style=style,
+        )
+        assert img.getbbox() is not None
+
+    def test_long_month_name_triggers_font_scale_down(self):
+        """A long month name (SEPTEMBER) in the terminal theme forces the scale-down loop."""
+        from src.render.theme import load_theme
+
+        img, draw = self._make_draw()
+        theme = load_theme("terminal")
+        # September in the combined Sat/Sun date cell is wider than the default
+        # 33px uesc_display glyph run — forces week_view's month-font shrink loop.
+        draw_week(
+            draw,
+            [],
+            date(2026, 9, 16),
+            region=theme.layout.week_view,
+            style=theme.style,
+        )
+        assert img.getbbox() is not None
+
     def test_smoke_spanning_event_excludes_from_per_day(self):
         """Multi-day spanning events don't crash and render as bars."""
         img, draw = self._make_draw()

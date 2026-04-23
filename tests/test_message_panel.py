@@ -104,6 +104,22 @@ class TestDrawMessageFontSizing:
         draw_message(draw, "Hello world this is a longer message", region=region)
         assert img.getbbox() is not None
 
+    def test_unfittable_message_uses_size_20_fallback(self):
+        """Message too tall even at the smallest size → size-20 fallback path.
+
+        A very short region (below two lines at size 20) combined with a long,
+        wrapping message forces the ``if not best_lines`` fallback to run.
+        """
+        img, draw = _make_draw(800, 200)
+        # Narrow + short region: vertical budget < one-line height at size 20,
+        # so no size in the loop fits and the fallback limits to 8 lines.
+        region = ComponentRegion(0, 0, 200, 60)
+        long_msg = " ".join(["extraordinary"] * 40)
+        draw_message(draw, long_msg, region=region)
+        # We only care that the call completes and produces pixels; the exact
+        # wrap count isn't asserted because it depends on font metrics.
+        assert img.getbbox() is not None
+
 
 # ---------------------------------------------------------------------------
 # Decorative quotation marks

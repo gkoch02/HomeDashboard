@@ -670,6 +670,111 @@ class TestAtomicWriteCleanup:
             tmp_files = list(Path(tmpdir).glob("*.tmp"))
             assert len(tmp_files) == 0
 
+    def test_temp_file_cleaned_up_on_base_exception(self):
+        """BaseException (e.g. KeyboardInterrupt) mid-write still unlinks the temp file."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "test.json"
+
+            def patched_fdopen(fd, *args, **kwargs):
+                raise KeyboardInterrupt
+
+            with patch("os.fdopen", side_effect=patched_fdopen):
+                from src.fetchers.cache import _atomic_write_json
+
+                with pytest.raises(KeyboardInterrupt):
+                    _atomic_write_json(path, {"key": "value"})
+            assert list(Path(tmpdir).glob("*.tmp")) == []
+
+
+class TestLoadCachedSourceAirQuality:
+    """Cover the air_quality branch in load_cached_source (non-metadata variant)."""
+
+    def test_loads_air_quality_source(self):
+        from src.data.models import AirQualityData
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            aq = AirQualityData(aqi=58, category="Moderate", pm25=15.0, pm10=20.0, sensor_id=9)
+            save_source("air_quality", aq, datetime(2024, 3, 15, 9), tmpdir)
+            result = load_cached_source("air_quality", tmpdir)
+        assert result is not None
+        data, fetched_at = result
+        assert data.aqi == 58
+        assert fetched_at == datetime(2024, 3, 15, 9)
+
+    def test_air_quality_empty_data_returns_none(self):
+        """v2 air_quality block with data=None deserialises to None."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            v2 = {
+                "schema_version": 2,
+                "air_quality": {"fetched_at": "2024-03-15T08:00:00", "data": None},
+            }
+            (Path(tmpdir) / "dashboard_cache.json").write_text(json.dumps(v2))
+            result = load_cached_source("air_quality", tmpdir)
+        assert result is not None
+        data, _ = result
+        assert data is None
+
+
+class TestLoadCachedSourceWithMetadataV2Branches:
+    """Cover the v2-format source branches in load_cached_source_with_metadata."""
+
+    def test_birthdays_block_returns_metadata(self):
+        """The v2 birthdays branch — data list + extra metadata round-trips."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            bdays = [Birthday(name="Dana", date=date(2024, 8, 12), age=35)]
+            save_source(
+                "birthdays",
+                bdays,
+                datetime(2024, 3, 15, 9),
+                tmpdir,
+                metadata={"source_count": 3},
+            )
+            result = load_cached_source_with_metadata("birthdays", tmpdir)
+        assert result is not None
+        data, fetched_at, metadata = result
+        assert len(data) == 1 and data[0].name == "Dana"
+        assert fetched_at == datetime(2024, 3, 15, 9)
+        assert metadata == {"source_count": 3}
+
+
+class TestLoadCachedSourceWithMetadataV1Fallback:
+    """Cover the weather/birthdays v1-fallback branches in load_cached_source_with_metadata."""
+
+    def _v1_payload(self) -> dict:
+        return {
+            "fetched_at": "2024-03-15T08:00:00",
+            "events": [],
+            "weather": {
+                "current_temp": 44.0,
+                "current_icon": "01d",
+                "current_description": "clear",
+                "high": 50.0,
+                "low": 40.0,
+                "humidity": 55,
+                "forecast": [],
+                "alerts": [],
+            },
+            "birthdays": [{"name": "Carol", "date": "2024-07-01", "age": 30}],
+        }
+
+    def test_v1_fallback_returns_weather_with_empty_metadata(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            (Path(tmpdir) / "dashboard_cache.json").write_text(json.dumps(self._v1_payload()))
+            result = load_cached_source_with_metadata("weather", tmpdir)
+        assert result is not None
+        weather, _, metadata = result
+        assert weather.current_temp == 44.0
+        assert metadata == {}
+
+    def test_v1_fallback_returns_birthdays_with_empty_metadata(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            (Path(tmpdir) / "dashboard_cache.json").write_text(json.dumps(self._v1_payload()))
+            result = load_cached_source_with_metadata("birthdays", tmpdir)
+        assert result is not None
+        bdays, _, metadata = result
+        assert len(bdays) == 1 and bdays[0].name == "Carol"
+        assert metadata == {}
+
 
 # ---------------------------------------------------------------------------
 # check_staleness — TTL gradation

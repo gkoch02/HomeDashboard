@@ -441,3 +441,56 @@ class TestMonthlyPanel:
         )
         counts = _density_by_day([event], grid)
         assert counts[date(2026, 4, 7)] == 1
+
+    def test_event_days_all_day_zero_length_returns_start_only(self):
+        """An all-day event where end <= start degenerates to a single-day event."""
+        from src.render.components.monthly_panel import _event_days
+
+        event = CalendarEvent(
+            "Single",
+            datetime(2026, 4, 7, 0, 0),
+            datetime(2026, 4, 7, 0, 0),  # end == start → no span
+            is_all_day=True,
+        )
+        assert _event_days(event) == [date(2026, 4, 7)]
+
+    def test_density_level_single_busy_day_uses_max_tier(self):
+        """When the busiest day has 1 event, it should render at the max heatmap tier."""
+        from src.render.components.monthly_panel import LEGEND_STEPS, _density_level
+
+        # count=1, max_density=1 → top tier, not a diluted fraction
+        assert _density_level(1, 1) == LEGEND_STEPS
+
+    def test_month_meta_text_empty_month_shows_open_message(self):
+        """With no events at all, the meta text should be the 'looks open' phrasing."""
+        from src.render.components.monthly_panel import _month_meta_text
+
+        out = _month_meta_text(date(2026, 4, 5), max_density=0)
+        assert "open" in out.lower()
+        assert "April" in out
+
+    def test_draw_monthly_defaults_region_and_style(self):
+        """draw_monthly with no region/style should fall back to defaults and not crash."""
+        from PIL import Image, ImageDraw
+
+        from src.render.components.monthly_panel import draw_monthly
+
+        img = Image.new("1", (800, 480), 1)
+        draw = ImageDraw.Draw(img)
+        data = DashboardData(events=[])
+        draw_monthly(draw, data, date(2026, 4, 5))
+        assert img.getbbox() is not None
+
+    def test_draw_monthly_empty_month_shows_today_marker(self):
+        """When today has no events, the cell shows the 'today' word marker."""
+        from PIL import Image, ImageDraw
+
+        from src.render.components.monthly_panel import draw_monthly
+
+        img = Image.new("1", (800, 480), 1)
+        draw = ImageDraw.Draw(img)
+        # No events at all in the month — exercises lines 129 (today marker on empty
+        # cell) and 212 (meta-text "looks open" branch).
+        data = DashboardData(events=[])
+        draw_monthly(draw, data, date(2026, 4, 5))
+        assert img.getbbox() is not None

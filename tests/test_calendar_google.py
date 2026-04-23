@@ -12,6 +12,8 @@ import zoneinfo
 from datetime import date, datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from src.config import GoogleConfig
 from src.fetchers.calendar_google import (
     _apply_delta,
@@ -224,6 +226,115 @@ class TestSyncStatePersistence:
         _save_sync_state({"step": 2}, str(tmp_path))
         loaded = _load_sync_state(str(tmp_path))
         assert loaded == {"step": 2}
+
+    def test_save_cleans_up_temp_file_on_write_failure(self, tmp_path, caplog):
+        """json.dump failure must unlink the temp file and be caught by the outer handler."""
+        import logging
+
+        with patch("src.fetchers.calendar_google.json.dump", side_effect=OSError("disk full")):
+            with caplog.at_level(logging.WARNING, logger="src.fetchers.calendar_google"):
+                _save_sync_state({"x": 1}, str(tmp_path))  # swallowed
+
+        assert "Sync state write failed" in caplog.text
+        # State file was never created; no stray .tmp left behind
+        assert not (tmp_path / "calendar_sync_state.json").exists()
+        assert list(tmp_path.glob("*.tmp")) == []
+
+    def test_save_cleans_up_temp_file_on_base_exception(self, tmp_path):
+        """KeyboardInterrupt mid-write must still unlink the temp file and re-raise."""
+        with patch("src.fetchers.calendar_google.json.dump", side_effect=KeyboardInterrupt):
+            with pytest.raises(KeyboardInterrupt):
+                _save_sync_state({"x": 1}, str(tmp_path))
+
+        assert list(tmp_path.glob("*.tmp")) == []
+
+
+# ---------------------------------------------------------------------------
+# _build_service
+# ---------------------------------------------------------------------------
+
+
+class TestBuildService:
+    """Covers the credential-loading path and its RuntimeError wrapping."""
+
+    def setup_method(self):
+        clear_service_caches()
+
+    def teardown_method(self):
+        clear_service_caches()
+
+    def test_builds_and_caches_service(self):
+        from src.fetchers import calendar_google
+
+        cfg = _google_cfg(service_account_path="/fake/creds.json")
+        fake_creds = MagicMock(name="Credentials")
+        fake_service = MagicMock(name="CalendarService")
+
+        with (
+            patch.object(
+                calendar_google.service_account.Credentials,
+                "from_service_account_file",
+                return_value=fake_creds,
+            ) as from_file,
+            patch.object(calendar_google, "build", return_value=fake_service) as build_mock,
+        ):
+            svc1 = calendar_google._build_service(cfg)
+            svc2 = calendar_google._build_service(cfg)
+
+        assert svc1 is fake_service
+        assert svc2 is fake_service
+        # Cached — credentials loaded once, service built once
+        assert from_file.call_count == 1
+        assert build_mock.call_count == 1
+        build_mock.assert_called_with(
+            "calendar", "v3", credentials=fake_creds, cache_discovery=False
+        )
+
+    def test_missing_credentials_raises_runtime_error(self):
+        from src.fetchers import calendar_google
+
+        cfg = _google_cfg(service_account_path="/does/not/exist.json")
+        with patch.object(
+            calendar_google.service_account.Credentials,
+            "from_service_account_file",
+            side_effect=FileNotFoundError("no such file"),
+        ):
+            with pytest.raises(RuntimeError) as exc_info:
+                calendar_google._build_service(cfg)
+
+        msg = str(exc_info.value)
+        assert "Failed to load service account credentials" in msg
+        assert "/does/not/exist.json" in msg
+        # Original exception is chained via `from exc`
+        assert isinstance(exc_info.value.__cause__, FileNotFoundError)
+
+    def test_build_failure_does_not_poison_cache(self):
+        """A failed load must not leave a cache entry that masks a later successful load."""
+        from src.fetchers import calendar_google
+
+        cfg = _google_cfg(service_account_path="/fake/creds.json")
+
+        with patch.object(
+            calendar_google.service_account.Credentials,
+            "from_service_account_file",
+            side_effect=ValueError("malformed json"),
+        ):
+            with pytest.raises(RuntimeError):
+                calendar_google._build_service(cfg)
+
+        # Second attempt should retry rather than returning a stale/cached object
+        fake_service = MagicMock(name="CalendarService")
+        with (
+            patch.object(
+                calendar_google.service_account.Credentials,
+                "from_service_account_file",
+                return_value=MagicMock(),
+            ),
+            patch.object(calendar_google, "build", return_value=fake_service),
+        ):
+            svc = calendar_google._build_service(cfg)
+
+        assert svc is fake_service
 
 
 # ---------------------------------------------------------------------------

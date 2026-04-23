@@ -477,3 +477,245 @@ class TestRun:
         mock_resolve.assert_called_once()
         call_args = mock_resolve.call_args
         assert call_args.args[1] is None
+
+    def test_resolved_theme_differs_from_configured_logs_info(self, tmp_path, caplog):
+        """When resolve_theme_name returns a different theme than cfg.theme, log it."""
+        import logging
+
+        app = self._make_full_app(tmp_path, dummy=True, theme=None)
+        fake_data = MagicMock()
+        fake_data.events = []
+        from PIL import Image
+
+        fake_image = Image.new("1", (800, 480), 1)
+
+        with caplog.at_level(logging.INFO, logger="src.app"):
+            with (
+                patch("src.app.should_skip_refresh", return_value=False),
+                patch("src.app.should_force_full_refresh", return_value=False),
+                patch("src.app.generate_dummy_data", return_value=fake_data),
+                patch("src.app.render_dashboard", return_value=fake_image),
+                patch("src.app.resolve_theme_name", return_value="qotd"),
+                patch.object(app.output, "publish"),
+                patch.object(app.output, "write_health_marker"),
+            ):
+                app.run()
+
+        # cfg.theme is "default"; resolver returned "qotd" → schedule/random diverged
+        assert "Theme resolved to: qotd" in caplog.text
+
+    def test_photo_theme_injects_photo_path_into_style(self, tmp_path):
+        """When the resolved theme is 'photo', cfg.photo.path is written onto the style."""
+        app = self._make_full_app(tmp_path, dummy=True, theme="photo")
+        app.cfg.photo.path = "/fixtures/family.jpg"
+        fake_data = MagicMock()
+        fake_data.events = []
+        from PIL import Image
+
+        fake_image = Image.new("1", (800, 480), 1)
+
+        captured = {}
+
+        def _capture_theme(_data, _display, **kwargs):
+            captured["theme"] = kwargs.get("theme")
+            return fake_image
+
+        with (
+            patch("src.app.should_skip_refresh", return_value=False),
+            patch("src.app.should_force_full_refresh", return_value=False),
+            patch("src.app.generate_dummy_data", return_value=fake_data),
+            patch("src.app.render_dashboard", side_effect=_capture_theme),
+            patch("src.app.resolve_theme_name", return_value="photo"),
+            patch.object(app.output, "publish"),
+            patch.object(app.output, "write_health_marker"),
+        ):
+            app.run()
+
+        # Theme object received by the renderer should carry the configured photo path.
+        assert captured["theme"].name == "photo"
+        assert captured["theme"].style.photo_path == "/fixtures/family.jpg"
+
+
+# ---------------------------------------------------------------------------
+# Integration: end-to-end DashboardApp.run() with real collaborators where
+# possible. These tests catch wiring regressions (wrong kwargs, missed
+# forwarding, state-dir coupling) that unit tests with MagicMock miss.
+# ---------------------------------------------------------------------------
+
+
+class TestRunIntegration:
+    """Exercise DashboardApp.run() against real config + real DataPipeline.
+
+    Only I/O boundaries are mocked: Google/OWM fetchers and the eInk driver.
+    The goal is to verify that cache fallback, theme schedule resolution, and
+    quiet-hours behavior all wire together correctly.
+    """
+
+    def _write_config(self, tmp_path, **overrides) -> Path:
+        import yaml
+
+        cfg_path = tmp_path / "config.yaml"
+        payload: dict = {
+            "title": "Integration",
+            "timezone": "UTC",
+            "theme": "default",
+            "state_dir": str(tmp_path / "state"),
+            "output": {"dry_run_dir": str(tmp_path / "output")},
+            "weather": {"api_key": "abc123", "latitude": 37.7, "longitude": -122.4},
+            "google": {"ical_url": "https://example.invalid/cal.ics"},
+            "cache": {
+                "events_ttl_minutes": 60,
+                "weather_ttl_minutes": 30,
+                "birthdays_ttl_minutes": 1440,
+                "events_fetch_interval": 120,
+                "weather_fetch_interval": 60,
+                "birthdays_fetch_interval": 1440,
+            },
+        }
+        for key, value in overrides.items():
+            payload[key] = value
+        cfg_path.write_text(yaml.safe_dump(payload))
+        (tmp_path / "state").mkdir(exist_ok=True)
+        (tmp_path / "output").mkdir(exist_ok=True)
+        return cfg_path
+
+    def _build_args(self, **overrides) -> Namespace:
+        defaults = dict(
+            dry_run=True,
+            dummy=False,
+            theme=None,
+            date=None,
+            force_full_refresh=False,
+            ignore_breakers=False,
+            message=None,
+        )
+        defaults.update(overrides)
+        return Namespace(**defaults)
+
+    def test_quiet_hours_exits_before_fetching_or_rendering(self, tmp_path):
+        """During quiet hours, app exits without touching DataPipeline or the display."""
+        from src.config import load_config
+
+        cfg_path = self._write_config(
+            tmp_path,
+            schedule={"quiet_hours_start": 0, "quiet_hours_end": 23},
+        )
+        cfg = load_config(str(cfg_path))
+        args = self._build_args(dry_run=False)  # quiet-hours check only applies to real runs
+        app = DashboardApp(cfg, args)
+
+        with (
+            patch("src.app.DataPipeline") as mock_pipeline_cls,
+            patch("src.app.render_dashboard") as mock_render,
+            patch.object(app.output, "publish") as mock_publish,
+        ):
+            app.run()
+
+        mock_pipeline_cls.assert_not_called()
+        mock_render.assert_not_called()
+        mock_publish.assert_not_called()
+
+    def test_theme_schedule_overrides_configured_theme(self, tmp_path):
+        """A theme_schedule entry whose time has passed must override cfg.theme."""
+        from src.config import load_config
+
+        cfg_path = self._write_config(
+            tmp_path,
+            theme="default",
+            theme_schedule=[
+                {"time": "00:00", "theme": "minimalist"},
+                {"time": "20:00", "theme": "fuzzyclock"},
+            ],
+        )
+        cfg = load_config(str(cfg_path))
+        args = self._build_args(dry_run=True, dummy=True, date="2026-04-22")
+        app = DashboardApp(cfg, args)
+
+        captured: dict = {}
+
+        def _capture(_data, _display, **kwargs):
+            from PIL import Image
+
+            captured["theme_name"] = kwargs["theme"].name
+            return Image.new("1", (800, 480), 1)
+
+        with (
+            patch("src.app.render_dashboard", side_effect=_capture),
+            patch.object(app.output, "publish"),
+            patch.object(app.output, "write_health_marker"),
+            # Freeze "now" at 10:00 so the 00:00 entry is active (20:00 not yet).
+            patch(
+                "src.app.datetime",
+                wraps=datetime,
+                **{"now.return_value": datetime(2026, 4, 22, 10, 0, tzinfo=app.tz)},
+            ),
+        ):
+            app.run()
+
+        assert captured["theme_name"] == "minimalist"
+
+    def test_cached_data_used_when_all_fetchers_raise(self, tmp_path):
+        """When every live fetcher raises, DataPipeline falls back to cached values."""
+        import json
+        from datetime import datetime as real_datetime
+        from datetime import timedelta as real_timedelta
+        from datetime import timezone as real_timezone
+
+        from src.config import load_config
+
+        cfg_path = self._write_config(tmp_path)
+        state_dir = tmp_path / "state"
+
+        # Seed a valid v2 cache so the fallback path has something to return.
+        # DataPipeline uses a tz-aware `now`, so cache timestamps must be tz-aware
+        # as well to avoid a TypeError in (self.fetched_at - cached_at).
+        now = real_datetime.now(real_timezone.utc)
+        fresh = (now - real_timedelta(minutes=5)).isoformat()
+        cache_payload = {
+            "schema_version": 2,
+            "events": {"fetched_at": fresh, "data": []},
+            "weather": {
+                "fetched_at": fresh,
+                "data": {
+                    "current_temp": 55.0,
+                    "current_icon": "01d",
+                    "current_description": "clear",
+                    "high": 60.0,
+                    "low": 48.0,
+                    "humidity": 50,
+                    "forecast": [],
+                    "alerts": [],
+                },
+            },
+            "birthdays": {"fetched_at": fresh, "data": []},
+        }
+        (state_dir / "dashboard_cache.json").write_text(json.dumps(cache_payload))
+
+        cfg = load_config(str(cfg_path))
+        args = self._build_args(dry_run=True)
+        app = DashboardApp(cfg, args)
+
+        from PIL import Image
+
+        with (
+            # Kill every live fetcher path so only the cache can satisfy the run.
+            patch(
+                "src.fetchers.calendar.fetch_events",
+                side_effect=RuntimeError("calendar down"),
+            ),
+            patch(
+                "src.fetchers.weather.fetch_weather",
+                side_effect=RuntimeError("owm down"),
+            ),
+            patch(
+                "src.fetchers.calendar.fetch_birthdays",
+                side_effect=RuntimeError("birthdays down"),
+            ),
+            patch("src.app.render_dashboard", return_value=Image.new("1", (800, 480), 1)),
+            patch.object(app.output, "publish") as mock_publish,
+            patch.object(app.output, "write_health_marker"),
+        ):
+            app.run()
+
+        # App completed and attempted to publish — it didn't crash on fetcher failures.
+        mock_publish.assert_called_once()

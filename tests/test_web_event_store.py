@@ -148,3 +148,22 @@ class TestReadRecentEvents:
         events = read_recent_events(str(tmp_path), limit=1)
         assert len(events) == 1
         assert events[0]["message"] == "msg 4"
+
+    def test_returns_empty_when_file_unreadable(self, tmp_path, monkeypatch):
+        """Outer Exception path: if open() blows up on an existing file, return []."""
+        import builtins
+
+        # Create the file so the existence check passes; then fail on open().
+        (tmp_path / _EVENT_FILE).write_text(
+            '{"kind":"k","message":"m","timestamp":"2024-01-01T00:00:00+00:00","details":{}}\n'
+        )
+
+        real_open = builtins.open
+
+        def bad_open(path, *args, **kwargs):
+            if _EVENT_FILE in str(path):
+                raise OSError("Simulated read failure")
+            return real_open(path, *args, **kwargs)
+
+        monkeypatch.setattr(builtins, "open", bad_open)
+        assert read_recent_events(str(tmp_path)) == []

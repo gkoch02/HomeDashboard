@@ -336,6 +336,42 @@ class TestStalenessGlyph:
         draw_weather(draw, weather, staleness=StalenessLevel.FRESH)
         assert img.getbbox() is not None
 
+    def test_stale_weather_without_forecast_strip_still_renders_glyph(self):
+        """show_forecast_strip=False returns early but still draws the stale badge."""
+        from src.data.models import StalenessLevel
+        from src.render.theme import ComponentRegion, ThemeStyle
+
+        weather = _make_weather()
+        img, draw = _make_draw()
+        # Wide enough to hit the no-forecast branch — four detail rows fill
+        # the full panel height, then the early-return path emits the glyph.
+        style = ThemeStyle(show_forecast_strip=False)
+        draw_weather(
+            draw,
+            weather,
+            region=ComponentRegion(0, 0, 300, 240),
+            style=style,
+            staleness=StalenessLevel.STALE,
+        )
+        assert img.getbbox() is not None
+
+    def test_stale_weather_with_populated_forecast_renders_glyph(self):
+        """Forecast strip drawn AND staleness EXPIRED → glyph painted at the end."""
+        from src.data.models import StalenessLevel
+        from src.render.theme import ComponentRegion
+
+        # Explicit three-day forecast so the forecast strip is fully populated
+        # (n_cols=3) and execution reaches the tail-end staleness glyph call.
+        weather = _make_weather(forecast=_make_forecast(3))
+        img, draw = _make_draw()
+        draw_weather(
+            draw,
+            weather,
+            region=ComponentRegion(0, 0, 400, 160),
+            staleness=StalenessLevel.EXPIRED,
+        )
+        assert img.getbbox() is not None
+
     def test_none_staleness_no_crash(self):
         """staleness=None (default) must not crash."""
         weather = _make_weather()

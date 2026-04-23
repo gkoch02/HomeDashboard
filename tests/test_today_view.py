@@ -233,6 +233,16 @@ class TestDrawToday:
         draw_today(draw, events, TODAY)
         assert img.getbbox() is not None
 
+    def test_smoke_all_day_event_non_inverted_bars(self):
+        """invert_allday_bars=False draws an outlined (not filled) all-day bar."""
+        from src.render.theme import ThemeStyle
+
+        img, draw = _make_draw()
+        style = ThemeStyle(invert_allday_bars=False)
+        events = [_all_day(TODAY, TODAY + timedelta(days=1), "Conference Day")]
+        draw_today(draw, events, TODAY, style=style)
+        assert img.getbbox() is not None
+
     def test_smoke_event_with_location(self):
         img, draw = _make_draw()
         evt = _timed(TODAY, 9, 10, "Doctor Visit", location="123 Medical Center, Suite 4")

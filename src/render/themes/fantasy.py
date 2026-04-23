@@ -64,32 +64,6 @@ def _diamond(
     draw.polygon([(cx, cy - r), (cx + r, cy), (cx, cy + r), (cx - r, cy)], fill=fill)
 
 
-def _double_hline(
-    draw: ImageDraw.ImageDraw,
-    y: int,
-    x0: int,
-    x1: int,
-    gap: int,
-    fill: int,
-) -> None:
-    """Draw a double horizontal rule (two parallel lines separated by *gap* px)."""
-    draw.line([(x0, y), (x1, y)], fill=fill, width=1)
-    draw.line([(x0, y + gap), (x1, y + gap)], fill=fill, width=1)
-
-
-def _double_vline(
-    draw: ImageDraw.ImageDraw,
-    x: int,
-    y0: int,
-    y1: int,
-    gap: int,
-    fill: int,
-) -> None:
-    """Draw a double vertical rule (two parallel lines separated by *gap* px)."""
-    draw.line([(x, y0), (x, y1)], fill=fill, width=1)
-    draw.line([(x + gap, y0), (x + gap, y1)], fill=fill, width=1)
-
-
 def _corner_ornament(
     draw: ImageDraw.ImageDraw,
     cx: int,

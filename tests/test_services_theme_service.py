@@ -135,3 +135,38 @@ class TestResolveThemeName:
             result = resolve_theme_name(cfg, override_theme=None, now=_now(12))
         assert result == "today"
         mock_pick.assert_called_once()
+
+    def test_random_daily_alias_resolves_via_pick_random_theme(self):
+        """'random_daily' routes through the same daily picker as 'random'."""
+        cfg = _make_cfg(theme="random_daily", entries=[])
+        with patch("src.render.random_theme.pick_random_theme", return_value="qotd") as mock_pick:
+            result = resolve_theme_name(cfg, override_theme=None, now=_now(12))
+        assert result == "qotd"
+        mock_pick.assert_called_once()
+
+    def test_random_hourly_resolves_via_pick_random_theme_hourly(self):
+        """'random_hourly' routes through pick_random_theme_hourly with the current time."""
+        cfg = _make_cfg(theme="random_hourly", entries=[])
+        now = _now(14, 30)
+        with patch(
+            "src.render.random_theme.pick_random_theme_hourly",
+            return_value="moonphase",
+        ) as mock_pick:
+            result = resolve_theme_name(cfg, override_theme=None, now=now)
+        assert result == "moonphase"
+        mock_pick.assert_called_once()
+        # ``now`` must be forwarded so the picker can bucket by hour correctly.
+        assert mock_pick.call_args.kwargs["now"] == now
+        assert mock_pick.call_args.kwargs["output_dir"] == cfg.state_dir
+
+    def test_random_hourly_from_schedule_entry(self):
+        """A schedule entry mapping to 'random_hourly' also routes through the hourly picker."""
+        entries = _entries(("00:00", "random_hourly"))
+        cfg = _make_cfg(theme="default", entries=entries)
+        with patch(
+            "src.render.random_theme.pick_random_theme_hourly",
+            return_value="tides",
+        ) as mock_pick:
+            result = resolve_theme_name(cfg, override_theme=None, now=_now(12))
+        assert result == "tides"
+        mock_pick.assert_called_once()

@@ -101,3 +101,26 @@ class TestSaveLoad:
         RefreshTracker(partial_count=1, last_full=datetime.now()).save()
         t = RefreshTracker.load(max_partials=10)
         assert t.max_partials == 10
+
+    def test_save_cleans_up_temp_file_on_write_failure(self, _patch_state_file):
+        """If json.dump raises, the temp file is removed so the state dir stays clean."""
+        tracker = RefreshTracker(partial_count=1, last_full=datetime(2024, 6, 1, 8, 0))
+
+        with patch("json.dump", side_effect=OSError("disk full")):
+            with pytest.raises(OSError):
+                tracker.save()
+
+        # No stray .tmp files left behind; the real state file was never created
+        tmp_files = list(_patch_state_file.parent.glob("*.tmp"))
+        assert tmp_files == []
+        assert not _patch_state_file.exists()
+
+    def test_save_cleans_up_temp_file_on_base_exception(self, _patch_state_file):
+        """Keyboard-interrupt style failure must still unlink the temp file."""
+        tracker = RefreshTracker(partial_count=1, last_full=None)
+
+        with patch("json.dump", side_effect=KeyboardInterrupt):
+            with pytest.raises(KeyboardInterrupt):
+                tracker.save()
+
+        assert list(_patch_state_file.parent.glob("*.tmp")) == []

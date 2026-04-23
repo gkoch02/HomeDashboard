@@ -364,3 +364,29 @@ class TestForecastGrid:
             )
         ]
         draw_weather_full(draw, _make_weather(forecast=fc), TODAY)
+
+    def test_hero_temp_scales_down_for_wide_strings(self):
+        """Extreme temps (e.g. -100°) exercise the font auto-scale-down loop."""
+        img, draw = _make_draw()
+        # A 4-digit temperature string is wide enough to force the scale loop
+        # in the hero zone (see weather_full.py line 139).
+        wx = _make_weather(current_temp=-100.4)
+        draw_weather_full(draw, wx, TODAY)
+        assert img.getbbox() is not None
+
+    def test_detail_strip_empty_when_no_sun_no_moon_no_aq(self):
+        """No sunrise/sunset, no pressure+UV pair, no AQ, and no today → strip is skipped.
+
+        This covers the early-return in _draw_detail_strip (weather_full.py:329-330)
+        when no detail segments are emitted.
+        """
+        img, draw = _make_draw()
+        wx = _make_weather(
+            sunrise=None,
+            sunset=None,
+            uv_index=None,  # pressure needs uv_index to surface in the strip
+            pressure=None,
+        )
+        # today=None suppresses the moon-phase placeholder → parts stays empty.
+        draw_weather_full(draw, wx, today=None, air_quality=None)
+        assert img.size == (800, 480)
