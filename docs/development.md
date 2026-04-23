@@ -33,6 +33,7 @@ Use this page for local workflow, dev commands, and repo orientation. For archit
 | `make previews` | generate standard theme preview PNGs |
 | `make test` | run the full pytest suite |
 | `make coverage` | run pytest with coverage; prints missing lines and writes `htmlcov/index.html` |
+| `UPDATE_SNAPSHOTS=1 pytest tests/test_theme_pixel_snapshots.py` | regenerate theme pixel-hash baselines after an intentional theme change (commit the updated `tests/snapshots/theme_pixel_hashes.json`) |
 | `make lint` | run `ruff check src/ tests/` |
 | `make fmt` | run `ruff format src/ tests/` |
 | `make check` | validate `config/config.yaml` |
@@ -115,6 +116,7 @@ Key code areas:
 - requests
 - icalendar
 - PyYAML
+- numpy — required at runtime by the Inky driver and the palette-quantize fast path
 
 ### Development
 
