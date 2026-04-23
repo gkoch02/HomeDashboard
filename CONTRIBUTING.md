@@ -1,4 +1,4 @@
-# Contributing to Dashboard-v4
+# Contributing to Home Dashboard
 
 Audience: contributors changing code, tests, or documentation.
 
@@ -7,7 +7,8 @@ Use this page for contribution workflow and guardrails. For architecture details
 ## Local Setup
 
 ```bash
-git clone <repo-url> && cd Dashboard-v4
+git clone https://github.com/gkoch02/HomeDashboard.git ~/home-dashboard
+cd ~/home-dashboard
 make setup
 make dry
 ```
