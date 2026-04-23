@@ -5,7 +5,11 @@ from datetime import datetime
 
 from src.data.models import StalenessLevel
 from src.fetchers.cache import check_staleness
-from src.services.run_policy import in_quiet_hours, is_morning_startup, should_skip_refresh
+from src.services.run_policy import (
+    in_quiet_hours,
+    is_morning_startup_window,
+    should_skip_refresh,
+)
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -54,11 +58,11 @@ class TestQuietHoursDST:
         # quiet_hours_end=6, so morning startup is 06:00-06:29
         # Even during DST transition, the function checks hour/minute
         morning = datetime(2026, 3, 8, 6, 15, tzinfo=ET)
-        assert is_morning_startup(morning, 6) is True
+        assert is_morning_startup_window(morning, 6) is True
 
         # 06:30 → no longer morning startup
         late_morning = datetime(2026, 3, 8, 6, 30, tzinfo=ET)
-        assert is_morning_startup(late_morning, 6) is False
+        assert is_morning_startup_window(late_morning, 6) is False
 
 
 # ---------------------------------------------------------------------------

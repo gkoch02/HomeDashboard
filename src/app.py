@@ -14,7 +14,11 @@ from src.filters import filter_events
 from src.render.canvas import render_dashboard
 from src.render.theme import load_theme
 from src.services.output import OutputService
-from src.services.run_policy import should_force_full_refresh, should_skip_refresh
+from src.services.run_policy import (
+    record_morning_refresh,
+    should_force_full_refresh,
+    should_skip_refresh,
+)
 from src.services.theme import resolve_theme_name
 
 logger = logging.getLogger(__name__)
@@ -77,8 +81,10 @@ class DashboardApp:
             now,
             self.cfg.schedule.quiet_hours_end,
             self.args.force_full_refresh,
+            self.cfg.state_dir,
         )
-        if force_full and not self.args.force_full_refresh:
+        force_full_from_morning = force_full and not self.args.force_full_refresh
+        if force_full_from_morning:
             logger.info("Morning startup — forcing full refresh")
 
         configured_theme = self.args.theme if self.args.theme is not None else self.cfg.theme
@@ -110,6 +116,8 @@ class DashboardApp:
             now=now,
             theme_name=theme_name,
         )
+        if force_full_from_morning and not self.args.dry_run:
+            record_morning_refresh(now, self.cfg.state_dir)
         self.output.write_health_marker()
         logger.info("Done")
 

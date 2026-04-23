@@ -408,6 +408,72 @@ class TestRun:
 
         assert "Morning startup" in caplog.text
 
+    def test_morning_marker_not_written_on_dry_run(self, tmp_path):
+        """Dry-run never touches eInk hardware, so it must not consume the daily marker."""
+        app = self._make_full_app(tmp_path, dummy=True, dry_run=True, force_full_refresh=False)
+        fake_data = MagicMock()
+        fake_data.events = []
+        from PIL import Image
+
+        fake_image = Image.new("1", (800, 480), 1)
+
+        with (
+            patch("src.app.should_skip_refresh", return_value=False),
+            patch("src.app.should_force_full_refresh", return_value=True),
+            patch("src.app.generate_dummy_data", return_value=fake_data),
+            patch("src.app.render_dashboard", return_value=fake_image),
+            patch("src.app.record_morning_refresh") as mock_record,
+            patch.object(app.output, "publish"),
+            patch.object(app.output, "write_health_marker"),
+        ):
+            app.run()
+
+        mock_record.assert_not_called()
+
+    def test_morning_marker_written_on_real_run(self, tmp_path):
+        """Non-dry-run morning-path full refresh must record the marker."""
+        app = self._make_full_app(tmp_path, dummy=True, dry_run=False, force_full_refresh=False)
+        fake_data = MagicMock()
+        fake_data.events = []
+        from PIL import Image
+
+        fake_image = Image.new("1", (800, 480), 1)
+
+        with (
+            patch("src.app.should_skip_refresh", return_value=False),
+            patch("src.app.should_force_full_refresh", return_value=True),
+            patch("src.app.generate_dummy_data", return_value=fake_data),
+            patch("src.app.render_dashboard", return_value=fake_image),
+            patch("src.app.record_morning_refresh") as mock_record,
+            patch.object(app.output, "publish"),
+            patch.object(app.output, "write_health_marker"),
+        ):
+            app.run()
+
+        mock_record.assert_called_once()
+
+    def test_morning_marker_not_written_when_cli_flag_forced(self, tmp_path):
+        """--force-full-refresh stays stateless and must not update the marker."""
+        app = self._make_full_app(tmp_path, dummy=True, dry_run=False, force_full_refresh=True)
+        fake_data = MagicMock()
+        fake_data.events = []
+        from PIL import Image
+
+        fake_image = Image.new("1", (800, 480), 1)
+
+        with (
+            patch("src.app.should_skip_refresh", return_value=False),
+            patch("src.app.should_force_full_refresh", return_value=True),
+            patch("src.app.generate_dummy_data", return_value=fake_data),
+            patch("src.app.render_dashboard", return_value=fake_image),
+            patch("src.app.record_morning_refresh") as mock_record,
+            patch.object(app.output, "publish"),
+            patch.object(app.output, "write_health_marker"),
+        ):
+            app.run()
+
+        mock_record.assert_not_called()
+
     def test_run_dummy_renders_and_publishes(self, tmp_path):
         app = self._make_full_app(tmp_path, dummy=True, dry_run=True)
         fake_data = MagicMock()

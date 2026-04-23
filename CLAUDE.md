@@ -275,7 +275,7 @@ default to `None` and fall back gracefully so adding a new field never breaks ex
 
 - Incremental sync tokens persist in `state/calendar_sync_state.json`; delete to force full resync
 - Quiet hours (default 23:00–06:00): app exits immediately during this window (dry-run bypasses this)
-- Morning startup: first run within 30 minutes after `quiet_hours_end` automatically forces a full refresh, regardless of `--force-full-refresh`
+- Morning startup: the first run within 30 minutes after `quiet_hours_end` forces a full refresh at most once per day. After the forced refresh fires on a real (non-dry-run) run, today's date is persisted to `state/morning_refresh_state.json`; subsequent ticks in the same window see the marker and skip the force-full. A missing, unreadable, or malformed marker (including valid non-object JSON like `[]`) is treated as "never" → next tick self-heals. `--dry-run` runs never write the marker (so `--date` previews can't pre-mark a future day). `--force-full-refresh` also bypasses the marker check and does not update it.
 - eInk partial refreshes degrade quality; full refresh forced after `max_partials_before_full` partials
 - Inky Impression panels do not support partial refresh. For `display.provider: inky`, non-fuzzyclock themes are limited to one hardware refresh per hour; `fuzzyclock` and `fuzzyclock_invert` bypass that limit; `--force-full-refresh` also bypasses it
 - Default canvas: 800×480; scaled via LANCZOS to match display resolution
@@ -286,7 +286,8 @@ default to `None` and fall back gracefully so adding a new field never breaks ex
 - Health marker written to `output/last_success.txt` on every successful run (ISO timestamp)
 - Daily random theme state persists in `state/random_theme_state.json`; delete it to force a new pick mid-day
 - Hourly random theme state persists in `state/random_theme_hourly_state.json`; delete it to force a new pick mid-hour
-- State files auto-migrate from `output/` to `state/` on first run after upgrade
+- Morning refresh marker persists in `state/morning_refresh_state.json` (`{"last_refresh_date": "YYYY-MM-DD"}`); delete it to re-arm a morning full refresh on the next tick within the window
+- State files auto-migrate from `output/` to `state/` on first run after upgrade (the morning refresh marker is new and is not migrated)
 - `terminal` theme: the month band font (`font_month_title`) starts at 33px and scales down to fit longer names (e.g. FEBRUARY, SEPTEMBER) within the combined date cell width
 - Deploy paths (`PI_USER`, `PI_HOST`, `PI_DIR`) default to `pi`, `dashboard`, `/home/pi/home-dashboard`; override with `make deploy PI_USER=myuser PI_HOST=mypi.local`
 - `make install` (remote deploy) uses `__INSTALL_DIR__` and `__USER__` placeholders in `dashboard.service` — these are substituted via `sed` during install, so no manual editing is needed for standard setups

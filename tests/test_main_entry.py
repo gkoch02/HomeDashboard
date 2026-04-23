@@ -178,7 +178,7 @@ class TestMainMorningStartup:
         with patch("sys.argv", ["main", "--dry-run", "--dummy", "--config", str(config_path)]):
             from src.main import main
 
-            with patch("src.services.run_policy.is_morning_startup", return_value=True):
+            with patch("src.services.run_policy.is_morning_startup_window", return_value=True):
                 main()
 
         assert (tmp_path / "latest.png").exists()

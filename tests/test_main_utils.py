@@ -11,7 +11,8 @@ from src.data_pipeline import retry_fetch
 from src.dummy_data import generate_dummy_data
 from src.services.run_policy import (
     in_quiet_hours,
-    is_morning_startup,
+    is_morning_startup_window,
+    record_morning_refresh,
     should_force_full_refresh,
     should_skip_refresh,
 )
@@ -152,28 +153,28 @@ class TestInQuietHours:
         assert in_quiet_hours(self._dt(15), start_hour=13, end_hour=15) is False
 
 
-class TestIsMorningStartup:
+class TestIsMorningStartupWindow:
     def _dt(self, hour: int, minute: int) -> datetime:
         return datetime(2026, 3, 17, hour, minute)
 
     def test_exactly_at_wake_hour(self):
-        assert is_morning_startup(self._dt(6, 0), quiet_hours_end=6) is True
+        assert is_morning_startup_window(self._dt(6, 0), quiet_hours_end=6) is True
 
     def test_within_first_slot(self):
-        assert is_morning_startup(self._dt(6, 15), quiet_hours_end=6) is True
+        assert is_morning_startup_window(self._dt(6, 15), quiet_hours_end=6) is True
 
     def test_at_minute_29(self):
-        assert is_morning_startup(self._dt(6, 29), quiet_hours_end=6) is True
+        assert is_morning_startup_window(self._dt(6, 29), quiet_hours_end=6) is True
 
     def test_at_minute_30_is_not_morning(self):
-        assert is_morning_startup(self._dt(6, 30), quiet_hours_end=6) is False
+        assert is_morning_startup_window(self._dt(6, 30), quiet_hours_end=6) is False
 
     def test_wrong_hour_is_not_morning(self):
-        assert is_morning_startup(self._dt(7, 0), quiet_hours_end=6) is False
+        assert is_morning_startup_window(self._dt(7, 0), quiet_hours_end=6) is False
 
     def test_custom_wake_hour(self):
-        assert is_morning_startup(self._dt(7, 10), quiet_hours_end=7) is True
-        assert is_morning_startup(self._dt(6, 10), quiet_hours_end=7) is False
+        assert is_morning_startup_window(self._dt(7, 10), quiet_hours_end=7) is True
+        assert is_morning_startup_window(self._dt(6, 10), quiet_hours_end=7) is False
 
 
 class TestResolveThemeName:
@@ -233,29 +234,173 @@ class TestShouldForceFullRefresh:
     def _dt(self, hour: int, minute: int = 0) -> datetime:
         return datetime(2026, 3, 17, hour, minute)
 
-    def test_force_flag_true_returns_true(self):
-        assert (
-            should_force_full_refresh(self._dt(12), quiet_hours_end=6, force_full_refresh_flag=True)
-            is True
-        )
-
-    def test_morning_startup_returns_true(self):
-        # hour=6, minute=10 → morning startup window (quiet_hours_end=6)
+    def test_force_flag_true_returns_true(self, tmp_path):
         assert (
             should_force_full_refresh(
-                self._dt(6, 10), quiet_hours_end=6, force_full_refresh_flag=False
+                self._dt(12),
+                quiet_hours_end=6,
+                force_full_refresh_flag=True,
+                state_dir=str(tmp_path),
             )
             is True
         )
 
-    def test_neither_flag_nor_morning_startup_returns_false(self):
-        # hour=12 is not morning startup
+    def test_force_flag_wins_over_marker(self, tmp_path):
+        # Marker present for today; CLI flag still forces a refresh
+        record_morning_refresh(self._dt(6, 10), str(tmp_path))
         assert (
             should_force_full_refresh(
-                self._dt(12), quiet_hours_end=6, force_full_refresh_flag=False
+                self._dt(6, 10),
+                quiet_hours_end=6,
+                force_full_refresh_flag=True,
+                state_dir=str(tmp_path),
+            )
+            is True
+        )
+
+    def test_morning_startup_no_marker_returns_true(self, tmp_path):
+        # hour=6, minute=10 → morning startup window (quiet_hours_end=6), no marker
+        assert (
+            should_force_full_refresh(
+                self._dt(6, 10),
+                quiet_hours_end=6,
+                force_full_refresh_flag=False,
+                state_dir=str(tmp_path),
+            )
+            is True
+        )
+
+    def test_morning_startup_marker_today_returns_false(self, tmp_path):
+        record_morning_refresh(self._dt(6, 5), str(tmp_path))
+        assert (
+            should_force_full_refresh(
+                self._dt(6, 20),
+                quiet_hours_end=6,
+                force_full_refresh_flag=False,
+                state_dir=str(tmp_path),
             )
             is False
         )
+
+    def test_morning_startup_marker_yesterday_returns_true(self, tmp_path):
+        yesterday = datetime(2026, 3, 16, 6, 5)
+        record_morning_refresh(yesterday, str(tmp_path))
+        assert (
+            should_force_full_refresh(
+                self._dt(6, 10),
+                quiet_hours_end=6,
+                force_full_refresh_flag=False,
+                state_dir=str(tmp_path),
+            )
+            is True
+        )
+
+    def test_neither_flag_nor_morning_startup_returns_false(self, tmp_path):
+        # hour=12 is not morning startup
+        assert (
+            should_force_full_refresh(
+                self._dt(12),
+                quiet_hours_end=6,
+                force_full_refresh_flag=False,
+                state_dir=str(tmp_path),
+            )
+            is False
+        )
+
+
+class TestRecordMorningRefresh:
+    def _dt(self, hour: int, minute: int = 0) -> datetime:
+        return datetime(2026, 3, 17, hour, minute)
+
+    def test_writes_marker_file(self, tmp_path):
+        import json
+
+        record_morning_refresh(self._dt(6, 5), str(tmp_path))
+        marker = tmp_path / "morning_refresh_state.json"
+        assert marker.exists()
+        payload = json.loads(marker.read_text())
+        assert payload == {"last_refresh_date": "2026-03-17"}
+
+    def test_overwrites_existing_marker(self, tmp_path):
+        import json
+
+        record_morning_refresh(datetime(2026, 3, 16, 6, 5), str(tmp_path))
+        record_morning_refresh(self._dt(6, 10), str(tmp_path))
+        payload = json.loads((tmp_path / "morning_refresh_state.json").read_text())
+        assert payload == {"last_refresh_date": "2026-03-17"}
+
+    def test_creates_parent_directory(self, tmp_path):
+        state_dir = tmp_path / "nested" / "state"
+        record_morning_refresh(self._dt(6, 5), str(state_dir))
+        assert (state_dir / "morning_refresh_state.json").exists()
+
+    def test_os_error_logged_not_raised(self, tmp_path, caplog):
+        import logging
+        from unittest.mock import patch
+
+        with patch("pathlib.Path.write_text", side_effect=OSError("disk full")):
+            with caplog.at_level(logging.WARNING, logger="src.services.run_policy"):
+                record_morning_refresh(self._dt(6, 5), str(tmp_path))
+        assert "Failed to write morning refresh state" in caplog.text
+
+
+class TestLoadLastMorningRefresh:
+    def _dt(self, hour: int, minute: int = 0) -> datetime:
+        return datetime(2026, 3, 17, hour, minute)
+
+    def test_missing_file_returns_none(self, tmp_path):
+        from src.services.run_policy import _load_last_morning_refresh
+
+        assert _load_last_morning_refresh(str(tmp_path)) is None
+
+    def test_malformed_json_returns_none(self, tmp_path):
+        from src.services.run_policy import _load_last_morning_refresh
+
+        (tmp_path / "morning_refresh_state.json").write_text("not json")
+        assert _load_last_morning_refresh(str(tmp_path)) is None
+
+    def test_non_object_json_returns_none(self, tmp_path):
+        from src.services.run_policy import _load_last_morning_refresh
+
+        # Valid JSON but not a dict — must not raise AttributeError
+        (tmp_path / "morning_refresh_state.json").write_text("[]")
+        assert _load_last_morning_refresh(str(tmp_path)) is None
+        (tmp_path / "morning_refresh_state.json").write_text('"2026-04-23"')
+        assert _load_last_morning_refresh(str(tmp_path)) is None
+
+    def test_missing_key_returns_none(self, tmp_path):
+        from src.services.run_policy import _load_last_morning_refresh
+
+        (tmp_path / "morning_refresh_state.json").write_text("{}")
+        assert _load_last_morning_refresh(str(tmp_path)) is None
+
+    def test_non_string_value_returns_none(self, tmp_path):
+        import json
+
+        from src.services.run_policy import _load_last_morning_refresh
+
+        (tmp_path / "morning_refresh_state.json").write_text(
+            json.dumps({"last_refresh_date": 12345})
+        )
+        assert _load_last_morning_refresh(str(tmp_path)) is None
+
+    def test_bad_date_format_returns_none(self, tmp_path):
+        import json
+
+        from src.services.run_policy import _load_last_morning_refresh
+
+        (tmp_path / "morning_refresh_state.json").write_text(
+            json.dumps({"last_refresh_date": "not-a-date"})
+        )
+        assert _load_last_morning_refresh(str(tmp_path)) is None
+
+    def test_valid_marker_returns_date(self, tmp_path):
+        from datetime import date
+
+        from src.services.run_policy import _load_last_morning_refresh
+
+        record_morning_refresh(self._dt(6, 5), str(tmp_path))
+        assert _load_last_morning_refresh(str(tmp_path)) == date(2026, 3, 17)
 
 
 class TestResolveTz:
