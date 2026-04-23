@@ -347,3 +347,75 @@ class TestLoadConfig:
         p.write_text(yaml.dump({"weather": {"api_key": "x"}}))
         cfg = load_config(str(p))
         assert cfg.theme_schedule.entries == []
+
+
+class TestLoadConfigOptionalSections:
+    """Cover the optional top-level sections (photo, state_dir) in load_config."""
+
+    def test_photo_section_sets_path(self, tmp_path):
+        p = tmp_path / "config.yaml"
+        p.write_text(yaml.dump({"photo": {"path": "/home/pi/family.jpg"}}))
+        cfg = load_config(str(p))
+        assert cfg.photo.path == "/home/pi/family.jpg"
+
+    def test_photo_section_empty_keeps_default(self, tmp_path):
+        """A ``photo:`` key with no fields preserves the PhotoConfig default."""
+        p = tmp_path / "config.yaml"
+        p.write_text(yaml.dump({"photo": {}}))
+        cfg = load_config(str(p))
+        # Default PhotoConfig.path is ""; no crash and default preserved.
+        assert cfg.photo.path == ""
+
+    def test_state_dir_override(self, tmp_path):
+        p = tmp_path / "config.yaml"
+        custom = tmp_path / "custom_state"
+        p.write_text(yaml.dump({"state_dir": str(custom)}))
+        cfg = load_config(str(p))
+        assert cfg.state_dir == str(custom)
+
+    def test_state_dir_default_when_absent(self, tmp_path):
+        p = tmp_path / "config.yaml"
+        p.write_text(yaml.dump({"title": "x"}))
+        cfg = load_config(str(p))
+        assert cfg.state_dir == "state"
+
+
+class TestResolveTz:
+    """Cover resolve_tz including the local-tz-unknown fallback."""
+
+    def test_named_timezone(self):
+        import zoneinfo
+
+        from src.config import resolve_tz
+
+        tz = resolve_tz("America/Los_Angeles")
+        assert isinstance(tz, zoneinfo.ZoneInfo)
+        assert str(tz) == "America/Los_Angeles"
+
+    def test_local_returns_system_tz(self):
+        from src.config import resolve_tz
+
+        tz = resolve_tz("local")
+        # System tz should always resolve on CI/Linux (UTC at worst).
+        assert tz is not None
+
+    def test_local_falls_back_to_utc_when_system_tz_missing(self, caplog):
+        """When datetime.now().astimezone().tzinfo is None, fall back to UTC."""
+        import logging
+        import zoneinfo
+        from datetime import datetime as real_datetime
+        from unittest.mock import MagicMock, patch
+
+        from src.config import resolve_tz
+
+        fake_now = MagicMock()
+        fake_now.astimezone.return_value = MagicMock(tzinfo=None)
+        with patch("src.config.datetime") as mock_dt:
+            mock_dt.now.return_value = fake_now
+            # Keep other datetime attributes intact for any collateral callers
+            mock_dt.side_effect = real_datetime
+            with caplog.at_level(logging.WARNING, logger="src.config"):
+                tz = resolve_tz("local")
+
+        assert tz == zoneinfo.ZoneInfo("UTC")
+        assert "Could not determine local timezone" in caplog.text

@@ -67,6 +67,15 @@ class TestValidateConfigWarnings:
         _, warnings = validate_config(cfg)
         assert any("placeholder" in w.message for w in warnings)
 
+    def test_example_default_coordinates_warns(self):
+        """New York City example defaults from config.example.yaml should warn."""
+        cfg = Config(weather=WeatherConfig(latitude=40.7128, longitude=-74.0060, api_key="x"))
+        _, warnings = validate_config(cfg)
+        assert any(
+            w.field == "weather.latitude/longitude" and "example defaults" in w.message
+            for w in warnings
+        )
+
     def test_zero_coordinates_warns(self):
         cfg = Config(weather=WeatherConfig(latitude=0.0, longitude=0.0))
         _, warnings = validate_config(cfg)
@@ -220,6 +229,58 @@ class TestRandomThemeValidation:
         cfg.random_theme.exclude = list(AVAILABLE_THEMES - {"random"})
         _, warnings = validate_config(cfg)
         assert any(w.field == "random_theme" for w in warnings)
+
+
+class TestThemeScheduleValidation:
+    """Covers theme_schedule time-format and unknown-theme validation branches."""
+
+    def _cfg_with_schedule(self, *entries) -> Config:
+        from src.config import ThemeScheduleConfig, ThemeScheduleEntry
+
+        cfg = Config()
+        cfg.theme_schedule = ThemeScheduleConfig(
+            entries=[ThemeScheduleEntry(time=t, theme=th) for t, th in entries]
+        )
+        return cfg
+
+    def test_valid_schedule_has_no_issues(self):
+        cfg = self._cfg_with_schedule(("06:00", "default"), ("22:00", "fuzzyclock"))
+        errors, warnings = validate_config(cfg)
+        assert not any(e.field.startswith("theme_schedule") for e in errors)
+        assert not any(w.field.startswith("theme_schedule") for w in warnings)
+
+    def test_malformed_time_no_colon_is_error(self):
+        cfg = self._cfg_with_schedule(("0600", "default"))
+        errors, _ = validate_config(cfg)
+        assert any(e.field == "theme_schedule[0].time" for e in errors)
+
+    def test_hour_out_of_range_is_error(self):
+        cfg = self._cfg_with_schedule(("25:00", "default"))
+        errors, _ = validate_config(cfg)
+        assert any(e.field == "theme_schedule[0].time" for e in errors)
+
+    def test_minute_out_of_range_is_error(self):
+        cfg = self._cfg_with_schedule(("12:99", "default"))
+        errors, _ = validate_config(cfg)
+        assert any(e.field == "theme_schedule[0].time" for e in errors)
+
+    def test_non_integer_time_is_error(self):
+        cfg = self._cfg_with_schedule(("ab:cd", "default"))
+        errors, _ = validate_config(cfg)
+        assert any(e.field == "theme_schedule[0].time" for e in errors)
+
+    def test_unknown_theme_in_schedule_warns(self):
+        cfg = self._cfg_with_schedule(("06:00", "nonexistent_theme_xyz"))
+        errors, warnings = validate_config(cfg)
+        # Time is valid — no error
+        assert not any(e.field == "theme_schedule[0].time" for e in errors)
+        assert any(w.field == "theme_schedule[0].theme" for w in warnings)
+
+    def test_invalid_time_and_invalid_theme_both_reported(self):
+        cfg = self._cfg_with_schedule(("bad", "also_bad"))
+        errors, warnings = validate_config(cfg)
+        assert any(e.field == "theme_schedule[0].time" for e in errors)
+        assert any(w.field == "theme_schedule[0].theme" for w in warnings)
 
 
 class TestPurpleAirValidation:
