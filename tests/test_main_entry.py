@@ -415,6 +415,7 @@ class TestMainLiveDataPath:
                 patch("src.data_pipeline.DataPipeline.fetch", return_value=fake_data),
                 patch("src.services.output.image_changed", return_value=False) as mock_changed,
                 patch("src.services.run_policy.in_quiet_hours", return_value=False),
+                patch("src.services.run_policy.is_morning_startup", return_value=False),
             ):
                 main()
 
