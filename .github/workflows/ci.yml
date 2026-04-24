@@ -60,7 +60,10 @@ jobs:
         with:
           python-version: "3.11"
           cache: "pip"
-      - run: pip install . pytest
+      # pytest-cov is required because pyproject.toml's addopts passes --cov;
+      # it's test tooling, not an application dep, so it doesn't undermine the
+      # "no optional-extra app packages" guarantee.
+      - run: pip install . pytest pytest-cov
       - run: python -m pytest tests/ --ignore-glob='tests/test_web_*.py' --tb=short --no-cov
 
   snapshot-tests:
