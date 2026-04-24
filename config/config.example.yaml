@@ -158,8 +158,12 @@ logging:
 #   weather: OWM current description substring (scalar or list) — "rain", "snow",
 #            "clear", "clouds", "thunderstorm", "fog", ...
 #   weather_alert_present: true/false — match when any weather alert is active
-#   daypart: "dawn", "morning", "afternoon", "dusk", "night", "day" (scalar or list)
-#            Uses sunrise/sunset when available, else fixed clock ranges.
+#   daypart: "dawn", "morning", "afternoon", "dusk", "night" (scalar or list).
+#            "day" is a convenience alias for morning ∪ afternoon.
+#            With weather data:  dawn = sunrise ±90min, dusk = sunset ±60min,
+#            morning = after dawn before local noon, afternoon = after noon
+#            before dusk, night = otherwise.  Without weather data, fixed clock
+#            ranges are used.
 #   season:  "spring", "summer", "fall", "winter" (scalar or list)
 #   weekday: "weekend", "weekday", or a day name (scalar or list)
 # Rules requiring weather data silently skip on first boot (no cached weather).
