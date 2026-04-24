@@ -10,7 +10,9 @@ from src.data.models import DashboardData
 from src.display.driver import get_display_spec
 from src.render.components import (
     air_quality_panel,
+    astronomy_panel,
     birthday_bar,
+    countdown_panel,
     diags_panel,
     fuzzyclock_panel,
     header,
@@ -71,6 +73,8 @@ _INKY_THEME_KEY_COLORS: dict[str, tuple[int, int]] = {
     "scorecard": (_INKY_RED, _INKY_BLUE),
     "tides": (_INKY_BLUE, _INKY_YELLOW),
     "photo": (_INKY_BLUE, _INKY_RED),
+    "countdown": (_INKY_RED, _INKY_BLUE),
+    "astronomy": (_INKY_BLUE, _INKY_YELLOW),
 }
 
 
@@ -185,6 +189,9 @@ def render_dashboard(
     theme: Theme | None = None,
     quote_refresh: str = "daily",
     message_text: str | None = None,
+    countdown_events: list | None = None,
+    latitude: float | None = None,
+    longitude: float | None = None,
 ) -> Image.Image:
     """Compose all components onto a 1-bit image at the configured display resolution.
 
@@ -387,6 +394,23 @@ def render_dashboard(
             region=layout.tides,
             style=style,
             quote_refresh=quote_refresh,
+        ),
+        "countdown": lambda: countdown_panel.draw_countdown(
+            draw,
+            countdown_events or [],
+            today,
+            region=layout.countdown,
+            style=style,
+        ),
+        "astronomy": lambda: astronomy_panel.draw_astronomy(
+            draw,
+            data,
+            today,
+            now,
+            region=layout.astronomy,
+            style=style,
+            latitude=latitude,
+            longitude=longitude,
         ),
     }
 

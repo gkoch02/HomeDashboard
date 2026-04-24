@@ -540,9 +540,16 @@ class TestRun:
         ):
             app.run()
 
-        mock_resolve.assert_called_once()
-        call_args = mock_resolve.call_args
-        assert call_args.args[1] is None
+        # resolve_theme_name is called twice: once pre-fetch (data=None) to size
+        # the calendar event window, and once post-fetch (data=<loaded>) so
+        # weather-dependent theme_rules can fire.  Both calls pass None as the
+        # override.
+        assert mock_resolve.call_count == 2
+        for call in mock_resolve.call_args_list:
+            assert call.args[1] is None
+        # Phase 1 uses data=None; phase 2 uses the fetched DashboardData.
+        assert mock_resolve.call_args_list[0].kwargs.get("data") is None
+        assert mock_resolve.call_args_list[1].kwargs.get("data") is not None
 
     def test_resolved_theme_differs_from_configured_logs_info(self, tmp_path, caplog):
         """When resolve_theme_name returns a different theme than cfg.theme, log it."""

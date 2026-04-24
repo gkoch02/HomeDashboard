@@ -88,13 +88,19 @@ class DashboardApp:
             logger.info("Morning startup — forcing full refresh")
 
         configured_theme = self.args.theme if self.args.theme is not None else self.cfg.theme
-        theme_name = resolve_theme_name(self.cfg, self.args.theme, now=now)
+        # Phase 1: pre-fetch resolve (no data) — used to size the calendar event window.
+        pre_theme = resolve_theme_name(self.cfg, self.args.theme, now=now, data=None)
+        event_window_start, event_window_days = self._event_window_for_theme(pre_theme, now)
+
+        data = self._load_data(now, force_full, pre_theme, event_window_start, event_window_days)
+        data = self._apply_filters(data)
+
+        # Phase 2: post-fetch resolve — weather-dependent rules can now fire.
+        theme_name = resolve_theme_name(self.cfg, self.args.theme, now=now, data=data)
         if theme_name != configured_theme:
             logger.info("Theme resolved to: %s", theme_name)
-        event_window_start, event_window_days = self._event_window_for_theme(theme_name, now)
-
-        data = self._load_data(now, force_full, theme_name, event_window_start, event_window_days)
-        data = self._apply_filters(data)
+        if theme_name != pre_theme:
+            logger.info("Theme changed post-fetch via theme_rules: %s → %s", pre_theme, theme_name)
 
         theme = load_theme(theme_name)
         if theme_name == "photo":
@@ -108,6 +114,9 @@ class DashboardApp:
             theme=theme,
             quote_refresh=self.cfg.cache.quote_refresh,
             message_text=getattr(self.args, "message", None),
+            countdown_events=list(self.cfg.countdown.events),
+            latitude=self.cfg.weather.latitude or None,
+            longitude=self.cfg.weather.longitude or None,
         )
         self.output.publish(
             image,

@@ -121,6 +121,14 @@ class ThemeLayout:
     tides: ComponentRegion = field(
         default_factory=lambda: ComponentRegion(0, 0, 800, 480, visible=False)
     )
+    # Used by the ``countdown`` theme for full-canvas user-configured countdowns.
+    countdown: ComponentRegion = field(
+        default_factory=lambda: ComponentRegion(0, 0, 800, 480, visible=False)
+    )
+    # Used by the ``astronomy`` theme for the full-canvas sky-tonight panel.
+    astronomy: ComponentRegion = field(
+        default_factory=lambda: ComponentRegion(0, 0, 800, 480, visible=False)
+    )
     draw_order: list[str] = field(
         default_factory=lambda: ["header", "week_view", "weather", "birthdays", "info"]
     )
@@ -282,6 +290,8 @@ _THEME_REGISTRY: dict[str, tuple[str, str]] = {
     "scorecard": ("src.render.themes.scorecard", "scorecard_theme"),
     "tides": ("src.render.themes.tides", "tides_theme"),
     "photo": ("src.render.themes.photo", "photo_theme"),
+    "countdown": ("src.render.themes.countdown", "countdown_theme"),
+    "astronomy": ("src.render.themes.astronomy", "astronomy_theme"),
 }
 
 # Derived from the registry — adding a theme to _THEME_REGISTRY is all that's needed.

@@ -54,6 +54,67 @@ class PhotoConfig:
 
 
 @dataclass
+class CountdownEvent:
+    """A single user-defined countdown target for the countdown theme."""
+
+    name: str
+    date: str  # ISO "YYYY-MM-DD"
+
+
+@dataclass
+class ThemeRuleCondition:
+    """Conditions that make a theme rule fire.  Each field is optional —
+    when the field is unset (None / empty), the rule does not constrain on it.
+    All set fields must match (AND semantics).
+    """
+
+    # OWM current-weather main category (case-insensitive), e.g. "clear",
+    # "clouds", "rain", "snow", "thunderstorm", "drizzle", "fog", "mist".
+    # Accepts a single value or a list of alternatives (OR).
+    weather: str | list[str] | None = None
+    # When True, matches only if at least one weather alert is present.
+    # When False, matches only when no alerts are present.  None = no constraint.
+    weather_alert_present: bool | None = None
+    # "dawn" (sunrise ±90min), "morning", "afternoon", "dusk" (sunset ±60min),
+    # "night", "day".  Accepts a single value or a list.
+    daypart: str | list[str] | None = None
+    # "spring" / "summer" / "fall" / "winter" (N-hemisphere by month).
+    season: str | list[str] | None = None
+    # "weekend", "weekday", or a specific weekday name ("monday".."sunday").
+    weekday: str | list[str] | None = None
+
+
+@dataclass
+class ThemeRule:
+    """A single (condition → theme) pairing for the theme_rules auto-theme system."""
+
+    when: ThemeRuleCondition = field(default_factory=ThemeRuleCondition)
+    theme: str = ""
+
+
+@dataclass
+class ThemeRulesConfig:
+    """Ordered list of theme rules.  First match wins.
+
+    Evaluated after the CLI override and before ``theme_schedule`` / ``cfg.theme``.
+    Rules whose conditions reference weather data silently skip evaluation when
+    weather data is unavailable (first boot, circuit breaker open).
+    """
+
+    rules: list[ThemeRule] = field(default_factory=list)
+
+
+@dataclass
+class CountdownConfig:
+    """User-configured countdown events for the ``countdown`` theme.
+
+    ``events`` is sorted by date at render time; past entries are dropped.
+    """
+
+    events: list[CountdownEvent] = field(default_factory=list)
+
+
+@dataclass
 class DisplayConfig:
     provider: str = "waveshare"
     model: str = "epd7in5_V2"
@@ -145,7 +206,9 @@ class Config:
     cache: CacheConfig = field(default_factory=CacheConfig)
     random_theme: RandomThemeConfig = field(default_factory=RandomThemeConfig)
     theme_schedule: ThemeScheduleConfig = field(default_factory=ThemeScheduleConfig)
+    theme_rules: ThemeRulesConfig = field(default_factory=ThemeRulesConfig)
     photo: PhotoConfig = field(default_factory=PhotoConfig)
+    countdown: CountdownConfig = field(default_factory=CountdownConfig)
     title: str = "Home Dashboard"
     theme: str = "default"
     output_dir: str = "output"
@@ -297,11 +360,47 @@ def load_config(path: str = "config/config.yaml") -> Config:
                 )
         cfg.theme_schedule = ThemeScheduleConfig(entries=entries)
 
+    if "theme_rules" in raw:
+        raw_rules = raw["theme_rules"]
+        rules: list[ThemeRule] = []
+        if isinstance(raw_rules, list):
+            for item in raw_rules:
+                if not isinstance(item, dict):
+                    continue
+                when_raw = item.get("when", {}) or {}
+                if not isinstance(when_raw, dict):
+                    when_raw = {}
+                cond = ThemeRuleCondition(
+                    weather=when_raw.get("weather"),
+                    weather_alert_present=when_raw.get("weather_alert_present"),
+                    daypart=when_raw.get("daypart"),
+                    season=when_raw.get("season"),
+                    weekday=when_raw.get("weekday"),
+                )
+                rules.append(ThemeRule(when=cond, theme=str(item.get("theme", ""))))
+        cfg.theme_rules = ThemeRulesConfig(rules=rules)
+
     if "photo" in raw:
         ph = raw["photo"]
         cfg.photo = PhotoConfig(
             path=ph.get("path", cfg.photo.path),
         )
+
+    if "countdown" in raw:
+        cd = raw["countdown"]
+        raw_events = cd.get("events", []) if isinstance(cd, dict) else []
+        events: list[CountdownEvent] = []
+        if isinstance(raw_events, list):
+            for item in raw_events:
+                if not isinstance(item, dict):
+                    continue
+                events.append(
+                    CountdownEvent(
+                        name=str(item.get("name", "")),
+                        date=str(item.get("date", "")),
+                    )
+                )
+        cfg.countdown = CountdownConfig(events=events)
 
     if "output" in raw:
         cfg.output_dir = raw["output"].get("dry_run_dir", "output")
@@ -669,6 +768,84 @@ def validate_config(
                 hint="Must be one of: imperial, metric, standard",
             )
         )
+
+    # --- Theme rules ---
+    _VALID_DAYPARTS = {"dawn", "morning", "afternoon", "dusk", "night", "day"}
+    _VALID_SEASONS = {"spring", "summer", "fall", "autumn", "winter"}
+    _VALID_WEEKDAYS = {
+        "weekend",
+        "weekday",
+        "monday",
+        "tuesday",
+        "wednesday",
+        "thursday",
+        "friday",
+        "saturday",
+        "sunday",
+    }
+
+    def _as_list(v) -> list:
+        if v is None:
+            return []
+        return v if isinstance(v, list) else [v]
+
+    for i, rule in enumerate(cfg.theme_rules.rules):
+        if rule.theme not in AVAILABLE_THEMES:
+            warnings.append(
+                ConfigWarning(
+                    field=f"theme_rules[{i}].theme",
+                    message=f"Unknown theme '{rule.theme}' in rule",
+                    hint=f"Available themes: {', '.join(sorted(AVAILABLE_THEMES))}",
+                )
+            )
+        for val in _as_list(rule.when.daypart):
+            if str(val).lower() not in _VALID_DAYPARTS:
+                warnings.append(
+                    ConfigWarning(
+                        field=f"theme_rules[{i}].when.daypart",
+                        message=f"Unknown daypart '{val}'",
+                        hint=f"Must be one of: {', '.join(sorted(_VALID_DAYPARTS))}",
+                    )
+                )
+        for val in _as_list(rule.when.season):
+            if str(val).lower() not in _VALID_SEASONS:
+                warnings.append(
+                    ConfigWarning(
+                        field=f"theme_rules[{i}].when.season",
+                        message=f"Unknown season '{val}'",
+                        hint=f"Must be one of: {', '.join(sorted(_VALID_SEASONS))}",
+                    )
+                )
+        for val in _as_list(rule.when.weekday):
+            if str(val).lower() not in _VALID_WEEKDAYS:
+                warnings.append(
+                    ConfigWarning(
+                        field=f"theme_rules[{i}].when.weekday",
+                        message=f"Unknown weekday '{val}'",
+                        hint=f"Must be one of: {', '.join(sorted(_VALID_WEEKDAYS))}",
+                    )
+                )
+
+    # --- Countdown events ---
+    for i, ev in enumerate(cfg.countdown.events):
+        if not ev.name:
+            warnings.append(
+                ConfigWarning(
+                    field=f"countdown.events[{i}].name",
+                    message="Countdown event has no name — the entry will be skipped.",
+                    hint="Set a descriptive name like 'Paris trip' or 'Anniversary'.",
+                )
+            )
+        try:
+            datetime.strptime(ev.date, "%Y-%m-%d")
+        except (ValueError, TypeError):
+            errors.append(
+                ConfigError(
+                    field=f"countdown.events[{i}].date",
+                    message=f"Invalid countdown date '{ev.date}' — must be YYYY-MM-DD",
+                    hint="Example: '2026-07-14' for Bastille Day 2026.",
+                )
+            )
 
     # --- PurpleAir ---
     if cfg.purpleair.api_key and not cfg.purpleair.sensor_id:

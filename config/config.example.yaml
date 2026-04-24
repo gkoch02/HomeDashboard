@@ -126,7 +126,7 @@ logging:
 #          moonphase | moonphase_invert | qotd | qotd_invert | weather |
 #          air_quality | fuzzyclock | fuzzyclock_invert | diags | photo |
 #          timeline | year_pulse | monthly | sunrise | scorecard | tides |
-#          random_daily | random_hourly
+#          countdown | astronomy | random_daily | random_hourly
 # "random_daily"  — rotate once per day (first refresh after midnight).
 # "random_hourly" — rotate once per hour (first refresh after the hour turns).
 # "random" is an alias for "random_daily".
@@ -140,6 +140,38 @@ logging:
 #   include: []  # Allowlist: only rotate among these themes (empty = all themes)
 #   exclude: []  # Denylist: never use these themes
 #                # Example: exclude: ["fantasy", "qotd"]
+
+# Countdown theme — user-defined days-until tracker (set theme: countdown).
+# Shows up to 5 upcoming events; one event renders as a hero with a giant numeral,
+# multiple events stack as rows.  Past events are dropped automatically.
+# countdown:  # uncomment this line to enable section
+#   events:
+#     - name: "Paris Trip"
+#       date: "2026-06-04"
+#     - name: "Anniversary"
+#       date: "2026-08-12"
+#     - name: "Product Launch"
+#       date: "2026-05-15"
+
+# Context-aware auto-theming — first matching rule wins.  Rules fire before
+# `theme_schedule` and `theme`, but after `--theme` CLI override.  Conditions:
+#   weather: OWM current description substring (scalar or list) — "rain", "snow",
+#            "clear", "clouds", "thunderstorm", "fog", ...
+#   weather_alert_present: true/false — match when any weather alert is active
+#   daypart: "dawn", "morning", "afternoon", "dusk", "night", "day" (scalar or list)
+#            Uses sunrise/sunset when available, else fixed clock ranges.
+#   season:  "spring", "summer", "fall", "winter" (scalar or list)
+#   weekday: "weekend", "weekday", or a day name (scalar or list)
+# Rules requiring weather data silently skip on first boot (no cached weather).
+# theme_rules:  # uncomment this line to enable section
+#   - when: { weather_alert_present: true }
+#     theme: "message"
+#   - when: { weather: ["rain", "snow", "thunderstorm"] }
+#     theme: "weather"
+#   - when: { daypart: "night", weather: "clear" }
+#     theme: "moonphase"
+#   - when: { weekday: "weekend" }
+#     theme: "today"
 
 # Time-of-day theme schedule — automatically switches themes at configured times.
 # Checked before random/explicit theme logic. Ignored when --theme is passed via CLI.
