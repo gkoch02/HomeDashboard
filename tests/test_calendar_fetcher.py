@@ -346,16 +346,43 @@ class TestFetchBirthdaysFromContacts:
         assert results[0].name == "Alice"
 
     @patch("src.fetchers.calendar._build_people_service")
-    def test_api_failure_returns_empty(self, mock_build):
+    def test_api_failure_propagates(self, mock_build):
+        """Regression for issue #146: an API failure must propagate so the
+        pipeline falls back to cached birthdays instead of overwriting the
+        cache with an empty (or, mid-pagination, partial) list."""
         mock_service = MagicMock()
         mock_build.return_value = mock_service
         mock_service.people().connections().list().execute.side_effect = Exception("API error")
 
         cfg_google = GoogleConfig(contacts_email="user@example.com")
         cfg_bday = BirthdayConfig(source="contacts", lookahead_days=30)
-        results = fetch_birthdays(cfg_google, cfg_bday)
+        with pytest.raises(Exception, match="API error"):
+            fetch_birthdays(cfg_google, cfg_bday)
 
-        assert results == []
+    @patch("src.fetchers.calendar._build_people_service")
+    def test_partial_pagination_failure_propagates(self, mock_build):
+        """Regression for issue #146: when a later pagination page fails, the
+        earlier pages' contacts must NOT be silently committed to cache via
+        ``break`` — propagate instead so the pipeline preserves the previous
+        complete list."""
+        today = date.today()
+        upcoming = today + timedelta(days=5)
+
+        mock_service = MagicMock()
+        mock_build.return_value = mock_service
+        page1 = {
+            "connections": [self._person("Alice", upcoming.month, upcoming.day)],
+            "nextPageToken": "token123",
+        }
+        mock_service.people().connections().list().execute.side_effect = [
+            page1,
+            Exception("network timeout on page 2"),
+        ]
+
+        cfg_google = GoogleConfig(contacts_email="user@example.com")
+        cfg_bday = BirthdayConfig(source="contacts", lookahead_days=30)
+        with pytest.raises(Exception, match="network timeout on page 2"):
+            fetch_birthdays(cfg_google, cfg_bday)
 
     @patch("src.fetchers.calendar._build_people_service")
     def test_pagination(self, mock_build):
@@ -786,15 +813,18 @@ class TestBirthdaysFromCalendar:
         assert results[0].name == "Alice"
 
     @patch("src.fetchers.calendar._build_service")
-    def test_api_failure_returns_empty(self, mock_build):
+    def test_api_failure_propagates(self, mock_build):
+        """Regression for issue #146: an API failure must propagate so the
+        pipeline falls back to cached birthdays instead of overwriting the
+        cache with an empty list that blanks the birthday panel."""
         mock_service = MagicMock()
         mock_build.return_value = mock_service
         mock_service.events().list().execute.side_effect = Exception("API down")
 
         cfg_google = GoogleConfig()
         cfg_bday = BirthdayConfig(source="calendar", lookahead_days=30)
-        results = fetch_birthdays(cfg_google, cfg_bday)
-        assert results == []
+        with pytest.raises(Exception, match="API down"):
+            fetch_birthdays(cfg_google, cfg_bday)
 
     @patch("src.fetchers.calendar._build_service")
     def test_skips_non_matching_events(self, mock_build):

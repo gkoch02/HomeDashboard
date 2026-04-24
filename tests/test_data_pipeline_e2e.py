@@ -155,6 +155,45 @@ class TestDataPipelineE2E:
         assert "events" in data.stale_sources
         assert data.source_staleness.get("events") != StalenessLevel.EXPIRED
 
+    def test_birthday_network_failure_preserves_cache(self, tmp_path):
+        """Regression for issue #146: when the birthday fetch raises
+        (e.g. DNS/auth/network failure in the calendar or contacts path),
+        previously-cached birthdays must be returned — NOT overwritten with
+        an empty list that blanks the birthday panel on the dashboard."""
+        events = _make_events()
+        weather = _make_weather()
+        birthdays = _make_birthdays()
+
+        # First run populates the cache with a known birthday list.
+        pipeline1 = _make_pipeline(tmp_path, force_refresh=True)
+        with (
+            patch("src.data_pipeline.fetch_events", return_value=events),
+            patch("src.data_pipeline.fetch_weather", return_value=weather),
+            patch("src.data_pipeline.fetch_birthdays", return_value=birthdays),
+            patch("src.data_pipeline.fetch_host_data", return_value=None),
+        ):
+            pipeline1.fetch()
+
+        # Second run: birthday fetch raises a DNS-style error.
+        pipeline2 = _make_pipeline(tmp_path, force_refresh=True)
+        with (
+            patch("src.data_pipeline.fetch_events", return_value=events),
+            patch("src.data_pipeline.fetch_weather", return_value=weather),
+            patch(
+                "src.data_pipeline.fetch_birthdays",
+                side_effect=OSError("Unable to find the server at oauth2.googleapis.com"),
+            ),
+            patch("src.data_pipeline.fetch_host_data", return_value=None),
+        ):
+            data = pipeline2.fetch()
+
+        # Cached birthdays preserved, not clobbered with [].
+        assert len(data.birthdays) == 1
+        assert data.birthdays[0].name == "Alice"
+        assert data.is_stale
+        assert "birthdays" in data.stale_sources
+        assert data.source_staleness.get("birthdays") != StalenessLevel.EXPIRED
+
     def test_all_sources_fail_no_cache(self, tmp_path):
         """When all fetchers fail and no cache exists, returns empty data."""
         pipeline = _make_pipeline(tmp_path, force_refresh=True)

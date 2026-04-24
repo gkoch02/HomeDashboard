@@ -213,6 +213,9 @@ def _birthdays_from_calendar(
     time_min = datetime.combine(today, datetime.min.time()).astimezone(timezone.utc)
     time_max = time_min + timedelta(days=birthday_cfg.lookahead_days)
 
+    # API errors (DNS/auth/network/HTTP) propagate so the data pipeline can fall
+    # back to the previously-cached birthday list rather than overwriting it with
+    # an empty list that blanks the birthday panel (issue #146).
     try:
         result = (
             service.events()
@@ -229,7 +232,7 @@ def _birthdays_from_calendar(
         )
     except Exception as exc:
         logger.warning("Failed to fetch birthday events: %s", exc)
-        return []
+        raise
 
     birthdays: list[Birthday] = []
     for item in result.get("items", []):
@@ -270,11 +273,16 @@ def _birthdays_from_contacts(
         if page_token:
             kwargs["pageToken"] = page_token
 
+        # Propagate on failure instead of ``break``-ing: breaking would silently
+        # commit a partial (or empty, on the first page) list to the cache via
+        # _resolve_source. Raising lets the pipeline fall back to the previously
+        # cached birthday list so the panel keeps rendering last-known-good data
+        # (issue #146).
         try:
             result = service.people().connections().list(**kwargs).execute()
         except Exception as exc:
             logger.warning("Failed to fetch Google Contacts: %s", exc)
-            break
+            raise
 
         for person in result.get("connections", []):
             bday = _parse_contact_birthday(person, today, lookahead)
