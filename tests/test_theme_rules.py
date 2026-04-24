@@ -10,7 +10,14 @@ from src.config import (
     ThemeRuleCondition,
     ThemeScheduleEntry,
 )
-from src.data.models import Birthday, CalendarEvent, DashboardData, WeatherAlert, WeatherData
+from src.data.models import (
+    Birthday,
+    CalendarEvent,
+    DashboardData,
+    StalenessLevel,
+    WeatherAlert,
+    WeatherData,
+)
 from src.services.theme import resolve_theme_name
 from src.services.theme_rules import (
     _calendar_states,
@@ -43,12 +50,31 @@ def _data(
     weather: WeatherData | None = None,
     events: list[CalendarEvent] | None = None,
     birthdays: list[Birthday] | None = None,
+    events_loaded: bool = True,
+    birthdays_loaded: bool = True,
 ) -> DashboardData:
-    return DashboardData(events=events or [], weather=weather, birthdays=birthdays or [])
+    """Build a DashboardData for tests.
+
+    ``events_loaded`` / ``birthdays_loaded`` mark those sources as present in
+    ``source_staleness`` — set False to simulate a fetch outage with no cache.
+    """
+    staleness: dict[str, StalenessLevel] = {}
+    if events_loaded:
+        staleness["events"] = StalenessLevel.FRESH
+    if birthdays_loaded:
+        staleness["birthdays"] = StalenessLevel.FRESH
+    return DashboardData(
+        events=events or [],
+        weather=weather,
+        birthdays=birthdays or [],
+        source_staleness=staleness,
+    )
 
 
-def _event(start: datetime, end: datetime, summary: str = "Meeting") -> CalendarEvent:
-    return CalendarEvent(summary=summary, start=start, end=end)
+def _event(
+    start: datetime, end: datetime, summary: str = "Meeting", is_all_day: bool = False
+) -> CalendarEvent:
+    return CalendarEvent(summary=summary, start=start, end=end, is_all_day=is_all_day)
 
 
 def _now(year=2026, month=4, day=23, hour=12, minute=0) -> datetime:
@@ -539,6 +565,97 @@ class TestCalendarStates:
         states = _calendar_states(now, _data(events=events))
         assert {"busy", "active"} <= states
 
+    def test_tz_aware_now_does_not_raise(self):
+        """Regression: naive events must not blow up against a tz-aware ``now``.
+
+        Fetchers strip tzinfo from event datetimes; ``DashboardApp._resolve_now()``
+        passes an aware ``now``.  ``_calendar_states`` normalizes internally.
+        """
+        from datetime import timezone
+
+        aware_now = datetime(2026, 4, 23, 10, 30, tzinfo=timezone.utc)
+        naive_event = _event(
+            datetime(2026, 4, 23, 10, 0),
+            datetime(2026, 4, 23, 11, 0),
+        )
+        # Must not raise TypeError and must correctly flag ``active``.
+        assert "active" in _calendar_states(aware_now, _data(events=[naive_event]))
+
+    def test_all_day_event_spanning_today_is_not_empty(self):
+        """Multi-day all-day events (e.g. vacations) count as covering today."""
+        now = _now(hour=10)
+        # Vacation started yesterday, ends tomorrow (iCal exclusive-end convention).
+        vacation = _event(
+            datetime(2026, 4, 22),
+            datetime(2026, 4, 25),
+            summary="Vacation",
+            is_all_day=True,
+        )
+        states = _calendar_states(now, _data(events=[vacation]))
+        assert "empty" not in states
+
+    def test_all_day_event_contributes_to_busy_count(self):
+        """Spanning all-day events count toward the ``busy`` threshold."""
+        now = _now(hour=10)
+        vacation = _event(
+            datetime(2026, 4, 22),
+            datetime(2026, 4, 25),
+            is_all_day=True,
+        )
+        timed = [
+            _event(now.replace(hour=h), now.replace(hour=h, minute=30)) for h in (8, 11, 13, 14)
+        ]
+        assert "busy" in _calendar_states(now, _data(events=[vacation] + timed))
+
+    def test_all_day_event_does_not_produce_active(self):
+        """``active`` is reserved for timed events — all-day events don't apply."""
+        now = _now(hour=10)
+        vacation = _event(
+            datetime(2026, 4, 22),
+            datetime(2026, 4, 25),
+            is_all_day=True,
+        )
+        assert "active" not in _calendar_states(now, _data(events=[vacation]))
+
+    def test_all_day_only_day_does_not_produce_done(self):
+        """A day with only an ongoing all-day event isn't ``done`` either."""
+        now = _now(hour=22)
+        vacation = _event(
+            datetime(2026, 4, 22),
+            datetime(2026, 4, 25),
+            is_all_day=True,
+        )
+        assert "done" not in _calendar_states(now, _data(events=[vacation]))
+
+    def test_event_ending_today_excluded_by_exclusive_end(self):
+        """An all-day event with end=today does not cover today (exclusive end)."""
+        now = _now(year=2026, month=4, day=23, hour=10)
+        ended = _event(
+            datetime(2026, 4, 22),
+            datetime(2026, 4, 23),
+            is_all_day=True,
+        )
+        assert "empty" in _calendar_states(now, _data(events=[ended]))
+
+    def test_empty_not_emitted_when_events_source_missing(self):
+        """Calendar fetch outage with no cache → no event-derived states fire."""
+        now = _now(hour=10)
+        states = _calendar_states(now, _data(events_loaded=False))
+        assert "empty" not in states
+
+    def test_birthday_today_not_emitted_when_birthdays_source_missing(self):
+        now = _now(year=2026, month=4, day=23)
+        b = Birthday(name="Alex", date=date(1990, 4, 23))
+        data = _data(birthdays=[b], birthdays_loaded=False)
+        assert "birthday_today" not in _calendar_states(now, data)
+
+    def test_events_unavailable_still_allows_birthday_today(self):
+        """Birthdays and events are independent sources — one can skip without the other."""
+        now = _now(year=2026, month=4, day=23)
+        b = Birthday(name="Alex", date=date(1990, 4, 23))
+        data = _data(birthdays=[b], events_loaded=False)
+        assert _calendar_states(now, data) == {"birthday_today"}
+
 
 # ---------------------------------------------------------------------------
 # Calendar rule matching
@@ -584,3 +701,12 @@ class TestCalendarRule:
         """Unknown calendar tokens never match — validation surfaces them as warnings."""
         rule = ThemeRule(when=ThemeRuleCondition(calendar="bogus"), theme="qotd")
         assert _rule_matches(rule, _now(), _data()) is False
+
+    def test_calendar_empty_does_not_fire_on_fetch_outage(self):
+        """No cached events + fetch failure must NOT trip ``calendar: empty`` rules.
+
+        Mirrors the weather-rule behavior: missing data silently skips rather
+        than matching a false-positive empty state.
+        """
+        rule = ThemeRule(when=ThemeRuleCondition(calendar="empty"), theme="qotd")
+        assert _rule_matches(rule, _now(), _data(events_loaded=False)) is False

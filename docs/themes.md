@@ -131,14 +131,16 @@ Calendar states:
 
 | Value | Fires when… |
 |---|---|
-| `empty` | Zero events scheduled today. |
-| `done` | Today had events, but every one has already ended. |
-| `active` | Currently inside an event (`start <= now < end`). |
-| `upcoming_soon` | An event starts within the next 30 minutes. |
-| `busy` | 5 or more events are scheduled today. |
+| `empty` | No events cover today (no timed events today, no all-day events spanning today). |
+| `done` | There's at least one timed event today and all of them have ended. |
+| `active` | Currently inside a timed event (`start <= now < end`). All-day events don't trigger this. |
+| `upcoming_soon` | The next timed event starts within the next 30 minutes. |
+| `busy` | 5 or more events cover today (timed + spanning all-day combined). |
 | `birthday_today` | At least one birthday's month/day matches today. |
 
-Rules that reference weather or calendar data silently skip on the first boot (no cached data yet), so the system falls through to `theme_schedule` / `cfg.theme` until data is available. If any rule could resolve to `monthly`, the calendar event window is pre-sized for the month grid so the view has complete data whenever the rule fires.
+All-day events use the iCal inclusive-start / exclusive-end convention, so a vacation stored as `2026-04-22` → `2026-04-25` covers April 22, 23, and 24.
+
+Rules that reference weather or calendar data silently skip on the first boot (no cached data yet), so the system falls through to `theme_schedule` / `cfg.theme` until data is available. A calendar fetch failure with no usable cache is treated the same way — event-derived rules don't fire on false-positive "empty" days during outages. If any rule could resolve to `monthly`, the calendar event window is pre-sized for the month grid so the view has complete data whenever the rule fires.
 
 ---
 
