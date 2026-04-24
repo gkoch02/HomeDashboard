@@ -45,8 +45,13 @@ jobs:
 
   test-core-install:
     # Asserts that `pip install .` alone (core deps only, no [dev]/[web] extras)
-    # is sufficient to run the full test suite. Guards against runtime imports
+    # is sufficient to run the non-web test suite. Guards against runtime imports
     # of packages that are only declared under optional-dependencies.
+    #
+    # Web test files are skipped explicitly (they legitimately require
+    # flask/waitress from the [web] extra). Test tooling (pytest) is the only
+    # thing installed alongside core deps — no flask/waitress — so any
+    # accidental import of an optional-extra package from core code will fail.
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -55,8 +60,34 @@ jobs:
         with:
           python-version: "3.11"
           cache: "pip"
-      - run: pip install . pytest pytest-cov flask waitress
-      - run: python -m pytest tests/ --tb=short --no-cov
+      - run: pip install . pytest
+      - run: python -m pytest tests/ --ignore-glob='tests/test_web_*.py' --tb=short --no-cov
+
+  snapshot-tests:
+    # Runs the pixel-hash snapshot assertions against the exact Pillow version
+    # recorded in tests/snapshots/theme_pixel_hashes.json. The normal test
+    # matrix skips these assertions when Pillow differs from the baseline, so
+    # this is the one job where a snapshot regression actually fails CI.
+    #
+    # To intentionally update baselines: bump Pillow locally, run
+    # UPDATE_SNAPSHOTS=1 pytest tests/test_theme_pixel_snapshots.py, and
+    # commit both the new JSON (which records the new Pillow version) and
+    # any source changes. This job will pick up the new version automatically.
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: "pip"
+      - run: pip install -e ".[dev]"
+      - name: Pin Pillow to the baseline's reference version
+        run: |
+          PV=$(python -c "import json; print(json.load(open('tests/snapshots/theme_pixel_hashes.json'))['reference_env']['pillow_version'])")
+          echo "Installing Pillow==${PV}"
+          pip install "Pillow==${PV}"
+      - run: python -m pytest tests/test_theme_pixel_snapshots.py --tb=short --no-cov
 
   typecheck:
     runs-on: ubuntu-latest

@@ -8,14 +8,24 @@ This catches classes of rendering regressions that the coarse smoke tests in
 ``test_render_snapshots.py`` miss — component drift, font-size bumps, theme
 style edits, quantize / palette tweaks.
 
+Pillow font rasterisation can shift across any release (major, minor, or
+patch), so the baselines are pinned against the exact Pillow version recorded
+in the JSON under ``reference_env.pillow_version``. When the runtime Pillow
+doesn't match that version, the hash comparison is skipped (the render itself
+still runs, proving the theme doesn't crash) — so routine upstream Pillow
+releases in the normal test matrix don't fail CI spuriously.
+
+The strict hash assertion fires in the dedicated ``snapshot-tests`` CI job,
+which reads ``reference_env.pillow_version`` and installs exactly that
+Pillow version before running this file.
+
 When a diff is expected (intentional theme change, deliberate Pillow upgrade),
 regenerate baselines::
 
     UPDATE_SNAPSHOTS=1 python -m pytest tests/test_theme_pixel_snapshots.py
 
-Commit the updated ``theme_pixel_hashes.json`` alongside the source change.
-Font rendering can shift across Pillow major versions; baselines are pinned
-against the Pillow version currently in ``requirements.txt``.
+``UPDATE_SNAPSHOTS=1`` also stamps the current Pillow version as the new
+reference, so commit the updated JSON alongside the source change.
 """
 
 from __future__ import annotations
@@ -26,6 +36,7 @@ import os
 from datetime import datetime
 from pathlib import Path
 
+import PIL
 import pytest
 
 from src.config import DisplayConfig
@@ -49,6 +60,8 @@ _EXTERNAL_ASSET_THEMES: frozenset[str] = frozenset({"photo"})
 
 THEME_NAMES = sorted(set(_THEME_REGISTRY.keys()) | {"default"})
 
+_CURRENT_PILLOW_VERSION = PIL.__version__
+
 
 def _render(theme_name: str):
     data = generate_dummy_data(now=FIXED_NOW)
@@ -65,30 +78,58 @@ def _hash_image(theme_name: str) -> str:
     return hashlib.sha256(img.tobytes()).hexdigest()
 
 
-def _load_baselines() -> dict[str, str]:
+def _load_baseline_doc() -> dict:
     if not BASELINE_PATH.exists():
-        return {}
-    return json.loads(BASELINE_PATH.read_text())
+        return {"reference_env": {}, "themes": {}}
+    doc = json.loads(BASELINE_PATH.read_text())
+    # Normalise legacy flat format just in case a stale file is picked up.
+    if "themes" not in doc:
+        return {"reference_env": {}, "themes": doc}
+    return doc
 
 
-def _write_baselines(baselines: dict[str, str]) -> None:
+def _load_baselines() -> dict[str, str]:
+    return _load_baseline_doc().get("themes", {})
+
+
+def _reference_pillow_version() -> str | None:
+    env = _load_baseline_doc().get("reference_env", {})
+    value = env.get("pillow_version")
+    return str(value) if value else None
+
+
+def _write_baseline_doc(themes: dict[str, str]) -> None:
     BASELINE_PATH.parent.mkdir(parents=True, exist_ok=True)
-    ordered = dict(sorted(baselines.items()))
-    BASELINE_PATH.write_text(json.dumps(ordered, indent=2) + "\n")
+    doc = {
+        "reference_env": {
+            "pillow_version": _CURRENT_PILLOW_VERSION,
+        },
+        "themes": dict(sorted(themes.items())),
+    }
+    BASELINE_PATH.write_text(json.dumps(doc, indent=2) + "\n")
 
 
 @pytest.mark.parametrize("theme_name", THEME_NAMES)
 def test_theme_pixel_hash(theme_name: str) -> None:
-    actual = _hash_image(theme_name)
-
     if os.environ.get("UPDATE_SNAPSHOTS") == "1":
-        baselines = _load_baselines()
-        baselines[theme_name] = actual
-        _write_baselines(baselines)
+        actual = _hash_image(theme_name)
+        themes = _load_baselines()
+        themes[theme_name] = actual
+        _write_baseline_doc(themes)
         return
 
-    baselines = _load_baselines()
-    expected = baselines.get(theme_name)
+    # Always render — this proves the theme doesn't crash even when we can't
+    # assert the hash (different Pillow version than the baseline).
+    actual = _hash_image(theme_name)
+
+    ref_version = _reference_pillow_version()
+    if ref_version is not None and ref_version != _CURRENT_PILLOW_VERSION:
+        pytest.skip(
+            f"Snapshot baselines pinned to Pillow {ref_version}; "
+            f"running Pillow {_CURRENT_PILLOW_VERSION}. "
+            f"Hash assertion skipped (runs in the snapshot-tests CI job)."
+        )
+    expected = _load_baselines().get(theme_name)
     if expected is None:
         pytest.fail(
             f"No baseline hash for theme {theme_name!r}. "
