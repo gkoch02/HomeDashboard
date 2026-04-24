@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from unittest.mock import MagicMock, patch
 
 from src.config import (
@@ -10,9 +10,10 @@ from src.config import (
     ThemeRuleCondition,
     ThemeScheduleEntry,
 )
-from src.data.models import DashboardData, WeatherAlert, WeatherData
+from src.data.models import Birthday, CalendarEvent, DashboardData, WeatherAlert, WeatherData
 from src.services.theme import resolve_theme_name
 from src.services.theme_rules import (
+    _calendar_states,
     _current_daypart,
     _current_season,
     _current_weekday,
@@ -38,8 +39,16 @@ def _wx(description: str = "clear sky", alerts: list | None = None, **kwargs) ->
     return wd
 
 
-def _data(weather: WeatherData | None = None) -> DashboardData:
-    return DashboardData(events=[], weather=weather)
+def _data(
+    weather: WeatherData | None = None,
+    events: list[CalendarEvent] | None = None,
+    birthdays: list[Birthday] | None = None,
+) -> DashboardData:
+    return DashboardData(events=events or [], weather=weather, birthdays=birthdays or [])
+
+
+def _event(start: datetime, end: datetime, summary: str = "Meeting") -> CalendarEvent:
+    return CalendarEvent(summary=summary, start=start, end=end)
 
 
 def _now(year=2026, month=4, day=23, hour=12, minute=0) -> datetime:
@@ -418,3 +427,160 @@ theme_rules:
         cfg = load_config(str(cfg_file))
         assert len(cfg.theme_rules.rules) == 1
         assert cfg.theme_rules.rules[0].when.weather is None
+
+    def test_calendar_field_round_trip(self, tmp_path):
+        from src.config import load_config
+
+        cfg_file = tmp_path / "config.yaml"
+        cfg_file.write_text(
+            """
+theme_rules:
+  - when: { calendar: "empty" }
+    theme: "qotd"
+  - when: { calendar: ["busy", "active"] }
+    theme: "today"
+""".strip()
+        )
+        cfg = load_config(str(cfg_file))
+        assert cfg.theme_rules.rules[0].when.calendar == "empty"
+        assert cfg.theme_rules.rules[1].when.calendar == ["busy", "active"]
+
+
+# ---------------------------------------------------------------------------
+# Calendar state derivation
+# ---------------------------------------------------------------------------
+
+
+class TestCalendarStates:
+    def test_empty_when_no_events_today(self):
+        now = _now(hour=10)
+        assert _calendar_states(now, _data()) == {"empty"}
+
+    def test_yesterdays_event_does_not_count_as_today(self):
+        now = _now(hour=10)
+        yesterday = now - timedelta(days=1)
+        events = [_event(yesterday.replace(hour=9), yesterday.replace(hour=10))]
+        assert _calendar_states(now, _data(events=events)) == {"empty"}
+
+    def test_done_when_all_todays_events_have_ended(self):
+        now = _now(hour=15)
+        events = [
+            _event(now.replace(hour=8), now.replace(hour=9)),
+            _event(now.replace(hour=10), now.replace(hour=11)),
+        ]
+        states = _calendar_states(now, _data(events=events))
+        assert "done" in states
+        assert "empty" not in states
+        assert "active" not in states
+
+    def test_active_when_inside_an_event(self):
+        now = _now(hour=10, minute=30)
+        events = [_event(now.replace(hour=10), now.replace(hour=11))]
+        states = _calendar_states(now, _data(events=events))
+        assert "active" in states
+        assert "done" not in states
+
+    def test_event_ending_exactly_now_is_not_active(self):
+        """``start <= now < end`` — an event whose end == now is treated as past."""
+        now = _now(hour=11)
+        events = [_event(now.replace(hour=10), now.replace(hour=11))]
+        states = _calendar_states(now, _data(events=events))
+        assert "active" not in states
+        assert "done" in states
+
+    def test_upcoming_soon_within_30_minutes(self):
+        now = _now(hour=10)
+        events = [_event(now + timedelta(minutes=15), now + timedelta(minutes=45))]
+        assert "upcoming_soon" in _calendar_states(now, _data(events=events))
+
+    def test_event_31_minutes_out_is_not_upcoming_soon(self):
+        now = _now(hour=10)
+        events = [_event(now + timedelta(minutes=31), now + timedelta(minutes=60))]
+        assert "upcoming_soon" not in _calendar_states(now, _data(events=events))
+
+    def test_event_starting_now_is_active_not_upcoming(self):
+        now = _now(hour=10)
+        events = [_event(now, now + timedelta(hours=1))]
+        states = _calendar_states(now, _data(events=events))
+        assert "active" in states
+        assert "upcoming_soon" not in states
+
+    def test_busy_at_threshold(self):
+        now = _now(hour=10)
+        events = [
+            _event(now.replace(hour=h), now.replace(hour=h, minute=30)) for h in (8, 9, 11, 13, 14)
+        ]
+        assert "busy" in _calendar_states(now, _data(events=events))
+
+    def test_not_busy_below_threshold(self):
+        now = _now(hour=10)
+        events = [
+            _event(now.replace(hour=h), now.replace(hour=h, minute=30)) for h in (8, 9, 11, 13)
+        ]
+        assert "busy" not in _calendar_states(now, _data(events=events))
+
+    def test_birthday_today_matches_month_and_day(self):
+        now = _now(year=2026, month=4, day=23)
+        # Birthday in a different year but matching month/day
+        b = Birthday(name="Alex", date=date(1990, 4, 23))
+        assert "birthday_today" in _calendar_states(now, _data(birthdays=[b]))
+
+    def test_birthday_other_day_does_not_match(self):
+        now = _now(year=2026, month=4, day=23)
+        b = Birthday(name="Alex", date=date(1990, 4, 24))
+        assert "birthday_today" not in _calendar_states(now, _data(birthdays=[b]))
+
+    def test_states_can_overlap(self):
+        """A busy day with an in-progress event reports both ``busy`` and ``active``."""
+        now = _now(hour=10, minute=30)
+        events = [_event(now.replace(hour=10), now.replace(hour=11))] + [
+            _event(now.replace(hour=h), now.replace(hour=h, minute=30)) for h in (8, 9, 13, 14)
+        ]
+        states = _calendar_states(now, _data(events=events))
+        assert {"busy", "active"} <= states
+
+
+# ---------------------------------------------------------------------------
+# Calendar rule matching
+# ---------------------------------------------------------------------------
+
+
+class TestCalendarRule:
+    def test_calendar_empty_matches(self):
+        rule = ThemeRule(when=ThemeRuleCondition(calendar="empty"), theme="qotd")
+        assert _rule_matches(rule, _now(), _data()) is True
+
+    def test_calendar_empty_does_not_match_when_events_exist(self):
+        now = _now(hour=10)
+        rule = ThemeRule(when=ThemeRuleCondition(calendar="empty"), theme="qotd")
+        events = [_event(now.replace(hour=14), now.replace(hour=15))]
+        assert _rule_matches(rule, now, _data(events=events)) is False
+
+    def test_calendar_list_matches_any(self):
+        now = _now(hour=15)
+        rule = ThemeRule(
+            when=ThemeRuleCondition(calendar=["empty", "done"]),
+            theme="qotd",
+        )
+        events = [_event(now.replace(hour=8), now.replace(hour=9))]
+        assert _rule_matches(rule, now, _data(events=events)) is True
+
+    def test_calendar_skips_when_data_is_none(self):
+        """Pre-fetch resolution passes data=None — calendar rules silently skip."""
+        rule = ThemeRule(when=ThemeRuleCondition(calendar="empty"), theme="qotd")
+        assert _rule_matches(rule, _now(), None) is False
+
+    def test_calendar_combines_with_other_conditions(self):
+        now = datetime(2026, 4, 25, 10)  # Saturday
+        rule = ThemeRule(
+            when=ThemeRuleCondition(calendar="empty", weekday="weekend"),
+            theme="qotd",
+        )
+        assert _rule_matches(rule, now, _data()) is True
+        # Weekday — same calendar state, but condition fails on weekday
+        assert _rule_matches(rule, datetime(2026, 4, 20, 10), _data()) is False
+
+    def test_calendar_unknown_value_does_not_match(self):
+        """Unknown calendar tokens never match — validation surfaces them as warnings."""
+        rule = ThemeRule(when=ThemeRuleCondition(calendar="bogus"), theme="qotd")
+        assert _rule_matches(rule, _now(), _data()) is False

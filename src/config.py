@@ -84,6 +84,16 @@ class ThemeRuleCondition:
     season: str | list[str] | None = None
     # "weekend", "weekday", or a specific weekday name ("monday".."sunday").
     weekday: str | list[str] | None = None
+    # Calendar state for today.  Accepts a single value or list:
+    #   "empty"          — zero events scheduled today
+    #   "done"           — events exist but all have already ended
+    #   "active"         — currently inside an event
+    #   "upcoming_soon"  — next event starts within the next 30 minutes
+    #   "busy"           — 5+ events scheduled today
+    #   "birthday_today" — at least one birthday falls on today
+    # Rules using this condition skip when calendar data is unavailable
+    # (e.g. pre-fetch theme resolution).
+    calendar: str | list[str] | None = None
 
 
 @dataclass
@@ -378,6 +388,7 @@ def load_config(path: str = "config/config.yaml") -> Config:
                     daypart=when_raw.get("daypart"),
                     season=when_raw.get("season"),
                     weekday=when_raw.get("weekday"),
+                    calendar=when_raw.get("calendar"),
                 )
                 rules.append(ThemeRule(when=cond, theme=str(item.get("theme", ""))))
         cfg.theme_rules = ThemeRulesConfig(rules=rules)
@@ -785,6 +796,14 @@ def validate_config(
         "saturday",
         "sunday",
     }
+    _VALID_CALENDAR_STATES = {
+        "empty",
+        "done",
+        "active",
+        "upcoming_soon",
+        "busy",
+        "birthday_today",
+    }
 
     def _as_list(v) -> list:
         if v is None:
@@ -825,6 +844,15 @@ def validate_config(
                         field=f"theme_rules[{i}].when.weekday",
                         message=f"Unknown weekday '{val}'",
                         hint=f"Must be one of: {', '.join(sorted(_VALID_WEEKDAYS))}",
+                    )
+                )
+        for val in _as_list(rule.when.calendar):
+            if str(val).lower() not in _VALID_CALENDAR_STATES:
+                warnings.append(
+                    ConfigWarning(
+                        field=f"theme_rules[{i}].when.calendar",
+                        message=f"Unknown calendar state '{val}'",
+                        hint=f"Must be one of: {', '.join(sorted(_VALID_CALENDAR_STATES))}",
                     )
                 )
 

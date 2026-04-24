@@ -166,10 +166,23 @@ logging:
 #            ranges are used.
 #   season:  "spring", "summer", "fall", "winter" (scalar or list)
 #   weekday: "weekend", "weekday", or a day name (scalar or list)
-# Rules requiring weather data silently skip on first boot (no cached weather).
+#   calendar: state of today's events (scalar or list).  Values:
+#            "empty"          — zero events scheduled today
+#            "done"           — all of today's events have already ended
+#            "active"         — currently inside an event
+#            "upcoming_soon"  — next event starts within the next 30 minutes
+#            "busy"           — 5+ events scheduled today
+#            "birthday_today" — at least one birthday falls on today
+# Rules requiring weather or calendar data silently skip on first boot.
 # theme_rules:  # uncomment this line to enable section
 #   - when: { weather_alert_present: true }
 #     theme: "message"
+#   - when: { calendar: "birthday_today" }
+#     theme: "today"
+#   - when: { calendar: "upcoming_soon" }
+#     theme: "today"
+#   - when: { calendar: ["empty", "done"] }
+#     theme: "qotd"
 #   - when: { weather: ["rain", "snow", "thunderstorm"] }
 #     theme: "weather"
 #   - when: { daypart: "night", weather: "clear" }

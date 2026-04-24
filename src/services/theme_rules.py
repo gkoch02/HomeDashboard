@@ -13,9 +13,12 @@ Kept as a small pure module so it's easy to test and easy to extend.
 from __future__ import annotations
 
 from collections.abc import Iterable
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from src.data.models import DashboardData
+
+UPCOMING_SOON_MINUTES = 30
+BUSY_DAY_THRESHOLD = 5
 
 
 def _listify(val) -> list[str]:
@@ -100,6 +103,36 @@ def _match_weekday(rule_vals: list[str], day_name: str, weekend_key: str) -> boo
     return any(v in (day_name, weekend_key) for v in rule_vals)
 
 
+def _calendar_states(now: datetime, data: DashboardData) -> set[str]:
+    """Return the set of calendar-state tokens that apply right now.
+
+    A single rule value matches if it appears in this set.  States are not
+    mutually exclusive (e.g. a day with 6 events one of which is in progress
+    is both ``busy`` and ``active``).
+    """
+    today = now.date()
+    todays_events = [e for e in data.events if e.start.date() == today]
+    states: set[str] = set()
+
+    if not todays_events:
+        states.add("empty")
+    else:
+        if all(e.end <= now for e in todays_events):
+            states.add("done")
+        if any(e.start <= now < e.end for e in todays_events):
+            states.add("active")
+        soon_cutoff = now + timedelta(minutes=UPCOMING_SOON_MINUTES)
+        if any(now < e.start <= soon_cutoff for e in todays_events):
+            states.add("upcoming_soon")
+        if len(todays_events) >= BUSY_DAY_THRESHOLD:
+            states.add("busy")
+
+    if any(b.date.month == today.month and b.date.day == today.day for b in data.birthdays):
+        states.add("birthday_today")
+
+    return states
+
+
 def _rule_matches(rule, now: datetime, data: DashboardData | None) -> bool:
     """Return True iff every *set* field in ``rule.when`` matches the context."""
     when = rule.when
@@ -147,6 +180,15 @@ def _rule_matches(rule, now: datetime, data: DashboardData | None) -> bool:
         day_name, weekend_key = _current_weekday(now)
         want = _listify(when.weekday)
         if not _match_weekday(want, day_name, weekend_key):
+            return False
+
+    # Calendar
+    if when.calendar is not None:
+        if data is None:
+            return False
+        states = _calendar_states(now, data)
+        want = _listify(when.calendar)
+        if not any(v in states for v in want):
             return False
 
     return True
