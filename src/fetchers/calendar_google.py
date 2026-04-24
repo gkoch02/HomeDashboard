@@ -140,6 +140,8 @@ def fetch_google_events(
 
     calendar_ids = [cfg.calendar_id] + list(cfg.additional_calendars)
     events: list[CalendarEvent] = []
+    any_success = False
+    last_exc: Exception | None = None
 
     for cal_id in calendar_ids:
         cal_state = sync_state.get(cal_id, {})
@@ -150,51 +152,83 @@ def fetch_google_events(
         requested_start = time_min.date().isoformat()
         requested_end = time_max.date().isoformat()
 
-        if sync_token and stored_start == requested_start and stored_end == requested_end:
-            delta_items, cal_name, new_token, needs_reset = _fetch_incremental(
-                service, cal_id, sync_token, tz=tz
-            )
-            if needs_reset:
-                logger.info("Sync token expired for %s — performing full sync", cal_id)
-                sync_token = None  # fall through to full sync below
-            else:
-                merged = _apply_delta(stored, delta_items, cal_name, tz=tz)
-                week_events = _filter_to_window(merged, time_min, time_max, tz=tz)
-                sync_state[cal_id] = {
-                    "sync_token": new_token,
-                    "events": merged,
-                    "window_start": requested_start,
-                    "window_end": requested_end,
-                }
-                events.extend(week_events)
-                logger.info(
-                    "Incremental sync %s: %d delta items → %d in week window",
-                    cal_id,
-                    len(delta_items),
-                    len(week_events),
+        try:
+            if sync_token and stored_start == requested_start and stored_end == requested_end:
+                delta_items, cal_name, new_token, needs_reset = _fetch_incremental(
+                    service, cal_id, sync_token, tz=tz
                 )
-                continue  # skip full sync below
+                if needs_reset:
+                    logger.info("Sync token expired for %s — performing full sync", cal_id)
+                    sync_token = None  # fall through to full sync below
+                else:
+                    merged = _apply_delta(stored, delta_items, cal_name, tz=tz)
+                    week_events = _filter_to_window(merged, time_min, time_max, tz=tz)
+                    sync_state[cal_id] = {
+                        "sync_token": new_token,
+                        "events": merged,
+                        "window_start": requested_start,
+                        "window_end": requested_end,
+                    }
+                    events.extend(week_events)
+                    any_success = True
+                    logger.info(
+                        "Incremental sync %s: %d delta items → %d in week window",
+                        cal_id,
+                        len(delta_items),
+                        len(week_events),
+                    )
+                    continue  # skip full sync below
 
-        elif sync_token:
-            logger.info(
-                "Stored sync window for %s (%s → %s) does not match requested window (%s → %s); performing full sync",
-                cal_id,
-                stored_start,
-                stored_end,
-                requested_start,
-                requested_end,
+            elif sync_token:
+                logger.info(
+                    "Stored sync window for %s (%s → %s) does not match requested window (%s → %s); performing full sync",
+                    cal_id,
+                    stored_start,
+                    stored_end,
+                    requested_start,
+                    requested_end,
+                )
+
+            # Full sync (first run or after sync token expiry)
+            cal_events, cal_name, new_token = _fetch_full(
+                service, cal_id, time_min, time_max, tz=tz
             )
+            sync_state[cal_id] = {
+                "sync_token": new_token,
+                "events": [_ser_sync_event(e) for e in cal_events],
+                "window_start": requested_start,
+                "window_end": requested_end,
+            }
+            events.extend(cal_events)
+            any_success = True
+            logger.info(
+                "Full sync %s: %d events, token=%s", cal_id, len(cal_events), bool(new_token)
+            )
+        except Exception as exc:
+            # Per-calendar isolation: don't let one calendar's transient failure
+            # (DNS/auth/network) wipe out fresh data from sibling calendars.
+            # Preserve this calendar's sync_state entry (so its token + stored
+            # events survive) and fall back to the previously-synced events
+            # for this calendar so we don't silently lose them either.
+            logger.warning(
+                "Failed to fetch calendar %s: %s — preserving last-known events",
+                cal_id,
+                exc,
+            )
+            last_exc = exc
+            stored_window_events = _filter_to_window(stored, time_min, time_max, tz=tz)
+            if stored_window_events:
+                events.extend(stored_window_events)
+                logger.info(
+                    "Using %d previously-synced events for %s",
+                    len(stored_window_events),
+                    cal_id,
+                )
 
-        # Full sync (first run or after sync token expiry)
-        cal_events, cal_name, new_token = _fetch_full(service, cal_id, time_min, time_max, tz=tz)
-        sync_state[cal_id] = {
-            "sync_token": new_token,
-            "events": [_ser_sync_event(e) for e in cal_events],
-            "window_start": requested_start,
-            "window_end": requested_end,
-        }
-        events.extend(cal_events)
-        logger.info("Full sync %s: %d events, token=%s", cal_id, len(cal_events), bool(new_token))
+    # If every calendar failed, bubble up so callers (data_pipeline._resolve_source)
+    # can fall back to the top-level events cache and mark the source stale.
+    if last_exc is not None and not any_success:
+        raise last_exc
 
     if cache_dir:
         _save_sync_state(sync_state, cache_dir)
