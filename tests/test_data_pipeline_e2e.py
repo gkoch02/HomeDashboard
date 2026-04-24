@@ -112,6 +112,51 @@ class TestDataPipelineE2E:
         assert data.weather.current_temp == 68.0
         assert data.is_stale
 
+    def test_calendar_network_failure_preserves_cache(self, tmp_path):
+        """Regression for issue #145: when the Google Calendar fetch raises
+        (e.g. DNS/auth/network failure), previously-cached events must be
+        returned — NOT overwritten with an empty list that blanks the
+        rendered calendar panel."""
+        # First run populates the cache with real events.
+        events = _make_events()
+        weather = _make_weather()
+        birthdays = _make_birthdays()
+
+        pipeline1 = _make_pipeline(tmp_path, force_refresh=True)
+        with (
+            patch("src.data_pipeline.fetch_events", return_value=events),
+            patch("src.data_pipeline.fetch_weather", return_value=weather),
+            patch("src.data_pipeline.fetch_birthdays", return_value=birthdays),
+            patch("src.data_pipeline.fetch_host_data", return_value=None),
+        ):
+            pipeline1.fetch()
+
+        # Second run: calendar fetch raises a DNS-style error (as would happen
+        # when oauth2.googleapis.com is unreachable).
+        pipeline2 = _make_pipeline(tmp_path, force_refresh=True)
+        with (
+            patch(
+                "src.data_pipeline.fetch_events",
+                side_effect=OSError("Unable to find the server at oauth2.googleapis.com"),
+            ),
+            patch("src.data_pipeline.fetch_weather", return_value=weather),
+            patch("src.data_pipeline.fetch_birthdays", return_value=birthdays),
+            patch("src.data_pipeline.fetch_host_data", return_value=None),
+        ):
+            data = pipeline2.fetch()
+
+        # Cached events preserved, not clobbered with [].
+        assert len(data.events) == 1
+        assert data.events[0].summary == "Meeting"
+        assert data.is_stale
+        assert data.source_staleness.get("events") in (
+            StalenessLevel.STALE,
+            StalenessLevel.AGING,
+            StalenessLevel.FRESH,
+        )
+        # events is listed among the stale sources so the UI surfaces it.
+        assert "events" in data.stale_sources
+
     def test_all_sources_fail_no_cache(self, tmp_path):
         """When all fetchers fail and no cache exists, returns empty data."""
         pipeline = _make_pipeline(tmp_path, force_refresh=True)

@@ -467,15 +467,16 @@ class TestFetchFull:
         assert len(events) == 2
         assert token == "tok_final"
 
-    def test_api_exception_returns_partial_results(self):
-        """If the API call raises, _fetch_full breaks and returns what it has."""
+    def test_api_exception_propagates(self):
+        """If the API call raises, _fetch_full propagates the exception so the
+        caller can fall back to cached data instead of overwriting it with an
+        empty list (issue #145)."""
         svc = MagicMock()
         svc.events().list().execute.side_effect = Exception("network error")
         time_min = datetime(2024, 3, 11, tzinfo=timezone.utc)
         time_max = datetime(2024, 3, 18, tzinfo=timezone.utc)
-        events, _, token = _fetch_full(svc, "primary", time_min, time_max)
-        assert events == []
-        assert token is None
+        with pytest.raises(Exception, match="network error"):
+            _fetch_full(svc, "primary", time_min, time_max)
 
 
 # ---------------------------------------------------------------------------

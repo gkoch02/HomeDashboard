@@ -214,6 +214,11 @@ def _fetch_full(
 
     Returns ``(events, calendar_name, next_sync_token)``.  ``next_sync_token``
     is ``None`` when the API does not return one (should not happen in practice).
+
+    Raises the underlying exception on any API failure (network, DNS, auth,
+    HTTP error) so callers can distinguish a genuine "no events" response from
+    a failed fetch and fall back to cached data rather than overwriting it
+    with an empty list.
     """
     params: dict = dict(
         calendarId=calendar_id,
@@ -239,7 +244,7 @@ def _fetch_full(
             result = service.events().list(**params).execute()
         except Exception as exc:
             logger.warning("Failed to fetch calendar %s: %s", calendar_id, exc)
-            break
+            raise
 
         cal_name = result.get("summary", calendar_id)
         for item in result.get("items", []):

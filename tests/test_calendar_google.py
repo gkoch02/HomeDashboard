@@ -560,7 +560,10 @@ class TestFetchFull:
         assert len(events) == 2
         assert token == "final_tok"
 
-    def test_api_exception_returns_empty(self):
+    def test_api_exception_propagates(self):
+        """Network/DNS/auth failures must propagate so callers can fall back
+        to cache instead of overwriting good cached data with an empty list
+        (see issue #145)."""
         list_mock = MagicMock()
         list_mock.execute.side_effect = Exception("Network error")
         events_mock = MagicMock()
@@ -570,9 +573,30 @@ class TestFetchFull:
 
         time_min = datetime(2024, 3, 11, 0, 0, tzinfo=timezone.utc)
         time_max = time_min + timedelta(days=7)
-        events, cal_name, token = _fetch_full(service, "primary", time_min, time_max)
-        assert events == []
-        assert token is None
+        with pytest.raises(Exception, match="Network error"):
+            _fetch_full(service, "primary", time_min, time_max)
+
+    def test_pagination_failure_propagates(self):
+        """If a mid-pagination request fails, the exception must propagate so
+        the caller does not persist partial data as the full result."""
+        page1 = {
+            "items": [
+                _timed_item("Event 1", "2024-03-15T09:00:00+00:00", "2024-03-15T10:00:00+00:00")
+            ],
+            "summary": "Cal",
+            "nextPageToken": "page2",
+        }
+        list_mock = MagicMock()
+        list_mock.execute.side_effect = [page1, RuntimeError("Transient failure")]
+        events_mock = MagicMock()
+        events_mock.list.return_value = list_mock
+        service = MagicMock()
+        service.events.return_value = events_mock
+
+        time_min = datetime(2024, 3, 11, 0, 0, tzinfo=timezone.utc)
+        time_max = time_min + timedelta(days=7)
+        with pytest.raises(RuntimeError, match="Transient failure"):
+            _fetch_full(service, "primary", time_min, time_max)
 
 
 # ---------------------------------------------------------------------------
@@ -758,12 +782,79 @@ class TestFetchGoogleEvents:
         starts = [e.start for e in events]
         assert starts == sorted(starts)
 
+    def test_network_failure_preserves_sync_state(self, tmp_path):
+        """Regression for issue #145: a DNS/auth/network failure during fetch
+        must NOT overwrite persisted sync state with empty events — the
+        exception propagates so callers can fall back to cached data."""
+        from src.fetchers.calendar_google import _SYNC_STATE_FILENAME
+
+        # Seed a sync state with real events from a previous successful sync.
+        today = _today(None)
+        window_start = today - timedelta(days=today.weekday())
+        window_end = window_start + timedelta(days=7)
+        original_events = [
+            {
+                "event_id": "evt_1",
+                "summary": "Team meeting",
+                "start": "2024-03-15T09:00:00",
+                "end": "2024-03-15T10:00:00",
+                "is_all_day": False,
+                "location": None,
+                "calendar_name": "My Calendar",
+            }
+        ]
+        existing_state = {
+            "primary": {
+                "sync_token": "good_tok",
+                "events": original_events,
+                "window_start": window_start.isoformat(),
+                "window_end": window_end.isoformat(),
+            }
+        }
+        sync_file = tmp_path / _SYNC_STATE_FILENAME
+        sync_file.write_text(json.dumps(existing_state))
+
+        # Simulate a DNS failure on the first call (incremental with syncToken)
+        # — pagination triggers needs_reset=True; the retry (full sync) hits
+        # the same error and propagates.
+        list_mock = MagicMock()
+        list_mock.execute.side_effect = OSError(
+            "Unable to find the server at oauth2.googleapis.com"
+        )
+        events_mock = MagicMock()
+        events_mock.list.return_value = list_mock
+        svc = MagicMock()
+        svc.events.return_value = events_mock
+
+        cfg = _google_cfg()
+        with self._patch_build_service(svc), pytest.raises(OSError):
+            fetch_google_events(cfg, cache_dir=str(tmp_path))
+
+        # Persisted sync state must be untouched — still holds the pre-failure
+        # sync token and events.
+        with open(sync_file) as f:
+            persisted = json.load(f)
+        assert persisted == existing_state
+
     def test_sync_token_expired_falls_back_to_full(self, tmp_path):
         from googleapiclient.errors import HttpError
 
         from src.fetchers.calendar_google import _SYNC_STATE_FILENAME
 
-        existing_state = {"primary": {"sync_token": "expired_tok", "events": []}}
+        # Seed state whose window matches the requested window so the
+        # incremental path is exercised first (and its 410 triggers a reset
+        # → full sync retry).
+        today = _today(None)
+        window_start = today - timedelta(days=today.weekday())
+        window_end = window_start + timedelta(days=7)
+        existing_state = {
+            "primary": {
+                "sync_token": "expired_tok",
+                "events": [],
+                "window_start": window_start.isoformat(),
+                "window_end": window_end.isoformat(),
+            }
+        }
         (tmp_path / _SYNC_STATE_FILENAME).write_text(json.dumps(existing_state))
 
         resp = MagicMock()
