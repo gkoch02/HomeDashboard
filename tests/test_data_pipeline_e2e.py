@@ -149,13 +149,11 @@ class TestDataPipelineE2E:
         assert len(data.events) == 1
         assert data.events[0].summary == "Meeting"
         assert data.is_stale
-        assert data.source_staleness.get("events") in (
-            StalenessLevel.STALE,
-            StalenessLevel.AGING,
-            StalenessLevel.FRESH,
-        )
-        # events is listed among the stale sources so the UI surfaces it.
+        # events is listed among the stale sources so the UI surfaces it
+        # (the staleness level itself depends on cache age; the contract we
+        # care about is that the fallback path fired at all).
         assert "events" in data.stale_sources
+        assert data.source_staleness.get("events") != StalenessLevel.EXPIRED
 
     def test_all_sources_fail_no_cache(self, tmp_path):
         """When all fetchers fail and no cache exists, returns empty data."""
