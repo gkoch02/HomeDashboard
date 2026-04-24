@@ -83,7 +83,7 @@ cp output/latest.png output/theme_fuzzyclock_inky.png
 Example full batch for all concrete themes:
 
 ```bash
-for theme in air_quality default diags fantasy fuzzyclock fuzzyclock_invert \
+for theme in air_quality astronomy countdown default diags fantasy fuzzyclock fuzzyclock_invert \
              message minimalist monthly moonphase moonphase_invert old_fashioned photo qotd \
              qotd_invert scorecard sunrise terminal tides timeline today weather year_pulse; do
   if [ "$theme" = "message" ]; then
@@ -140,6 +140,11 @@ or refreshing the preview assets.
 - `make previews` currently targets the normal dry-run path only. It does not generate a separate
   Inky batch on its own.
 - The `message` theme requires `--message TEXT` during preview generation.
+- The `countdown` theme renders an empty "No countdowns configured" placeholder when
+  `countdown.events` is empty — configure at least one upcoming date in the active
+  config for a meaningful preview.
+- The `astronomy` theme uses `weather.latitude` / `weather.longitude` for twilight math;
+  the preview degrades gracefully without them (OWM sunrise/sunset only, no twilight).
 - The `photo` theme will still render in dry-run mode even if no custom photo path is configured,
   but the result depends on the active config.
 - Inky previews are still PNG files on your computer. They are not a perfect simulation of the

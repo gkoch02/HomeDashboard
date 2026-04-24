@@ -117,6 +117,56 @@ See [Themes documentation](themes.md) and existing themes for examples.
 - Delete the state file to force a new pick immediately.
 - Use `random_theme.include` and `random_theme.exclude` in config to control
   which themes are in the rotation pool.
+- `countdown`, `photo`, `message`, and `diags` are excluded from the random
+  pool by default — they all need manual input and aren't useful as random picks.
+
+### How do I configure the countdown theme?
+
+Add entries under `countdown.events` in `config.yaml` and set `theme: countdown`:
+
+```yaml
+theme: countdown
+countdown:
+  events:
+    - name: "Paris Trip"
+      date: "2026-06-04"
+    - name: "Anniversary"
+      date: "2026-08-12"
+```
+
+Up to five upcoming entries are shown. Past dates are dropped silently. One
+event renders as a hero numeral; multiple events stack as a list. See
+[Themes → countdown](themes.md#countdown).
+
+### What data does the astronomy theme need?
+
+The `astronomy` theme works best with `weather.latitude` / `weather.longitude`
+set in `config.yaml` — those enable the civil/nautical/astronomical twilight
+times, day-length delta, and the dark-sky window. Without coordinates, the
+theme falls back to OWM-reported sunrise/sunset (from `fetch_weather()`) and
+hides the twilight section.
+
+Moon phase, next full/new moon, and the next meteor shower are computed from
+pure math and always work.
+
+### What is `theme_rules`?
+
+`theme_rules` picks a theme based on live context — weather, time-of-day,
+season, or weekday. Rules fire *before* `theme_schedule` so they can override
+the time-of-day schedule when, for example, a storm alert arrives.
+
+```yaml
+theme_rules:
+  - when: { weather_alert_present: true }
+    theme: "message"
+  - when: { weather: ["rain", "snow", "thunderstorm"] }
+    theme: "weather"
+  - when: { daypart: "night", weather: "clear" }
+    theme: "moonphase"
+```
+
+First match wins. See [Themes → Context-aware theme rules](themes.md#context-aware-theme-rules)
+for the full condition reference.
 
 ### How do I force a full eInk refresh?
 

@@ -96,7 +96,9 @@ warn_return_any = true
 [[tool.mypy.overrides]]
 module = [
     "src.render.components.air_quality_panel",
+    "src.render.components.astronomy_panel",
     "src.render.components.birthday_bar",
+    "src.render.components.countdown_panel",
     "src.render.components.diags_panel",
     "src.render.components.fuzzyclock_panel",
     "src.render.components.header",

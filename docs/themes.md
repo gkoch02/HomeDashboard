@@ -12,6 +12,7 @@ Use this page for:
 - [Switching themes](#switching-themes)
 - [Random rotation](#random-rotation)
 - [Time-of-day theme schedule](#time-of-day-theme-schedule)
+- [Context-aware theme rules](#context-aware-theme-rules)
 - [Built-in themes](#built-in-themes)
 - [Creating your own theme](#creating-your-own-theme)
 - [Color Themes](color-themes.md)
@@ -25,7 +26,7 @@ Use this page for:
 Set one concrete theme in `config.yaml`:
 
 ```yaml
-theme: terminal   # default | terminal | minimalist | old_fashioned | today | fantasy | moonphase | moonphase_invert | qotd | qotd_invert | weather | fuzzyclock | fuzzyclock_invert | air_quality | message | diags | timeline | year_pulse | monthly | sunrise | scorecard | tides | photo | random | random_daily | random_hourly
+theme: terminal   # default | terminal | minimalist | old_fashioned | today | fantasy | moonphase | moonphase_invert | qotd | qotd_invert | weather | fuzzyclock | fuzzyclock_invert | air_quality | astronomy | message | diags | timeline | year_pulse | monthly | sunrise | scorecard | tides | photo | countdown | random | random_daily | random_hourly
 ```
 
 Or override it from the CLI:
@@ -61,7 +62,7 @@ random_theme:
 
 - `include` is an allowlist. Empty means all eligible themes.
 - `exclude` is a denylist applied after `include`.
-- `diags`, `message`, and `photo` are excluded from the random pool by design.
+- `diags`, `message`, `photo`, and `countdown` are excluded from the random pool by design — they all need manual input (a message text, a photo path, or countdown events) and aren't useful as random picks.
 - If the pool ends up empty, the app falls back to `default`.
 - Run `make check` to validate theme names.
 
@@ -83,10 +84,43 @@ theme_schedule:
 
 Priority order:
 1. `--theme`
-2. `theme_schedule`
-3. `theme` in `config.yaml`
+2. `theme_rules`
+3. `theme_schedule`
+4. `theme` in `config.yaml`
 
 The active entry is the last row whose `time` is less than or equal to the current local time. When no row applies yet, normal fixed or random theme selection runs.
+
+---
+
+## Context-aware theme rules
+
+`theme_rules` evaluates live context (weather, time-of-day, season, weekday) and picks a theme when a condition matches. Rules fire **before** `theme_schedule`, so they can override the time-of-day schedule when the conditions warrant it.
+
+```yaml
+theme_rules:
+  - when: { weather_alert_present: true }
+    theme: "message"
+  - when: { weather: ["rain", "snow", "thunderstorm"] }
+    theme: "weather"
+  - when: { daypart: "night", weather: "clear" }
+    theme: "moonphase"
+  - when: { weekday: "weekend" }
+    theme: "today"
+```
+
+Rules are evaluated top-to-bottom; the **first matching** rule wins. A rule matches when every `when:` field it sets evaluates true against the current context (AND semantics). Unset fields don't constrain.
+
+Supported conditions:
+
+| Field | Values | Notes |
+|---|---|---|
+| `weather` | OWM description substring (scalar or list) | `"rain"`, `"snow"`, `"clear"`, `"clouds"`, `"thunderstorm"`, `"fog"`, ... Matches against the current weather description — any listed token hitting as a substring counts as a match. |
+| `weather_alert_present` | `true` / `false` | Fires when any OWM alert is active (or explicitly when no alert is active). |
+| `daypart` | `"dawn"`, `"morning"`, `"afternoon"`, `"dusk"`, `"night"`, or `"day"` (scalar or list) | With weather data: `dawn` = sunrise ±90min, `dusk` = sunset ±60min, `morning` = after dawn before local noon, `afternoon` = after noon before dusk, `night` = otherwise. `day` is a convenience alias for morning ∪ afternoon. Without weather data, fixed clock ranges are used. |
+| `season` | `"spring"`, `"summer"`, `"fall"`/`"autumn"`, `"winter"` (scalar or list) | N-hemisphere meteorological buckets by month. |
+| `weekday` | `"weekend"`, `"weekday"`, or a day name (scalar or list) | E.g. `"monday"`. |
+
+Rules that reference weather data silently skip on the first boot (no cached weather yet), so the system falls through to `theme_schedule` / `cfg.theme` until weather is available. If any rule could resolve to `monthly`, the calendar event window is pre-sized for the month grid so the view has complete data whenever the rule fires.
 
 ---
 
@@ -121,6 +155,7 @@ The active entry is the last row whose `time` is less than or equal to the curre
 | Theme | Best for | Notes |
 |---|---|---|
 | `air_quality` | indoor/outdoor AQI dashboard | PurpleAir-first full-screen layout |
+| `astronomy` | sky-tonight dashboard | Sunrise/sunset, civil/nautical/astronomical twilight, moon phase + next full/new, next meteor shower, dark-sky window. Uses `weather.latitude` / `weather.longitude` for twilight math (falls back gracefully without them). Pure-Python — no API calls. |
 | `timeline` | busy-day planning | Single-day hourly timeline |
 | `year_pulse` | longer-horizon planning | Year progress plus upcoming events and birthdays |
 | `monthly` | month-at-a-glance planning | Traditional month grid with event-density heatmap |
@@ -132,6 +167,7 @@ The active entry is the last row whose `time` is less than or equal to the curre
 
 | Theme | Best for | Notes |
 |---|---|---|
+| `countdown` | days-until tracker | User-configured target dates; one event = hero numeral, multiple = stacked list. Driven by `countdown.events` in `config.yaml`; excluded from random rotation |
 | `message` | one-off reminders | Requires `--message`; excluded from random rotation |
 | `diags` | debugging and validation | Structured data readout; excluded from random rotation |
 
@@ -227,6 +263,12 @@ Full-screen PurpleAir-oriented AQI dashboard with particulate, ambient, weather,
 
 ![Air Quality theme](../output/theme_air_quality.png)
 
+#### astronomy
+
+Four-quadrant "sky tonight" layout plus a dark-sky-window footer: sunrise, solar noon, sunset, day-length delta, moon phase with illumination and next full/new dates, civil/nautical/astronomical dusk times, and the next annual meteor shower with its peak date and approximate zenithal hourly rate. All data is computed locally from `src.astronomy`; no API calls beyond weather lat/lon. When `weather.latitude` / `weather.longitude` are not configured, the theme falls back to OWM-reported sunrise/sunset and hides the twilight section.
+
+![Astronomy theme](../output/theme_astronomy.png)
+
 #### timeline
 
 Single-day hourly timeline that makes free blocks and overlaps easy to spot.
@@ -266,6 +308,21 @@ Alternating horizontal bands with the densest multi-source layout in the theme s
 
 ![Tides theme](../output/theme_tides.png)
 
+#### countdown
+
+Full-canvas days-until tracker driven by `countdown.events` in `config.yaml`. A single event renders as a "hero" with a giant numeral and the event name; two to five events stack as rows, each with a prominent day count plus name and target date. Past events are dropped silently. No API calls.
+
+```yaml
+countdown:
+  events:
+    - name: "Paris Trip"
+      date: "2026-06-04"
+    - name: "Anniversary"
+      date: "2026-08-12"
+```
+
+![Countdown theme](../output/theme_countdown.png)
+
 #### message
 
 Manual message display for reminders or announcements. Use:
@@ -299,7 +356,7 @@ Bundled font families used by the current built-in themes:
 | Font | Used by |
 |---|---|
 | Plus Jakarta Sans | default and general fallback |
-| DM Sans | `minimalist`, `weather`, `fuzzyclock`, `timeline`, `diags`, `monthly` |
+| DM Sans | `minimalist`, `weather`, `fuzzyclock`, `timeline`, `diags`, `monthly`, `countdown`, `astronomy` |
 | Playfair Display | `old_fashioned`, `qotd`, `moonphase` |
 | Cinzel | `fantasy`, `old_fashioned`, `moonphase` accents |
 | Space Grotesk | `air_quality`, `message`, `year_pulse`, `scorecard` |

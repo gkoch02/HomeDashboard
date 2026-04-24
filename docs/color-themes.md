@@ -7,6 +7,8 @@ Audience: operators browsing the current preview gallery.
 This page is gallery-only. For theme behavior, random rotation, and configuration, use [Themes](themes.md). For preview generation workflows, use [Color Theme Previews](color-theme-previews.md).
 
 - [Air Quality](#air-quality)
+- [Astronomy](#astronomy)
+- [Countdown](#countdown)
 - [Default](#default)
 - [Diags](#diags)
 - [Fantasy](#fantasy)
@@ -35,6 +37,18 @@ This page is gallery-only. For theme behavior, random rotation, and configuratio
 ## Air Quality
 
 [![Air Quality preview](../output/theme_air_quality_inky.png)](../output/theme_air_quality_inky.png)
+
+## Astronomy
+
+Four-quadrant sky-tonight layout with sun times, moon phase, twilight dusk, next meteor shower, and a dark-sky-window footer. Pure-Python compute — no API calls.
+
+[![Astronomy preview](../output/theme_astronomy_inky.png)](../output/theme_astronomy_inky.png)
+
+## Countdown
+
+Config-driven days-until tracker. One event renders as a hero numeral; multiple events stack as a list.
+
+[![Countdown preview](../output/theme_countdown_inky.png)](../output/theme_countdown_inky.png)
 
 ## Default
 

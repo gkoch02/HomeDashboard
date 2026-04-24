@@ -88,19 +88,44 @@ class DashboardApp:
             logger.info("Morning startup — forcing full refresh")
 
         configured_theme = self.args.theme if self.args.theme is not None else self.cfg.theme
-        theme_name = resolve_theme_name(self.cfg, self.args.theme, now=now)
+        # Phase 1: pre-fetch resolve (no data) — used to size the calendar event window.
+        pre_theme = resolve_theme_name(self.cfg, self.args.theme, now=now, data=None)
+        # If any rule can later resolve to "monthly" post-fetch, pre-size the event
+        # window for monthly now; the extra calendar events are cheap and avoid a
+        # re-fetch when a weather rule flips to monthly.
+        window_theme = (
+            "monthly" if pre_theme != "monthly" and self._rules_can_pick_monthly() else pre_theme
+        )
+        event_window_start, event_window_days = self._event_window_for_theme(window_theme, now)
+
+        data = self._load_data(now, force_full, pre_theme, event_window_start, event_window_days)
+        data = self._apply_filters(data)
+
+        # Phase 2: post-fetch resolve — only needed when theme_rules exist, since
+        # nothing else in the resolver reads DashboardData.  Skipping avoids a
+        # second pick_random_theme() call (and its log line) on the common path.
+        if self.cfg.theme_rules.rules:
+            theme_name = resolve_theme_name(self.cfg, self.args.theme, now=now, data=data)
+            if theme_name != pre_theme:
+                logger.info(
+                    "Theme changed post-fetch via theme_rules: %s → %s", pre_theme, theme_name
+                )
+        else:
+            theme_name = pre_theme
         if theme_name != configured_theme:
             logger.info("Theme resolved to: %s", theme_name)
-        event_window_start, event_window_days = self._event_window_for_theme(theme_name, now)
-
-        data = self._load_data(now, force_full, theme_name, event_window_start, event_window_days)
-        data = self._apply_filters(data)
 
         theme = load_theme(theme_name)
         if theme_name == "photo":
             theme.style.photo_path = self.cfg.photo.path
 
         logger.info("Rendering dashboard")
+        # Treat (0.0, 0.0) as "unset" — matches validate_config's (0,0) warning.
+        # Any other coordinate (including the equator or prime meridian) is passed
+        # through so twilight math can run.
+        lat = self.cfg.weather.latitude
+        lon = self.cfg.weather.longitude
+        coords_set = not (lat == 0.0 and lon == 0.0)
         image = render_dashboard(
             data,
             self.cfg.display,
@@ -108,6 +133,9 @@ class DashboardApp:
             theme=theme,
             quote_refresh=self.cfg.cache.quote_refresh,
             message_text=getattr(self.args, "message", None),
+            countdown_events=list(self.cfg.countdown.events),
+            latitude=lat if coords_set else None,
+            longitude=lon if coords_set else None,
         )
         self.output.publish(
             image,
@@ -166,6 +194,15 @@ class DashboardApp:
         grid_start = weeks[0][0]
         grid_end = weeks[-1][-1] + timedelta(days=1)
         return grid_start, (grid_end - grid_start).days
+
+    def _rules_can_pick_monthly(self) -> bool:
+        """Return True when any ``theme_rules`` entry could resolve to ``monthly``.
+
+        Used pre-fetch to widen the calendar event window so the monthly grid
+        has complete data if a weather-dependent rule later flips the theme to
+        monthly (after the pre-fetch resolve already picked a non-monthly theme).
+        """
+        return any(rule.theme == "monthly" for rule in self.cfg.theme_rules.rules)
 
     def _apply_filters(self, data):
         if (

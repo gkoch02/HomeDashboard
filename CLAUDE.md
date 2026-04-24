@@ -50,9 +50,12 @@ src/
 ├── app.py                     # DashboardApp — top-level orchestrator (quiet hours, fetch, render, output)
 ├── cli.py                     # CLI argument parser (build_parser / parse_args)
 ├── data_pipeline.py           # DataPipeline — concurrent fetching, caching, circuit breaking per source
+├── astronomy.py               # Pure-Python NOAA sunrise/sunset/twilight, day-length delta,
+│                              #   meteor-shower lookup. Used by the astronomy theme; no network.
 ├── services/
 │   ├── run_policy.py          # resolve_tz, should_skip_refresh, should_force_full_refresh
-│   ├── theme.py               # resolve_theme_name (schedule → random → concrete), resolve_theme
+│   ├── theme.py               # resolve_theme_name (CLI → rules → schedule → cfg.theme / random)
+│   ├── theme_rules.py         # Context-aware rule evaluator (weather / daypart / season / weekday)
 │   └── output.py              # OutputService — publish image to display or PNG; write last_success.txt;
 │                              #   Inky hourly throttle for non-fuzzyclock themes
 ├── _version.py                # Single source of truth: __version__ = "4.3.1"
@@ -87,18 +90,19 @@ src/
     ├── moon.py                # Moon phase calculator
     ├── primitives.py          # Shared draw utilities (truncation, wrapping, colors, fmt_time,
     │                          #   events_for_day, deg_to_compass)
-    ├── themes/                # themes (23): standard week-view (default, terminal,
+    ├── themes/                # themes (25): standard week-view (default, terminal,
     │                          #   minimalist, old_fashioned, today, fantasy); full-screen
     │                          #   focused (qotd, qotd_invert, fuzzyclock, fuzzyclock_invert,
     │                          #   weather, moonphase, moonphase_invert); specialized views
     │                          #   (timeline, year_pulse, monthly, sunrise, air_quality,
-    │                          #   scorecard, tides); photo overlay (photo); utility (message, diags)
+    │                          #   astronomy, scorecard, tides); photo overlay (photo);
+    │                          #   utility (countdown, message, diags)
     └── components/            # One file per UI region: header, week_view, weather_panel,
                                #   weather_full, birthday_bar, today_view, info_panel, qotd_panel,
                                #   fuzzyclock_panel, diags_panel, air_quality_panel,
-                               #   moonphase_panel, message_panel, timeline_panel,
-                               #   year_pulse_panel, monthly_panel, sunrise_panel,
-                               #   scorecard_panel, tides_panel
+                               #   astronomy_panel, moonphase_panel, message_panel,
+                               #   timeline_panel, year_pulse_panel, monthly_panel,
+                               #   sunrise_panel, scorecard_panel, tides_panel, countdown_panel
 └── web/                       # Optional Flask web UI (install: pip install -r requirements-web.txt)
     ├── __main__.py            # Entry point: python -m src.web [--config web.yaml] [--port 8080]
     ├── app.py                 # Flask application factory (create_app); registers all blueprints
@@ -152,11 +156,13 @@ Fetchers, caching, circuit breaking, and staleness are all per-source (calendar,
 ### Theme system
 Three-layer design: **ComponentRegion** (bounding box) → **ThemeLayout** (canvas + regions + draw order + `canvas_mode`) → **ThemeStyle** (colors, fonts, spacing). Components receive region + style and draw only within bounds. Themes are frozen dataclasses.
 
-`ThemeLayout.canvas_mode` is `"1"` (1-bit, default — all 23 built-in themes) or `"L"` (8-bit greyscale, opt-in for new themes). L-mode themes must use `fg=0, bg=255` in `ThemeStyle` (`bg=1` is near-black in L mode, not white). For Waveshare, the final L→`"1"` conversion is handled by `quantize_for_display()` in `render/quantize.py` and is controlled by `display.quantization_mode` (`threshold` / `floyd_steinberg` / `ordered`). For Inky, the final image is mapped to the limited Spectra 6 palette instead of being quantized to 1-bit.
+`ThemeLayout.canvas_mode` is `"1"` (1-bit, default — all 25 built-in themes) or `"L"` (8-bit greyscale, opt-in for new themes). L-mode themes must use `fg=0, bg=255` in `ThemeStyle` (`bg=1` is near-black in L mode, not white). For Waveshare, the final L→`"1"` conversion is handled by `quantize_for_display()` in `render/quantize.py` and is controlled by `display.quantization_mode` (`threshold` / `floyd_steinberg` / `ordered`). For Inky, the final image is mapped to the limited Spectra 6 palette instead of being quantized to 1-bit.
 
 Two rotation cadences are available: `theme: random_daily` (alias: `random`) picks once per day after midnight and persists to `state/random_theme_state.json`; `theme: random_hourly` picks once per hour and persists to `state/random_theme_hourly_state.json`. Both use the same `random_theme.include` / `random_theme.exclude` lists. The concrete theme name is resolved in `services/theme.py` before `load_theme()` is called — `load_theme()` itself never receives a pseudo-theme name.
 
-`theme_schedule` is a higher-priority override: `resolve_theme_name()` checks the schedule entries (sorted by HH:MM) before consulting `cfg.theme` or the random pool. The active entry is the last one whose time ≤ current local time. When no entry matches, control falls through to `cfg.theme` / random as normal. CLI `--theme` always wins over the schedule.
+Theme-resolution priority (highest → lowest): **CLI `--theme` > `theme_rules` > `theme_schedule` > `cfg.theme` / random**. `theme_rules` (evaluated by `services/theme_rules.py`) is the first-match-wins context system — conditions are any combination of `weather`, `weather_alert_present`, `daypart`, `season`, `weekday`. `theme_schedule` entries are sorted by HH:MM and the active entry is the last one whose time ≤ current local time. When no rule or schedule row fires, `cfg.theme` applies.
+
+`resolve_theme_name()` is called **twice** in `DashboardApp.run()` when `theme_rules.rules` is non-empty: once pre-fetch with `data=None` (for sizing the calendar event window) and once post-fetch with the loaded `DashboardData` (so weather-dependent rules can fire). When no rules are configured, the second call is skipped to avoid a duplicate `pick_random_theme()` log line. Rules requiring weather data silently skip on the first call so offline boots fall through cleanly.
 
 ### Data flow
 `main.py` (thin): parse args → load config → validate config → `DashboardApp.run()`.
@@ -218,7 +224,7 @@ Components are pure functions: `draw_*(draw, data, region, style) -> None`. No g
 | `Maratype.otf` | `maratype` | `terminal` — dashboard title, day column headers, quote body |
 | `UESC Display.otf` | `uesc_display` | `terminal` — month band, section labels, quote attribution |
 | `Synthetic Genesis.otf` | `synthetic_genesis` | `terminal` — large today date numeral |
-| `DMSans.ttf` | `dm_regular/medium/semibold/bold` | `minimalist`, `weather`, `fuzzyclock`, `diags` (section labels) |
+| `DMSans.ttf` | `dm_regular/medium/semibold/bold` | `minimalist`, `weather`, `fuzzyclock`, `diags` (section labels), `countdown`, `astronomy` |
 | `PlayfairDisplay-*.ttf` | `playfair_regular/medium/semibold/bold` | `old_fashioned`, `qotd`, `moonphase` |
 | `Cinzel.ttf` | `cinzel_regular/semibold/bold/black` | `fantasy`, `old_fashioned` section labels, `moonphase` |
 | `SpaceGrotesk-Regular.ttf` | `sg_regular` | `air_quality`, `message` |
@@ -281,7 +287,7 @@ default to `None` and fall back gracefully so adding a new field never breaks ex
 - Inky Impression panels do not support partial refresh. For `display.provider: inky`, non-fuzzyclock themes are limited to one hardware refresh per hour; `fuzzyclock` and `fuzzyclock_invert` bypass that limit; `--force-full-refresh` also bypasses it
 - Default canvas: 800×480; scaled via LANCZOS to match display resolution
 - LANCZOS resize produces greyscale pixels; those are quantized to 1-bit by `quantize_for_display()`. The default `threshold` mode differs from the previous hard `.convert("1")` which used Floyd-Steinberg by Pillow default — set `display.quantization_mode: "floyd_steinberg"` to restore the old resize behavior if needed
-- `canvas_mode = "L"` themes must use `bg=255` (not `bg=1`) in `ThemeStyle`; `bg=1` is near-black in L mode. All 23 built-in themes use `canvas_mode="1"` (default) and are unaffected
+- `canvas_mode = "L"` themes must use `bg=255` (not `bg=1`) in `ThemeStyle`; `bg=1` is near-black in L mode. All 25 built-in themes use `canvas_mode="1"` (default) and are unaffected
 - Image hash comparison (`last_image_hash.txt`) skips eInk writes when content unchanged
 - Inky throttle state persists in `state/inky_refresh_state.json`
 - Health marker written to `output/last_success.txt` on every successful run (ISO timestamp)
@@ -303,7 +309,7 @@ default to `None` and fall back gracefully so adding a new field never breaks ex
 - When `purpleair.api_key` or `purpleair.sensor_id` is `0`/`""`, the source is skipped silently (no circuit breaker entry, no cache miss); validation emits warnings only when one is set without the other
 - `AirQualityData` includes optional `temperature` (°F), `humidity` (%), and `pressure` (hPa) fields sourced from PurpleAir ambient readings when available, with OWM acting as a per-field fallback for any value the sensor does not report; which fields came from OWM is tracked in `AirQualityData.fallback_fields` (a `set[str]`); the `air_quality` theme suppresses the temperature card when it came from the OWM fallback; the `diags` panel suppresses all three ambient fields when they came from the OWM fallback; old cache entries missing these fields deserialize safely as `None`
 - `HostData` is fetched synchronously (after concurrent API fetches complete) using only Python stdlib and `/proc`; fields that are unavailable (e.g. CPU temp on non-Pi) return `None` and are silently omitted in the `diags` panel
-- `diags` and `message` themes are permanently excluded from the random rotation pool via `_EXCLUDED_FROM_POOL` in `random_theme.py`; use `theme: diags` or `theme: message` directly instead. `air_quality` is included in the pool and will appear in normal random rotation.
+- `diags`, `message`, `countdown`, and `photo` themes are permanently excluded from the random rotation pool via `_EXCLUDED_FROM_POOL` in `random_theme.py`; use `theme: <name>` directly instead. `air_quality` and `astronomy` are included in the pool and will appear in normal random rotation.
 - `air_quality` theme uses `draw_air_quality_full()` in `air_quality_panel.py`, which receives the full `DashboardData` object (same pattern as `diags_panel`); the component dispatches via the `air_quality_full` region on `ThemeLayout`
 - `retry_fetch()` in `data_pipeline.py` retries only likely transient failures and does not retry likely permanent config/data errors (`RuntimeError`, `ValueError`, `TypeError`, `KeyError`)
 - `gpiozero` pin factory is set to `lgpio` for Pi hardware runtime (required for modern Pi OS)
@@ -314,7 +320,10 @@ default to `None` and fall back gracefully so adding a new field never breaks ex
 - ICS calendar name is taken from the `X-WR-CALNAME` property of the VCALENDAR component; falls back to the URL hostname if absent
 - ICS tz-aware `DTSTART` datetimes are converted to naive local wall-clock time (same pattern as `_parse_event()` in the Google API path) so rendering code sees identical `CalendarEvent` objects regardless of source
 - `validate_config()` skips the service-account-file-missing warning and the `calendar_id == "primary"` warning when `ical_url` is set; emits a `ConfigError` if the URL doesn't start with `http://` or `https://`; emits a `ConfigWarning` if both `ical_url` and a real `service_account.json` are present (informational only — `ical_url` wins)
-- `theme_schedule` priority chain: CLI `--theme` > `theme_schedule` entries > `cfg.theme` / random. `_resolve_scheduled_theme()` sorts entries by HH:MM string and returns the last one whose time ≤ current local time; returns `None` when no entry has fired yet (e.g. all entries start after midnight and it's 3 AM), at which point normal `cfg.theme` / `random_daily` / `random_hourly` logic applies. `validate_config()` validates each entry's time format and theme name.
+- Theme-resolution priority chain: CLI `--theme` > `theme_rules` > `theme_schedule` > `cfg.theme` / random. `_resolve_scheduled_theme()` sorts entries by HH:MM string and returns the last one whose time ≤ current local time; returns `None` when no entry has fired yet (e.g. all entries start after midnight and it's 3 AM), at which point normal `cfg.theme` / `random_daily` / `random_hourly` logic applies. `validate_config()` validates each entry's time format and theme name.
+- `theme_rules` (evaluated by `services/theme_rules.py`) is first-match-wins. Each rule's `when:` block accepts any subset of `weather` (OWM description substring — scalar or list), `weather_alert_present` (bool), `daypart` (`dawn`/`morning`/`afternoon`/`dusk`/`night`, plus `day` as an alias for morning ∪ afternoon), `season` (`spring`/`summer`/`fall`/`autumn`/`winter`), and `weekday` (weekend / weekday / day name). Unset fields don't constrain. Rules needing weather data silently skip when data is unavailable. `DashboardApp.run()` calls `resolve_theme_name()` twice when rules exist (once pre-fetch with `data=None`, once post-fetch); if any rule could resolve to `monthly`, the pre-fetch event window is widened for the month grid via `_rules_can_pick_monthly()`. When no rules are configured, the second call is skipped.
+- `countdown` theme is fully offline: it reads `cfg.countdown.events` (list of `CountdownEvent(name, date)` where `date` is `"YYYY-MM-DD"`), drops past/invalid entries, and caps at 5 upcoming. One event renders a hero numeral (200pt); 2–5 stack as rows with day count + name + date. Events are plumbed to the panel via a `countdown_events` kwarg on `render_dashboard()` (same pattern as `message_text`). Excluded from the random rotation pool.
+- `astronomy` theme uses pure math — no API calls — via `src/astronomy.py`. Computes sunrise, sunset, civil/nautical/astronomical dawn & dusk (NOAA Solar Calculator algorithm), solar noon, day length, and `day_length_delta` (today − yesterday). Polar day/night return `None` for the impossible events. `next_meteor_shower(today)` wraps across year end (after Ursids → Quadrantids). Coordinates come from `cfg.weather.latitude` / `longitude`, plumbed to `render_dashboard()` via `latitude` / `longitude` kwargs; exact `(0.0, 0.0)` is treated as "unset" and the panel falls back to OWM-reported sunrise/sunset (twilight section hidden).
 - `WeatherData.location_name` is populated from `current["name"]` in the OWM `/weather` response (always present when the API returns successfully); it is `None` when absent or empty. Old cache entries without this field deserialize safely as `None` via `.get()`.
 - Per-panel staleness glyphs: `draw_staleness_glyph()` in `primitives.py` draws a 12×14px inverted `!` badge in the bottom-right corner of a component region. `weather_panel.py` and `birthday_bar.py` accept an optional `staleness: StalenessLevel | None` kwarg and call the helper when staleness is `STALE` or `EXPIRED`; `canvas.py` passes `data.source_staleness.get("weather"/"birthdays")`. `info_panel` has no live data source and therefore no staleness glyph.
 - `cache.quote_refresh` controls how often the displayed quote rotates: `daily` (default), `twice_daily`, or `hourly`. Quote selection uses a stable date/time-bucket hash — the same bucket always maps to the same quote (repeats are possible). With 144 bundled quotes: daily ≈ 144-day cycle, twice_daily ≈ 72-day cycle, hourly ≈ 6-day cycle. The hash input is `(title, date, bucket_index)` so the same slot is stable across restarts.

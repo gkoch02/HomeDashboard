@@ -3,6 +3,7 @@
 # Configuration Reference
 
 - [Full config reference](#full-config-reference)
+- [Theme selection priority](#theme-selection-priority)
 - [Cache and staleness](#cache-and-staleness)
 - [Fetch intervals](#fetch-intervals)
 - [Event filtering](#event-filtering)
@@ -71,21 +72,37 @@ schedule:
 
 timezone: "local"                  # IANA name or "local"
 title: "Home Dashboard"            # text shown in the header bar
-theme: "default"                   # default | terminal | minimalist | old_fashioned | today | fantasy | moonphase | moonphase_invert | qotd | qotd_invert | weather | fuzzyclock | fuzzyclock_invert | air_quality | message | diags | timeline | year_pulse | monthly | sunrise | scorecard | tides | photo | random | random_daily | random_hourly
+theme: "default"                   # default | terminal | minimalist | old_fashioned | today | fantasy | moonphase | moonphase_invert | qotd | qotd_invert | weather | fuzzyclock | fuzzyclock_invert | air_quality | astronomy | message | diags | timeline | year_pulse | monthly | sunrise | scorecard | tides | photo | countdown | random | random_daily | random_hourly
 
 # photo:                           # only used when theme: photo (see setup.md → Photo theme)
 #   path: "/home/pi/wallpaper.jpg" # JPEG or PNG; converted to greyscale and dithered
                                    # (Floyd-Steinberg on Waveshare; Spectra-6 palette mapping on Inky)
 
+# countdown:                       # only used when theme: countdown (see themes.md → countdown)
+#   events:                        # up to 5 upcoming entries; past ones dropped silently
+#     - name: "Paris Trip"
+#       date: "2026-06-04"
+#     - name: "Anniversary"
+#       date: "2026-08-12"
+
 random_theme:                      # only used when theme: random_daily or random_hourly
   include: []                      # allowlist (empty = all themes eligible)
   exclude: []                      # denylist (e.g. ["fantasy", "qotd"])
 
-# theme_schedule:                  # time-of-day theme switching (checked before random/config.theme)
+# theme_schedule:                  # time-of-day theme switching (checked before config.theme)
 #   - time: "06:00"                # HH:MM, 24-hour; active theme = last entry whose time <= now
 #     theme: "default"
 #   - time: "22:00"
 #     theme: "fuzzyclock_invert"
+
+# theme_rules:                     # context-aware rules; evaluated BEFORE theme_schedule
+#   - when: { weather_alert_present: true }
+#     theme: "message"
+#   - when: { weather: ["rain", "snow", "thunderstorm"] }
+#     theme: "weather"
+#   - when: { daypart: "night", weather: "clear" }
+#     theme: "moonphase"
+#   # See themes.md → Context-aware theme rules for the full condition reference.
 
 cache:
   weather_ttl_minutes: 60          # data older than 4x TTL is discarded
@@ -111,6 +128,19 @@ output:
 logging:
   level: "INFO"
 ```
+
+---
+
+## Theme selection priority
+
+The concrete theme used for each render is resolved in this order (highest wins):
+
+1. `--theme` CLI override
+2. `theme_rules` — first matching context rule (weather / daypart / season / weekday). See [Context-aware theme rules](themes.md#context-aware-theme-rules).
+3. `theme_schedule` — latest HH:MM entry whose time ≤ now.
+4. `theme` — the static config value (may be `random`, `random_daily`, `random_hourly`).
+
+Rules that reference weather data silently skip on first boot (no cached weather), so the resolver falls through cleanly. If any rule can resolve to `monthly`, the calendar event window is pre-sized for the month grid so the view has complete data when the rule fires.
 
 ---
 
