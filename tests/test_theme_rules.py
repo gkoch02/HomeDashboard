@@ -300,3 +300,99 @@ class TestResolveThemeNamePriority:
         with patch("src.render.random_theme.pick_random_theme", return_value="fantasy"):
             result = resolve_theme_name(cfg, None, now=_now(), data=_data())
         assert result == "fantasy"
+
+
+# ---------------------------------------------------------------------------
+# YAML round-trip: load_config → cfg.theme_rules.rules
+# ---------------------------------------------------------------------------
+
+
+class TestThemeRulesYamlRoundTrip:
+    def test_parses_full_rule_shape(self, tmp_path):
+        from src.config import load_config
+
+        cfg_file = tmp_path / "config.yaml"
+        cfg_file.write_text(
+            """
+theme_rules:
+  - when:
+      weather: ["rain", "snow"]
+      weather_alert_present: true
+      daypart: night
+      season: winter
+      weekday: weekend
+    theme: "weather"
+  - when:
+      daypart: ["dawn", "dusk"]
+    theme: "sunrise"
+""".strip()
+        )
+        cfg = load_config(str(cfg_file))
+        assert len(cfg.theme_rules.rules) == 2
+
+        r0 = cfg.theme_rules.rules[0]
+        assert r0.theme == "weather"
+        assert r0.when.weather == ["rain", "snow"]
+        assert r0.when.weather_alert_present is True
+        assert r0.when.daypart == "night"
+        assert r0.when.season == "winter"
+        assert r0.when.weekday == "weekend"
+
+        r1 = cfg.theme_rules.rules[1]
+        assert r1.theme == "sunrise"
+        assert r1.when.daypart == ["dawn", "dusk"]
+        # Unset fields stay None — the rule doesn't constrain on them.
+        assert r1.when.weather is None
+        assert r1.when.weather_alert_present is None
+
+    def test_missing_when_block_defaults_to_empty_condition(self, tmp_path):
+        """A rule without ``when:`` matches unconditionally (useful as a fallback)."""
+        from src.config import load_config
+
+        cfg_file = tmp_path / "config.yaml"
+        cfg_file.write_text(
+            """
+theme_rules:
+  - theme: "default"
+""".strip()
+        )
+        cfg = load_config(str(cfg_file))
+        assert len(cfg.theme_rules.rules) == 1
+        assert cfg.theme_rules.rules[0].theme == "default"
+        c = cfg.theme_rules.rules[0].when
+        assert c.weather is None
+        assert c.daypart is None
+
+    def test_non_dict_entries_are_skipped(self, tmp_path):
+        """Malformed list entries don't crash; they're silently dropped."""
+        from src.config import load_config
+
+        cfg_file = tmp_path / "config.yaml"
+        cfg_file.write_text(
+            """
+theme_rules:
+  - "not a dict"
+  - when:
+      weather: rain
+    theme: weather
+""".strip()
+        )
+        cfg = load_config(str(cfg_file))
+        assert len(cfg.theme_rules.rules) == 1
+        assert cfg.theme_rules.rules[0].theme == "weather"
+
+    def test_non_dict_when_block_becomes_empty_condition(self, tmp_path):
+        """`when: "garbage"` is coerced to an empty condition rather than crashing."""
+        from src.config import load_config
+
+        cfg_file = tmp_path / "config.yaml"
+        cfg_file.write_text(
+            """
+theme_rules:
+  - when: "not a mapping"
+    theme: "default"
+""".strip()
+        )
+        cfg = load_config(str(cfg_file))
+        assert len(cfg.theme_rules.rules) == 1
+        assert cfg.theme_rules.rules[0].when.weather is None

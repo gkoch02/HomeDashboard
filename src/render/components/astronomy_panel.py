@@ -49,7 +49,6 @@ from src.render.theme import ComponentRegion, ThemeStyle
 
 _HEADER_H = 44
 _ROW_H = 170
-_FOOTER_H = 480 - _HEADER_H - _ROW_H * 2
 _PAD = 16
 
 _SYNODIC = 29.53059
@@ -143,21 +142,6 @@ def _draw_key_value_row(
     return y + max(text_height(key_font), text_height(val_font)) + 4
 
 
-def _get_latlon(data: DashboardData) -> tuple[float, float] | None:
-    """Best-effort extraction of latitude/longitude from available sources.
-
-    For now the only source available to components is ``WeatherData`` — OWM
-    returns sunrise/sunset directly, so we infer lat/lon from the configured
-    ``timezone``-adjusted sunrise timestamp is impractical.  Callers should
-    invoke with ``latitude``/``longitude`` explicitly; this helper returns
-    ``None`` when no coordinates are known.
-    """
-    # DashboardData doesn't currently carry lat/lon; the caller plumbs them
-    # via module-level access on WeatherData if present.  We return None here
-    # to keep the panel agnostic — the drawer accepts explicit latitude/longitude.
-    return None
-
-
 def draw_astronomy(
     draw: ImageDraw.ImageDraw,
     data: DashboardData,
@@ -191,6 +175,7 @@ def draw_astronomy(
         t_tomorrow = sun_times(today + timedelta(days=1), latitude, longitude)
         sunrise = t_today.sunrise
         sunset = t_today.sunset
+        solar_noon = t_today.solar_noon
         civil = t_today.civil_dusk
         nautical = t_today.nautical_dusk
         astro = t_today.astronomical_dusk
@@ -201,6 +186,7 @@ def draw_astronomy(
         w_data = data.weather
         sunrise = w_data.sunrise if w_data else None
         sunset = w_data.sunset if w_data else None
+        solar_noon = None
         civil = nautical = astro = None
         astro_dawn_tomorrow = None
         if sunrise and sunset:
@@ -241,14 +227,7 @@ def draw_astronomy(
     sy = row1_y + 14
     sy = _draw_quadrant_label(draw, sx, sy, "SUN", style)
     sy = _draw_key_value_row(draw, sx, sy, "Sunrise", _fmt_time(sunrise, tz), style)
-    sy = _draw_key_value_row(
-        draw,
-        sx,
-        sy,
-        "Solar noon",
-        _fmt_time(sun_times(today, latitude, longitude).solar_noon if has_coords else None, tz),
-        style,
-    )
+    sy = _draw_key_value_row(draw, sx, sy, "Solar noon", _fmt_time(solar_noon, tz), style)
     sy = _draw_key_value_row(draw, sx, sy, "Sunset", _fmt_time(sunset, tz), style)
     sy = _draw_key_value_row(draw, sx, sy, "Day length", _fmt_duration(d_len), style)
     if delta is not None:

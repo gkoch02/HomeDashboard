@@ -521,8 +521,12 @@ class TestRun:
         call_args = mock_resolve.call_args
         assert call_args.args[1] == "minimalist"
 
-    def test_no_theme_arg_delegates_to_resolve_theme_name(self, tmp_path):
+    def test_no_theme_arg_and_no_rules_calls_resolver_once(self, tmp_path):
+        """Common case: no theme_rules configured → phase 2 is skipped."""
         app = self._make_full_app(tmp_path, dummy=True, theme=None)
+        # Empty rule list — make sure the truthiness check sees a real falsy value
+        # (MagicMock attributes are truthy by default).
+        app.cfg.theme_rules.rules = []
         fake_data = MagicMock()
         fake_data.events = []
         from PIL import Image
@@ -540,16 +544,78 @@ class TestRun:
         ):
             app.run()
 
-        # resolve_theme_name is called twice: once pre-fetch (data=None) to size
-        # the calendar event window, and once post-fetch (data=<loaded>) so
-        # weather-dependent theme_rules can fire.  Both calls pass None as the
-        # override.
+        mock_resolve.assert_called_once()
+        assert mock_resolve.call_args.args[1] is None
+        assert mock_resolve.call_args.kwargs.get("data") is None
+
+    def test_no_theme_arg_with_rules_calls_resolver_twice(self, tmp_path):
+        """When theme_rules are configured, both phases run (pre- and post-fetch)."""
+        from src.config import ThemeRule, ThemeRuleCondition
+
+        app = self._make_full_app(tmp_path, dummy=True, theme=None)
+        app.cfg.theme_rules.rules = [
+            ThemeRule(when=ThemeRuleCondition(weather="rain"), theme="weather")
+        ]
+        fake_data = MagicMock()
+        fake_data.events = []
+        from PIL import Image
+
+        fake_image = Image.new("1", (800, 480), 1)
+
+        with (
+            patch("src.app.should_skip_refresh", return_value=False),
+            patch("src.app.should_force_full_refresh", return_value=False),
+            patch("src.app.generate_dummy_data", return_value=fake_data),
+            patch("src.app.render_dashboard", return_value=fake_image),
+            patch("src.app.resolve_theme_name", return_value="default") as mock_resolve,
+            patch.object(app.output, "publish"),
+            patch.object(app.output, "write_health_marker"),
+        ):
+            app.run()
+
         assert mock_resolve.call_count == 2
         for call in mock_resolve.call_args_list:
             assert call.args[1] is None
         # Phase 1 uses data=None; phase 2 uses the fetched DashboardData.
         assert mock_resolve.call_args_list[0].kwargs.get("data") is None
         assert mock_resolve.call_args_list[1].kwargs.get("data") is not None
+
+    def test_rule_change_post_fetch_logs_transition(self, tmp_path, caplog):
+        """When a rule flips the theme between phases, the transition is logged."""
+        import logging
+
+        from src.config import ThemeRule, ThemeRuleCondition
+
+        app = self._make_full_app(tmp_path, dummy=True, theme=None)
+        app.cfg.theme_rules.rules = [
+            ThemeRule(when=ThemeRuleCondition(weather="rain"), theme="weather")
+        ]
+        fake_data = MagicMock()
+        fake_data.events = []
+        from PIL import Image
+
+        fake_image = Image.new("1", (800, 480), 1)
+
+        # First call (data=None) → "default"; second call (with data) → "weather".
+        with caplog.at_level(logging.INFO, logger="src.app"):
+            with (
+                patch("src.app.should_skip_refresh", return_value=False),
+                patch("src.app.should_force_full_refresh", return_value=False),
+                patch("src.app.generate_dummy_data", return_value=fake_data),
+                patch("src.app.render_dashboard", return_value=fake_image),
+                patch(
+                    "src.app.resolve_theme_name",
+                    side_effect=["default", "weather"],
+                ),
+                patch.object(app.output, "publish"),
+                patch.object(app.output, "write_health_marker"),
+            ):
+                app.run()
+
+        transition_logs = [r for r in caplog.records if "changed post-fetch" in r.getMessage()]
+        assert len(transition_logs) == 1
+        assert "default" in transition_logs[0].getMessage()
+        assert "weather" in transition_logs[0].getMessage()
 
     def test_resolved_theme_differs_from_configured_logs_info(self, tmp_path, caplog):
         """When resolve_theme_name returns a different theme than cfg.theme, log it."""

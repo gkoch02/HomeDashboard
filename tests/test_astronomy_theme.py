@@ -101,6 +101,32 @@ class TestNextPhaseDate:
         delta_days = (d - TODAY).days
         assert 0 <= delta_days <= 32
 
+    def test_next_new_moon_handles_synodic_wrap(self):
+        """Target = 0.0 requires the wrap branch (prev_frac ~1 → curr_frac ~0).
+
+        Any new-moon search that finds its answer must have crossed the wrap
+        at least once — so calling this near a known new moon exercises the
+        else-branch in ``_next_phase_date``.  We verify the result is a valid
+        phase-age near 0 or near the synodic month.
+        """
+        # Check a handful of dates spanning a full synodic cycle.  For each,
+        # the returned date's phase age should be near 0 (new moon).
+        import datetime as _dt
+
+        from src.render.moon import moon_phase_age
+
+        hits = 0
+        for offset in range(0, 60, 5):
+            start = TODAY + _dt.timedelta(days=offset)
+            result = _next_phase_date(start, 0.0)
+            age = moon_phase_age(result)
+            # Accept ages near 0 or near the full synodic month (wrap).
+            if age < 2.0 or age > 27.5:
+                hits += 1
+        # Most samples should hit the new-moon window — proves the wrap branch
+        # doesn't degenerate to an off-by-one across cycle boundaries.
+        assert hits >= 10
+
 
 # ---------------------------------------------------------------------------
 # Theme rendering
