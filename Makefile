@@ -1,4 +1,4 @@
-.PHONY: dry test coverage deploy setup install check previews version lint fmt docs-check \
+.PHONY: dry test coverage deploy setup install check previews previews-split version lint fmt docs-check \
         pi-install install-display-drivers pi-enable pi-status pi-logs configure \
         web-enable web-status web-logs
 
@@ -32,6 +32,9 @@ previews: _check-venv
 		cp output/latest.png output/theme_$$theme.png; \
 	done
 	@echo "All theme previews saved to output/theme_*.png"
+
+previews-split: _check-venv
+	$(VENV) scripts/build_split_previews.py
 
 test: _check-venv
 	$(VENV) -m pytest tests/ -v

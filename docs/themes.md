@@ -195,164 +195,143 @@ Rules that reference weather or calendar data silently skip on the first boot (n
 
 ### Theme details and previews
 
-Each theme is shown twice: the **Waveshare** (1-bit black/white) render is on top,
-and the **Inky** (Spectra 6 limited-palette color) render is right below it. They
-share the same layout — the Inky version just maps to the panel's color palette.
+Each theme is shown as a single image split along the diagonal: the top-left
+triangle is the **Waveshare** (1-bit black/white) render, and the bottom-right
+triangle is the **Inky** (Spectra 6 limited-palette color) render. Both halves
+share the same layout — the Inky side just maps to the panel's color palette.
 
 #### default
 
 Classic layout. Black text on white with a 7-day calendar grid and three bottom panels.
 
-![Default theme — Waveshare](../output/theme_default.png)
-[![Default theme — Inky](../output/theme_default_inky.png)](../output/theme_default_inky.png)
+[![Default theme — Waveshare/Inky split](../output/theme_default_split.png)](../output/theme_default_split.png)
 
 #### terminal
 
 High-contrast inverted week view with compact spacing and a retro terminal-inspired type system.
 
-![Terminal theme — Waveshare](../output/theme_terminal.png)
-[![Terminal theme — Inky](../output/theme_terminal_inky.png)](../output/theme_terminal_inky.png)
+[![Terminal theme — Waveshare/Inky split](../output/theme_terminal_split.png)](../output/theme_terminal_split.png)
 
 #### minimalist
 
 Border-light editorial layout focused on the calendar and weather, with birthdays hidden.
 
-![Minimalist theme — Waveshare](../output/theme_minimalist.png)
-[![Minimalist theme — Inky](../output/theme_minimalist_inky.png)](../output/theme_minimalist_inky.png)
+[![Minimalist theme — Waveshare/Inky split](../output/theme_minimalist_split.png)](../output/theme_minimalist_split.png)
 
 #### old_fashioned
 
 Victorian broadsheet layout with serif typography and decorative rules.
 
-![Old Fashioned theme — Waveshare](../output/theme_old_fashioned.png)
-[![Old Fashioned theme — Inky](../output/theme_old_fashioned_inky.png)](../output/theme_old_fashioned_inky.png)
+[![Old Fashioned theme — Waveshare/Inky split](../output/theme_old_fashioned_split.png)](../output/theme_old_fashioned_split.png)
 
 #### today
 
 Single-day agenda with a large date panel and roomy event list.
 
-![Today theme — Waveshare](../output/theme_today.png)
-[![Today theme — Inky](../output/theme_today_inky.png)](../output/theme_today_inky.png)
+[![Today theme — Waveshare/Inky split](../output/theme_today_split.png)](../output/theme_today_split.png)
 
 #### fantasy
 
 Ornamental black-canvas week view with a fantasy-inspired visual system.
 
-![Fantasy theme — Waveshare](../output/theme_fantasy.png)
-[![Fantasy theme — Inky](../output/theme_fantasy_inky.png)](../output/theme_fantasy_inky.png)
+[![Fantasy theme — Waveshare/Inky split](../output/theme_fantasy_split.png)](../output/theme_fantasy_split.png)
 
 #### qotd
 
 Full-screen quote layout with a compact weather strip across the bottom.
 
-![QOTD theme — Waveshare](../output/theme_qotd.png)
-[![QOTD theme — Inky](../output/theme_qotd_inky.png)](../output/theme_qotd_inky.png)
+[![QOTD theme — Waveshare/Inky split](../output/theme_qotd_split.png)](../output/theme_qotd_split.png)
 
 #### qotd_invert
 
 Inverted version of `qotd` with white quote text on black.
 
-![QOTD Invert theme — Waveshare](../output/theme_qotd_invert.png)
-[![QOTD Invert theme — Inky](../output/theme_qotd_invert_inky.png)](../output/theme_qotd_invert_inky.png)
+[![QOTD Invert theme — Waveshare/Inky split](../output/theme_qotd_invert_split.png)](../output/theme_qotd_invert_split.png)
 
 #### weather
 
 Full-screen weather dashboard with current conditions, alerts, forecast, and optional AQI.
 
-![Weather theme — Waveshare](../output/theme_weather.png)
-[![Weather theme — Inky](../output/theme_weather_inky.png)](../output/theme_weather_inky.png)
+[![Weather theme — Waveshare/Inky split](../output/theme_weather_split.png)](../output/theme_weather_split.png)
 
 #### fuzzyclock
 
 Natural-language clock with a compact weather strip and no calendar panels.
 
-![Fuzzyclock theme — Waveshare](../output/theme_fuzzyclock.png)
-[![Fuzzyclock theme — Inky](../output/theme_fuzzyclock_inky.png)](../output/theme_fuzzyclock_inky.png)
+[![Fuzzyclock theme — Waveshare/Inky split](../output/theme_fuzzyclock_split.png)](../output/theme_fuzzyclock_split.png)
 
 #### fuzzyclock_invert
 
 Inverted version of `fuzzyclock`.
 
-![Fuzzyclock Invert theme — Waveshare](../output/theme_fuzzyclock_invert.png)
-[![Fuzzyclock Invert theme — Inky](../output/theme_fuzzyclock_invert_inky.png)](../output/theme_fuzzyclock_invert_inky.png)
+[![Fuzzyclock Invert theme — Waveshare/Inky split](../output/theme_fuzzyclock_invert_split.png)](../output/theme_fuzzyclock_invert_split.png)
 
 #### moonphase
 
 Full-screen moon display with phase progression, sunrise/sunset, compact weather, and quote.
 
-![Moonphase theme — Waveshare](../output/theme_moonphase.png)
-[![Moonphase theme — Inky](../output/theme_moonphase_inky.png)](../output/theme_moonphase_inky.png)
+[![Moonphase theme — Waveshare/Inky split](../output/theme_moonphase_split.png)](../output/theme_moonphase_split.png)
 
 #### moonphase_invert
 
 Inverted version of `moonphase`.
 
-![Moonphase Invert theme — Waveshare](../output/theme_moonphase_invert.png)
-[![Moonphase Invert theme — Inky](../output/theme_moonphase_invert_inky.png)](../output/theme_moonphase_invert_inky.png)
+[![Moonphase Invert theme — Waveshare/Inky split](../output/theme_moonphase_invert_split.png)](../output/theme_moonphase_invert_split.png)
 
 #### photo
 
 Full-canvas photo theme driven by `photo.path`. Intended for custom-image displays rather than calendar-heavy use.
 
-![Photo theme — Waveshare](../output/theme_photo.png)
-[![Photo theme — Inky](../output/theme_photo_inky.png)](../output/theme_photo_inky.png)
+[![Photo theme — Waveshare/Inky split](../output/theme_photo_split.png)](../output/theme_photo_split.png)
 
 #### air_quality
 
 Full-screen PurpleAir-oriented AQI dashboard with particulate, ambient, weather, and forecast sections.
 
-![Air Quality theme — Waveshare](../output/theme_air_quality.png)
-[![Air Quality theme — Inky](../output/theme_air_quality_inky.png)](../output/theme_air_quality_inky.png)
+[![Air Quality theme — Waveshare/Inky split](../output/theme_air_quality_split.png)](../output/theme_air_quality_split.png)
 
 #### astronomy
 
 Four-quadrant "sky tonight" layout plus a dark-sky-window footer: sunrise, solar noon, sunset, day-length delta, moon phase with illumination and next full/new dates, civil/nautical/astronomical dusk times, and the next annual meteor shower with its peak date and approximate zenithal hourly rate. All data is computed locally from `src.astronomy`; no API calls beyond weather lat/lon. When `weather.latitude` / `weather.longitude` are not configured, the theme falls back to OWM-reported sunrise/sunset and hides the twilight section.
 
-![Astronomy theme — Waveshare](../output/theme_astronomy.png)
-[![Astronomy theme — Inky](../output/theme_astronomy_inky.png)](../output/theme_astronomy_inky.png)
+[![Astronomy theme — Waveshare/Inky split](../output/theme_astronomy_split.png)](../output/theme_astronomy_split.png)
 
 #### timeline
 
 Single-day hourly timeline that makes free blocks and overlaps easy to spot.
 
-![Timeline theme — Waveshare](../output/theme_timeline.png)
-[![Timeline theme — Inky](../output/theme_timeline_inky.png)](../output/theme_timeline_inky.png)
+[![Timeline theme — Waveshare/Inky split](../output/theme_timeline_split.png)](../output/theme_timeline_split.png)
 
 #### year_pulse
 
 Year progress plus a compact upcoming-items list for longer-horizon planning.
 
-![Year Pulse theme — Waveshare](../output/theme_year_pulse.png)
-[![Year Pulse theme — Inky](../output/theme_year_pulse_inky.png)](../output/theme_year_pulse_inky.png)
+[![Year Pulse theme — Waveshare/Inky split](../output/theme_year_pulse_split.png)](../output/theme_year_pulse_split.png)
 
 #### monthly
 
 Full-screen wall-calendar month view with day cells shaded by event density.
 Waveshare uses a crisp monochrome month grid with compact density indicators; Inky uses a warm yellow-orange-red ramp.
 
-![Monthly theme — Waveshare](../output/theme_monthly.png)
-[![Monthly theme — Inky](../output/theme_monthly_inky.png)](../output/theme_monthly_inky.png)
+[![Monthly theme — Waveshare/Inky split](../output/theme_monthly_split.png)](../output/theme_monthly_split.png)
 
 #### sunrise
 
 Sun arc and day/night split layout organized around daylight.
 
-![Sunrise theme — Waveshare](../output/theme_sunrise.png)
-[![Sunrise theme — Inky](../output/theme_sunrise_inky.png)](../output/theme_sunrise_inky.png)
+[![Sunrise theme — Waveshare/Inky split](../output/theme_sunrise_split.png)](../output/theme_sunrise_split.png)
 
 #### scorecard
 
 Big-number tile dashboard for weather, AQI, calendar, and system metrics.
 
-![Scorecard theme — Waveshare](../output/theme_scorecard.png)
-[![Scorecard theme — Inky](../output/theme_scorecard_inky.png)](../output/theme_scorecard_inky.png)
+[![Scorecard theme — Waveshare/Inky split](../output/theme_scorecard_split.png)](../output/theme_scorecard_split.png)
 
 #### tides
 
 Alternating horizontal bands with the densest multi-source layout in the theme set.
 
-![Tides theme — Waveshare](../output/theme_tides.png)
-[![Tides theme — Inky](../output/theme_tides_inky.png)](../output/theme_tides_inky.png)
+[![Tides theme — Waveshare/Inky split](../output/theme_tides_split.png)](../output/theme_tides_split.png)
 
 #### countdown
 
@@ -367,8 +346,7 @@ countdown:
       date: "2026-08-12"
 ```
 
-![Countdown theme — Waveshare](../output/theme_countdown.png)
-[![Countdown theme — Inky](../output/theme_countdown_inky.png)](../output/theme_countdown_inky.png)
+[![Countdown theme — Waveshare/Inky split](../output/theme_countdown_split.png)](../output/theme_countdown_split.png)
 
 #### message
 
@@ -378,15 +356,13 @@ Manual message display for reminders or announcements. Use:
 venv/bin/python -m src.main --dry-run --dummy --theme message --message "Dentist at 3pm"
 ```
 
-![Message theme — Waveshare](../output/theme_message.png)
-[![Message theme — Inky](../output/theme_message_inky.png)](../output/theme_message_inky.png)
+[![Message theme — Waveshare/Inky split](../output/theme_message_split.png)](../output/theme_message_split.png)
 
 #### diags
 
 Structured diagnostic readout for validating live data and system state.
 
-![Diags theme — Waveshare](../output/theme_diags.png)
-[![Diags theme — Inky](../output/theme_diags_inky.png)](../output/theme_diags_inky.png)
+[![Diags theme — Waveshare/Inky split](../output/theme_diags_split.png)](../output/theme_diags_split.png)
 
 ---
 
