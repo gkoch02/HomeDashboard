@@ -128,9 +128,8 @@ config/
 docs/
 ├── setup.md                   # Google Calendar, ICS feed, birthdays, Pi hardware setup
 ├── web-ui.md                  # Web UI setup, auth, pages, manual refresh, security
-├── themes.md                  # All themes, random rotation, schedule, custom themes
-├── color-themes.md            # Visual gallery of dry-run theme previews (Waveshare 1-bit)
-├── color-theme-previews.md    # Inky Spectra 6 color theme preview gallery
+├── themes.md                  # All themes, random rotation, schedule, custom themes; embeds Waveshare + Inky preview PNGs
+├── previews.md                # How to regenerate the Waveshare and Inky preview PNGs embedded in themes.md
 ├── configuration.md           # Full config.yaml reference
 ├── development.md             # Makefile, CLI, project structure, dependencies
 ├── faq.md                     # Frequently asked questions (quiet hours, troubleshooting, etc.)

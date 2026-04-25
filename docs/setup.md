@@ -12,6 +12,8 @@
 - [Supported Displays](#supported-displays)
 - [Hardware](#hardware)
 - [Troubleshooting and Recovery](#troubleshooting-and-recovery)
+- [Symptom-driven troubleshooting](#symptom-driven-troubleshooting)
+- [Next steps](#next-steps)
 
 ---
 
@@ -423,36 +425,30 @@ See [CLI flags](development.md#cli-flags) for the full flag reference.
 
 ---
 
-## Troubleshooting
+## Symptom-driven troubleshooting
 
-### Weather data not loading
+For symptom-driven diagnostics ("weather isn't loading", "calendar shows no events",
+"display isn't updating", staleness badges, and so on), see the
+[FAQ](faq.md#general). The pointers below cover only the recovery actions specific
+to v4's runtime state files.
 
-- Verify your API key: `curl "https://api.openweathermap.org/data/2.5/weather?lat=0&lon=0&appid=YOUR_KEY"` should return JSON, not a 401 error.
-- New OWM keys can take up to 2 hours to activate.
-- Check `output/dashboard.log` for "Weather fetch failed" messages.
+### Reset cached data or sync state
 
-### Calendar shows no events
+State files live in `state/` (auto-migrated from `output/` on the first v4 run):
 
-- If using a service account: ensure the calendar is shared with the service account email (found in the JSON key file under `client_email`).
-- If using ICS: verify the URL is accessible with `curl -s "YOUR_ICS_URL" | head`.
-- Run `make check` to validate your configuration file.
+- `state/dashboard_cache.json` — per-source data cache
+- `state/calendar_sync_state.json` — Google Calendar incremental sync token
+- `state/dashboard_breaker_state.json` — circuit breaker state
 
-### Stale data indicator appears
+Delete the file matching the symptom to start that piece of state from scratch on
+the next run. The image-hash marker `output/last_image_hash.txt` lives in `output/`
+(it is a render artifact, not state) — delete it to force the next run to re-push
+the image to the display even if the content hasn't changed.
 
-- The `!` badge in the corner of a panel means the data source failed to refresh and cached data is being shown.
-- Check `output/dashboard.log` for errors from the failing source.
-- Run with `--ignore-breakers --force-full-refresh` to force a fresh fetch attempt.
-- Delete `output/dashboard_cache.json` to clear all cached data and start fresh.
+---
 
-### Corrupted cache or sync state
+## Next steps
 
-- Delete `output/dashboard_cache.json` to reset the data cache.
-- Delete `output/calendar_sync_state.json` to force a full calendar resync.
-- Delete `output/dashboard_breaker_state.json` to reset all circuit breakers.
-
-### Display not updating
-
-- Run `make pi-status` to check if the systemd timer is active.
-- Check `output/dashboard.log` for errors.
-- The image hash check (`output/last_image_hash.txt`) skips display writes when content hasn't changed — delete this file to force a redraw.
-- During quiet hours (default 23:00–06:00), the app exits immediately. Use `--dry-run` to bypass.
+- Tune `config/config.yaml` — see the [Configuration Reference](configuration.md).
+- Pick or schedule a theme — see [Themes](themes.md).
+- Optionally enable the [Web UI](web-ui.md) for browser-based status and config edits.

@@ -75,19 +75,20 @@ This path needs no hardware, API keys, or credentials.
 
 - Use `make dry` for the default dummy preview.
 - Use `make previews` for the batch of standard preview PNGs.
-- Use [Color Theme Previews](color-theme-previews.md) when you need the Inky-specific palette preview workflow.
+- Use [Theme Previews](previews.md) when you need to regenerate the Waveshare or Inky preview PNGs that are embedded in [Themes](themes.md).
 
 ---
 
 ## Project structure
 
 ```text
-Dashboard-v4/
+home-dashboard/
 ├── config/          # example config, web config template, bundled quotes
 ├── deploy/          # systemd units and setup helpers
 ├── docs/            # operator and contributor docs
 ├── fonts/           # bundled fonts
-├── output/          # previews and logs
+├── output/          # previews, logs, and image-hash marker
+├── state/           # runtime state (cache, breaker, sync tokens, theme state)
 ├── src/             # application code
 ├── tests/           # pytest suite
 ├── CONTRIBUTING.md

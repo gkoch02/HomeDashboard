@@ -49,7 +49,11 @@ cd ~/home-dashboard
 make pi-install
 ```
 
-### 5. Clear stale v3 cache files
+### 5. (Optional) Clear stale v3 cache files
+
+v4 auto-migrates the runtime state files from `output/` to `state/` on the first run,
+so you do **not** need to move anything by hand. Only run this step if you want a
+fully clean cache and image-hash on first boot:
 
 ```bash
 # On the Pi — ~/home-dashboard
@@ -113,13 +117,17 @@ make dry            # render a preview with dummy data
 make deploy         # rsync to pi@dashboard:~/home-dashboard
 ```
 
-Then SSH into the Pi to finish setup:
+Then SSH into the Pi to finish setup. v4 auto-migrates runtime state from `output/`
+to `state/` on the first run, so the manual `rm` step is **optional** — include it
+only if you want a clean cache:
 
 ```bash
 # On the Pi — ~/home-dashboard
+# Optional clean-cache step:
 rm -f output/calendar_cache.json output/weather_cache.json \
       output/birthday_cache.json output/calendar_sync_state.json \
       output/last_image_hash.txt
+
 make pi-install     # install system deps and rebuild the venv
 make pi-enable      # reinstall systemd timer (unit file has changed in v4)
 make pi-status      # confirm the timer is active

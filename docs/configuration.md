@@ -15,7 +15,7 @@
 
 ## Full config reference
 
-All fields are optional. Missing fields use defaults shown below.
+Most fields have sensible defaults. The example below shows every supported key with its default value; copy only the ones you need to change. A few fields are conditionally required (notably `weather.api_key`, `weather.latitude`/`longitude`, and either `google.service_account_path` or `google.ical_url`).
 
 ```yaml
 display:
@@ -24,7 +24,7 @@ display:
   # width: 800                    # override auto-derived width
   # height: 480                   # override auto-derived height
   enable_partial_refresh: false    # Waveshare only; ignored/not supported on Inky
-  max_partials_before_full: 6     # partial refreshes before forcing a full one
+  max_partials_before_full: 20    # partial refreshes before forcing a full one
   week_days: 7                    # number of days in the week view
   show_weather: true
   show_birthdays: true
@@ -72,7 +72,9 @@ schedule:
 
 timezone: "local"                  # IANA name or "local"
 title: "Home Dashboard"            # text shown in the header bar
-theme: "default"                   # default | terminal | minimalist | old_fashioned | today | fantasy | moonphase | moonphase_invert | qotd | qotd_invert | weather | fuzzyclock | fuzzyclock_invert | air_quality | astronomy | message | diags | timeline | year_pulse | monthly | sunrise | scorecard | tides | photo | countdown | random | random_daily | random_hourly
+theme: "default"                   # see themes.md for the full catalog;
+                                   # use one of the 25 built-in theme names,
+                                   # or `random_daily` / `random_hourly` for rotation
 
 # photo:                           # only used when theme: photo (see setup.md → Photo theme)
 #   path: "/home/pi/wallpaper.jpg" # JPEG or PNG; converted to greyscale and dithered
@@ -204,10 +206,10 @@ Cached data progresses through four levels based on age relative to its TTL:
 
 | Level | Age vs TTL | Behaviour |
 |---|---|---|
-| **FRESH** | <= TTL | Normal display |
-| **AGING** | 1--2x TTL | Normal display |
-| **STALE** | 2--4x TTL | Header shows "! Stale" indicator |
-| **EXPIRED** | > 4x TTL | Data discarded, not displayed |
+| **Fresh** | ≤ 1× TTL | Normal display |
+| **Aging** | 1–2× TTL | Normal display |
+| **Stale** | 2–4× TTL | Panel shows a `!` staleness badge |
+| **Expired** | > 4× TTL | Data discarded; panel shows "Unavailable" |
 
 ---
 

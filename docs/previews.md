@@ -1,12 +1,15 @@
 ← [README](../README.md)
 
-# Color Theme Previews
+# Theme Previews
+
+How to regenerate the per-theme preview PNGs that are embedded in
+[Themes](themes.md). Both the standard (Waveshare 1-bit) and Inky color
+(Spectra 6) variants live under `output/`.
 
 - [Overview](#overview)
 - [Standard preview set](#standard-preview-set)
 - [Inky color preview set](#inky-color-preview-set)
 - [Output files](#output-files)
-- [Customer-facing gallery](#customer-facing-gallery)
 - [Notes and limitations](#notes-and-limitations)
 
 ---
@@ -125,16 +128,6 @@ Timestamped dry runs are also written automatically:
 
 ---
 
-## Customer-facing gallery
-
-If you want a simple browsable page that shows the current preview image for every theme, use
-[Color Themes](color-themes.md).
-
-That page is intended as the visual catalog. This page is the operational guide for generating
-or refreshing the preview assets.
-
----
-
 ## Notes and limitations
 
 - `make previews` currently targets the normal dry-run path only. It does not generate a separate
@@ -150,5 +143,5 @@ or refreshing the preview assets.
 - Inky previews are still PNG files on your computer. They are not a perfect simulation of the
   physical panel, but they do reflect the dashboard's final limited-palette render path.
 
-For the theme catalog itself, see [Themes](themes.md). For general dev commands and the Makefile,
-see [Development](development.md).
+For the theme catalog and embedded previews, see [Themes](themes.md). For general
+dev commands and the Makefile, see [Development](development.md).

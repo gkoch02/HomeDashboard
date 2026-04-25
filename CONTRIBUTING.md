@@ -63,10 +63,12 @@ def my_theme() -> Theme:
 3. Register the theme in `src/render/theme.py` by adding it to `_THEME_REGISTRY`.
 4. If it should never appear in rotation, add it to `_EXCLUDED_FROM_POOL` in `src/render/random_theme.py`.
 5. If the theme is user-facing, update:
-   - `docs/themes.md`
-   - `docs/color-themes.md` if it has a gallery preview
+   - `docs/themes.md` (add a `#### <name>` section with a short description and both
+     the Waveshare and Inky preview images — see existing entries for the pattern)
    - any theme lists in config or setup docs that are intended to be exhaustive
-6. Generate previews and confirm they render cleanly:
+6. Regenerate the preview PNGs that `docs/themes.md` embeds — see
+   [docs/previews.md](docs/previews.md) for the Waveshare and Inky commands.
+   For a quick sanity check before committing previews:
 
 ```bash
 venv/bin/python -m src.main --dry-run --dummy --theme my_theme
@@ -97,8 +99,8 @@ For greyscale custom themes, set `ThemeLayout.canvas_mode = "L"` and use `fg=0, 
 
 When changing any of these areas, update the canonical docs in the same PR:
 
-- Theme inventory or behavior: `docs/themes.md`
-- Preview gallery content: `docs/color-themes.md`
+- Theme inventory or behavior: `docs/themes.md` (which also embeds the preview images)
+- Preview regeneration workflow: `docs/previews.md`
 - Config schema or defaults: `docs/configuration.md`
 - Setup, install, auth, or recovery flow: `README.md`, `docs/setup.md`, or `docs/web-ui.md`
 - Contributor workflow or architecture: `docs/development.md`, `docs/architecture.md`, or `CLAUDE.md`

@@ -33,7 +33,7 @@ sudo reboot
 | Enable the optional browser control panel | [Web UI](docs/web-ui.md) |
 | Pick or schedule themes | [Themes](docs/themes.md) |
 | See the full `config.yaml` reference | [Configuration Reference](docs/configuration.md) |
-| Preview themes or regenerate gallery images | [Color Theme Previews](docs/color-theme-previews.md) |
+| Regenerate the per-theme preview images | [Theme Previews](docs/previews.md) |
 | Upgrade from an older install | [Upgrading from v3](docs/upgrading-from-v3.md) |
 | Develop locally without hardware | [Development](docs/development.md) |
 | Contribute code or docs | [Contributing](CONTRIBUTING.md) |
@@ -43,7 +43,7 @@ sudo reboot
 - Weekly calendar via Google Calendar API or private ICS feed
 - Current weather, forecast, and optional PurpleAir air quality
 - Birthdays from a file, calendar events, or Google Contacts
-- 23 built-in themes plus scheduled and random rotation modes
+- 25 built-in themes plus scheduled and random rotation modes
 - Optional Web UI for status, config editing, and manual refresh
 - Per-source caching, circuit breakers, stale-data indicators, and quiet hours
 

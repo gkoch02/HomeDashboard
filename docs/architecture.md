@@ -1,6 +1,6 @@
 # Architecture
 
-This document describes how Dashboard-v4 is structured internally. It's aimed at contributors and maintainers who need to understand the data flow, module boundaries, and key design decisions.
+This document describes how Home Dashboard is structured internally. It's aimed at contributors and maintainers who need to understand the data flow, module boundaries, and key design decisions.
 
 ## High-Level Data Flow
 

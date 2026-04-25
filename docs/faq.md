@@ -183,7 +183,7 @@ venv/bin/python -m src.main --config config/config.yaml --force-full-refresh
 ```
 
 Or wait for the automatic full refresh that happens after
-`max_partials_before_full` partial refreshes (default: 6).
+`max_partials_before_full` partial refreshes (default: 20).
 
 That partial-refresh setting applies to Waveshare only. Inky Impression panels always do
 full refreshes, and the dashboard instead limits non-fuzzyclock hardware writes to once
@@ -195,7 +195,7 @@ per hour.
 
 eInk displays accumulate artifacts over partial refreshes. The dashboard
 automatically performs a full refresh after a configurable number of partial
-refreshes (`display.max_partials_before_full`, default 6). You can also force
+refreshes (`display.max_partials_before_full`, default 20). You can also force
 one with `--force-full-refresh`.
 
 For `display.provider: inky`, the panel does not support partial refresh at all.

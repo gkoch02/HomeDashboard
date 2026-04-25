@@ -2,7 +2,7 @@
 
 # Web UI
 
-The dashboard includes an optional web interface hosted directly on the Pi. It has grown past a simple status page: it now acts as a lightweight control panel for day-to-day checks, safe configuration edits, and quick recovery actions without SSH.
+The dashboard includes an optional web interface hosted directly on the Pi. It is a lightweight control panel for day-to-day checks, safe configuration edits, and quick recovery actions — all from the browser, without SSH.
 
 - [Overview](#overview)
 - [Installation](#installation)
@@ -15,6 +15,7 @@ The dashboard includes an optional web interface hosted directly on the Pi. It h
 - [Logs and events](#logs-and-events)
 - [Running without systemd](#running-without-systemd)
 - [Security considerations](#security-considerations)
+- [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -269,6 +270,15 @@ make web-status         # systemd status + recent log tail
 
 ### Event store (`state/web_events.jsonl`)
 
+> **Retention is unbounded — rotate manually.** The file only grows. On small Pi installs
+> a runaway log can eventually fill the SD card; truncate or `logrotate` it on a schedule
+> if it becomes unwieldy:
+>
+> ```bash
+> # quick truncate
+> : > ~/home-dashboard/state/web_events.jsonl
+> ```
+
 `state/web_events.jsonl` is an append-only audit log written by `src/web/event_store.py`.
 It records every UI-initiated action — manual refresh requests, config saves, breaker
 resets, cache clears, and config restores — one JSON object per line.
@@ -280,18 +290,15 @@ resets, cache clears, and config restores — one JSON object per line.
 
 A few operator notes:
 
-- **Retention is unbounded.** The file only grows. Rotate or truncate it manually if it
-  becomes unwieldy. `state/` is on the same disk as the rest of the project, so a runaway
-  log can fill the SD card on small Pi installs.
-- **It is sensitive but not user-attributed.** The file logs *what* changed (e.g.
+- **Sensitive but not user-attributed.** The file logs *what* changed (e.g.
   "saved theme: minimalist") and the field set involved, but it does **not** record
   the authenticated username — basic-auth gates access at the request boundary and
   is not threaded into `append_event`. Don't rely on this log for per-user
   accountability in shared deployments. Treat it with the same care as `web.yaml`:
   do not commit it, do not paste it into bug reports without redaction.
-- **It is best-effort.** Write failures are logged at DEBUG level and silently swallowed
+- **Best-effort.** Write failures are logged at DEBUG level and silently swallowed
   so a missing/unwritable `state/` directory never breaks the UI.
-- **It is read-truncated.** The status page's "Recent Events" card only loads the most
+- **Read-truncated.** The status page's "Recent Events" card only loads the most
   recent ~20 entries; the full file is preserved untouched.
 
 ---
@@ -327,3 +334,13 @@ venv/bin/python -m src.web --port 9000
 - **No HTTPS.** Traffic is unencrypted. For remote access outside your LAN, use an SSH tunnel or a reverse proxy with TLS (for example nginx + Let's Encrypt).
 - **`config/web.yaml` contains your password hash and possibly your session secret.** The file is git-ignored. Do not commit it.
 - **`state/web_events.jsonl` is an unbounded audit log.** It records every UI action and grows forever; rotate it manually if it gets large. Treat it as sensitive — see [Event store](#event-store-stateweb_eventsjsonl).
+
+---
+
+## Troubleshooting
+
+For symptom-driven issues (auth not prompting, refresh button not firing, stale
+data, etc.) start with the [FAQ](faq.md) and the
+[Setup Guide → Symptom-driven troubleshooting](setup.md#symptom-driven-troubleshooting).
+Web-server-specific status and logs are available via `make web-status` and
+`make web-logs`.
