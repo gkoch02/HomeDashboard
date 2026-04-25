@@ -11,7 +11,6 @@ ROOT = Path(__file__).resolve().parents[1]
 DOC_FILES = [ROOT / "README.md", ROOT / "CONTRIBUTING.md"] + sorted((ROOT / "docs").glob("*.md"))
 LINK_RE = re.compile(r"\[[^\]]+\]\(([^)]+)\)")
 THEME_DETAIL_RE = re.compile(r"^####\s+(.+)$", re.MULTILINE)
-GALLERY_ENTRY_RE = re.compile(r"^##\s+(.+)$", re.MULTILINE)
 
 
 def normalize_heading(heading: str) -> str:
@@ -40,7 +39,7 @@ def check_links() -> list[str]:
     return errors
 
 
-def check_theme_gallery(theme_names: set[str]) -> list[str]:
+def check_theme_inventory(theme_names: set[str]) -> list[str]:
     errors: list[str] = []
 
     themes_doc = (ROOT / "docs" / "themes.md").read_text()
@@ -52,26 +51,13 @@ def check_theme_gallery(theme_names: set[str]) -> list[str]:
     for name in extra_in_themes:
         errors.append(f"docs/themes.md: unexpected theme heading '{name}'")
 
-    gallery_doc = (ROOT / "docs" / "color-themes.md").read_text()
-    gallery_headings = {
-        normalize_heading(h)
-        for h in GALLERY_ENTRY_RE.findall(gallery_doc)
-        if h.strip() not in {"Color Themes"}
-    }
-    missing_in_gallery = sorted(theme_names - gallery_headings)
-    extra_in_gallery = sorted(gallery_headings - theme_names)
-    for name in missing_in_gallery:
-        errors.append(f"docs/color-themes.md: missing gallery entry for theme '{name}'")
-    for name in extra_in_gallery:
-        errors.append(f"docs/color-themes.md: unexpected gallery entry '{name}'")
-
     return errors
 
 
 def main() -> int:
     theme_names = load_theme_names()
     errors = check_links()
-    errors.extend(check_theme_gallery(theme_names))
+    errors.extend(check_theme_inventory(theme_names))
     if errors:
         for err in errors:
             print(err)

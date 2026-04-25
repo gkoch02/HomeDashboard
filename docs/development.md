@@ -75,7 +75,7 @@ This path needs no hardware, API keys, or credentials.
 
 - Use `make dry` for the default dummy preview.
 - Use `make previews` for the batch of standard preview PNGs.
-- Use [Color Theme Previews](color-theme-previews.md) when you need the Inky-specific palette preview workflow.
+- Use [Theme Previews](previews.md) when you need to regenerate the Waveshare or Inky preview PNGs that are embedded in [Themes](themes.md).
 
 ---
 
