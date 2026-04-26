@@ -128,6 +128,36 @@ class TestCircuitBreaker:
         result = cb.should_attempt("weather")
         assert result is True  # invalid timestamp → expired → half_open → True
 
+    def test_cooldown_with_legacy_naive_timestamp_honored(self, tmp_state_dir):
+        """A naive ISO timestamp must be treated as UTC (not local) for cooldown math.
+
+        Regression: previously _cooldown_expired() called astimezone(UTC) on the
+        naive value, which Python interprets as system local time and skews the
+        elapsed-minutes calculation by the local UTC offset. With cooldown=30,
+        this could cause the breaker to reopen prematurely on hosts in non-UTC
+        zones.
+        """
+        from datetime import datetime, timezone
+
+        from src.fetchers.circuit_breaker import BreakerState
+
+        cb = CircuitBreaker(max_failures=3, cooldown_minutes=30, state_dir=tmp_state_dir)
+        # Naive timestamp written 5 minutes ago in UTC (legacy format).
+        five_min_ago = datetime.now(timezone.utc).replace(tzinfo=None)
+        five_min_ago = five_min_ago.replace(minute=(five_min_ago.minute - 5) % 60)
+        # Reconstruct simply using arithmetic to avoid wrap edge cases.
+        from datetime import timedelta
+
+        five_min_ago = (datetime.now(timezone.utc) - timedelta(minutes=5)).replace(tzinfo=None)
+        cb._states["weather"] = BreakerState(
+            consecutive_failures=3,
+            last_failure_at=five_min_ago.isoformat(),
+            state="open",
+        )
+        # Cooldown is 30 min; only 5 min have actually elapsed → still OPEN.
+        assert cb.should_attempt("weather") is False
+        assert cb._states["weather"].state == "open"
+
     def test_save_exception_does_not_propagate(self, tmp_state_dir):
         """_save() exception is silently swallowed (lines 137-138)."""
         from unittest.mock import patch
