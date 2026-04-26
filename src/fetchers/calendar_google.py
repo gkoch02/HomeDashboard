@@ -16,7 +16,9 @@ from datetime import date, datetime, timedelta, timezone, tzinfo
 from pathlib import Path
 from typing import Any
 
+import httplib2
 from google.oauth2 import service_account
+from google_auth_httplib2 import AuthorizedHttp
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
@@ -49,10 +51,13 @@ def _today(tz: tzinfo | None) -> date:
 #
 # Note: service account tokens auto-refresh via the google-auth library, so
 # caching the service object is safe for the typical hourly-cron use case.
-# The Google client library does not expose per-request HTTP timeouts;
-# callers rely on the ThreadPoolExecutor timeout in main.py (120s) as the
-# upper bound on any single API call.
 _service_cache: dict[str, Any] = {}
+
+# Per-request HTTP timeout (seconds). Without this, the client library uses
+# httplib2's default of None — a stalled DNS lookup or upstream blocks until
+# the DataPipeline ThreadPoolExecutor's 120s ceiling, wasting 90+ seconds per
+# stalled call across multiple ticks.
+_HTTP_TIMEOUT_SECONDS = 30
 
 
 def clear_service_caches() -> None:
@@ -72,7 +77,8 @@ def _build_service(cfg: GoogleConfig):
                 f"Failed to load service account credentials from "
                 f"{cfg.service_account_path!r}: {exc}"
             ) from exc
-        _service_cache[key] = build("calendar", "v3", credentials=creds, cache_discovery=False)
+        http = AuthorizedHttp(creds, http=httplib2.Http(timeout=_HTTP_TIMEOUT_SECONDS))
+        _service_cache[key] = build("calendar", "v3", http=http, cache_discovery=False)
     return _service_cache[key]
 
 
