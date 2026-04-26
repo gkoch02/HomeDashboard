@@ -286,9 +286,37 @@ class TestBuildService:
         # Cached — credentials loaded once, service built once
         assert from_file.call_count == 1
         assert build_mock.call_count == 1
-        build_mock.assert_called_with(
-            "calendar", "v3", credentials=fake_creds, cache_discovery=False
-        )
+        call_kwargs = build_mock.call_args.kwargs
+        assert call_kwargs["cache_discovery"] is False
+        # http transport is wired in (timeout enforcement is tested separately)
+        assert "http" in call_kwargs
+
+    def test_build_uses_http_timeout(self):
+        """Per-request timeout is set on the underlying httplib2 transport."""
+        from src.fetchers import calendar_google
+
+        cfg = _google_cfg(service_account_path="/fake/creds.json")
+        captured: dict = {}
+
+        original_http = calendar_google.httplib2.Http
+
+        def _capture_http(*args, **kwargs):
+            captured["timeout"] = kwargs.get("timeout")
+            return original_http(*args, **kwargs)
+
+        with (
+            patch.object(
+                calendar_google.service_account.Credentials,
+                "from_service_account_file",
+                return_value=MagicMock(),
+            ),
+            patch.object(calendar_google, "build", return_value=MagicMock()),
+            patch.object(calendar_google.httplib2, "Http", side_effect=_capture_http),
+        ):
+            calendar_google._build_service(cfg)
+
+        assert captured["timeout"] == calendar_google._HTTP_TIMEOUT_SECONDS
+        assert captured["timeout"] == 30
 
     def test_missing_credentials_raises_runtime_error(self):
         from src.fetchers import calendar_google

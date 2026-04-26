@@ -2,7 +2,7 @@
 
 import json
 import tempfile
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import patch
 
@@ -136,7 +136,8 @@ class TestCacheRoundtrip:
 
         assert result is not None
         events, fetched_at, metadata = result
-        assert fetched_at == data.fetched_at
+        # Naive timestamps written to disk are normalised to UTC on read-back.
+        assert fetched_at == data.fetched_at.replace(tzinfo=timezone.utc)
         assert len(events) == 1
         assert metadata == {"window_start": "2024-03-10", "window_days": 35}
 
@@ -395,7 +396,7 @@ class TestSaveSourceEdgeCases:
         with tempfile.TemporaryDirectory() as tmpdir:
             with caplog.at_level(logging.WARNING, logger="src.fetchers.cache"):
                 with patch(
-                    "src.fetchers.cache._atomic_write_json",
+                    "src.fetchers.cache.atomic_write_json",
                     side_effect=OSError("disk full"),
                 ):
                     save_source("events", [], datetime(2024, 3, 15, 9), tmpdir)
@@ -410,7 +411,7 @@ class TestSaveCacheEdgeCases:
         with tempfile.TemporaryDirectory() as tmpdir:
             with caplog.at_level(logging.WARNING, logger="src.fetchers.cache"):
                 with patch(
-                    "src.fetchers.cache._atomic_write_json",
+                    "src.fetchers.cache.atomic_write_json",
                     side_effect=OSError("no space"),
                 ):
                     save_cache(data, tmpdir)
@@ -530,7 +531,8 @@ class TestLoadCachedSourceWithMetadata:
         assert result is not None
         events, fetched_at, metadata = result
         assert events == []
-        assert fetched_at == datetime(2024, 3, 15, 8, 0, 0)
+        # Naive timestamps written to disk are normalised to UTC on read-back.
+        assert fetched_at == datetime(2024, 3, 15, 8, 0, 0, tzinfo=timezone.utc)
         assert metadata == {"sync_token": "token-abc"}
 
     def test_weather_empty_block_returns_none_metadata(self):
@@ -662,10 +664,10 @@ class TestAtomicWriteCleanup:
                 raise OSError("write failed")
 
             with patch("os.fdopen", side_effect=patched_fdopen):
-                from src.fetchers.cache import _atomic_write_json
+                from src._io import atomic_write_json
 
                 with pytest.raises(OSError):
-                    _atomic_write_json(path, {"key": "value"})
+                    atomic_write_json(path, {"key": "value"})
             # The temp file should not remain (was cleaned up)
             tmp_files = list(Path(tmpdir).glob("*.tmp"))
             assert len(tmp_files) == 0
@@ -679,10 +681,10 @@ class TestAtomicWriteCleanup:
                 raise KeyboardInterrupt
 
             with patch("os.fdopen", side_effect=patched_fdopen):
-                from src.fetchers.cache import _atomic_write_json
+                from src._io import atomic_write_json
 
                 with pytest.raises(KeyboardInterrupt):
-                    _atomic_write_json(path, {"key": "value"})
+                    atomic_write_json(path, {"key": "value"})
             assert list(Path(tmpdir).glob("*.tmp")) == []
 
 
@@ -699,7 +701,7 @@ class TestLoadCachedSourceAirQuality:
         assert result is not None
         data, fetched_at = result
         assert data.aqi == 58
-        assert fetched_at == datetime(2024, 3, 15, 9)
+        assert fetched_at == datetime(2024, 3, 15, 9, tzinfo=timezone.utc)
 
     def test_air_quality_empty_data_returns_none(self):
         """v2 air_quality block with data=None deserialises to None."""
@@ -733,7 +735,7 @@ class TestLoadCachedSourceWithMetadataV2Branches:
         assert result is not None
         data, fetched_at, metadata = result
         assert len(data) == 1 and data[0].name == "Dana"
-        assert fetched_at == datetime(2024, 3, 15, 9)
+        assert fetched_at == datetime(2024, 3, 15, 9, tzinfo=timezone.utc)
         assert metadata == {"source_count": 3}
 
 

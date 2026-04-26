@@ -9,6 +9,7 @@ from src.web.state_reader import (
     read_breakers,
     read_cache_ages,
     read_host_metrics,
+    read_last_error,
     read_last_success,
     read_log_tail,
     read_quota,
@@ -37,6 +38,65 @@ def test_read_last_success_corrupt(tmp_path):
     (tmp_path / "last_success.txt").write_text("not-a-date")
     result = read_last_success(str(tmp_path))
     assert result["timestamp"] is None
+
+
+# ---------------------------------------------------------------------------
+# read_last_error
+# ---------------------------------------------------------------------------
+
+
+def test_read_last_error_missing(tmp_path):
+    result = read_last_error(str(tmp_path))
+    assert result["timestamp"] is None
+    assert result["exception_type"] is None
+    assert result["message"] is None
+    assert result["is_current"] is False
+
+
+def test_read_last_error_current_when_no_success_yet(tmp_path):
+    payload = {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "exception_type": "RuntimeError",
+        "message": "boom",
+    }
+    (tmp_path / "last_error.txt").write_text(json.dumps(payload))
+    result = read_last_error(str(tmp_path))
+    assert result["exception_type"] == "RuntimeError"
+    assert result["message"] == "boom"
+    assert result["is_current"] is True
+
+
+def test_read_last_error_stale_when_success_is_newer(tmp_path):
+    error_payload = {
+        "timestamp": (datetime.now(timezone.utc) - timedelta(minutes=10)).isoformat(),
+        "exception_type": "RuntimeError",
+        "message": "old",
+    }
+    (tmp_path / "last_error.txt").write_text(json.dumps(error_payload))
+    (tmp_path / "last_success.txt").write_text(datetime.now(timezone.utc).isoformat())
+    result = read_last_error(str(tmp_path))
+    assert result["is_current"] is False
+
+
+def test_read_last_error_current_when_error_is_newer(tmp_path):
+    (tmp_path / "last_success.txt").write_text(
+        (datetime.now(timezone.utc) - timedelta(minutes=10)).isoformat()
+    )
+    error_payload = {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "exception_type": "ValueError",
+        "message": "new",
+    }
+    (tmp_path / "last_error.txt").write_text(json.dumps(error_payload))
+    result = read_last_error(str(tmp_path))
+    assert result["is_current"] is True
+
+
+def test_read_last_error_corrupt(tmp_path):
+    (tmp_path / "last_error.txt").write_text("not-json")
+    result = read_last_error(str(tmp_path))
+    assert result["timestamp"] is None
+    assert result["is_current"] is False
 
 
 # ---------------------------------------------------------------------------
@@ -176,15 +236,20 @@ def test_is_quiet_hours_now_type():
 # ---------------------------------------------------------------------------
 
 
-def test_read_last_success_naive_timestamp_normalised(tmp_path):
-    """A naive (no tz) timestamp must be normalised via astimezone(UTC) on line 44."""
-    naive = (datetime.now() - timedelta(seconds=120)).replace(tzinfo=None).isoformat()
+def test_read_last_success_naive_timestamp_treated_as_utc(tmp_path):
+    """A naive (no tz) timestamp is treated as UTC, not as system local time.
+
+    Regression: previously called astimezone(UTC) on the naive value, which
+    Python interprets as local time and skews seconds_since by the local UTC
+    offset. Now uses replace(tzinfo=UTC) so the elapsed time is consistent
+    regardless of the host's timezone.
+    """
+    naive = (datetime.now(timezone.utc) - timedelta(seconds=120)).replace(tzinfo=None).isoformat()
     (tmp_path / "last_success.txt").write_text(naive)
     result = read_last_success(str(tmp_path))
     assert result["timestamp"] is not None
-    assert result["seconds_since"] is not None
-    # Either close to 120s, or much larger if the local tz differs from UTC.
-    assert result["seconds_since"] >= 0
+    # Within a small tolerance of 120s — does not depend on host TZ.
+    assert 110 <= result["seconds_since"] <= 130
 
 
 def test_read_breakers_corrupt_returns_defaults(tmp_path):

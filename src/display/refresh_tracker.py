@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import json
-import os
-import tempfile
 from datetime import datetime
 from pathlib import Path
+
+from src._io import atomic_write_json
 
 # Fallback used when no state_path is provided (e.g. tests that patch this).
 STATE_FILE = Path("/tmp/dashboard_refresh_state.json")
@@ -60,13 +60,4 @@ class RefreshTracker:
             "partial_count": self.partial_count,
             "last_full": self.last_full.isoformat() if self.last_full else None,
         }
-        path = self._state_path
-        path.parent.mkdir(parents=True, exist_ok=True)
-        fd, tmp = tempfile.mkstemp(dir=path.parent, suffix=".tmp")
-        try:
-            with os.fdopen(fd, "w") as f:
-                json.dump(data, f)
-            os.replace(tmp, path)
-        except BaseException:
-            os.unlink(tmp)
-            raise
+        atomic_write_json(self._state_path, data)

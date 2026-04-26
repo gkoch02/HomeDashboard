@@ -53,7 +53,7 @@ class TestStaleCacheBreakerOpen:
         # Seed cache with stale data
         weather = _make_weather()
         events = _make_events()
-        stale_time = datetime.now() - timedelta(hours=3)
+        stale_time = datetime.now(timezone.utc) - timedelta(hours=3)
         _write_cache(cache_dir, events, weather, stale_time)
 
         # Create a breaker state that marks weather as OPEN
@@ -128,7 +128,7 @@ class TestBreakerHalfOpen:
         mock_weather.side_effect = ConnectionError("network down")
 
         # Seed cache
-        stale_time = datetime.now() - timedelta(hours=1)
+        stale_time = datetime.now(timezone.utc) - timedelta(hours=1)
         _write_cache(cache_dir, [], _make_weather(), stale_time)
 
         cfg = Config()
@@ -157,7 +157,7 @@ class TestExpiredCache:
         cache_dir = str(tmp_path)
 
         # Seed cache with very old data (>4x TTL)
-        very_old = datetime.now() - timedelta(hours=24)
+        very_old = datetime.now(timezone.utc) - timedelta(hours=24)
         _write_cache(cache_dir, [], _make_weather(), very_old)
 
         # Breaker open for weather

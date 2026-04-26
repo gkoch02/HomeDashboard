@@ -39,14 +39,68 @@ def read_last_success(output_dir: str) -> dict:
         raw = path.read_text().strip()
         ts = datetime.fromisoformat(raw)
         now = datetime.now(timezone.utc)
-        # Normalise: if ts is naive treat it as local time.
+        # Treat legacy naive timestamps as UTC. astimezone() on a naive value
+        # would assume system local time and skew seconds_since by the local
+        # UTC offset.
         if ts.tzinfo is None:
-            ts = ts.astimezone(timezone.utc)
+            ts = ts.replace(tzinfo=timezone.utc)
         seconds_since = int((now - ts).total_seconds())
         return {"timestamp": ts.isoformat(), "seconds_since": max(0, seconds_since)}
     except Exception as exc:
         logger.debug("Could not read last_success.txt: %s", exc)
         return {"timestamp": None, "seconds_since": None}
+
+
+def read_last_error(output_dir: str) -> dict:
+    """Return last-failure info from output/last_error.txt.
+
+    Returns::
+
+        {
+            "timestamp": "2026-04-26T14:35:00",   # ISO string or None
+            "exception_type": "RuntimeError",     # or None
+            "message": "API quota exceeded",      # or None
+            "is_current": True,                    # True iff error is newer than last_success
+        }
+    """
+    empty = {
+        "timestamp": None,
+        "exception_type": None,
+        "message": None,
+        "is_current": False,
+    }
+    path = Path(output_dir) / "last_error.txt"
+    if not path.exists():
+        return empty
+    try:
+        raw = json.loads(path.read_text())
+        if not isinstance(raw, dict):
+            return empty
+        ts_str = raw.get("timestamp")
+        ts = datetime.fromisoformat(ts_str) if ts_str else None
+        is_current = False
+        if ts is not None:
+            success = read_last_success(output_dir)
+            success_ts_str = success.get("timestamp")
+            if success_ts_str is None:
+                is_current = True
+            else:
+                success_ts = datetime.fromisoformat(success_ts_str)
+                # Treat naive legacy timestamps as UTC (see read_last_success).
+                if ts.tzinfo is None:
+                    ts = ts.replace(tzinfo=timezone.utc)
+                if success_ts.tzinfo is None:
+                    success_ts = success_ts.replace(tzinfo=timezone.utc)
+                is_current = ts > success_ts
+        return {
+            "timestamp": ts.isoformat() if ts is not None else None,
+            "exception_type": raw.get("exception_type"),
+            "message": raw.get("message"),
+            "is_current": is_current,
+        }
+    except Exception as exc:
+        logger.debug("Could not read last_error.txt: %s", exc)
+        return empty
 
 
 def read_breakers(state_dir: str) -> dict[str, dict]:

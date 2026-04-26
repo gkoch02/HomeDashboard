@@ -5,6 +5,8 @@ from datetime import datetime
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from src.app import DashboardApp, _migrate_state_files
 
 # ---------------------------------------------------------------------------
@@ -712,6 +714,30 @@ class TestRun:
 
         # cfg.theme is "default"; resolver returned "qotd" → schedule/random diverged
         assert "Theme resolved to: qotd" in caplog.text
+
+    def test_run_writes_error_marker_and_reraises_on_render_failure(self, tmp_path):
+        """A crash inside run() must be logged, persisted to last_error.txt, and re-raised."""
+        import json
+
+        app = self._make_full_app(tmp_path, dummy=True, dry_run=True)
+        fake_data = MagicMock()
+        fake_data.events = []
+
+        with (
+            patch("src.app.should_skip_refresh", return_value=False),
+            patch("src.app.should_force_full_refresh", return_value=False),
+            patch("src.app.generate_dummy_data", return_value=fake_data),
+            patch("src.app.render_dashboard", side_effect=RuntimeError("render boom")),
+        ):
+            with pytest.raises(RuntimeError, match="render boom"):
+                app.run()
+
+        marker = Path(app.cfg.output_dir) / "last_error.txt"
+        assert marker.exists(), "run() must persist last_error.txt on failure"
+        payload = json.loads(marker.read_text())
+        assert payload["exception_type"] == "RuntimeError"
+        assert payload["message"] == "render boom"
+        assert payload["timestamp"]  # non-empty ISO timestamp
 
     def test_photo_theme_injects_photo_path_into_style(self, tmp_path):
         """When the resolved theme is 'photo', cfg.photo.path is written onto the style."""

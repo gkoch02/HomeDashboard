@@ -1,7 +1,7 @@
 """Tests for data pipeline cache fallback logic."""
 
 import tempfile
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 
 from src.config import Config
@@ -24,7 +24,7 @@ def _make_cached(tmpdir: str) -> DashboardData:
     """Write a minimal cache file and return the data written."""
     from datetime import date
 
-    recent = datetime.now() - timedelta(hours=3)
+    recent = datetime.now(timezone.utc) - timedelta(hours=3)
     cached = DashboardData(
         fetched_at=recent,
         events=[
@@ -167,7 +167,7 @@ def _make_weather() -> WeatherData:
 class TestFetchIntervals:
     def test_weather_skipped_when_cache_is_fresh(self):
         cfg = Config()
-        recent_ts = datetime.now() - timedelta(minutes=1)
+        recent_ts = datetime.now(timezone.utc) - timedelta(minutes=1)
         with tempfile.TemporaryDirectory() as tmpdir:
             save_source("weather", _make_weather(), recent_ts, tmpdir)
             with (
@@ -180,7 +180,7 @@ class TestFetchIntervals:
 
     def test_weather_fetched_when_cache_is_old(self):
         cfg = Config()
-        old_ts = datetime.now() - timedelta(minutes=60)
+        old_ts = datetime.now(timezone.utc) - timedelta(minutes=60)
         mock_w = _make_weather()
         with tempfile.TemporaryDirectory() as tmpdir:
             save_source("weather", mock_w, old_ts, tmpdir)
@@ -194,7 +194,7 @@ class TestFetchIntervals:
 
     def test_force_refresh_bypasses_interval(self):
         cfg = Config()
-        recent_ts = datetime.now() - timedelta(seconds=5)
+        recent_ts = datetime.now(timezone.utc) - timedelta(seconds=5)
         mock_w = _make_weather()
         with tempfile.TemporaryDirectory() as tmpdir:
             save_source("weather", mock_w, recent_ts, tmpdir)
@@ -208,7 +208,7 @@ class TestFetchIntervals:
 
     def test_fresh_interval_result_marked_fresh(self):
         cfg = Config()
-        recent_ts = datetime.now() - timedelta(minutes=1)
+        recent_ts = datetime.now(timezone.utc) - timedelta(minutes=1)
         with tempfile.TemporaryDirectory() as tmpdir:
             save_source("weather", _make_weather(), recent_ts, tmpdir)
             with (
@@ -221,7 +221,7 @@ class TestFetchIntervals:
 
     def test_events_skipped_when_cache_is_fresh(self):
         cfg = Config()
-        recent_ts = datetime.now() - timedelta(minutes=5)
+        recent_ts = datetime.now(timezone.utc) - timedelta(minutes=5)
         with tempfile.TemporaryDirectory() as tmpdir:
             save_source(
                 "events",
@@ -240,7 +240,7 @@ class TestFetchIntervals:
 
     def test_birthdays_skipped_when_cache_is_fresh(self):
         cfg = Config()
-        recent_ts = datetime.now() - timedelta(hours=1)
+        recent_ts = datetime.now(timezone.utc) - timedelta(hours=1)
         with tempfile.TemporaryDirectory() as tmpdir:
             save_source("birthdays", [], recent_ts, tmpdir)
             with (
@@ -255,7 +255,7 @@ class TestFetchIntervals:
 class TestExpiredCache:
     def test_expired_cache_discarded_on_weather_failure(self):
         cfg = Config()
-        very_old = datetime.now() - timedelta(hours=24)
+        very_old = datetime.now(timezone.utc) - timedelta(hours=24)
         with tempfile.TemporaryDirectory() as tmpdir:
             save_source("weather", _make_weather(), very_old, tmpdir)
             with (
@@ -268,7 +268,7 @@ class TestExpiredCache:
 
     def test_expired_cache_not_in_staleness_map(self):
         cfg = Config()
-        very_old = datetime.now() - timedelta(hours=24)
+        very_old = datetime.now(timezone.utc) - timedelta(hours=24)
         with tempfile.TemporaryDirectory() as tmpdir:
             save_source("events", [], very_old, tmpdir)
             with (
@@ -286,7 +286,9 @@ class TestCircuitBreakerOpenPath:
 
         cfg = Config()
         with tempfile.TemporaryDirectory() as tmpdir:
-            save_source("weather", _make_weather(), datetime.now() - timedelta(hours=3), tmpdir)
+            save_source(
+                "weather", _make_weather(), datetime.now(timezone.utc) - timedelta(hours=3), tmpdir
+            )
             breaker = CircuitBreaker(state_dir=tmpdir)
             for _ in range(cfg.cache.max_failures):
                 breaker.record_failure("weather")
@@ -339,7 +341,7 @@ class TestBirthdayCacheFallback:
         with tempfile.TemporaryDirectory() as tmpdir:
             # Cache must be older than birthdays_fetch_interval (default 1440 min)
             # so a fetch is actually attempted. Use 25 hours (1500 min > 1440 min).
-            old_ts = datetime.now() - timedelta(hours=25)
+            old_ts = datetime.now(timezone.utc) - timedelta(hours=25)
             cached_birthday = Birthday(name="Cached Person", date=date(2024, 3, 20))
             save_source("birthdays", [cached_birthday], old_ts, tmpdir)
             mock_weather = WeatherData(

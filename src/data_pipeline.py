@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from concurrent.futures import Future, ThreadPoolExecutor
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 
 from src.data.models import (
     AirQualityData,
@@ -15,8 +15,9 @@ from src.data.models import (
 )
 from src.fetchers.cache import (
     check_staleness,
-    load_cached_source,
-    load_cached_source_with_metadata,
+    load_cache_blob,
+    load_cached_source_from_blob,
+    load_cached_source_with_metadata_from_blob,
     save_source,
 )
 from src.fetchers.calendar import fetch_birthdays, fetch_events
@@ -124,7 +125,9 @@ class DataPipeline:
         self.ignore_breakers = ignore_breakers
         self.event_window_start = event_window_start
         self.event_window_days = event_window_days
-        self.fetched_at = datetime.now(tz) if tz is not None else datetime.now()
+        # Always construct an aware datetime — naive `fetched_at` raises TypeError
+        # when subtracted from aware cache timestamps in check_staleness.
+        self.fetched_at = datetime.now(tz or timezone.utc)
 
         cache_cfg = cfg.cache
         self.quota = QuotaTracker(state_dir=cache_dir)
@@ -147,6 +150,7 @@ class DataPipeline:
         }
         self.stale_sources: list[str] = []
         self.source_staleness: dict[str, StalenessLevel] = {}
+        self._cache_blob: dict | None = None
 
     def fetch(self) -> DashboardData:
         """Fetch all data sources and return a DashboardData snapshot.
@@ -159,6 +163,10 @@ class DataPipeline:
         weather: WeatherData | None = None
         birthdays: list[Birthday] = []
         air_quality: AirQualityData | None = None
+
+        # Read the cache file once per fetch — _should_skip and _use_cache
+        # both decode sources out of this in-memory dict instead of re-opening.
+        self._cache_blob = load_cache_blob(self.cache_dir)
 
         events_cached, events_skip = self._should_skip("events")
         weather_cached, weather_skip = self._should_skip("weather")
@@ -234,7 +242,7 @@ class DataPipeline:
         )
 
     def _use_cache(self, source: str):
-        cached = load_cached_source(source, self.cache_dir)
+        cached = load_cached_source_from_blob(source, self._cache_blob)
         if cached is None:
             return None
         data, cached_at = cached
@@ -250,7 +258,7 @@ class DataPipeline:
         if self.force_refresh:
             return None, False
         if source == "events":
-            cached_events = load_cached_source_with_metadata(source, self.cache_dir)
+            cached_events = load_cached_source_with_metadata_from_blob(source, self._cache_blob)
             if cached_events is None:
                 return None, False
             data, cached_at, metadata = cached_events
@@ -271,7 +279,7 @@ class DataPipeline:
                 )
                 return None, False
         else:
-            cached = load_cached_source(source, self.cache_dir)
+            cached = load_cached_source_from_blob(source, self._cache_blob)
             if cached is None:
                 return None, False
             data, cached_at = cached

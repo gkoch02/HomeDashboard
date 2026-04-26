@@ -61,6 +61,14 @@ class DashboardApp:
         _migrate_state_files(cfg.output_dir, cfg.state_dir)
 
     def run(self):
+        try:
+            self._run()
+        except Exception as exc:
+            logger.exception("Dashboard run failed")
+            self.output.write_error_marker(exc)
+            raise
+
+    def _run(self):
         logger.info("Using timezone: %s", self.tz)
         now = self._resolve_now()
 

@@ -12,6 +12,7 @@ limitation), but all values — including those we didn't touch — are retained
 
 from __future__ import annotations
 
+import contextlib
 import copy
 import logging
 import os
@@ -27,6 +28,19 @@ from src.config import load_config, validate_config
 logger = logging.getLogger(__name__)
 
 _write_lock = threading.Lock()
+
+
+@contextlib.contextmanager
+def config_write_lock():
+    """Public accessor for the module's serialisation lock.
+
+    Callers outside this module use this context manager to coordinate
+    multi-step config mutations (e.g. file write + in-memory swap) so they
+    cannot interleave with apply_patch / restore_latest_backup.
+    """
+    with _write_lock:
+        yield
+
 
 # ---------------------------------------------------------------------------
 # Field registry

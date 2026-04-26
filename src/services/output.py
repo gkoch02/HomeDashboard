@@ -123,3 +123,22 @@ class OutputService:
             marker.write_text(datetime.now(self.tz).isoformat() + "\n")
         except Exception as exc:
             logger.warning("Could not write last_success.txt: %s", exc)
+
+    def write_error_marker(self, exc: BaseException) -> None:
+        """Persist a structured marker describing the most recent run failure.
+
+        The marker is overwritten on each failure and intentionally not deleted
+        on success — readers compare its timestamp to ``last_success.txt`` to
+        decide whether the error is current or stale.
+        """
+        try:
+            marker = Path(self.cfg.output_dir) / "last_error.txt"
+            marker.parent.mkdir(parents=True, exist_ok=True)
+            payload = {
+                "timestamp": datetime.now(self.tz).isoformat(),
+                "exception_type": type(exc).__name__,
+                "message": str(exc),
+            }
+            marker.write_text(json.dumps(payload, sort_keys=True) + "\n")
+        except Exception as write_exc:
+            logger.warning("Could not write last_error.txt: %s", write_exc)

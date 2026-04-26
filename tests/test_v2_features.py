@@ -276,7 +276,8 @@ class TestPerSourceCache:
             data, fetched_at = result
             assert len(data) == 1
             assert data[0].summary == "Evt"
-            assert fetched_at == ts
+            # Naive timestamps written to disk are normalised to UTC on read-back.
+            assert fetched_at == ts.replace(tzinfo=timezone.utc)
 
     def test_load_cached_source_weather(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -370,7 +371,12 @@ class TestPerSourceCache:
             # Pre-populate cache for weather (recent enough to be within TTL)
             from datetime import timedelta
 
-            save_source("weather", _make_weather(), datetime.now() - timedelta(hours=3), tmpdir)
+            save_source(
+                "weather",
+                _make_weather(),
+                datetime.now(timezone.utc) - timedelta(hours=3),
+                tmpdir,
+            )
 
             with (
                 patch("src.data_pipeline.fetch_events", return_value=[]),

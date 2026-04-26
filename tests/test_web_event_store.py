@@ -79,6 +79,41 @@ class TestAppendEvent:
         payload = json.loads((tmp_path / _EVENT_FILE).read_text().strip())
         assert payload["details"]["source_name"] == "calendar"
 
+    def test_concurrent_appends_produce_valid_jsonl(self, tmp_path):
+        """Two threads writing 100 events each must produce 200 valid JSON lines.
+
+        Without the module-level append lock, Python's buffered I/O can split
+        a long write across two syscalls and let a second thread's bytes land
+        inside the first thread's record — corrupting the JSONL.
+        """
+        import threading
+
+        N = 100
+        # A long details payload makes interleaving more likely if unlocked.
+        long_detail = "x" * 4096
+
+        def worker(thread_id: int) -> None:
+            for i in range(N):
+                append_event(
+                    str(tmp_path),
+                    "stress",
+                    f"thread {thread_id} event {i}",
+                    payload=long_detail,
+                )
+
+        t1 = threading.Thread(target=worker, args=(1,))
+        t2 = threading.Thread(target=worker, args=(2,))
+        t1.start()
+        t2.start()
+        t1.join()
+        t2.join()
+
+        lines = (tmp_path / _EVENT_FILE).read_text().splitlines()
+        assert len(lines) == 2 * N, f"expected {2 * N} lines, got {len(lines)}"
+        # Every line must parse as JSON — interleaving would produce corrupt records.
+        for line in lines:
+            json.loads(line)
+
 
 # ---------------------------------------------------------------------------
 # read_recent_events

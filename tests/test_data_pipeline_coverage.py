@@ -1,11 +1,226 @@
 """Tests for uncovered branches in src/data_pipeline.py."""
 
 from concurrent.futures import Future
+from datetime import timezone
 from unittest.mock import patch
+from zoneinfo import ZoneInfo
 
 from src.config import Config, PurpleAirConfig
 from src.data.models import AirQualityData, StalenessLevel, WeatherData
 from src.data_pipeline import DataPipeline, _merge_air_quality_with_weather_fallback
+
+# ---------------------------------------------------------------------------
+# fetched_at: always tz-aware (regression — naive raised TypeError when
+# subtracted from aware cache timestamps in check_staleness).
+# ---------------------------------------------------------------------------
+
+
+class TestFetchedAtAlwaysAware:
+    def test_default_tz_none_yields_aware_utc(self, tmp_path):
+        cfg = Config()
+        cfg.purpleair = PurpleAirConfig()
+        pipeline = DataPipeline(cfg, cache_dir=str(tmp_path))
+        assert pipeline.fetched_at.tzinfo is not None
+        assert pipeline.fetched_at.utcoffset() == timezone.utc.utcoffset(None)
+
+    def test_explicit_tz_preserved(self, tmp_path):
+        cfg = Config()
+        cfg.purpleair = PurpleAirConfig()
+        tz = ZoneInfo("America/Los_Angeles")
+        pipeline = DataPipeline(cfg, cache_dir=str(tmp_path), tz=tz)
+        assert pipeline.fetched_at.tzinfo is tz
+
+
+# ---------------------------------------------------------------------------
+# Cache file is read at most once per fetch() (perf regression guard).
+# ---------------------------------------------------------------------------
+
+
+class TestCacheReadOncePerFetch:
+    """Perf regression guard.
+
+    The original implementation re-opened and re-parsed dashboard_cache.json
+    once per source per code path (_cache_is_recent and _use_cache each
+    called load_cached_source). With 3-4 sources this added up to 4-8
+    redundant reads per tick. The blob-based path opens the file exactly
+    once at the top of fetch().
+    """
+
+    @staticmethod
+    def _count_opens(target: str):
+        """Return (counter_dict, side_effect_callable) for patching builtins.open."""
+        import builtins
+
+        counter = {"opens": 0}
+        real_open = builtins.open
+
+        def _side_effect(file, *args, **kwargs):
+            if str(file) == target:
+                counter["opens"] += 1
+            return real_open(file, *args, **kwargs)
+
+        return counter, _side_effect
+
+    def test_fresh_cache_path_one_open(self, tmp_path):
+        """All sources cache-fresh → one open for the initial blob load."""
+        import json
+        from datetime import datetime, timedelta, timezone
+
+        recent = (datetime.now(timezone.utc) - timedelta(minutes=1)).isoformat()
+        cache_payload = {
+            "schema_version": 2,
+            "events": {
+                "fetched_at": recent,
+                "data": [],
+                "window_start": None,
+                "window_days": 7,
+            },
+            "weather": {"fetched_at": recent, "data": None},
+            "birthdays": {"fetched_at": recent, "data": []},
+        }
+        (tmp_path / "dashboard_cache.json").write_text(json.dumps(cache_payload))
+
+        cfg = Config()
+        cfg.purpleair = PurpleAirConfig()
+        pipeline = DataPipeline(cfg, cache_dir=str(tmp_path), tz=timezone.utc)
+
+        target = str(tmp_path / "dashboard_cache.json")
+        counter, side_effect = self._count_opens(target)
+
+        with patch("builtins.open", side_effect=side_effect):
+            pipeline.fetch()
+
+        assert counter["opens"] == 1, (
+            f"dashboard_cache.json was opened {counter['opens']}× — expected 1"
+        )
+
+    def test_legacy_naive_cached_timestamps_do_not_crash_fetch(self, tmp_path):
+        """A pre-fix cache file with naive `fetched_at` strings must not crash fetch().
+
+        DataPipeline now always uses an aware UTC `self.fetched_at`. Without
+        the deserialiser-level normalisation, subtracting a naive cached_at
+        in _cache_is_recent / _use_cache raises TypeError and aborts fetch()
+        before cache/breaker fallback can engage — leaving users with legacy
+        cache files unable to render at all until they manually delete
+        dashboard_cache.json.
+        """
+        import json
+        from datetime import datetime, timedelta
+
+        # Naive timestamps — what the old code wrote when tz was unset (dummy
+        # mode, tests, or any pipeline created with tz=None).
+        naive_ts = (datetime.now() - timedelta(minutes=10)).isoformat()
+        cache_payload = {
+            "schema_version": 2,
+            "events": {
+                "fetched_at": naive_ts,
+                "data": [],
+                "window_start": None,
+                "window_days": 7,
+            },
+            "weather": {"fetched_at": naive_ts, "data": None},
+            "birthdays": {"fetched_at": naive_ts, "data": []},
+        }
+        (tmp_path / "dashboard_cache.json").write_text(json.dumps(cache_payload))
+
+        cfg = Config()
+        cfg.purpleair = PurpleAirConfig()
+        # Force the breaker-open fallback path so _use_cache() (and therefore
+        # check_staleness on the naive cached_at) is exercised — that's the
+        # exact site that raised TypeError before the fix.
+        cfg.cache.events_fetch_interval = 1
+        cfg.cache.weather_fetch_interval = 1
+        cfg.cache.birthdays_fetch_interval = 1
+        cfg.cache.events_ttl_minutes = 1440
+        cfg.cache.weather_ttl_minutes = 1440
+        cfg.cache.birthdays_ttl_minutes = 1440
+
+        breaker_payload = {
+            src: {
+                "consecutive_failures": 5,
+                "last_failure_at": datetime.now(timezone.utc).isoformat(),
+                "state": "open",
+            }
+            for src in ("events", "weather", "birthdays")
+        }
+        (tmp_path / "dashboard_breaker_state.json").write_text(json.dumps(breaker_payload))
+
+        pipeline = DataPipeline(cfg, cache_dir=str(tmp_path))
+        # Must not raise TypeError on naive-vs-aware subtraction.
+        data = pipeline.fetch()
+
+        # Cache fallback engaged for every source — naive cached values surfaced.
+        assert "events" in data.stale_sources
+        assert "weather" in data.stale_sources
+        assert "birthdays" in data.stale_sources
+
+    def test_breaker_open_path_one_open(self, tmp_path):
+        """Stale cache + open breakers force _use_cache fallback for every source.
+
+        Pre-fix this took 2 opens per source (one in _cache_is_recent, one in
+        _use_cache) for a total of 6+. With the blob cached on the pipeline,
+        all decoders share the single initial open.
+        """
+        import json
+        from datetime import datetime, timedelta, timezone
+
+        # Cache is older than fetch_interval but well inside TTL — so
+        # _cache_is_recent returns False AND _use_cache surfaces the data
+        # without discarding it.
+        cached_at = (datetime.now(timezone.utc) - timedelta(minutes=5)).isoformat()
+        cache_payload = {
+            "schema_version": 2,
+            "events": {
+                "fetched_at": cached_at,
+                "data": [],
+                "window_start": None,
+                "window_days": 7,
+            },
+            "weather": {"fetched_at": cached_at, "data": None},
+            "birthdays": {"fetched_at": cached_at, "data": []},
+        }
+        (tmp_path / "dashboard_cache.json").write_text(json.dumps(cache_payload))
+
+        # Force every source's breaker OPEN with a recent failure timestamp so
+        # the cooldown is in effect.
+        recent_failure = datetime.now(timezone.utc).isoformat()
+        breaker_payload = {
+            src: {
+                "consecutive_failures": 5,
+                "last_failure_at": recent_failure,
+                "state": "open",
+            }
+            for src in ("events", "weather", "birthdays")
+        }
+        (tmp_path / "dashboard_breaker_state.json").write_text(json.dumps(breaker_payload))
+
+        cfg = Config()
+        cfg.purpleair = PurpleAirConfig()
+        # Tight intervals + generous TTLs so a 5-minute-old cache is past the
+        # interval (triggers the breaker-fallback path) but FRESH on the TTL
+        # scale (avoids the EXPIRED-discard branch).
+        cfg.cache.events_fetch_interval = 1
+        cfg.cache.weather_fetch_interval = 1
+        cfg.cache.birthdays_fetch_interval = 1
+        cfg.cache.events_ttl_minutes = 1440
+        cfg.cache.weather_ttl_minutes = 1440
+        cfg.cache.birthdays_ttl_minutes = 1440
+        pipeline = DataPipeline(cfg, cache_dir=str(tmp_path), tz=timezone.utc)
+
+        target = str(tmp_path / "dashboard_cache.json")
+        counter, side_effect = self._count_opens(target)
+
+        with patch("builtins.open", side_effect=side_effect):
+            data = pipeline.fetch()
+
+        assert counter["opens"] == 1, (
+            f"dashboard_cache.json was opened {counter['opens']}× — expected 1 "
+            "(breaker-open fallback must reuse the cached blob)"
+        )
+        # Sanity: the cached values were actually surfaced via the fallback.
+        assert "events" in data.stale_sources
+        assert "weather" in data.stale_sources
+        assert "birthdays" in data.stale_sources
 
 
 def _make_weather():

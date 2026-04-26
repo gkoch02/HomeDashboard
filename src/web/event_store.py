@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import logging
+import threading
 from collections import deque
 from datetime import datetime, timezone
 from pathlib import Path
@@ -17,6 +18,12 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 _EVENT_FILE = "web_events.jsonl"
+
+# Serialise concurrent appends within the web service process. POSIX O_APPEND
+# is atomic only up to PIPE_BUF; Python's buffered I/O can split a long line
+# across multiple write() syscalls, allowing two threads to interleave bytes
+# inside a single record and produce a corrupt JSON line.
+_append_lock = threading.Lock()
 
 
 def append_event(state_dir: str, kind: str, message: str, **details) -> None:
@@ -28,9 +35,11 @@ def append_event(state_dir: str, kind: str, message: str, **details) -> None:
         "message": message,
         "details": details or {},
     }
+    line = json.dumps(payload, sort_keys=True) + "\n"
     try:
-        with open(path, "a", encoding="utf-8") as f:
-            f.write(json.dumps(payload, sort_keys=True) + "\n")
+        with _append_lock:
+            with open(path, "a", encoding="utf-8") as f:
+                f.write(line)
     except Exception as exc:
         logger.debug("Could not append web event: %s", exc)
 

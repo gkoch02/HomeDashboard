@@ -10,16 +10,17 @@ from __future__ import annotations
 
 import json
 import logging
-import os
-import tempfile
 from datetime import date, datetime, timedelta, timezone, tzinfo
 from pathlib import Path
 from typing import Any
 
+import httplib2
 from google.oauth2 import service_account
+from google_auth_httplib2 import AuthorizedHttp
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
+from src._io import atomic_write_json
 from src.config import GoogleConfig
 from src.data.models import CalendarEvent
 
@@ -49,10 +50,13 @@ def _today(tz: tzinfo | None) -> date:
 #
 # Note: service account tokens auto-refresh via the google-auth library, so
 # caching the service object is safe for the typical hourly-cron use case.
-# The Google client library does not expose per-request HTTP timeouts;
-# callers rely on the ThreadPoolExecutor timeout in main.py (120s) as the
-# upper bound on any single API call.
 _service_cache: dict[str, Any] = {}
+
+# Per-request HTTP timeout (seconds). Without this, the client library uses
+# httplib2's default of None — a stalled DNS lookup or upstream blocks until
+# the DataPipeline ThreadPoolExecutor's 120s ceiling, wasting 90+ seconds per
+# stalled call across multiple ticks.
+_HTTP_TIMEOUT_SECONDS = 30
 
 
 def clear_service_caches() -> None:
@@ -72,7 +76,8 @@ def _build_service(cfg: GoogleConfig):
                 f"Failed to load service account credentials from "
                 f"{cfg.service_account_path!r}: {exc}"
             ) from exc
-        _service_cache[key] = build("calendar", "v3", credentials=creds, cache_discovery=False)
+        http = AuthorizedHttp(creds, http=httplib2.Http(timeout=_HTTP_TIMEOUT_SECONDS))
+        _service_cache[key] = build("calendar", "v3", http=http, cache_discovery=False)
     return _service_cache[key]
 
 
@@ -98,15 +103,7 @@ def _save_sync_state(state: dict, cache_dir: str) -> None:
     """Persist per-calendar sync state atomically."""
     path = Path(cache_dir) / _SYNC_STATE_FILENAME
     try:
-        Path(cache_dir).mkdir(parents=True, exist_ok=True)
-        fd, tmp = tempfile.mkstemp(dir=cache_dir, suffix=".tmp")
-        try:
-            with os.fdopen(fd, "w") as f:
-                json.dump(state, f, indent=2)
-            os.replace(tmp, path)
-        except BaseException:
-            os.unlink(tmp)
-            raise
+        atomic_write_json(path, state, indent=2)
     except Exception as exc:
         logger.warning("Sync state write failed: %s", exc)
 

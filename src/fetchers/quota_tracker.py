@@ -11,6 +11,8 @@ import threading
 from datetime import date
 from pathlib import Path
 
+from src._io import atomic_write_json
+
 logger = logging.getLogger(__name__)
 
 _STATE_FILENAME = "api_quota_state.json"
@@ -76,10 +78,8 @@ class QuotaTracker:
 
     def _save(self) -> None:
         path = self._state_dir / _STATE_FILENAME
-        self._state_dir.mkdir(parents=True, exist_ok=True)
         try:
             raw = {"date": self._today, "counts": self._counts}
-            with open(path, "w") as f:
-                json.dump(raw, f, indent=2)
+            atomic_write_json(path, raw, indent=2)
         except Exception as exc:
             logger.warning("Could not save quota state: %s", exc)

@@ -11,12 +11,11 @@ from __future__ import annotations
 
 import json
 import logging
-import os
-import tempfile
 import threading
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from pathlib import Path
 
+from src._io import atomic_write_json
 from src.data.models import (
     AirQualityData,
     Birthday,
@@ -77,6 +76,113 @@ def load_cached(cache_dir: str) -> DashboardData | None:
         return None
 
 
+def _read_cache_file(cache_dir: str) -> dict | None:
+    """Open and parse the cache file once. Returns None on missing/corrupt."""
+    path = Path(cache_dir) / _CACHE_FILENAME
+    if not path.exists():
+        return None
+    try:
+        with _cache_lock:
+            with open(path) as f:
+                return json.load(f)
+    except Exception as exc:
+        logger.warning("Cache read failed (%s): %s", path, exc)
+        return None
+
+
+def load_cache_blob(cache_dir: str) -> dict | None:
+    """Public alias for :func:`_read_cache_file` — used by callers that want to
+    read the cache once and then decode multiple sources without re-opening."""
+    return _read_cache_file(cache_dir)
+
+
+def _normalise_fetched_at(value: datetime) -> datetime:
+    """Treat naive cache timestamps as UTC.
+
+    Older versions wrote naive ``fetched_at`` values when no tz was set
+    (dummy mode, tests, manual edits). DataPipeline now always uses an aware
+    UTC ``self.fetched_at``; subtracting a naive value would raise TypeError
+    and abort fetch() before the cache/breaker fallback could engage.
+    """
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value
+
+
+def _decode_v2_block(
+    source: str, raw: dict
+) -> tuple[list | WeatherData | AirQualityData | None, datetime, dict] | None:
+    """Decode one source out of a v2 cache dict. Returns (data, fetched_at, metadata)
+    or None on missing source / decode failure.
+    """
+    block = raw.get(source)
+    if not block:
+        return None
+    try:
+        fetched_at = _normalise_fetched_at(datetime.fromisoformat(block["fetched_at"]))
+        if source == "events":
+            data: list | WeatherData | AirQualityData | None = [
+                _deser_event(e) for e in block.get("data", [])
+            ]
+        elif source == "weather":
+            data = _deser_weather(block["data"]) if block.get("data") else None
+        elif source == "birthdays":
+            data = [_deser_birthday(b) for b in block.get("data", [])]
+        elif source == "air_quality":
+            data = _deser_air_quality(block["data"]) if block.get("data") else None
+        else:
+            return None
+        metadata = {k: v for k, v in block.items() if k not in {"fetched_at", "data"}}
+        return data, fetched_at, metadata
+    except Exception as exc:
+        logger.warning("Cache source %r decode failed: %s", source, exc)
+        return None
+
+
+def _decode_v1_legacy(
+    source: str, raw: dict
+) -> tuple[list | WeatherData | AirQualityData | None, datetime] | None:
+    """Decode the v1 (flat) legacy cache for the given source. Returns None for
+    sources that didn't exist in v1 (currently only ``air_quality``).
+    """
+    try:
+        legacy = _deserialise_v1(raw)
+    except Exception:
+        return None
+    fetched_at = _normalise_fetched_at(legacy.fetched_at)
+    if source == "events":
+        return legacy.events, fetched_at
+    if source == "weather":
+        return legacy.weather, fetched_at
+    if source == "birthdays":
+        return legacy.birthdays, fetched_at
+    return None
+
+
+def _decode_source(
+    source: str, raw: dict
+) -> tuple[list | WeatherData | AirQualityData | None, datetime] | None:
+    """Decode (data, fetched_at) for *source* from a v2 or v1 cache dict."""
+    if raw.get("schema_version") == _SCHEMA_VERSION:
+        result = _decode_v2_block(source, raw)
+        return None if result is None else (result[0], result[1])
+    return _decode_v1_legacy(source, raw)
+
+
+def _decode_source_with_metadata(
+    source: str, raw: dict
+) -> tuple[list | WeatherData | AirQualityData | None, datetime, dict] | None:
+    """Decode (data, fetched_at, metadata) for *source* from a v2 or v1 cache dict.
+
+    v1 cache files have no per-source metadata; ``metadata`` is always ``{}``
+    on the v1 path.
+    """
+    if raw.get("schema_version") == _SCHEMA_VERSION:
+        return _decode_v2_block(source, raw)
+    legacy = _decode_v1_legacy(source, raw)
+    return None if legacy is None else (legacy[0], legacy[1], {})
+
+
 def load_cached_source(
     source: str, cache_dir: str
 ) -> tuple[list | WeatherData | AirQualityData | None, datetime] | None:
@@ -89,52 +195,10 @@ def load_cached_source(
     Falls back to reading the whole v1 cache when the file is in legacy format,
     so existing cache files work without requiring a full re-fetch.
     """
-    path = Path(cache_dir) / _CACHE_FILENAME
-    if not path.exists():
+    raw = _read_cache_file(cache_dir)
+    if raw is None:
         return None
-    try:
-        with _cache_lock:
-            with open(path) as f:
-                raw = json.load(f)
-    except Exception as exc:
-        logger.warning("Cache read failed (%s): %s", path, exc)
-        return None
-
-    if raw.get("schema_version") == _SCHEMA_VERSION:
-        block = raw.get(source)
-        if not block:
-            return None
-        try:
-            fetched_at = datetime.fromisoformat(block["fetched_at"])
-            if source == "events":
-                data: list | WeatherData | AirQualityData | None = [
-                    _deser_event(e) for e in block.get("data", [])
-                ]
-            elif source == "weather":
-                data = _deser_weather(block["data"]) if block.get("data") else None
-            elif source == "birthdays":
-                data = [_deser_birthday(b) for b in block.get("data", [])]
-            elif source == "air_quality":
-                data = _deser_air_quality(block["data"]) if block.get("data") else None
-            else:
-                return None
-            return data, fetched_at
-        except Exception as exc:
-            logger.warning("Cache source %r decode failed: %s", source, exc)
-            return None
-    else:
-        # v1 fallback: deserialise the whole legacy object and return the source
-        try:
-            legacy = _deserialise_v1(raw)
-        except Exception:
-            return None
-        if source == "events":
-            return legacy.events, legacy.fetched_at
-        elif source == "weather":
-            return legacy.weather, legacy.fetched_at
-        elif source == "birthdays":
-            return legacy.birthdays, legacy.fetched_at
-        return None
+    return _decode_source(source, raw)
 
 
 def load_cached_source_with_metadata(
@@ -146,52 +210,28 @@ def load_cached_source_with_metadata(
     *metadata* contains any extra fields stored alongside the source data.
     For legacy v1 cache files, returns an empty metadata dict.
     """
-    path = Path(cache_dir) / _CACHE_FILENAME
-    if not path.exists():
+    raw = _read_cache_file(cache_dir)
+    if raw is None:
         return None
-    try:
-        with _cache_lock:
-            with open(path) as f:
-                raw = json.load(f)
-    except Exception as exc:
-        logger.warning("Cache read failed (%s): %s", path, exc)
-        return None
+    return _decode_source_with_metadata(source, raw)
 
-    if raw.get("schema_version") == _SCHEMA_VERSION:
-        block = raw.get(source)
-        if not block:
-            return None
-        try:
-            fetched_at = datetime.fromisoformat(block["fetched_at"])
-            if source == "events":
-                data: list | WeatherData | AirQualityData | None = [
-                    _deser_event(e) for e in block.get("data", [])
-                ]
-            elif source == "weather":
-                data = _deser_weather(block["data"]) if block.get("data") else None
-            elif source == "birthdays":
-                data = [_deser_birthday(b) for b in block.get("data", [])]
-            elif source == "air_quality":
-                data = _deser_air_quality(block["data"]) if block.get("data") else None
-            else:
-                return None
-            metadata = {k: v for k, v in block.items() if k not in {"fetched_at", "data"}}
-            return data, fetched_at, metadata
-        except Exception as exc:
-            logger.warning("Cache source %r decode failed: %s", source, exc)
-            return None
 
-    try:
-        legacy = _deserialise_v1(raw)
-    except Exception:
+def load_cached_source_from_blob(
+    source: str, raw: dict | None
+) -> tuple[list | WeatherData | AirQualityData | None, datetime] | None:
+    """Decode a single source from a pre-loaded cache blob (no I/O)."""
+    if raw is None:
         return None
-    if source == "events":
-        return legacy.events, legacy.fetched_at, {}
-    if source == "weather":
-        return legacy.weather, legacy.fetched_at, {}
-    if source == "birthdays":
-        return legacy.birthdays, legacy.fetched_at, {}
-    return None
+    return _decode_source(source, raw)
+
+
+def load_cached_source_with_metadata_from_blob(
+    source: str, raw: dict | None
+) -> tuple[list | WeatherData | AirQualityData | None, datetime, dict] | None:
+    """Decode a single source plus metadata from a pre-loaded cache blob (no I/O)."""
+    if raw is None:
+        return None
+    return _decode_source_with_metadata(source, raw)
 
 
 def save_source(
@@ -240,7 +280,7 @@ def save_source(
         raw[source] = block
 
         try:
-            _atomic_write_json(path, raw)
+            atomic_write_json(path, raw, indent=2)
             logger.debug("Cache source %r written to %s", source, path)
         except Exception as exc:
             logger.warning("Cache write failed for source %r: %s", source, exc)
@@ -250,23 +290,10 @@ def save_cache(data: DashboardData, cache_dir: str) -> None:
     """Persist full DashboardData to the cache file (v2 format)."""
     path = Path(cache_dir) / _CACHE_FILENAME
     try:
-        Path(cache_dir).mkdir(parents=True, exist_ok=True)
-        _atomic_write_json(path, _serialise(data))
+        atomic_write_json(path, _serialise(data), indent=2)
         logger.debug("Cache written to %s", path)
     except Exception as exc:
         logger.warning("Cache write failed: %s", exc)
-
-
-def _atomic_write_json(path: Path, data: dict) -> None:
-    """Write JSON to *path* atomically via a temp file + rename."""
-    fd, tmp = tempfile.mkstemp(dir=path.parent, suffix=".tmp")
-    try:
-        with os.fdopen(fd, "w") as f:
-            json.dump(data, f, indent=2)
-        os.replace(tmp, path)
-    except BaseException:
-        os.unlink(tmp)
-        raise
 
 
 # ---------------------------------------------------------------------------
