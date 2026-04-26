@@ -9,7 +9,6 @@ from src.config import Config, PurpleAirConfig
 from src.data.models import AirQualityData, StalenessLevel, WeatherData
 from src.data_pipeline import DataPipeline, _merge_air_quality_with_weather_fallback
 
-
 # ---------------------------------------------------------------------------
 # fetched_at: always tz-aware (regression — naive raised TypeError when
 # subtracted from aware cache timestamps in check_staleness).
