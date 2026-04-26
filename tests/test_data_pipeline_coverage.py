@@ -1,11 +1,35 @@
 """Tests for uncovered branches in src/data_pipeline.py."""
 
 from concurrent.futures import Future
+from datetime import timezone
 from unittest.mock import patch
+from zoneinfo import ZoneInfo
 
 from src.config import Config, PurpleAirConfig
 from src.data.models import AirQualityData, StalenessLevel, WeatherData
 from src.data_pipeline import DataPipeline, _merge_air_quality_with_weather_fallback
+
+
+# ---------------------------------------------------------------------------
+# fetched_at: always tz-aware (regression — naive raised TypeError when
+# subtracted from aware cache timestamps in check_staleness).
+# ---------------------------------------------------------------------------
+
+
+class TestFetchedAtAlwaysAware:
+    def test_default_tz_none_yields_aware_utc(self, tmp_path):
+        cfg = Config()
+        cfg.purpleair = PurpleAirConfig()
+        pipeline = DataPipeline(cfg, cache_dir=str(tmp_path))
+        assert pipeline.fetched_at.tzinfo is not None
+        assert pipeline.fetched_at.utcoffset() == timezone.utc.utcoffset(None)
+
+    def test_explicit_tz_preserved(self, tmp_path):
+        cfg = Config()
+        cfg.purpleair = PurpleAirConfig()
+        tz = ZoneInfo("America/Los_Angeles")
+        pipeline = DataPipeline(cfg, cache_dir=str(tmp_path), tz=tz)
+        assert pipeline.fetched_at.tzinfo is tz
 
 
 def _make_weather():

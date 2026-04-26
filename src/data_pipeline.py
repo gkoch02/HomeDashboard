@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from concurrent.futures import Future, ThreadPoolExecutor
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 
 from src.data.models import (
     AirQualityData,
@@ -124,7 +124,9 @@ class DataPipeline:
         self.ignore_breakers = ignore_breakers
         self.event_window_start = event_window_start
         self.event_window_days = event_window_days
-        self.fetched_at = datetime.now(tz) if tz is not None else datetime.now()
+        # Always construct an aware datetime — naive `fetched_at` raises TypeError
+        # when subtracted from aware cache timestamps in check_staleness.
+        self.fetched_at = datetime.now(tz or timezone.utc)
 
         cache_cfg = cfg.cache
         self.quota = QuotaTracker(state_dir=cache_dir)
