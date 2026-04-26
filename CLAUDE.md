@@ -12,7 +12,9 @@ make test           # Run pytest
 make coverage       # Run pytest with coverage report (term-missing + HTML in htmlcov/)
 make dry            # Preview with dummy data → output/latest.png
 make previews       # Generate all theme preview PNGs → output/theme_*.png
+make previews-split # Combine Waveshare + Inky previews into output/theme_<name>_split.png
 make check          # Validate config/config.yaml
+make docs-check     # Run scripts/check_docs.py (markdown link / heading sanity)
 make version        # Print current version (e.g. main.py 4.3.1)
 make deploy         # Rsync to Pi (configurable: PI_USER, PI_HOST, PI_DIR)
 make install        # Install systemd timer on remote Pi (via ssh/scp)
@@ -52,6 +54,8 @@ src/
 ├── data_pipeline.py           # DataPipeline — concurrent fetching, caching, circuit breaking per source
 ├── astronomy.py               # Pure-Python NOAA sunrise/sunset/twilight, day-length delta,
 │                              #   meteor-shower lookup. Used by the astronomy theme; no network.
+├── _io.py                     # Shared `atomic_write_json()` (tempfile + os.replace);
+│                              #   used by cache, breaker, quota, sync state, refresh tracker
 ├── services/
 │   ├── run_policy.py          # resolve_tz, should_skip_refresh, should_force_full_refresh
 │   ├── theme.py               # resolve_theme_name (CLI → rules → schedule → cfg.theme / random)
@@ -139,6 +143,7 @@ docs/
 tests/                         # test files, extensive mocking
 fonts/                         # Bundled TTF fonts
 deploy/                        # Systemd service + timer + configure.sh + logrotate
+scripts/                       # Build/dev helpers: build_split_previews.py, check_docs.py
 state/                         # Runtime state: cache, breaker, quota, sync tokens (git-ignored)
 output/                        # Generated PNGs + logs + health marker (git-ignored except latest.png)
 credentials/                   # Google service account JSON (git-ignored)
@@ -166,9 +171,9 @@ Theme-resolution priority (highest → lowest): **CLI `--theme` > `theme_rules` 
 ### Data flow
 `main.py` (thin): parse args → load config → validate config → `DashboardApp.run()`.
 
-`DashboardApp.run()`: resolve timezone → check quiet hours → check morning startup (auto-force-full-refresh) → load data (dummy or `DataPipeline.fetch()`) → filter events → resolve theme name → load theme → render → `OutputService.publish(now=..., theme_name=...)` → write `last_success.txt`.
+`DashboardApp.run()`: resolve timezone → check quiet hours → check morning startup (auto-force-full-refresh) → load data (dummy or `DataPipeline.fetch()`) → filter events → resolve theme name → load theme → render → `OutputService.publish(now=..., theme_name=...)` → write `last_success.txt`. The whole body is wrapped in a top-level `try/except` that calls `OutputService.write_error_marker(exc)` → `output/last_error.txt` (JSON: `timestamp`, `exception_type`, `message`) and re-raises so systemd still records the failure.
 
-`DataPipeline.fetch()`: check cache freshness per source → check circuit breaker → launch concurrent fetches via `ThreadPoolExecutor` → resolve results (cache fallback on failure) → fetch host data synchronously → return `DashboardData`.
+`DataPipeline.fetch()`: read `state/dashboard_cache.json` once into `_cache_blob` (via `load_cache_blob()`) → check cache freshness per source (`load_cached_source_from_blob()`) → check circuit breaker → launch concurrent fetches via `ThreadPoolExecutor` → resolve results (cache fallback on failure) → fetch host data synchronously → return `DashboardData`. `self.fetched_at` is always an aware datetime (`datetime.now(tz or timezone.utc)`) so subtraction against cache timestamps never raises `TypeError`.
 
 ### Rendering
 Components are pure functions: `draw_*(draw, data, region, style) -> None`. No global state. Same input produces the same PNG.
@@ -183,8 +188,9 @@ Components are pure functions: `draw_*(draw, data, region, style) -> None`. No g
 - **Testing**: heavy use of `unittest.mock.patch`; fixtures for temp dirs and dummy data; every public render function has dedicated smoke tests plus logic unit tests. Coverage gate is `fail_under = 90` in `pyproject.toml` (`[tool.coverage.report]`). Run `make coverage` to print missing lines and write an HTML report to `htmlcov/`. `src/_version.py` and `src/main.py` are omitted from coverage
 - **Thread safety**: cache operations use `threading.Lock()`
 - **Graceful degradation**: fetch failure → load cached → use stale data → staleness indicator in header
-- **Error boundaries**: credential loading failures, malformed API responses, and cache write errors are caught and logged without crashing the app
-- **API timeout**: `ThreadPoolExecutor` in `DataPipeline` enforces a 120-second upper bound per source via `future.result(timeout=120)`
+- **Error boundaries**: credential loading failures, malformed API responses, and cache write errors are caught and logged without crashing the app. A top-level `try/except` in `DashboardApp.run()` writes `output/last_error.txt` (read by the web UI for "is the last run current?") and re-raises so the failure propagates to systemd
+- **Atomic state writes**: every JSON state file (`dashboard_cache.json`, `dashboard_breaker_state.json`, `api_quota_state.json`, `calendar_sync_state.json`, refresh-tracker state) is written via the shared `atomic_write_json()` helper in `src/_io.py` (tempfile in the same dir + `os.replace`) so a kill mid-write can't truncate the file
+- **API timeout**: `ThreadPoolExecutor` in `DataPipeline` enforces a 120-second upper bound per source via `future.result(timeout=120)`. Google Calendar API calls additionally use a 30-second per-request HTTP timeout (`_HTTP_TIMEOUT_SECONDS` in `calendar_google.py`) so a stalled DNS lookup can't waste the full 120-second slot
 
 ## CLI Flags
 
@@ -346,3 +352,12 @@ default to `None` and fall back gracefully so adding a new field never breaks ex
 - `monthly` theme uses the `monthly` region on `ThemeLayout` and dispatches via `draw_monthly()` in `monthly_panel.py`. The grid is Sunday-first and always renders a six-row layout (cells outside the current month are blanked). On Inky it opts into the RGB canvas path via `prefer_color_on_inky=True` and uses a 5-step heatmap palette (`(255,249,235)` → `(175,28,28)`); on Waveshare the same density is shown via a 1-bit outlined meter (`_draw_monochrome_density_indicator`). `monthly` is included in the random rotation pool. Typography: DM Sans family (`dm_bold`/`dm_semibold`/`dm_medium`/`dm_regular`)
 - `tests/test_theme_pixel_snapshots.py` SHA-256s the raw `render_dashboard()` output for every theme in `_THEME_REGISTRY` (pinned `FIXED_NOW = 2026-04-06 10:30` + dummy data) and compares against `tests/snapshots/theme_pixel_hashes.json`. A guard test also fails when a newly registered theme has no baseline. The hash assertion is gated on runtime `PIL.__version__` exactly matching `reference_env.pillow_version` in the JSON — when it doesn't, the render still runs (catches crashes) but the assertion is skipped. This way routine upstream Pillow releases don't fail CI spuriously. The strict assertion fires in the dedicated `snapshot-tests` CI job, which reads `reference_env.pillow_version` and `pip install Pillow==<pinned>` before running. When a theme edit is intentional (or Pillow is upgraded deliberately), regenerate baselines with `UPDATE_SNAPSHOTS=1 pytest tests/test_theme_pixel_snapshots.py` and commit the updated JSON alongside the source change; the job will pick up the new Pillow version automatically.
 - `numpy` is declared in core `[project].dependencies` (not just `[dev]`/`[web]`) because `src/display/driver.py` (`InkyDisplay.show`/`clear`) and `src/render/quantize.py` (fast path) import it unconditionally at runtime. The `test-core-install` CI job runs the non-web test suite against a bare `pip install . pytest` (no `[dev]`/`[web]` extras, no `flask`/`waitress`) to guard against core code drifting toward optional-extra packages. Web tests are explicitly excluded via `--ignore-glob='tests/test_web_*.py'` because they legitimately require the `[web]` extras.
+- `atomic_write_json()` lives in `src/_io.py` and is the only sanctioned way to persist JSON state from the renderer. Callers: `fetchers/cache.py` (the per-source cache), `fetchers/circuit_breaker.py`, `fetchers/quota_tracker.py`, `fetchers/calendar_google.py` (sync state), and `display/refresh_tracker.py`. The web UI re-implements an inline copy in `web/routes/actions.py` because it also needs to update the cache file from a different process. Any new persistent state should go through this helper.
+- Cache reads in `DataPipeline.fetch()` go through `load_cache_blob()` once at the top of the method, then each `_should_skip` / `_use_cache` call decodes its source out of the in-memory blob via `load_cached_source_from_blob()`. Avoid calling `load_cached_source()` (which re-opens the file) inside the pipeline — it exists for callers outside the fetch path. `tests/test_data_pipeline_*.py` includes a regression guard that asserts the cache file is opened at most once per `fetch()`, including the breaker-OPEN fallback path.
+- All persisted timestamps are written as **aware** ISO strings (so subtracting them from an aware `datetime.now(...)` never raises `TypeError`), but the offset varies by writer: `DataPipeline.fetched_at` uses the configured app timezone (`datetime.now(tz or timezone.utc)`), `OutputService.write_health_marker` / `write_error_marker` use `datetime.now(self.tz)` for `output/last_success.txt` / `output/last_error.txt`, and the circuit breaker's `last_failure_at` is always UTC (`datetime.now(timezone.utc)`). For backwards compatibility, readers (`_normalise_fetched_at` in `cache.py`, the breaker's `time_since_last_failure`, and `state_reader.read_last_success` / `read_last_error`) treat naive ISO timestamps as UTC — never as local time. Tests that compare cache ages or breaker cooldowns must construct aware `fetched_at` values; pinning `TZ` (e.g. via `monkeypatch.setenv("TZ", "America/Los_Angeles")` + `time.tzset()`) is required when asserting that legacy-naive parsing genuinely uses UTC and not the local zone.
+- Cache decoding is split into a typed pair in `fetchers/cache.py`: `_decode_v2_block()` (current schema, returns `(data, fetched_at, metadata)`) and `_decode_v1_legacy()` (flat pre-v2 format, returns `(data, fetched_at)` — no metadata). Public helpers `load_cached_source*` and the `*_from_blob` variants dispatch on `raw.get("schema_version")`. v1 cache files keep working without re-fetching.
+- `OutputService.write_error_marker(exc)` writes `output/last_error.txt` with `{timestamp, exception_type, message}` on every failed run; the marker is intentionally NOT cleared on success — readers (the web UI status page) compare its timestamp to `output/last_success.txt` to decide whether the error is "current" or "stale".
+- Web in-memory config swap: `routes/config.py::_refresh_in_memory_config()` reloads the YAML and stages new `DASH_CFG` and `SOURCE_TTLS` values, then assigns both back-to-back inside `config_write_lock()` so a concurrent reader can't see a half-applied state. `config_write_lock()` is exposed as a public context manager in `web/config_editor.py` for exactly this kind of multi-step coordination — `apply_patch()` and `restore_latest_backup()` use the same lock internally. If the post-save reload fails, the app logs a warning and keeps the last-loaded config (process is not restarted).
+- The web `event_store` (`state/web_events.jsonl`) is append-only JSONL and `append_event()` serialises concurrent writes through a module-level `threading.Lock()` so two simultaneous web requests can't interleave half-lines into the file.
+- `scripts/build_split_previews.py` (`make previews-split`) combines `output/theme_<name>.png` and `output/theme_<name>_inky.png` into `output/theme_<name>_split.png` for the docs. Each theme picks an orientation from `_THEME_SPLIT_MODES` (anti-diagonal default, plus `main_diagonal`, `vertical`, `horizontal`); the orientation is chosen to keep each theme's Inky color story visible — vertical for centered hero content, horizontal for banded layouts (weather strip, scorecard). Cross-reference `_INKY_THEME_KEY_COLORS` in `canvas.py` when adding entries.
+- `make previews` regenerates Waveshare previews for the curated theme list embedded in the Makefile rule (not all 25 themes); the Inky `_inky` previews and the moon-phase preview date pinning live in their own scripts/CI steps. Don't expect `make previews` alone to refresh every PNG referenced by `docs/themes.md`.
