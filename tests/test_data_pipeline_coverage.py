@@ -32,6 +32,57 @@ class TestFetchedAtAlwaysAware:
         assert pipeline.fetched_at.tzinfo is tz
 
 
+# ---------------------------------------------------------------------------
+# Cache file is read at most once per fetch() (perf regression guard).
+# ---------------------------------------------------------------------------
+
+
+class TestCacheReadOncePerFetch:
+    def test_dashboard_cache_opened_once_per_fetch(self, tmp_path):
+        """_should_skip + _use_cache must share a single decoded cache blob."""
+        import builtins
+        import json
+        from datetime import datetime, timedelta, timezone
+
+        # Seed a recent v2 cache entry for every source so all of _should_skip's
+        # paths exercise the in-memory blob (rather than short-circuiting on
+        # missing files).
+        recent = (datetime.now(timezone.utc) - timedelta(minutes=1)).isoformat()
+        cache_payload = {
+            "schema_version": 2,
+            "events": {
+                "fetched_at": recent,
+                "data": [],
+                "window_start": None,
+                "window_days": 7,
+            },
+            "weather": {"fetched_at": recent, "data": None},
+            "birthdays": {"fetched_at": recent, "data": []},
+        }
+        (tmp_path / "dashboard_cache.json").write_text(json.dumps(cache_payload))
+
+        cfg = Config()
+        cfg.purpleair = PurpleAirConfig()
+        pipeline = DataPipeline(cfg, cache_dir=str(tmp_path), tz=timezone.utc)
+
+        target = str(tmp_path / "dashboard_cache.json")
+        opens = 0
+        real_open = builtins.open
+
+        def _counting_open(file, *args, **kwargs):
+            nonlocal opens
+            if str(file) == target:
+                opens += 1
+            return real_open(file, *args, **kwargs)
+
+        with patch("builtins.open", side_effect=_counting_open):
+            pipeline.fetch()
+
+        # Exactly one open: the load_cache_blob() at the top of fetch().
+        # (save_source() doesn't fire because every source is cache-fresh.)
+        assert opens == 1, f"dashboard_cache.json was opened {opens}× — expected 1"
+
+
 def _make_weather():
     return WeatherData(
         current_temp=68.0,

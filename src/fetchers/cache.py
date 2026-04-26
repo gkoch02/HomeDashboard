@@ -77,6 +77,84 @@ def load_cached(cache_dir: str) -> DashboardData | None:
         return None
 
 
+def _read_cache_file(cache_dir: str) -> dict | None:
+    """Open and parse the cache file once. Returns None on missing/corrupt."""
+    path = Path(cache_dir) / _CACHE_FILENAME
+    if not path.exists():
+        return None
+    try:
+        with _cache_lock:
+            with open(path) as f:
+                return json.load(f)
+    except Exception as exc:
+        logger.warning("Cache read failed (%s): %s", path, exc)
+        return None
+
+
+def load_cache_blob(cache_dir: str) -> dict | None:
+    """Public alias for :func:`_read_cache_file` — used by callers that want to
+    read the cache once and then decode multiple sources without re-opening."""
+    return _read_cache_file(cache_dir)
+
+
+def _decode_source_block(
+    source: str, raw: dict, *, want_metadata: bool = False
+):
+    """Decode a single source out of an already-parsed cache dict.
+
+    Returns ``(data, fetched_at)`` or ``(data, fetched_at, metadata)`` depending
+    on *want_metadata*. Returns ``None`` when the source is absent or decoding
+    fails. Handles both v2 (per-source blocks) and legacy v1 (flat) layouts.
+    """
+    if raw.get("schema_version") == _SCHEMA_VERSION:
+        block = raw.get(source)
+        if not block:
+            return None
+        try:
+            fetched_at = datetime.fromisoformat(block["fetched_at"])
+            if source == "events":
+                data: list | WeatherData | AirQualityData | None = [
+                    _deser_event(e) for e in block.get("data", [])
+                ]
+            elif source == "weather":
+                data = _deser_weather(block["data"]) if block.get("data") else None
+            elif source == "birthdays":
+                data = [_deser_birthday(b) for b in block.get("data", [])]
+            elif source == "air_quality":
+                data = _deser_air_quality(block["data"]) if block.get("data") else None
+            else:
+                return None
+            if want_metadata:
+                metadata = {k: v for k, v in block.items() if k not in {"fetched_at", "data"}}
+                return data, fetched_at, metadata
+            return data, fetched_at
+        except Exception as exc:
+            logger.warning("Cache source %r decode failed: %s", source, exc)
+            return None
+
+    # v1 fallback
+    try:
+        legacy = _deserialise_v1(raw)
+    except Exception:
+        return None
+    if source == "events":
+        return (legacy.events, legacy.fetched_at, {}) if want_metadata else (
+            legacy.events,
+            legacy.fetched_at,
+        )
+    if source == "weather":
+        return (legacy.weather, legacy.fetched_at, {}) if want_metadata else (
+            legacy.weather,
+            legacy.fetched_at,
+        )
+    if source == "birthdays":
+        return (legacy.birthdays, legacy.fetched_at, {}) if want_metadata else (
+            legacy.birthdays,
+            legacy.fetched_at,
+        )
+    return None
+
+
 def load_cached_source(
     source: str, cache_dir: str
 ) -> tuple[list | WeatherData | AirQualityData | None, datetime] | None:
@@ -89,52 +167,10 @@ def load_cached_source(
     Falls back to reading the whole v1 cache when the file is in legacy format,
     so existing cache files work without requiring a full re-fetch.
     """
-    path = Path(cache_dir) / _CACHE_FILENAME
-    if not path.exists():
+    raw = _read_cache_file(cache_dir)
+    if raw is None:
         return None
-    try:
-        with _cache_lock:
-            with open(path) as f:
-                raw = json.load(f)
-    except Exception as exc:
-        logger.warning("Cache read failed (%s): %s", path, exc)
-        return None
-
-    if raw.get("schema_version") == _SCHEMA_VERSION:
-        block = raw.get(source)
-        if not block:
-            return None
-        try:
-            fetched_at = datetime.fromisoformat(block["fetched_at"])
-            if source == "events":
-                data: list | WeatherData | AirQualityData | None = [
-                    _deser_event(e) for e in block.get("data", [])
-                ]
-            elif source == "weather":
-                data = _deser_weather(block["data"]) if block.get("data") else None
-            elif source == "birthdays":
-                data = [_deser_birthday(b) for b in block.get("data", [])]
-            elif source == "air_quality":
-                data = _deser_air_quality(block["data"]) if block.get("data") else None
-            else:
-                return None
-            return data, fetched_at
-        except Exception as exc:
-            logger.warning("Cache source %r decode failed: %s", source, exc)
-            return None
-    else:
-        # v1 fallback: deserialise the whole legacy object and return the source
-        try:
-            legacy = _deserialise_v1(raw)
-        except Exception:
-            return None
-        if source == "events":
-            return legacy.events, legacy.fetched_at
-        elif source == "weather":
-            return legacy.weather, legacy.fetched_at
-        elif source == "birthdays":
-            return legacy.birthdays, legacy.fetched_at
-        return None
+    return _decode_source_block(source, raw)
 
 
 def load_cached_source_with_metadata(
@@ -146,52 +182,24 @@ def load_cached_source_with_metadata(
     *metadata* contains any extra fields stored alongside the source data.
     For legacy v1 cache files, returns an empty metadata dict.
     """
-    path = Path(cache_dir) / _CACHE_FILENAME
-    if not path.exists():
+    raw = _read_cache_file(cache_dir)
+    if raw is None:
         return None
-    try:
-        with _cache_lock:
-            with open(path) as f:
-                raw = json.load(f)
-    except Exception as exc:
-        logger.warning("Cache read failed (%s): %s", path, exc)
-        return None
+    return _decode_source_block(source, raw, want_metadata=True)
 
-    if raw.get("schema_version") == _SCHEMA_VERSION:
-        block = raw.get(source)
-        if not block:
-            return None
-        try:
-            fetched_at = datetime.fromisoformat(block["fetched_at"])
-            if source == "events":
-                data: list | WeatherData | AirQualityData | None = [
-                    _deser_event(e) for e in block.get("data", [])
-                ]
-            elif source == "weather":
-                data = _deser_weather(block["data"]) if block.get("data") else None
-            elif source == "birthdays":
-                data = [_deser_birthday(b) for b in block.get("data", [])]
-            elif source == "air_quality":
-                data = _deser_air_quality(block["data"]) if block.get("data") else None
-            else:
-                return None
-            metadata = {k: v for k, v in block.items() if k not in {"fetched_at", "data"}}
-            return data, fetched_at, metadata
-        except Exception as exc:
-            logger.warning("Cache source %r decode failed: %s", source, exc)
-            return None
 
-    try:
-        legacy = _deserialise_v1(raw)
-    except Exception:
+def load_cached_source_from_blob(source: str, raw: dict | None):
+    """Decode a single source from a pre-loaded cache blob (no I/O)."""
+    if raw is None:
         return None
-    if source == "events":
-        return legacy.events, legacy.fetched_at, {}
-    if source == "weather":
-        return legacy.weather, legacy.fetched_at, {}
-    if source == "birthdays":
-        return legacy.birthdays, legacy.fetched_at, {}
-    return None
+    return _decode_source_block(source, raw)
+
+
+def load_cached_source_with_metadata_from_blob(source: str, raw: dict | None):
+    """Decode a single source plus metadata from a pre-loaded cache blob (no I/O)."""
+    if raw is None:
+        return None
+    return _decode_source_block(source, raw, want_metadata=True)
 
 
 def save_source(
