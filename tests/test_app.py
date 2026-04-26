@@ -5,6 +5,8 @@ from datetime import datetime
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from src.app import DashboardApp, _migrate_state_files
 
 # ---------------------------------------------------------------------------
@@ -727,12 +729,8 @@ class TestRun:
             patch("src.app.generate_dummy_data", return_value=fake_data),
             patch("src.app.render_dashboard", side_effect=RuntimeError("render boom")),
         ):
-            try:
+            with pytest.raises(RuntimeError, match="render boom"):
                 app.run()
-            except RuntimeError as exc:
-                assert "render boom" in str(exc)
-            else:
-                raise AssertionError("DashboardApp.run() should re-raise on failure")
 
         marker = Path(app.cfg.output_dir) / "last_error.txt"
         assert marker.exists(), "run() must persist last_error.txt on failure"
