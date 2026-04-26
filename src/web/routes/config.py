@@ -8,9 +8,13 @@ Routes:
 
 from __future__ import annotations
 
+import logging
+
 from flask import Blueprint, current_app, jsonify, render_template, request
 
+from src.config import load_config
 from src.web.config_editor import (
+    _write_lock,
     apply_patch,
     get_config_for_web,
     list_config_backups,
@@ -18,10 +22,40 @@ from src.web.config_editor import (
 )
 from src.web.event_store import append_event
 
+logger = logging.getLogger(__name__)
+
 config_bp = Blueprint("config", __name__)
 
 # Themes shown as random-mode options rather than direct selects.
 _RANDOM_THEMES = frozenset({"random", "random_daily", "random_hourly"})
+
+
+def _refresh_in_memory_config(config_path: str) -> bool:
+    """Reload DASH_CFG and SOURCE_TTLS in lockstep.
+
+    Stages the new values first, then assigns both keys back-to-back under
+    `_write_lock` so a concurrent reader never sees a half-applied state.
+    Returns True on success; logs a warning and returns False on failure
+    (the in-memory config stays at the last-loaded version until restart).
+    """
+    try:
+        new_cfg = load_config(config_path)
+        new_ttls = {
+            "events": new_cfg.cache.events_ttl_minutes,
+            "weather": new_cfg.cache.weather_ttl_minutes,
+            "birthdays": new_cfg.cache.birthdays_ttl_minutes,
+            "air_quality": new_cfg.cache.air_quality_ttl_minutes,
+        }
+    except Exception as exc:
+        logger.warning(
+            "Config reload after save failed; in-memory config is stale: %s", exc
+        )
+        return False
+
+    with _write_lock:
+        current_app.config["DASH_CFG"] = new_cfg
+        current_app.config["SOURCE_TTLS"] = new_ttls
+    return True
 
 
 @config_bp.route("/config")
@@ -61,19 +95,7 @@ def restore_config_latest():
     restored, message = restore_latest_backup(config_path)
     if restored:
         append_event(current_app.config["STATE_DIR"], "config_restored", message)
-        try:
-            from src.config import load_config
-
-            current_app.config["DASH_CFG"] = load_config(config_path)
-            new_cfg = current_app.config["DASH_CFG"]
-            current_app.config["SOURCE_TTLS"] = {
-                "events": new_cfg.cache.events_ttl_minutes,
-                "weather": new_cfg.cache.weather_ttl_minutes,
-                "birthdays": new_cfg.cache.birthdays_ttl_minutes,
-                "air_quality": new_cfg.cache.air_quality_ttl_minutes,
-            }
-        except Exception:
-            pass
+        _refresh_in_memory_config(config_path)
     return jsonify({"restored": restored, "message": message})
 
 
@@ -92,19 +114,7 @@ def save_config():
             "Configuration saved from web UI",
             fields=sorted(patch.keys()),
         )
-        try:
-            from src.config import load_config
-
-            current_app.config["DASH_CFG"] = load_config(config_path)
-            new_cfg = current_app.config["DASH_CFG"]
-            current_app.config["SOURCE_TTLS"] = {
-                "events": new_cfg.cache.events_ttl_minutes,
-                "weather": new_cfg.cache.weather_ttl_minutes,
-                "birthdays": new_cfg.cache.birthdays_ttl_minutes,
-                "air_quality": new_cfg.cache.air_quality_ttl_minutes,
-            }
-        except Exception:
-            pass  # Stale in-memory config is harmless until restart.
+        _refresh_in_memory_config(config_path)
 
     return jsonify(
         {

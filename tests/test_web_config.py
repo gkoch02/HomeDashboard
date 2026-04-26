@@ -765,8 +765,11 @@ def test_validate_raw_swallows_temp_cleanup_error(tmp_path):
 def test_post_api_config_reload_failure_still_returns_saved(client, app, caplog):
     """If load_config raises after a successful save, the API still returns saved=True."""
     with patch(_VALIDATE_PATCH, _no_errors):
-        with patch("src.config.load_config", side_effect=RuntimeError("simulated reload failure")):
-            with caplog.at_level(logging.WARNING):
+        with patch(
+            "src.web.routes.config.load_config",
+            side_effect=RuntimeError("simulated reload failure"),
+        ):
+            with caplog.at_level(logging.WARNING, logger="src.web.routes.config"):
                 resp = client.post(
                     "/api/config",
                     data=json.dumps({"title": "ReloadBoom"}),
@@ -780,19 +783,52 @@ def test_post_api_config_reload_failure_still_returns_saved(client, app, caplog)
     # File was still written on disk despite the reload failure.
     raw = yaml.safe_load(Path(app.config["APP_CONFIG_PATH"]).read_text())
     assert raw["title"] == "ReloadBoom"
+    # Reload failure is now logged (was silently swallowed previously).
+    assert any(
+        "in-memory config is stale" in r.getMessage() for r in caplog.records
+    ), f"expected reload-failure warning, got records: {[r.getMessage() for r in caplog.records]}"
 
 
-def test_restore_latest_backup_reload_failure_still_returns_restored(client, app):
+def test_restore_latest_backup_reload_failure_still_returns_restored(client, app, caplog):
     """If load_config raises after a successful restore, the API still returns restored=True."""
     config_path = Path(app.config["APP_CONFIG_PATH"])
     config_path.write_text("title: Current\n")
     config_path.with_suffix(".yaml.bak").write_text("title: FromBackup\n")
 
-    with patch("src.config.load_config", side_effect=RuntimeError("simulated reload failure")):
-        resp = client.post("/api/config/restore-latest", headers=_csrf_headers(client))
+    with patch(
+        "src.web.routes.config.load_config",
+        side_effect=RuntimeError("simulated reload failure"),
+    ):
+        with caplog.at_level(logging.WARNING, logger="src.web.routes.config"):
+            resp = client.post("/api/config/restore-latest", headers=_csrf_headers(client))
 
     assert resp.status_code == 200
     data = json.loads(resp.data)
     assert data["restored"] is True
     # The backup content is still on disk even though the in-memory reload failed.
     assert yaml.safe_load(config_path.read_text())["title"] == "FromBackup"
+    # Reload failure logged via the shared helper.
+    assert any(
+        "in-memory config is stale" in r.getMessage() for r in caplog.records
+    )
+
+
+def test_post_api_config_reload_updates_dash_cfg_atomically(client, app):
+    """DASH_CFG and SOURCE_TTLS are updated together — never one without the other."""
+    with patch(_VALIDATE_PATCH, _no_errors):
+        resp = client.post(
+            "/api/config",
+            data=json.dumps({"title": "AtomicTitle"}),
+            content_type="application/json",
+            headers=_csrf_headers(client),
+        )
+
+    assert resp.status_code == 200
+    # After a successful save, DASH_CFG reflects the new value AND SOURCE_TTLS
+    # is the dict derived from the same loaded config (not a stale snapshot).
+    new_cfg = app.config["DASH_CFG"]
+    ttls = app.config["SOURCE_TTLS"]
+    assert new_cfg.title == "AtomicTitle"
+    assert ttls["events"] == new_cfg.cache.events_ttl_minutes
+    assert ttls["weather"] == new_cfg.cache.weather_ttl_minutes
+    assert ttls["birthdays"] == new_cfg.cache.birthdays_ttl_minutes
