@@ -39,9 +39,11 @@ def read_last_success(output_dir: str) -> dict:
         raw = path.read_text().strip()
         ts = datetime.fromisoformat(raw)
         now = datetime.now(timezone.utc)
-        # Normalise: if ts is naive treat it as local time.
+        # Treat legacy naive timestamps as UTC. astimezone() on a naive value
+        # would assume system local time and skew seconds_since by the local
+        # UTC offset.
         if ts.tzinfo is None:
-            ts = ts.astimezone(timezone.utc)
+            ts = ts.replace(tzinfo=timezone.utc)
         seconds_since = int((now - ts).total_seconds())
         return {"timestamp": ts.isoformat(), "seconds_since": max(0, seconds_since)}
     except Exception as exc:
@@ -84,11 +86,11 @@ def read_last_error(output_dir: str) -> dict:
                 is_current = True
             else:
                 success_ts = datetime.fromisoformat(success_ts_str)
-                # Normalise both to aware UTC for comparison.
+                # Treat naive legacy timestamps as UTC (see read_last_success).
                 if ts.tzinfo is None:
-                    ts = ts.astimezone(timezone.utc)
+                    ts = ts.replace(tzinfo=timezone.utc)
                 if success_ts.tzinfo is None:
-                    success_ts = success_ts.astimezone(timezone.utc)
+                    success_ts = success_ts.replace(tzinfo=timezone.utc)
                 is_current = ts > success_ts
         return {
             "timestamp": ts.isoformat() if ts is not None else None,
