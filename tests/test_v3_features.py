@@ -3,7 +3,7 @@ extended forecast in week view, moon phase, and multi-day spanning event bars.
 """
 
 import tempfile
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import patch
 
@@ -151,7 +151,12 @@ class TestParallelFetchers:
             # Pre-populate weather cache (recent enough to be within TTL)
             from datetime import timedelta
 
-            save_source("weather", _make_weather(), datetime.now() - timedelta(hours=3), tmpdir)
+            save_source(
+                "weather",
+                _make_weather(),
+                datetime.now(timezone.utc) - timedelta(hours=3),
+                tmpdir,
+            )
 
             with (
                 patch("src.data_pipeline.fetch_events", return_value=[]),
