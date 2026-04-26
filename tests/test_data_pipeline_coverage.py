@@ -37,15 +37,35 @@ class TestFetchedAtAlwaysAware:
 
 
 class TestCacheReadOncePerFetch:
-    def test_dashboard_cache_opened_once_per_fetch(self, tmp_path):
-        """_should_skip + _use_cache must share a single decoded cache blob."""
+    """Perf regression guard.
+
+    The original implementation re-opened and re-parsed dashboard_cache.json
+    once per source per code path (_cache_is_recent and _use_cache each
+    called load_cached_source). With 3-4 sources this added up to 4-8
+    redundant reads per tick. The blob-based path opens the file exactly
+    once at the top of fetch().
+    """
+
+    @staticmethod
+    def _count_opens(target: str):
+        """Return (counter_dict, side_effect_callable) for patching builtins.open."""
         import builtins
+
+        counter = {"opens": 0}
+        real_open = builtins.open
+
+        def _side_effect(file, *args, **kwargs):
+            if str(file) == target:
+                counter["opens"] += 1
+            return real_open(file, *args, **kwargs)
+
+        return counter, _side_effect
+
+    def test_fresh_cache_path_one_open(self, tmp_path):
+        """All sources cache-fresh → one open for the initial blob load."""
         import json
         from datetime import datetime, timedelta, timezone
 
-        # Seed a recent v2 cache entry for every source so all of _should_skip's
-        # paths exercise the in-memory blob (rather than short-circuiting on
-        # missing files).
         recent = (datetime.now(timezone.utc) - timedelta(minutes=1)).isoformat()
         cache_payload = {
             "schema_version": 2,
@@ -65,21 +85,82 @@ class TestCacheReadOncePerFetch:
         pipeline = DataPipeline(cfg, cache_dir=str(tmp_path), tz=timezone.utc)
 
         target = str(tmp_path / "dashboard_cache.json")
-        opens = 0
-        real_open = builtins.open
+        counter, side_effect = self._count_opens(target)
 
-        def _counting_open(file, *args, **kwargs):
-            nonlocal opens
-            if str(file) == target:
-                opens += 1
-            return real_open(file, *args, **kwargs)
-
-        with patch("builtins.open", side_effect=_counting_open):
+        with patch("builtins.open", side_effect=side_effect):
             pipeline.fetch()
 
-        # Exactly one open: the load_cache_blob() at the top of fetch().
-        # (save_source() doesn't fire because every source is cache-fresh.)
-        assert opens == 1, f"dashboard_cache.json was opened {opens}× — expected 1"
+        assert counter["opens"] == 1, (
+            f"dashboard_cache.json was opened {counter['opens']}× — expected 1"
+        )
+
+    def test_breaker_open_path_one_open(self, tmp_path):
+        """Stale cache + open breakers force _use_cache fallback for every source.
+
+        Pre-fix this took 2 opens per source (one in _cache_is_recent, one in
+        _use_cache) for a total of 6+. With the blob cached on the pipeline,
+        all decoders share the single initial open.
+        """
+        import json
+        from datetime import datetime, timedelta, timezone
+
+        # Cache is older than fetch_interval but well inside TTL — so
+        # _cache_is_recent returns False AND _use_cache surfaces the data
+        # without discarding it.
+        cached_at = (datetime.now(timezone.utc) - timedelta(minutes=5)).isoformat()
+        cache_payload = {
+            "schema_version": 2,
+            "events": {
+                "fetched_at": cached_at,
+                "data": [],
+                "window_start": None,
+                "window_days": 7,
+            },
+            "weather": {"fetched_at": cached_at, "data": None},
+            "birthdays": {"fetched_at": cached_at, "data": []},
+        }
+        (tmp_path / "dashboard_cache.json").write_text(json.dumps(cache_payload))
+
+        # Force every source's breaker OPEN with a recent failure timestamp so
+        # the cooldown is in effect.
+        recent_failure = datetime.now(timezone.utc).isoformat()
+        breaker_payload = {
+            src: {
+                "consecutive_failures": 5,
+                "last_failure_at": recent_failure,
+                "state": "open",
+            }
+            for src in ("events", "weather", "birthdays")
+        }
+        (tmp_path / "dashboard_breaker_state.json").write_text(json.dumps(breaker_payload))
+
+        cfg = Config()
+        cfg.purpleair = PurpleAirConfig()
+        # Tight intervals + generous TTLs so a 5-minute-old cache is past the
+        # interval (triggers the breaker-fallback path) but FRESH on the TTL
+        # scale (avoids the EXPIRED-discard branch).
+        cfg.cache.events_fetch_interval = 1
+        cfg.cache.weather_fetch_interval = 1
+        cfg.cache.birthdays_fetch_interval = 1
+        cfg.cache.events_ttl_minutes = 1440
+        cfg.cache.weather_ttl_minutes = 1440
+        cfg.cache.birthdays_ttl_minutes = 1440
+        pipeline = DataPipeline(cfg, cache_dir=str(tmp_path), tz=timezone.utc)
+
+        target = str(tmp_path / "dashboard_cache.json")
+        counter, side_effect = self._count_opens(target)
+
+        with patch("builtins.open", side_effect=side_effect):
+            data = pipeline.fetch()
+
+        assert counter["opens"] == 1, (
+            f"dashboard_cache.json was opened {counter['opens']}× — expected 1 "
+            "(breaker-open fallback must reuse the cached blob)"
+        )
+        # Sanity: the cached values were actually surfaced via the fallback.
+        assert "events" in data.stale_sources
+        assert "weather" in data.stale_sources
+        assert "birthdays" in data.stale_sources
 
 
 def _make_weather():
