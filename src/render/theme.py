@@ -321,10 +321,27 @@ def default_layout() -> ThemeLayout:
 
 
 def default_theme() -> Theme:
-    """Return the default theme: identical to the pre-theme rendering."""
+    """Return the default theme.
+
+    Lights up on Inky Spectra 6 (blue section labels, red bullets/glyphs/alerts)
+    via accent palette indices; on Waveshare 1-bit, accents fall back to fg so
+    the rendering stays monochrome. Tightens section labels from 12pt bold to
+    11pt semibold and bumps event spacing from 1.0 to 1.1 for breathing room.
+    """
+    # Inky Spectra 6 palette indices (mirror of canvas._INKY_* — duplicated here
+    # to avoid a circular import; see src/render/canvas.py:43-50).
+    inky_red = 3
+    inky_blue = 4
     return Theme(
         name="default",
-        style=ThemeStyle(),  # __post_init__ fills in default fonts
+        style=ThemeStyle(
+            accent_primary=inky_blue,
+            accent_secondary=inky_red,
+            accent_alert=inky_red,
+            label_font_size=11,
+            label_font_weight="semibold",
+            spacing_scale=1.1,
+        ),
         layout=default_layout(),
     )
 
