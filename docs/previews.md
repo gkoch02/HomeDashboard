@@ -87,7 +87,7 @@ cp output/latest.png output/theme_fuzzyclock_inky.png
 Example full batch for all concrete themes:
 
 ```bash
-for theme in air_quality astronomy countdown default diags fantasy fuzzyclock fuzzyclock_invert \
+for theme in agenda air_quality astronomy countdown default diags fantasy fuzzyclock fuzzyclock_invert \
              message minimalist monthly moonphase moonphase_invert old_fashioned photo qotd \
              qotd_invert scorecard sunrise terminal tides timeline today weather year_pulse; do
   if [ "$theme" = "message" ]; then

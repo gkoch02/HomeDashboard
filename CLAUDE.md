@@ -94,8 +94,8 @@ src/
     ├── moon.py                # Moon phase calculator
     ├── primitives.py          # Shared draw utilities (truncation, wrapping, colors, fmt_time,
     │                          #   events_for_day, deg_to_compass)
-    ├── themes/                # themes (25): standard week-view (default, terminal,
-    │                          #   minimalist, old_fashioned, today, fantasy); full-screen
+    ├── themes/                # themes (26): standard week-view (default, agenda,
+    │                          #   terminal, minimalist, old_fashioned, today, fantasy); full-screen
     │                          #   focused (qotd, qotd_invert, fuzzyclock, fuzzyclock_invert,
     │                          #   weather, moonphase, moonphase_invert); specialized views
     │                          #   (timeline, year_pulse, monthly, sunrise, air_quality,
@@ -229,7 +229,7 @@ Components are pure functions: `draw_*(draw, data, region, style) -> None`. No g
 | `Maratype.otf` | `maratype` | `terminal` — dashboard title, day column headers, quote body |
 | `UESC Display.otf` | `uesc_display` | `terminal` — month band, section labels, quote attribution |
 | `Synthetic Genesis.otf` | `synthetic_genesis` | `terminal` — large today date numeral |
-| `DMSans.ttf` | `dm_regular/medium/semibold/bold` | `minimalist`, `weather`, `fuzzyclock`, `diags` (section labels), `countdown`, `astronomy` |
+| `DMSans.ttf` | `dm_regular/medium/semibold/bold` | `minimalist`, `weather`, `fuzzyclock`, `diags` (section labels), `countdown`, `astronomy`, `agenda` |
 | `PlayfairDisplay-*.ttf` | `playfair_regular/medium/semibold/bold` | `old_fashioned`, `qotd`, `moonphase` |
 | `Cinzel.ttf` | `cinzel_regular/semibold/bold/black` | `fantasy`, `old_fashioned` section labels, `moonphase` |
 | `SpaceGrotesk-Regular.ttf` | `sg_regular` | `air_quality`, `message` |
