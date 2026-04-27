@@ -5,7 +5,7 @@ A signage-grade weekly calendar designed to be read from across a room:
 - Dominant 350px 7-day week_view grid with strong contrast
 - Slim 80px strip at the bottom with weather + birthdays only (no quote)
 - DM Sans family throughout, bumped weights for headers / date / labels
-- Red Inky accent (today underline / alerts / dashboard chrome)
+- Red Inky accent (dashboard title / section labels / alerts)
 """
 
 from src.render import fonts
