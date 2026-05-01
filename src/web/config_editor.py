@@ -25,6 +25,10 @@ import yaml  # type: ignore[import-untyped]
 
 from src.config import load_config, validate_config
 
+# Derived from src.config_schema — adding a new editable field is a single
+# `FieldSpec` entry there, not a dict edit here.
+from src.config_schema import editable_field_paths as _editable_field_paths
+
 logger = logging.getLogger(__name__)
 
 _write_lock = threading.Lock()
@@ -49,52 +53,7 @@ def config_write_lock():
 # Maps the flat API field path to the nested YAML key path.
 # For top-level YAML keys the tuple has one element; for nested keys, two.
 # theme_schedule is a special case: handled explicitly as a list.
-EDITABLE_FIELD_PATHS: dict[str, tuple] = {
-    # root
-    "title": ("title",),
-    "theme": ("theme",),
-    "timezone": ("timezone",),
-    "log_level": ("logging", "level"),
-    # display
-    "display.show_weather": ("display", "show_weather"),
-    "display.show_birthdays": ("display", "show_birthdays"),
-    "display.show_info_panel": ("display", "show_info_panel"),
-    "display.week_days": ("display", "week_days"),
-    "display.enable_partial_refresh": ("display", "enable_partial_refresh"),
-    "display.max_partials_before_full": ("display", "max_partials_before_full"),
-    # schedule
-    "schedule.quiet_hours_start": ("schedule", "quiet_hours_start"),
-    "schedule.quiet_hours_end": ("schedule", "quiet_hours_end"),
-    # weather (non-sensitive)
-    "weather.latitude": ("weather", "latitude"),
-    "weather.longitude": ("weather", "longitude"),
-    "weather.units": ("weather", "units"),
-    # birthdays
-    "birthdays.source": ("birthdays", "source"),
-    "birthdays.lookahead_days": ("birthdays", "lookahead_days"),
-    "birthdays.calendar_keyword": ("birthdays", "calendar_keyword"),
-    # filters
-    "filters.exclude_calendars": ("filters", "exclude_calendars"),
-    "filters.exclude_keywords": ("filters", "exclude_keywords"),
-    "filters.exclude_all_day": ("filters", "exclude_all_day"),
-    # cache
-    "cache.weather_ttl_minutes": ("cache", "weather_ttl_minutes"),
-    "cache.events_ttl_minutes": ("cache", "events_ttl_minutes"),
-    "cache.birthdays_ttl_minutes": ("cache", "birthdays_ttl_minutes"),
-    "cache.weather_fetch_interval": ("cache", "weather_fetch_interval"),
-    "cache.events_fetch_interval": ("cache", "events_fetch_interval"),
-    "cache.birthdays_fetch_interval": ("cache", "birthdays_fetch_interval"),
-    "cache.air_quality_ttl_minutes": ("cache", "air_quality_ttl_minutes"),
-    "cache.air_quality_fetch_interval": ("cache", "air_quality_fetch_interval"),
-    "cache.max_failures": ("cache", "max_failures"),
-    "cache.cooldown_minutes": ("cache", "cooldown_minutes"),
-    "cache.quote_refresh": ("cache", "quote_refresh"),
-    # random_theme
-    "random_theme.include": ("random_theme", "include"),
-    "random_theme.exclude": ("random_theme", "exclude"),
-    # theme_schedule — list of {time, theme} dicts
-    "theme_schedule": ("theme_schedule",),
-}
+EDITABLE_FIELD_PATHS: dict[str, tuple] = _editable_field_paths()
 
 
 # ---------------------------------------------------------------------------
