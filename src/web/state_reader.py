@@ -13,6 +13,7 @@ from collections import deque
 from datetime import datetime, timezone
 from pathlib import Path
 
+from src._time import now_utc as _now_utc
 from src.fetchers.cache import check_staleness
 from src.fetchers.host import fetch_host_data
 from src.services.run_policy import in_quiet_hours
@@ -38,7 +39,7 @@ def read_last_success(output_dir: str) -> dict:
     try:
         raw = path.read_text().strip()
         ts = datetime.fromisoformat(raw)
-        now = datetime.now(timezone.utc)
+        now = _now_utc()
         # Treat legacy naive timestamps as UTC. astimezone() on a naive value
         # would assume system local time and skew seconds_since by the local
         # UTC offset.
@@ -160,7 +161,7 @@ def read_cache_ages(state_dir: str, ttls: dict[str, int]) -> dict[str, dict]:
         except Exception as exc:
             logger.debug("Could not read cache: %s", exc)
 
-    now_local = datetime.now()
+    now_local = datetime.now()  # allow-naive-datetime — naive local for cache age display
     now_utc = datetime.now(timezone.utc)
     result: dict[str, dict] = {}
     for source in _SOURCES:
@@ -229,7 +230,9 @@ def read_host_metrics() -> dict | None:
 
 def is_quiet_hours_now(quiet_hours_start: int, quiet_hours_end: int) -> bool:
     """Return True if the current local time falls in the quiet window."""
-    return in_quiet_hours(datetime.now(), quiet_hours_start, quiet_hours_end)
+    return in_quiet_hours(
+        datetime.now(), quiet_hours_start, quiet_hours_end
+    )  # allow-naive-datetime — quiet hours use local wall clock
 
 
 def read_log_tail(output_dir: str, n: int = 100) -> list[str]:

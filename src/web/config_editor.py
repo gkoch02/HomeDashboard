@@ -285,7 +285,9 @@ def _write_raw_yaml(config_path: str, raw: dict, *, rotate_backup: bool = True) 
             with os.fdopen(fd_b, "wb") as fb:
                 fb.write(path.read_bytes())
             if bak.exists():
-                timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+                timestamp = datetime.now().strftime(
+                    "%Y%m%d-%H%M%S"
+                )  # allow-naive-datetime — backup file naming
                 bak.replace(path.with_name(f"{path.stem}.yaml.bak.{timestamp}"))
             os.replace(tmp_b, bak)
         except OSError as exc:

@@ -43,7 +43,7 @@ def check_staleness(
     - EXPIRED: age > 4*ttl
     """
     if now is None:
-        now = datetime.now()
+        now = datetime.now()  # allow-naive-datetime — caller-omitted fallback
     age_minutes = (now - fetched_at).total_seconds() / 60
     if age_minutes <= ttl_minutes:
         return StalenessLevel.FRESH
@@ -114,24 +114,24 @@ def _decode_v2_block(
 ) -> tuple[list | WeatherData | AirQualityData | None, datetime, dict] | None:
     """Decode one source out of a v2 cache dict. Returns (data, fetched_at, metadata)
     or None on missing source / decode failure.
+
+    Delegates to the registered ``Fetcher.deserialize`` so adding a new source
+    does not require editing this dispatcher.
     """
     block = raw.get(source)
     if not block:
         return None
+    # Lazy import to avoid a cycle: cache.py is itself a sub-module of
+    # src.fetchers, and the registry's registrations happen in fetcher
+    # modules that import this file at module-load time.
+    from src.fetchers.registry import get_fetcher
+
+    fetcher = get_fetcher(source)
+    if fetcher is None:
+        return None
     try:
         fetched_at = _normalise_fetched_at(datetime.fromisoformat(block["fetched_at"]))
-        if source == "events":
-            data: list | WeatherData | AirQualityData | None = [
-                _deser_event(e) for e in block.get("data", [])
-            ]
-        elif source == "weather":
-            data = _deser_weather(block["data"]) if block.get("data") else None
-        elif source == "birthdays":
-            data = [_deser_birthday(b) for b in block.get("data", [])]
-        elif source == "air_quality":
-            data = _deser_air_quality(block["data"]) if block.get("data") else None
-        else:
-            return None
+        data = fetcher.deserialize(block.get("data"))
         metadata = {k: v for k, v in block.items() if k not in {"fetched_at", "data"}}
         return data, fetched_at, metadata
     except Exception as exc:
@@ -249,17 +249,14 @@ def save_source(
     path = Path(cache_dir) / _CACHE_FILENAME
     Path(cache_dir).mkdir(parents=True, exist_ok=True)
 
-    if source == "events":
-        serialized: list | dict | None = [_ser_event(e) for e in (data or [])]  # type: ignore[union-attr]
-    elif source == "weather":
-        serialized = _ser_weather(data) if data else None  # type: ignore[arg-type]
-    elif source == "birthdays":
-        serialized = [_ser_birthday(b) for b in (data or [])]  # type: ignore[union-attr]
-    elif source == "air_quality":
-        serialized = _ser_air_quality(data) if data else None  # type: ignore[arg-type]
-    else:
+    # Lazy import (see _decode_v2_block for rationale).
+    from src.fetchers.registry import get_fetcher
+
+    fetcher = get_fetcher(source)
+    if fetcher is None:
         logger.warning("Unknown cache source: %r", source)
         return
+    serialized = fetcher.serialize(data)
 
     with _cache_lock:
         # Preserve existing sources when possible
@@ -387,7 +384,9 @@ def _deserialise_v2(raw: dict) -> DashboardData:
                 timestamps.append(datetime.fromisoformat(block["fetched_at"]))
             except ValueError:
                 pass
-    fetched_at = max(timestamps) if timestamps else datetime.now()
+    fetched_at = (
+        max(timestamps) if timestamps else datetime.now()
+    )  # allow-naive-datetime — empty-cache fallback
 
     events = [_deser_event(e) for e in events_block.get("data", [])]
     weather = _deser_weather(weather_block["data"]) if weather_block.get("data") else None

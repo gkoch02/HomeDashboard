@@ -338,3 +338,94 @@ def _parse_contact_birthday(person: dict, today: date, lookahead: date) -> Birth
 def _days_until(d: date, today: date) -> int:
     delta = (d - today).days
     return delta if delta >= 0 else delta + 365
+
+
+# ---------------------------------------------------------------------------
+# Registry adapters
+# ---------------------------------------------------------------------------
+
+
+def _events_fetch(ctx) -> list[CalendarEvent]:
+    # Dispatch through src.data_pipeline so existing tests that patch
+    # ``src.data_pipeline.fetch_events`` continue to mock the call site.
+    from src import data_pipeline
+
+    return data_pipeline.fetch_events(
+        ctx.cfg.google,
+        days=ctx.event_window_days,
+        start_date=ctx.event_window_start,
+        tz=ctx.tz,
+        cache_dir=ctx.cache_dir,
+    )
+
+
+def _birthdays_fetch(ctx) -> list[Birthday]:
+    from src import data_pipeline
+
+    return data_pipeline.fetch_birthdays(ctx.cfg.google, ctx.cfg.birthdays, tz=ctx.tz)
+
+
+def _events_save_metadata(ctx) -> dict:
+    return {
+        "window_start": (
+            ctx.event_window_start.isoformat() if ctx.event_window_start is not None else None
+        ),
+        "window_days": ctx.event_window_days,
+    }
+
+
+def _events_metadata_valid(metadata: dict, ctx) -> bool:
+    requested_start = (
+        ctx.event_window_start.isoformat() if ctx.event_window_start is not None else None
+    )
+    return (
+        metadata.get("window_start") == requested_start
+        and metadata.get("window_days") == ctx.event_window_days
+    )
+
+
+def _events_log(events: list[CalendarEvent]) -> str:
+    return f"Fetched {len(events)} calendar events"
+
+
+def _birthdays_log(birthdays: list[Birthday]) -> str:
+    return f"Fetched {len(birthdays)} upcoming birthdays"
+
+
+def _register() -> None:
+    # Imported lazily to avoid circulars during partial package init.
+    from src.fetchers.cache import (
+        _deser_birthday,
+        _deser_event,
+        _ser_birthday,
+        _ser_event,
+    )
+    from src.fetchers.registry import Fetcher, register_fetcher
+
+    register_fetcher(
+        Fetcher(
+            name="events",
+            fetch=_events_fetch,
+            serialize=lambda data: [_ser_event(e) for e in (data or [])],
+            deserialize=lambda blob: [_deser_event(e) for e in (blob or [])],
+            ttl_minutes=lambda cfg: cfg.cache.events_ttl_minutes,
+            interval_minutes=lambda cfg: cfg.cache.events_fetch_interval,
+            save_metadata=_events_save_metadata,
+            cache_metadata_valid=_events_metadata_valid,
+            log_success=_events_log,
+        )
+    )
+    register_fetcher(
+        Fetcher(
+            name="birthdays",
+            fetch=_birthdays_fetch,
+            serialize=lambda data: [_ser_birthday(b) for b in (data or [])],
+            deserialize=lambda blob: [_deser_birthday(b) for b in (blob or [])],
+            ttl_minutes=lambda cfg: cfg.cache.birthdays_ttl_minutes,
+            interval_minutes=lambda cfg: cfg.cache.birthdays_fetch_interval,
+            log_success=_birthdays_log,
+        )
+    )
+
+
+_register()

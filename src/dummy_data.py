@@ -32,7 +32,9 @@ def generate_dummy_data(
     When omitted, ``datetime.now(tz)`` is used.
     """
     if now is None:
-        now = datetime.now(tz) if tz is not None else datetime.now()
+        now = (
+            datetime.now(tz) if tz is not None else datetime.now()
+        )  # allow-naive-datetime — fallback when no tz
     today = now.date()
 
     # Find Monday of this week — matches the week_view rendering which is also Monday-based

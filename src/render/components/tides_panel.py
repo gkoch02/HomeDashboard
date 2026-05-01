@@ -45,10 +45,10 @@ _PAD = 14  # horizontal padding inside each band
 def _quote_for_panel(today: date, refresh: str = "daily", now: datetime | None = None) -> dict:
     """Pick a quote deterministically with a tides-specific key prefix."""
     if refresh == "hourly":
-        dt = now if now is not None else datetime.now()
+        dt = now if now is not None else datetime.now()  # allow-naive-datetime — hour bucket only
         key = f"tides-{today.isoformat()}T{dt.hour:02d}"
     elif refresh == "twice_daily":
-        dt = now if now is not None else datetime.now()
+        dt = now if now is not None else datetime.now()  # allow-naive-datetime — am/pm bucket only
         period = "am" if dt.hour < 12 else "pm"
         key = f"tides-{today.isoformat()}-{period}"
     else:

@@ -7,6 +7,7 @@ from datetime import date as _date
 from datetime import datetime, timedelta
 from pathlib import Path
 
+from src._time import now_local
 from src.config import resolve_tz
 from src.data_pipeline import DataPipeline
 from src.dummy_data import generate_dummy_data
@@ -158,7 +159,7 @@ class DashboardApp:
         logger.info("Done")
 
     def _resolve_now(self) -> datetime:
-        now = datetime.now(self.tz)
+        now = now_local(self.tz)
         if self.args.date is not None:
             override_date = _date.fromisoformat(self.args.date)
             now = datetime.combine(override_date, now.timetz())

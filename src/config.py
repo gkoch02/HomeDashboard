@@ -232,7 +232,7 @@ class Config:
 def resolve_tz(tz_name: str) -> tzinfo:
     """Return a tzinfo for the given IANA name, or the system local timezone for 'local'."""
     if tz_name == "local":
-        tz = datetime.now().astimezone().tzinfo
+        tz = datetime.now().astimezone().tzinfo  # allow-naive-datetime — extracting local tzinfo
         if tz is None:
             logger.warning("Could not determine local timezone; falling back to UTC")
             return zoneinfo.ZoneInfo("UTC")

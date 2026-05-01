@@ -12,8 +12,9 @@ import json
 import logging
 import threading
 from collections import deque
-from datetime import datetime, timezone
 from pathlib import Path
+
+from src._time import now_utc
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +31,7 @@ def append_event(state_dir: str, kind: str, message: str, **details) -> None:
     path = Path(state_dir) / _EVENT_FILE
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = {
-        "timestamp": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "timestamp": now_utc().isoformat(timespec="seconds"),
         "kind": kind,
         "message": message,
         "details": details or {},

@@ -50,7 +50,7 @@ class RefreshTracker:
 
     def record_full(self):
         self.partial_count = 0
-        self.last_full = datetime.now()
+        self.last_full = datetime.now()  # allow-naive-datetime — naive local for refresh tracking
 
     def record_partial(self):
         self.partial_count += 1

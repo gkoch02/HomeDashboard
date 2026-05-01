@@ -196,3 +196,38 @@ def _pick_midday(slots: list[dict], tz: tzinfo | None = None) -> dict | None:
         if dt.hour in (11, 12, 13, 14):
             return slot
     return None
+
+
+# ---------------------------------------------------------------------------
+# Registry adapter
+# ---------------------------------------------------------------------------
+
+
+def _weather_fetch(ctx) -> WeatherData:
+    from src import data_pipeline
+
+    return data_pipeline.fetch_weather(ctx.cfg.weather, tz=ctx.tz)
+
+
+def _weather_log(w: WeatherData) -> str:
+    return f"Fetched weather: {w.current_temp:.1f}°"
+
+
+def _register() -> None:
+    from src.fetchers.cache import _deser_weather, _ser_weather
+    from src.fetchers.registry import Fetcher, register_fetcher
+
+    register_fetcher(
+        Fetcher(
+            name="weather",
+            fetch=_weather_fetch,
+            serialize=lambda data: _ser_weather(data) if data else None,
+            deserialize=lambda blob: _deser_weather(blob) if blob else None,
+            ttl_minutes=lambda cfg: cfg.cache.weather_ttl_minutes,
+            interval_minutes=lambda cfg: cfg.cache.weather_fetch_interval,
+            log_success=_weather_log,
+        )
+    )
+
+
+_register()

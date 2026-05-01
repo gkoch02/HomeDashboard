@@ -4,6 +4,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
+from src._time import now_local
 from src.display.driver import DryRunDisplay, build_display_driver, image_changed
 
 logger = logging.getLogger(__name__)
@@ -120,7 +121,7 @@ class OutputService:
         try:
             marker = Path(self.cfg.output_dir) / "last_success.txt"
             marker.parent.mkdir(parents=True, exist_ok=True)
-            marker.write_text(datetime.now(self.tz).isoformat() + "\n")
+            marker.write_text(now_local(self.tz).isoformat() + "\n")
         except Exception as exc:
             logger.warning("Could not write last_success.txt: %s", exc)
 
@@ -135,7 +136,7 @@ class OutputService:
             marker = Path(self.cfg.output_dir) / "last_error.txt"
             marker.parent.mkdir(parents=True, exist_ok=True)
             payload = {
-                "timestamp": datetime.now(self.tz).isoformat(),
+                "timestamp": now_local(self.tz).isoformat(),
                 "exception_type": type(exc).__name__,
                 "message": str(exc),
             }
