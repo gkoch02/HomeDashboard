@@ -20,6 +20,7 @@ from __future__ import annotations
 import logging
 from datetime import date, datetime, timedelta, timezone, tzinfo
 from pathlib import Path
+from typing import Any, cast
 
 from src.data.models import CalendarEvent
 
@@ -97,9 +98,10 @@ def fetch_from_caldav(
     time_max = time_min + timedelta(days=days)
 
     password = _read_password(password_file)
+    caldav_mod = cast(Any, caldav)
 
     try:
-        client = caldav.DAVClient(url=url, username=username, password=password)
+        client = caldav_mod.DAVClient(url=url, username=username, password=password)
         principal = client.principal()
     except Exception as exc:
         logger.warning("CalDAV auth/principal failed for %s: %s", url, exc)

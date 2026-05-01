@@ -110,8 +110,10 @@ def _flatten_for_schema(cfg_for_web: dict) -> dict:
 
     Secret fields surface as ``_*_set`` flags in the source dict; the
     schema view consumes them via ``has_value`` instead, so we copy them
-    into both their dotted path (truthy when ``True``) and ignore the
-    plaintext.
+    into their dotted path (truthy when ``True``) and ignore plaintext.
+    Some non-secret legacy/template values are prefixed with ``_`` (for
+    example ``google._calendar_id``); those are preserved under their
+    public schema path.
     """
     out: dict[str, object] = {}
     for top_key, value in cfg_for_web.items():
@@ -122,6 +124,9 @@ def _flatten_for_schema(cfg_for_web: dict) -> dict:
                     if inner_key.endswith("_set"):
                         secret_name = inner_key[1:-4]  # strip leading "_" and trailing "_set"
                         out[f"{top_key}.{secret_name}"] = inner_value
+                    else:
+                        public_name = inner_key[1:]
+                        out[f"{top_key}.{public_name}"] = inner_value
                     continue
                 out[f"{top_key}.{inner_key}"] = inner_value
         else:

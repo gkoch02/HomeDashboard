@@ -8,6 +8,7 @@ from zoneinfo import ZoneInfo
 from src.config import Config, PurpleAirConfig
 from src.data.models import AirQualityData, StalenessLevel, WeatherData
 from src.data_pipeline import DataPipeline, _merge_air_quality_with_weather_fallback
+from src.fetchers.registry import Fetcher, register_fetcher, unregister_fetcher
 
 # ---------------------------------------------------------------------------
 # fetched_at: always tz-aware (regression — naive raised TypeError when
@@ -281,6 +282,37 @@ class TestLaunchFetchesPurpleair:
             )
         assert futures["air_quality"] is not None
         assert futures["air_quality"].result() is aq
+
+
+class TestLaunchFetchesPluginSources:
+    def test_non_core_fetcher_is_not_skipped_by_default(self, tmp_path):
+        """Registry plugins should run even when they are absent from the v4 skip map."""
+        source_name = "custom_metric"
+        expected = {"ok": True}
+        register_fetcher(
+            Fetcher(
+                name=source_name,
+                fetch=lambda _ctx: expected,
+                serialize=lambda value: value,
+                deserialize=lambda value: value,
+                ttl_minutes=lambda _cfg: 60,
+                interval_minutes=lambda _cfg: 60,
+            )
+        )
+        try:
+            pipeline = _make_pipeline(tmp_path)
+            futures = pipeline._launch_fetches(
+                events_skip=True,
+                weather_skip=True,
+                birthdays_skip=True,
+                purpleair_enabled=False,
+                aq_skip=True,
+            )
+        finally:
+            unregister_fetcher(source_name)
+
+        assert futures[source_name] is not None
+        assert futures[source_name].result() == expected
 
 
 # ---------------------------------------------------------------------------

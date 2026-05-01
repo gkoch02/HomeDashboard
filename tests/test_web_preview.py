@@ -91,3 +91,10 @@ class TestSchemaEndpoint:
             for field in section["fields"]:
                 if field["secret"]:
                     assert "value" not in field, f"secret field {field['path']!r} leaked plaintext"
+
+    def test_schema_response_preserves_non_secret_underscored_values(self, client):
+        resp = client.get("/api/config/schema")
+        body = resp.get_json()
+        google_fields = next(s for s in body["sections"] if s["name"] == "google")["fields"]
+        calendar_id = next(f for f in google_fields if f["path"] == "google.calendar_id")
+        assert calendar_id["value"] == "primary"

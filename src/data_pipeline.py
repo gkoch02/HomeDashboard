@@ -3,10 +3,13 @@ from __future__ import annotations
 import logging
 from concurrent.futures import Future, ThreadPoolExecutor
 from datetime import date
+from typing import cast
 
 from src._time import now_local
 from src.data.models import (
     AirQualityData,
+    Birthday,
+    CalendarEvent,
     DashboardData,
     HostData,
     StalenessLevel,
@@ -218,17 +221,18 @@ class DataPipeline:
 
         host_data: HostData | None = fetch_host_data()
 
+        events_value = results.get("events")
+        weather_value = results.get("weather")
+        birthdays_value = results.get("birthdays")
+        air_quality_value = results.get("air_quality")
+
         return DashboardData(
-            events=results.get("events") or [],
-            weather=results.get("weather")
-            if isinstance(results.get("weather"), WeatherData)
-            else None,
-            birthdays=results.get("birthdays") or [],
-            air_quality=(
-                results.get("air_quality")
-                if isinstance(results.get("air_quality"), AirQualityData)
-                else None
-            ),
+            events=cast(list[CalendarEvent], events_value) if isinstance(events_value, list) else [],
+            weather=weather_value if isinstance(weather_value, WeatherData) else None,
+            birthdays=cast(list[Birthday], birthdays_value)
+            if isinstance(birthdays_value, list)
+            else [],
+            air_quality=air_quality_value if isinstance(air_quality_value, AirQualityData) else None,
             host_data=host_data,
             fetched_at=self.fetched_at,
             is_stale=bool(self.stale_sources),
@@ -341,15 +345,16 @@ class DataPipeline:
             "air_quality": aq_skip if purpleair_enabled else True,
         }
         ctx = self._fetch_context()
+        fetchers = all_fetchers()
         runnable: list = []
-        for f in all_fetchers():
+        for f in fetchers:
             if not f.enabled(self.cfg):
                 continue
-            if skip_by_name.get(f.name, True):
+            if skip_by_name.get(f.name, False):
                 continue
             runnable.append(f)
 
-        futures: dict[str, Future | None] = {f.name: None for f in all_fetchers()}
+        futures: dict[str, Future | None] = {f.name: None for f in fetchers}
         if not runnable:
             return futures
 

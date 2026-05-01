@@ -845,11 +845,7 @@ class TestRunIntegration:
             patch.object(app.output, "publish") as mock_publish,
             # Freeze "now" at 10:00 so we fall squarely inside the [00:00, 23:00)
             # quiet window regardless of wall-clock time on the CI host.
-            patch(
-                "src.app.datetime",
-                wraps=datetime,
-                **{"now.return_value": datetime(2026, 4, 22, 10, 0, tzinfo=app.tz)},
-            ),
+            patch("src.app.now_local", return_value=datetime(2026, 4, 22, 10, 0, tzinfo=app.tz)),
         ):
             app.run()
 
