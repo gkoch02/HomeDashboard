@@ -49,6 +49,17 @@ google:
   # ical_url: "https://calendar.google.com/calendar/ical/.../.../basic.ics"
   # additional_ical_urls: []   # optional extra calendars
 
+  # --- CalDAV alternative (Nextcloud / Radicale / Apple iCloud / Fastmail / ...) ---
+  # When caldav_url is set, events are fetched from a CalDAV server. Both
+  # ical_url and the Google API path are ignored for event fetching.
+  # caldav_password_file points at a one-line file with the account password —
+  # never inline the password in this YAML.
+  #
+  # caldav_url: "https://nextcloud.example.com/remote.php/dav/calendars/<user>/"
+  # caldav_username: "your-username"
+  # caldav_password_file: "credentials/caldav_password.txt"
+  # caldav_calendar_url: ""   # optional specific calendar; default = first in principal
+
 weather:
   api_key: "YOUR_OPENWEATHERMAP_API_KEY"
   # CHANGE THESE to your location (these are New York City defaults)

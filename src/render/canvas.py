@@ -7,12 +7,13 @@ from PIL import Image, ImageDraw
 
 from src.config import DisplayConfig
 from src.data.models import DashboardData
+from src.display.backend import build_display_backend
 from src.display.driver import get_display_spec
 from src.render.components import (
     _builtins as _component_builtins,  # noqa: F401  registers components
 )
 from src.render.components.registry import RenderContext, get_component
-from src.render.quantize import INKY_SPECTRA6_PALETTE, quantize_for_display
+from src.render.quantize import INKY_SPECTRA6_PALETTE
 from src.render.theme import (
     INKY_BLACK as _INKY_BLACK,
 )
@@ -238,27 +239,13 @@ def render_dashboard(
     if layout.overlay_fn is not None:
         layout.overlay_fn(draw, layout, style)
 
-    # Scale to native display resolution and/or quantize to 1-bit.
-    # Quantization is needed whenever a resize occurred (LANCZOS produces grey pixels)
-    # or the theme rendered onto a greyscale canvas (canvas_mode == "L").
-    needs_resize = (config.width, config.height) != (layout.canvas_w, layout.canvas_h)
-    target_is_color = config.provider == "inky"
-    needs_quantize = (needs_resize or layout.canvas_mode == "L") and not target_is_color
-
-    if needs_resize:
-        if target_is_color:
-            image = image.convert("RGB").resize(
-                (config.width, config.height), Image.Resampling.LANCZOS
-            )
-        else:
-            l_image = image if layout.canvas_mode == "L" else image.convert("L")
-            image = l_image.resize((config.width, config.height), Image.Resampling.LANCZOS)
-
-    if needs_quantize:
-        quant_mode = layout.preferred_quantization_mode or config.quantization_mode
-        image = quantize_for_display(image, quant_mode)
-    # Inky: no pre-quantization — the Inky library maps to physical inks using its own
-    # calibrated palette.  Pre-quantizing with an approximated palette causes grey
-    # anti-aliased pixels to snap to the wrong ink color (e.g. grey → green).
+    # Delegate resize + final quantization to the backend so canvas no longer
+    # forks on `config.provider`.
+    backend = build_display_backend(config)
+    image = backend.resize_and_finalize(
+        image,
+        canvas_size=(layout.canvas_w, layout.canvas_h),
+        layout=layout,
+    )
 
     return image

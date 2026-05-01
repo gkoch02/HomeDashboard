@@ -1,67 +1,117 @@
+"""OutputService — publish a rendered image to the configured display.
+
+The v4 "Inky hourly throttle" is replaced in v5 with a backend-agnostic
+**content-hash + minimum-cooldown** throttle: any rendered image whose
+SHA-256 differs from the last persisted hash is allowed to refresh,
+subject to ``DisplayConfig.min_refresh_interval_seconds`` (default 60s on
+Inky, 0s on Waveshare).
+
+State persists in ``state/refresh_throttle_state.json``. The legacy
+``inky_refresh_state.json`` is migrated transparently on read.
+"""
+
+from __future__ import annotations
+
 import json
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
 
 from src._time import now_local
 from src.display.driver import DryRunDisplay, build_display_driver, image_changed
 
 logger = logging.getLogger(__name__)
 
-_INKY_REFRESH_STATE = "inky_refresh_state.json"
-_INKY_REFRESH_INTERVAL_SECONDS = 3600
-_FUZZYCLOCK_THEMES = {"fuzzyclock", "fuzzyclock_invert"}
+_REFRESH_STATE_FILENAME = "refresh_throttle_state.json"
+_LEGACY_INKY_STATE_FILENAME = "inky_refresh_state.json"
+
+_DEFAULT_MIN_REFRESH_SECONDS = {"inky": 60, "waveshare": 0}
 
 
-def _is_inky_rate_limited_theme(theme_name: str) -> bool:
-    return theme_name not in _FUZZYCLOCK_THEMES
+def _resolve_min_refresh_seconds(provider: str, configured: int | None) -> int:
+    """Return the cooldown to enforce, given a provider and a config value."""
+    if configured is not None:
+        return max(0, int(configured))
+    return _DEFAULT_MIN_REFRESH_SECONDS.get(provider, 0)
 
 
-def _last_inky_refresh_path(state_dir: str) -> Path:
-    return Path(state_dir) / _INKY_REFRESH_STATE
+def _refresh_state_path(state_dir: str) -> Path:
+    return Path(state_dir) / _REFRESH_STATE_FILENAME
 
 
-def _load_last_inky_refresh(state_dir: str) -> Optional[datetime]:
-    path = _last_inky_refresh_path(state_dir)
+def _legacy_inky_state_path(state_dir: str) -> Path:
+    return Path(state_dir) / _LEGACY_INKY_STATE_FILENAME
+
+
+def _load_last_refresh(state_dir: str) -> datetime | None:
+    """Read the last-refresh timestamp, migrating from the legacy file once."""
+    path = _refresh_state_path(state_dir)
     if not path.exists():
-        return None
-    try:
-        raw = json.loads(path.read_text())
-        if not isinstance(raw, dict):
+        legacy = _legacy_inky_state_path(state_dir)
+        if not legacy.exists():
             return None
-        value = raw.get("last_refresh_at")
+        # Migrate legacy file: read once, rewrite under the new name, delete old.
+        try:
+            raw = json.loads(legacy.read_text())
+        except (OSError, ValueError, json.JSONDecodeError):
+            return None
+        value = raw.get("last_refresh_at") if isinstance(raw, dict) else None
         if not isinstance(value, str):
             return None
-        return datetime.fromisoformat(value)
+        try:
+            ts = datetime.fromisoformat(value)
+        except ValueError:
+            return None
+        try:
+            _save_last_refresh(state_dir, ts)
+            legacy.unlink()
+        except OSError as exc:
+            logger.debug("Could not migrate legacy inky refresh state: %s", exc)
+        return ts
+
+    try:
+        raw = json.loads(path.read_text())
     except (OSError, ValueError, json.JSONDecodeError):
+        return None
+    if not isinstance(raw, dict):
+        return None
+    value = raw.get("last_refresh_at")
+    if not isinstance(value, str):
+        return None
+    try:
+        return datetime.fromisoformat(value)
+    except ValueError:
         return None
 
 
-def _save_last_inky_refresh(state_dir: str, now: datetime) -> None:
-    path = _last_inky_refresh_path(state_dir)
+def _save_last_refresh(state_dir: str, when: datetime) -> None:
+    path = _refresh_state_path(state_dir)
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps({"last_refresh_at": now.isoformat()}) + "\n")
+        path.write_text(json.dumps({"last_refresh_at": when.isoformat()}) + "\n")
     except OSError as exc:
-        logger.warning("Could not write Inky refresh state: %s", exc)
+        logger.warning("Could not write refresh throttle state: %s", exc)
 
 
-def should_throttle_inky_refresh(
+def should_throttle_display_refresh(
     *,
     provider: str,
-    theme_name: str,
     now: datetime,
     state_dir: str,
     force_full: bool,
+    min_interval_seconds: int,
 ) -> bool:
-    if provider != "inky" or force_full or not _is_inky_rate_limited_theme(theme_name):
+    """Return True iff the cooldown window has not yet elapsed.
+
+    ``force_full`` and ``min_interval_seconds <= 0`` always pass through.
+    """
+    if force_full or min_interval_seconds <= 0:
         return False
-    last_refresh = _load_last_inky_refresh(state_dir)
-    if last_refresh is None:
+    last = _load_last_refresh(state_dir)
+    if last is None:
         return False
-    elapsed_seconds = (now - last_refresh).total_seconds()
-    return elapsed_seconds < _INKY_REFRESH_INTERVAL_SECONDS
+    elapsed = (now - last).total_seconds()
+    return elapsed < min_interval_seconds
 
 
 class OutputService:
@@ -82,15 +132,25 @@ class OutputService:
             DryRunDisplay(output_dir=self.cfg.output_dir).show(image)
             return
 
-        if should_throttle_inky_refresh(
+        # The image-hash check below already short-circuits identical-content
+        # refreshes; the cooldown only kicks in to prevent rapid-fire refreshes
+        # of *different* content (e.g. a clock-face theme) on hardware that
+        # benefits from a longer interval (Inky default 60s; users can dial up
+        # to 3600 to restore the v4 hourly behaviour).
+        min_interval = _resolve_min_refresh_seconds(
+            self.cfg.display.provider, self.cfg.display.min_refresh_interval_seconds
+        )
+        if should_throttle_display_refresh(
             provider=self.cfg.display.provider,
-            theme_name=theme_name,
             now=now,
             state_dir=self.cfg.state_dir,
             force_full=force_full,
+            min_interval_seconds=min_interval,
         ):
             logger.info(
-                "Inky refresh throttled — skipping hardware update for theme '%s'", theme_name
+                "Display refresh throttled (cooldown %ds) — skipping for theme '%s'",
+                min_interval,
+                theme_name,
             )
             return
 
@@ -106,8 +166,10 @@ class OutputService:
             state_dir=self.cfg.state_dir,
         ).show(image, force_full=force_full)
 
-        if self.cfg.display.provider == "inky":
-            _save_last_inky_refresh(self.cfg.state_dir, now)
+        # Record the refresh so the next tick can apply the cooldown. The
+        # marker is provider-agnostic now — a Waveshare user who sets
+        # min_refresh_interval_seconds gets the same throttling Inky does.
+        _save_last_refresh(self.cfg.state_dir, now)
 
         # Save latest.png so the web UI always reflects the current display.
         try:

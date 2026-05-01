@@ -110,12 +110,28 @@ def fetch_events(
 ) -> list[CalendarEvent]:
     """Return calendar events for the current week across all configured calendars.
 
-    When *cfg.ical_url* is set, events are fetched from that ICS feed URL (and any
-    *cfg.additional_ical_urls*) instead of the Google Calendar API.
+    Backend selection (highest precedence first):
+
+    1. ``cfg.caldav_url`` — fetch from a CalDAV server.
+    2. ``cfg.ical_url`` — fetch from one or more ICS feed URLs.
+    3. otherwise — fetch from the Google Calendar API.
 
     When *cache_dir* is provided (Google API path only), sync tokens are stored and
     incremental syncs are used for subsequent calls, reducing API quota consumption.
     """
+    if cfg.caldav_url:
+        from src.fetchers.calendar_caldav import fetch_from_caldav
+
+        return fetch_from_caldav(
+            url=cfg.caldav_url,
+            username=cfg.caldav_username,
+            password_file=cfg.caldav_password_file,
+            calendar_url=cfg.caldav_calendar_url,
+            days=days,
+            start_date=start_date,
+            tz=tz,
+        )
+
     if cfg.ical_url:
         urls = [cfg.ical_url] + list(cfg.additional_ical_urls)
         return fetch_from_ical(urls, days=days, start_date=start_date, tz=tz)
