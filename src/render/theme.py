@@ -338,6 +338,24 @@ class _ThemeRegistryView(dict):
     def get(self, key, default=None):
         return _theme_registry().get(key, default)
 
+    # Mutating dict methods are explicit failures rather than silent operations
+    # on the empty parent ``dict``. New themes register themselves via
+    # ``src.render.themes.registry.register_theme``; no caller should be poking
+    # at this proxy directly.
+    def _readonly(self, *_args, **_kwargs):
+        raise TypeError(
+            "_THEME_REGISTRY is a read-through proxy; register themes via "
+            "src.render.themes.registry.register_theme(...)"
+        )
+
+    __setitem__ = _readonly
+    __delitem__ = _readonly
+    pop = _readonly
+    popitem = _readonly
+    setdefault = _readonly
+    update = _readonly
+    clear = _readonly
+
 
 _THEME_REGISTRY: _ThemeRegistryView = _ThemeRegistryView()
 

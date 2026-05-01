@@ -63,6 +63,11 @@ def migrate_in_memory(raw: dict) -> dict:
 
     Mutates a copy and returns it. Idempotent — re-running on a
     fully-migrated dict is a no-op.
+
+    Defends against a misregistered step that doesn't bump
+    ``schema_version``: if a step returns the same version it received,
+    the runner stamps :data:`CURRENT_SCHEMA_VERSION` and bails rather
+    than infinite-looping.
     """
     out = dict(raw)
     while True:
@@ -81,6 +86,17 @@ def migrate_in_memory(raw: dict) -> dict:
             return out
         logger.info("Migrating config from schema_version %d", from_version)
         out = step(out)
+        new_version = _read_schema_version(out)
+        if new_version <= from_version:
+            logger.error(
+                "Migration step from schema_version=%d failed to advance the "
+                "version (got %d); stamping current to avoid infinite loop. "
+                "This is a bug in the migration step.",
+                from_version,
+                new_version,
+            )
+            out["schema_version"] = CURRENT_SCHEMA_VERSION
+            return out
 
 
 def _step_for(from_version: int) -> Callable[[dict], dict] | None:

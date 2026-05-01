@@ -30,7 +30,7 @@ files migrate transparently on first read. See
   `get_component(name)(ctx)` call.
 - **CalDAV calendar source** (`src/fetchers/calendar_caldav.py`) —
   Nextcloud / Radicale / Apple iCloud / Fastmail / Synology / etc. via the
-  `caldav>=1.3` package. Authenticates with HTTP Basic and a one-line
+  `caldav>=1.5` package. Authenticates with HTTP Basic and a one-line
   password file (no inline secrets). New `google.caldav_url`,
   `caldav_username`, `caldav_password_file`, `caldav_calendar_url` fields.
 - **`DisplayBackend` ABC** (`src/display/backend.py`) — unifies the
@@ -84,7 +84,7 @@ files migrate transparently on first read. See
 - **Calendar dispatcher precedence** in `src/fetchers/calendar.py` is
   now CalDAV → ICS → Google API. When CalDAV or ICS is configured the
   Google API path is completely bypassed.
-- **`caldav>=1.3`** added to core dependencies (`pyproject.toml` /
+- **`caldav>=1.5`** added to core dependencies (`pyproject.toml` /
   `requirements.txt`).
 
 ### Deprecated

@@ -127,6 +127,23 @@ class TestThemeRegistryMutation:
         finally:
             unregister_theme("__test_dupe__")
 
+    def test_legacy_THEME_REGISTRY_proxy_rejects_mutation(self):
+        """The legacy ``_THEME_REGISTRY`` proxy is read-only — mutating dict
+        methods must raise rather than silently succeed against the empty
+        parent ``dict``."""
+        import pytest
+
+        from src.render.theme import _THEME_REGISTRY
+
+        with pytest.raises(TypeError, match="read-through proxy"):
+            _THEME_REGISTRY.pop("agenda")
+        with pytest.raises(TypeError, match="read-through proxy"):
+            _THEME_REGISTRY["x"] = lambda: None
+        with pytest.raises(TypeError, match="read-through proxy"):
+            _THEME_REGISTRY.clear()
+        with pytest.raises(TypeError, match="read-through proxy"):
+            _THEME_REGISTRY.update({})
+
 
 # ---------------------------------------------------------------------------
 # Component registry

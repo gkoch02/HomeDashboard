@@ -50,7 +50,11 @@ def _load_last_refresh(state_dir: str) -> datetime | None:
         legacy = _legacy_inky_state_path(state_dir)
         if not legacy.exists():
             return None
-        # Migrate legacy file: read once, rewrite under the new name, delete old.
+        # Migrate legacy file: parse to validate shape, then atomically rename
+        # under the new name. Both files use the same JSON schema
+        # ({"last_refresh_at": "<iso>"}) so a rename preserves the payload
+        # bit-for-bit. ``Path.replace`` is atomic on POSIX so a kill mid-rename
+        # leaves either the legacy or the new file in place — never both.
         try:
             raw = json.loads(legacy.read_text())
         except (OSError, ValueError, json.JSONDecodeError):
@@ -63,8 +67,8 @@ def _load_last_refresh(state_dir: str) -> datetime | None:
         except ValueError:
             return None
         try:
-            _save_last_refresh(state_dir, ts)
-            legacy.unlink()
+            path.parent.mkdir(parents=True, exist_ok=True)
+            legacy.replace(path)
         except OSError as exc:
             logger.debug("Could not migrate legacy inky refresh state: %s", exc)
         return ts
@@ -132,11 +136,13 @@ class OutputService:
             DryRunDisplay(output_dir=self.cfg.output_dir).show(image)
             return
 
-        # The image-hash check below already short-circuits identical-content
-        # refreshes; the cooldown only kicks in to prevent rapid-fire refreshes
-        # of *different* content (e.g. a clock-face theme) on hardware that
-        # benefits from a longer interval (Inky default 60s; users can dial up
-        # to 3600 to restore the v4 hourly behaviour).
+        # Two-stage refresh suppression:
+        #   1. Cooldown — minimum seconds between hardware writes regardless
+        #      of whether content changed. Blocks rapid-fire refreshes on
+        #      slow panels (Inky default 60s; set 3600 to restore v4 hourly).
+        #   2. Image hash — short-circuits identical-content refreshes.
+        # The cooldown intentionally blocks novel content too; the cap is a
+        # rate-limiter on the hardware, not just a dedup filter.
         min_interval = _resolve_min_refresh_seconds(
             self.cfg.display.provider, self.cfg.display.min_refresh_interval_seconds
         )
@@ -148,7 +154,8 @@ class OutputService:
             min_interval_seconds=min_interval,
         ):
             logger.info(
-                "Display refresh throttled (cooldown %ds) — skipping for theme '%s'",
+                "Display refresh rate-limited (cooldown %ds, theme '%s') — "
+                "deferring any pending content change to the next eligible run",
                 min_interval,
                 theme_name,
             )

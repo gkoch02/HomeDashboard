@@ -86,7 +86,7 @@ def fetch_from_caldav(
     except ImportError as exc:
         raise RuntimeError(
             "The 'caldav' package is required for CalDAV calendar support. "
-            "Run: pip install 'caldav>=1.3'"
+            "Run: pip install 'caldav>=1.5'"
         ) from exc
 
     today = date.today()
@@ -118,7 +118,12 @@ def fetch_from_caldav(
     for cal in calendars:
         cal_name = _calendar_name(cal)
         try:
-            results = cal.search(start=time_min, end=time_max, event=True, expand=True)
+            # ``server_expand=True`` asks the CalDAV server to expand recurring
+            # events into individual instances within the window — the v4 code
+            # used ``expand=True`` which silently fell into ``**searchargs`` on
+            # caldav≥3 and produced one VEVENT per RRULE instead of one per
+            # occurrence. Requires ``caldav>=1.5``.
+            results = cal.search(start=time_min, end=time_max, event=True, server_expand=True)
         except Exception as exc:
             logger.warning("CalDAV search failed on %s: %s", cal_name, exc)
             continue

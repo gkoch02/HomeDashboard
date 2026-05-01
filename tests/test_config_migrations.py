@@ -47,6 +47,29 @@ class TestV4ToV5:
 
 
 class TestMigrateInMemory:
+    def test_misregistered_step_does_not_infinite_loop(self):
+        """Regression: a step that fails to bump ``schema_version`` must NOT
+        infinite-loop the runner. The defensive branch stamps current and
+        bails with an error log."""
+        from src import config_migrations as cm
+
+        bad_step_calls = {"n": 0}
+
+        def _bad_step(raw):
+            bad_step_calls["n"] += 1
+            return raw  # forgot to set schema_version — this is the bug.
+
+        original_migrations = cm._MIGRATIONS
+        cm._MIGRATIONS = [(4, _bad_step)]
+        try:
+            out = cm.migrate_in_memory({"title": "X"})
+        finally:
+            cm._MIGRATIONS = original_migrations
+
+        assert out["schema_version"] == cm.CURRENT_SCHEMA_VERSION
+        # Step ran exactly once — we did not infinite-loop.
+        assert bad_step_calls["n"] == 1
+
     def test_v4_dict_becomes_current_version(self):
         out = migrate_in_memory({"title": "X"})
         assert out["schema_version"] == CURRENT_SCHEMA_VERSION

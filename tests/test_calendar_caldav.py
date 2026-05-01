@@ -104,6 +104,32 @@ def _make_calendar(name, results):
 
 
 class TestFetchFromCalDAV:
+    def test_search_called_with_server_expand(self, tmp_path):
+        """Regression: caldav>=3 ignores ``expand=`` (it's not a real kwarg) and
+        falls into ``**searchargs`` silently. The correct kwarg is
+        ``server_expand``; without it the server returns one VEVENT per RRULE
+        instead of one per recurrence in the window."""
+        pw = tmp_path / "pw.txt"
+        pw.write_text("secret\n")
+        cal = _make_calendar("Work", [])
+
+        with _patch_caldav([cal]):
+            fetch_from_caldav(
+                url="https://example.com/dav/",
+                username="alice",
+                password_file=str(pw),
+                days=7,
+                start_date=date(2026, 5, 4),
+            )
+
+        cal.search.assert_called_once()
+        kwargs = cal.search.call_args.kwargs
+        assert kwargs.get("server_expand") is True, (
+            "server_expand=True must be passed; bare expand=True is silently "
+            "ignored on caldav>=3 and leaves recurring events unexpanded"
+        )
+        assert "expand" not in kwargs, "the v4 typo'd kwarg must not slip back in"
+
     def test_returns_events_from_principal_calendars(self, tmp_path):
         pw = tmp_path / "pw.txt"
         pw.write_text("secret\n")

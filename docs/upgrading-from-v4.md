@@ -38,7 +38,7 @@ git checkout v5.0.0
 
 ### 2. Update Python dependencies
 
-v5 adds `caldav>=1.3` to core dependencies and bumps a few minimum versions.
+v5 adds `caldav>=1.5` to core dependencies and bumps a few minimum versions.
 
 ```bash
 # On the Pi

@@ -219,13 +219,19 @@ page without touching the live dashboard timer or hardware. Custom UIs can also 
 it directly:
 
 ```bash
-TOKEN=$(curl -s -c cookies.txt http://dashboard.local:8080/ | grep -oP 'csrf_token.*?"\K[^"]+')
+# The token is exposed via <meta name="csrf-token" content="..."> on every page.
+# Hit the home page once to acquire the session cookie + token.
+TOKEN=$(curl -s -c cookies.txt http://dashboard.local:8080/ \
+  | grep -oP '<meta name="csrf-token" content="\K[^"]+')
 curl -b cookies.txt -X POST http://dashboard.local:8080/api/preview \
   -H "Content-Type: application/json" \
   -H "X-CSRF-Token: $TOKEN" \
   -d '{"theme":"agenda"}' \
   -o agenda-preview.png
 ```
+
+If the web UI has authentication enabled (recommended), add `-u user:pass` to both
+`curl` calls.
 
 ---
 
