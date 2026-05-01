@@ -227,12 +227,16 @@ class DataPipeline:
         air_quality_value = results.get("air_quality")
 
         return DashboardData(
-            events=cast(list[CalendarEvent], events_value) if isinstance(events_value, list) else [],
+            events=cast(list[CalendarEvent], events_value)
+            if isinstance(events_value, list)
+            else [],
             weather=weather_value if isinstance(weather_value, WeatherData) else None,
             birthdays=cast(list[Birthday], birthdays_value)
             if isinstance(birthdays_value, list)
             else [],
-            air_quality=air_quality_value if isinstance(air_quality_value, AirQualityData) else None,
+            air_quality=air_quality_value
+            if isinstance(air_quality_value, AirQualityData)
+            else None,
             host_data=host_data,
             fetched_at=self.fetched_at,
             is_stale=bool(self.stale_sources),
