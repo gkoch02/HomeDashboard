@@ -18,10 +18,28 @@ def normalize_heading(heading: str) -> str:
 
 
 def load_theme_names() -> set[str]:
-    text = (ROOT / "src" / "render" / "theme.py").read_text()
-    names = set(re.findall(r'"([a-z_]+)":\s+\("src\.render\.themes\.', text))
-    names.add("default")
-    return names
+    """Authoritative theme inventory from the v5 registry.
+
+    Falls back to scanning ``src/render/themes/*.py`` for registration
+    calls when the package can't be imported (e.g. running the docs check
+    inside a sandbox without the project deps installed).
+    """
+    sys.path.insert(0, str(ROOT))
+    try:
+        from src.render.themes.registry import all_theme_names
+
+        return set(all_theme_names()) | {"default"}
+    except Exception:
+        # Fallback: scan each theme module for its register_theme(...) call.
+        names: set[str] = {"default"}
+        for theme_file in sorted((ROOT / "src" / "render" / "themes").glob("*.py")):
+            if theme_file.name in {"__init__.py", "registry.py"}:
+                continue
+            text = theme_file.read_text()
+            match = re.search(r'register_theme\(\s*["\']([a-z_]+)["\']', text)
+            if match:
+                names.add(match.group(1))
+        return names
 
 
 def check_links() -> list[str]:

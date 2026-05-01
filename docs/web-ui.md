@@ -201,7 +201,31 @@ Additional config-page behavior:
 - **Theme schedule**: duplicate times are detected client-side and flagged before the form is submitted.
 - **Latitude / Longitude**: HTML5 `min`/`max` constraints enforce valid ranges (−90–90 / −180–180) directly in the browser.
 
-**Sensitive fields** (API keys, credential file paths) are never sent to the browser. The credentials section shows only whether each credential is set or missing.
+**Sensitive fields** (API keys, credential file paths) are never sent to the browser. The credentials section shows only whether each credential is set or missing. The allowlist of editable fields and the secret/editable flags are derived from the v5 schema in `src/config_schema.py` — adding a new editable knob is a single `FieldSpec` entry, not a multi-file edit.
+
+### v5 JSON APIs (for advanced/custom UIs)
+
+| Endpoint | Method | Purpose |
+|---|---|---|
+| `/api/config` | GET | Current safe config as JSON; secret fields surface as `_*_set` boolean flags only |
+| `/api/config` | POST | Apply a JSON patch (CSRF-protected); only fields in the schema-derived allowlist take effect |
+| `/api/config/schema` | GET | The v5 declarative schema with current values inlined: every section, field type, label, description, choices, secret flag, and `value` (or `has_value` for secrets). The web editor consumes this for form rendering. |
+| `/api/config/backups` | GET | Recent config backup files (newest first) |
+| `/api/config/restore-latest` | POST | Restore the most recent backup (CSRF-protected) |
+| `/api/preview` | POST | Render any registered theme to PNG against dummy data. Body: `{"theme": "<name>"}`. Pseudo names (`random`, `random_daily`, `random_hourly`) and unknown themes return 400; render exceptions return 500. CSRF-protected. |
+
+The preview endpoint powers the "see what this theme looks like" button on the config
+page without touching the live dashboard timer or hardware. Custom UIs can also drive
+it directly:
+
+```bash
+TOKEN=$(curl -s -c cookies.txt http://dashboard.local:8080/ | grep -oP 'csrf_token.*?"\K[^"]+')
+curl -b cookies.txt -X POST http://dashboard.local:8080/api/preview \
+  -H "Content-Type: application/json" \
+  -H "X-CSRF-Token: $TOKEN" \
+  -d '{"theme":"agenda"}' \
+  -o agenda-preview.png
+```
 
 ---
 

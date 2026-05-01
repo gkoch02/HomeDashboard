@@ -30,6 +30,9 @@ display:
   show_birthdays: true
   show_info_panel: true
   # quantization_mode: "threshold" # Waveshare 1-bit path: threshold | floyd_steinberg | ordered
+  # min_refresh_interval_seconds: 60   # cooldown between hardware refreshes; defaults to
+                                       #   60s on Inky, 0s on Waveshare. Set 3600 on Inky to
+                                       #   restore the v4 "exactly once an hour" throttle.
 
 google:
   service_account_path: "credentials/service_account.json"
@@ -49,6 +52,15 @@ google:
                                     # with `ical_url`. Per-feed failure is non-fatal:
                                     # any feed that returns an HTTP error is logged
                                     # as a warning and skipped while the others render.
+
+  # CalDAV alternative — Nextcloud / Radicale / Apple iCloud / Fastmail / Synology / etc.
+  # When caldav_url is set, both the Google API and ical_url paths are bypassed.
+  # The password is read from a one-line file (never inline secrets in YAML).
+  # See docs/setup.md → CalDAV for server-specific URLs.
+  # caldav_url: "https://nextcloud.example.com/remote.php/dav/calendars/<user>/"
+  # caldav_username: "your-username"
+  # caldav_password_file: "credentials/caldav_password.txt"
+  # caldav_calendar_url: ""          # optional specific calendar; default = first in principal
 
 weather:
   api_key: ""
@@ -257,15 +269,22 @@ previous render. When nothing has changed (common overnight or on quiet days), t
 refresh is skipped entirely. This extends display lifespan and saves power.
 `--force-full-refresh` bypasses this check.
 
-When `display.provider: inky` is selected, there is an additional time-based limit because
-the Inky Impression panel does not support partial refresh:
+In addition, v5 enforces a backend-agnostic minimum cooldown between hardware refreshes
+configured by `display.min_refresh_interval_seconds`:
 
-- Non-fuzzyclock themes are limited to one hardware update per hour.
-- `fuzzyclock` and `fuzzyclock_invert` bypass that hourly limit and can refresh at the
-  normal timer cadence.
-- `--force-full-refresh` bypasses the hourly limit.
+| Provider | Default cooldown | Notes |
+|---|---|---|
+| `inky` | 60s | Replaces the v4 hourly Inky throttle. Inky Impression panels do not support partial refresh, so a short cooldown still protects the panel from rapid-fire writes. |
+| `waveshare` | 0s | No cooldown by default. Set a non-zero value to add one. |
 
-The Inky throttle state is persisted in `state/inky_refresh_state.json`.
+Setting `display.min_refresh_interval_seconds: 3600` on Inky restores the v4 "exactly
+once an hour" behaviour. `--force-full-refresh` bypasses the cooldown. The fuzzyclock
+allowlist that v4 carried is gone — content-hash equality already short-circuits
+identical-content refreshes for any theme, so a clock face that hasn't changed phase
+won't trigger a write regardless of cadence.
+
+State persists in `state/refresh_throttle_state.json`. v4's `state/inky_refresh_state.json`
+is migrated transparently on first read after upgrade.
 
 ---
 
@@ -275,6 +294,27 @@ After the first full sync, subsequent fetches download only changed events using
 Calendar sync tokens. This dramatically reduces API quota usage. Sync state is persisted
 to `state/calendar_sync_state.json`.
 
-This applies to the **service account path only**. When using `ical_url`, the full feed
-is re-fetched on every calendar refresh (no sync tokens — ICS has no equivalent mechanism).
-See [ICS Feed](setup.md#ics-feed-no-gcp-required) for the trade-offs.
+This applies to the **service account path only**. When using `ical_url` or `caldav_url`,
+the full event window is re-fetched on every calendar refresh — neither feed format has
+a sync-token equivalent. See [ICS Feed](setup.md#ics-feed-no-gcp-required) and
+[CalDAV](setup.md#caldav-nextcloud--radicale--icloud--etc) for the trade-offs.
+
+## Calendar backend dispatch precedence
+
+`fetch_events` in `src/fetchers/calendar.py` selects a calendar backend in this order
+(highest precedence wins):
+
+1. `google.caldav_url` set → CalDAV via `src/fetchers/calendar_caldav.py`
+2. `google.ical_url` set → ICS feed via `src/fetchers/calendar_ical.py`
+3. otherwise → Google Calendar API via `src/fetchers/calendar_google.py`
+
+When either alternative is configured the Google API path (including incremental sync)
+is completely bypassed and `service_account_path` is ignored for event fetching.
+
+## Schema versioning
+
+YAML config files carry an optional `schema_version` field — `5` for v5. Configs that
+omit the key are treated as v4 and upgraded in-memory by `src/config_migrations.py`
+before parsing. The on-disk file is not rewritten by the runner unless an explicit
+backup-and-rewrite step is registered. See [Upgrading from v4](upgrading-from-v4.md)
+for the migration walkthrough.
