@@ -69,3 +69,18 @@ def year_pulse_theme() -> Theme:
             show_forecast_strip=False,
         ),
     )
+
+
+# ---------------------------------------------------------------------------
+# Registry adapter
+# ---------------------------------------------------------------------------
+
+
+def _register() -> None:
+    from src.render.theme import INKY_BLUE, INKY_GREEN
+    from src.render.themes.registry import register_theme
+
+    register_theme("year_pulse", year_pulse_theme, inky_palette=(INKY_GREEN, INKY_BLUE))
+
+
+_register()

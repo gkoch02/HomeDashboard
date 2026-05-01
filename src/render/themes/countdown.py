@@ -54,3 +54,18 @@ def countdown_theme() -> Theme:
             show_borders=False,
         ),
     )
+
+
+# ---------------------------------------------------------------------------
+# Registry adapter
+# ---------------------------------------------------------------------------
+
+
+def _register() -> None:
+    from src.render.theme import INKY_BLUE, INKY_RED
+    from src.render.themes.registry import register_theme
+
+    register_theme("countdown", countdown_theme, inky_palette=(INKY_RED, INKY_BLUE))
+
+
+_register()

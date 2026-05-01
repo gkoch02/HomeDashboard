@@ -68,3 +68,18 @@ def message_theme() -> Theme:
             label_font_weight="semibold",
         ),
     )
+
+
+# ---------------------------------------------------------------------------
+# Registry adapter
+# ---------------------------------------------------------------------------
+
+
+def _register() -> None:
+    from src.render.theme import INKY_BLUE, INKY_RED
+    from src.render.themes.registry import register_theme
+
+    register_theme("message", message_theme, inky_palette=(INKY_RED, INKY_BLUE))
+
+
+_register()

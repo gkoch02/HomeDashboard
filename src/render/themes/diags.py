@@ -39,3 +39,18 @@ def diags_theme() -> Theme:
             font_bold=dm_bold,
         ),
     )
+
+
+# ---------------------------------------------------------------------------
+# Registry adapter
+# ---------------------------------------------------------------------------
+
+
+def _register() -> None:
+    from src.render.theme import INKY_BLUE, INKY_GREEN
+    from src.render.themes.registry import register_theme
+
+    register_theme("diags", diags_theme, inky_palette=(INKY_GREEN, INKY_BLUE))
+
+
+_register()

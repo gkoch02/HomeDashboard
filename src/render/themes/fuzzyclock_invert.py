@@ -64,3 +64,20 @@ def fuzzyclock_invert_theme() -> Theme:
             label_font_weight="semibold",
         ),
     )
+
+
+# ---------------------------------------------------------------------------
+# Registry adapter
+# ---------------------------------------------------------------------------
+
+
+def _register() -> None:
+    from src.render.theme import INKY_BLUE, INKY_YELLOW
+    from src.render.themes.registry import register_theme
+
+    register_theme(
+        "fuzzyclock_invert", fuzzyclock_invert_theme, inky_palette=(INKY_YELLOW, INKY_BLUE)
+    )
+
+
+_register()

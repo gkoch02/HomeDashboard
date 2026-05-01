@@ -29,6 +29,19 @@ if TYPE_CHECKING:
 FontCallable = Callable[[int], "ImageFont.FreeTypeFont"]
 QuantizationMode = Literal["threshold", "floyd_steinberg", "ordered"]
 
+# Spectra-6 palette indices. Mirrored in ``src.render.canvas`` (kept here so
+# theme modules can name their inky palette without importing canvas, which
+# would create a cycle).
+INKY_BLACK = 0
+INKY_WHITE = 1
+INKY_YELLOW = 2
+INKY_RED = 3
+INKY_BLUE = 4
+INKY_GREEN = 5
+
+# Default key-color pair used by themes that don't declare one explicitly.
+_DEFAULT_INKY_PALETTE: tuple[int, int] = (INKY_BLUE, INKY_RED)
+
 
 @dataclass
 class ComponentRegion:
@@ -215,6 +228,13 @@ class ThemeStyle:
     # Ignored by all other themes (defaults to empty string).
     photo_path: str = ""
 
+    # Inky Spectra-6 (primary, secondary) palette index pair used to fill
+    # ``accent_primary`` / ``accent_secondary`` when the inky backend is
+    # active and the theme didn't supply explicit accent values. ``None``
+    # falls back to ``(INKY_BLUE, INKY_RED)``. See palette index constants
+    # exported above.
+    inky_palette: tuple[int, int] | None = None
+
     def __post_init__(self) -> None:
         """Fill in default fonts from fonts.py when callables were not provided."""
         if any(
@@ -262,43 +282,109 @@ class Theme:
 
 
 # ---------------------------------------------------------------------------
-# Theme registry and built-in theme names
+# Theme registry — derived from src.render.themes.registry, populated as a
+# side effect of importing each theme module. The package
+# `src.render.themes.__init__` triggers all the imports.
 # ---------------------------------------------------------------------------
 
-# Registry mapping theme name → (module_path, factory_function_name).
-# To add a new theme, add an entry here — AVAILABLE_THEMES is derived automatically.
-_THEME_REGISTRY: dict[str, tuple[str, str]] = {
-    "agenda": ("src.render.themes.agenda", "agenda_theme"),
-    "terminal": ("src.render.themes.terminal", "terminal_theme"),
-    "minimalist": ("src.render.themes.minimalist", "minimalist_theme"),
-    "old_fashioned": ("src.render.themes.old_fashioned", "old_fashioned_theme"),
-    "today": ("src.render.themes.today", "today_theme"),
-    "fantasy": ("src.render.themes.fantasy", "fantasy_theme"),
-    "qotd": ("src.render.themes.qotd", "qotd_theme"),
-    "qotd_invert": ("src.render.themes.qotd_invert", "qotd_invert_theme"),
-    "weather": ("src.render.themes.weather", "weather_theme"),
-    "fuzzyclock": ("src.render.themes.fuzzyclock", "fuzzyclock_theme"),
-    "fuzzyclock_invert": ("src.render.themes.fuzzyclock_invert", "fuzzyclock_invert_theme"),
-    "diags": ("src.render.themes.diags", "diags_theme"),
-    "air_quality": ("src.render.themes.air_quality", "air_quality_theme"),
-    "moonphase": ("src.render.themes.moonphase", "moonphase_theme"),
-    "moonphase_invert": ("src.render.themes.moonphase_invert", "moonphase_invert_theme"),
-    "message": ("src.render.themes.message", "message_theme"),
-    "timeline": ("src.render.themes.timeline", "timeline_theme"),
-    "year_pulse": ("src.render.themes.year_pulse", "year_pulse_theme"),
-    "monthly": ("src.render.themes.monthly", "monthly_theme"),
-    "sunrise": ("src.render.themes.sunrise", "sunrise_theme"),
-    "scorecard": ("src.render.themes.scorecard", "scorecard_theme"),
-    "tides": ("src.render.themes.tides", "tides_theme"),
-    "photo": ("src.render.themes.photo", "photo_theme"),
-    "countdown": ("src.render.themes.countdown", "countdown_theme"),
-    "astronomy": ("src.render.themes.astronomy", "astronomy_theme"),
-}
 
-# Derived from the registry — adding a theme to _THEME_REGISTRY is all that's needed.
-AVAILABLE_THEMES: frozenset[str] = frozenset(
-    set(_THEME_REGISTRY.keys()) | {"default", "random", "random_daily", "random_hourly"}
-)
+def _ensure_themes_imported() -> None:
+    """Import the themes package so each theme module's registration runs.
+
+    Done lazily so the dataclasses defined in this module are fully
+    constructed by the time a theme module imports ``Theme`` /
+    ``ThemeStyle`` / ``ThemeLayout`` from us.
+    """
+    import src.render.themes  # noqa: F401  side-effect imports populate registry
+
+
+def _theme_registry() -> dict[str, Callable[[], Theme]]:
+    _ensure_themes_imported()
+    from src.render.themes.registry import _REGISTRY
+
+    return _REGISTRY
+
+
+class _ThemeRegistryView(dict):
+    """Read-through proxy preserving the legacy ``_THEME_REGISTRY`` dict API.
+
+    Existing tests do ``set(_THEME_REGISTRY.keys())`` and similar; we keep a
+    dict-shaped view rather than break those callers. Values are now the
+    factory callables themselves; the legacy ``(module_path, attr)`` tuples
+    are no longer used by ``load_theme`` and were never read by tests.
+    """
+
+    def __getitem__(self, key):  # noqa: D401
+        return _theme_registry()[key]
+
+    def __iter__(self):
+        return iter(_theme_registry())
+
+    def __len__(self):
+        return len(_theme_registry())
+
+    def __contains__(self, key):
+        return key in _theme_registry()
+
+    def keys(self):
+        return _theme_registry().keys()
+
+    def values(self):
+        return _theme_registry().values()
+
+    def items(self):
+        return _theme_registry().items()
+
+    def get(self, key, default=None):
+        return _theme_registry().get(key, default)
+
+
+_THEME_REGISTRY: _ThemeRegistryView = _ThemeRegistryView()
+
+
+class _AvailableThemesView:
+    """Read-through proxy for the legacy ``AVAILABLE_THEMES`` frozenset.
+
+    Module-import-time consumers (``src.cli`` builds argparse choices) need a
+    live view of the registry, since theme modules register themselves only
+    after the package is imported.
+    """
+
+    def _set(self) -> frozenset[str]:
+        _ensure_themes_imported()
+        from src.render.themes.registry import available_themes
+
+        return available_themes()
+
+    def __iter__(self):
+        return iter(self._set())
+
+    def __contains__(self, item):
+        return item in self._set()
+
+    def __len__(self):
+        return len(self._set())
+
+    def __sub__(self, other):
+        return self._set() - other
+
+    def __or__(self, other):
+        return self._set() | other
+
+    def __and__(self, other):
+        return self._set() & other
+
+    def __eq__(self, other):
+        return self._set() == other
+
+    def __hash__(self):
+        return hash(self._set())
+
+    def __repr__(self):
+        return repr(self._set())
+
+
+AVAILABLE_THEMES: _AvailableThemesView = _AvailableThemesView()
 
 
 # ---------------------------------------------------------------------------
@@ -329,16 +415,13 @@ def default_theme() -> Theme:
     the rendering stays monochrome. Tightens section labels from 12pt bold to
     11pt semibold and bumps event spacing from 1.0 to 1.1 for breathing room.
     """
-    # Inky Spectra 6 palette indices (mirror of canvas._INKY_* — duplicated here
-    # to avoid a circular import; see src/render/canvas.py:43-50).
-    inky_red = 3
-    inky_blue = 4
     return Theme(
         name="default",
         style=ThemeStyle(
-            accent_primary=inky_blue,
-            accent_secondary=inky_red,
-            accent_alert=inky_red,
+            accent_primary=INKY_BLUE,
+            accent_secondary=INKY_RED,
+            accent_alert=INKY_RED,
+            inky_palette=(INKY_BLUE, INKY_RED),
             label_font_size=11,
             label_font_weight="semibold",
             spacing_scale=1.1,
@@ -359,14 +442,12 @@ def load_theme(name: str) -> Theme:
     if name == "default":
         return default_theme()
 
-    if name not in _THEME_REGISTRY:
+    _ensure_themes_imported()
+    from src.render.themes.registry import get_theme_factory
+
+    factory = get_theme_factory(name)
+    if factory is None:
         raise ValueError(
             f"Unknown theme: {name!r}. Available: {', '.join(sorted(AVAILABLE_THEMES))}"
         )
-
-    module_path, factory_name = _THEME_REGISTRY[name]
-    from importlib import import_module
-
-    module = import_module(module_path)
-    factory = getattr(module, factory_name)
     return factory()

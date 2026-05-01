@@ -70,3 +70,18 @@ def qotd_invert_theme() -> Theme:
             label_font_weight="semibold",
         ),
     )
+
+
+# ---------------------------------------------------------------------------
+# Registry adapter
+# ---------------------------------------------------------------------------
+
+
+def _register() -> None:
+    from src.render.theme import INKY_RED, INKY_YELLOW
+    from src.render.themes.registry import register_theme
+
+    register_theme("qotd_invert", qotd_invert_theme, inky_palette=(INKY_YELLOW, INKY_RED))
+
+
+_register()

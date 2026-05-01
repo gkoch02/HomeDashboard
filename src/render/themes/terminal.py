@@ -49,3 +49,18 @@ def terminal_theme() -> Theme:
             font_quote_author=uesc_display,
         ),
     )
+
+
+# ---------------------------------------------------------------------------
+# Registry adapter
+# ---------------------------------------------------------------------------
+
+
+def _register() -> None:
+    from src.render.theme import INKY_GREEN, INKY_YELLOW
+    from src.render.themes.registry import register_theme
+
+    register_theme("terminal", terminal_theme, inky_palette=(INKY_GREEN, INKY_YELLOW))
+
+
+_register()

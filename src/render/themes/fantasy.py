@@ -230,3 +230,18 @@ def fantasy_theme() -> Theme:
     )
 
     return Theme(name="fantasy", style=style, layout=layout)
+
+
+# ---------------------------------------------------------------------------
+# Registry adapter
+# ---------------------------------------------------------------------------
+
+
+def _register() -> None:
+    from src.render.theme import INKY_RED, INKY_YELLOW
+    from src.render.themes.registry import register_theme
+
+    register_theme("fantasy", fantasy_theme, inky_palette=(INKY_RED, INKY_YELLOW))
+
+
+_register()

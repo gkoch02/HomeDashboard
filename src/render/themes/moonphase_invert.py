@@ -59,3 +59,20 @@ def moonphase_invert_theme() -> Theme:
             label_font_weight="bold",
         ),
     )
+
+
+# ---------------------------------------------------------------------------
+# Registry adapter
+# ---------------------------------------------------------------------------
+
+
+def _register() -> None:
+    from src.render.theme import INKY_BLUE, INKY_YELLOW
+    from src.render.themes.registry import register_theme
+
+    register_theme(
+        "moonphase_invert", moonphase_invert_theme, inky_palette=(INKY_YELLOW, INKY_BLUE)
+    )
+
+
+_register()
