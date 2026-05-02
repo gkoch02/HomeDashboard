@@ -50,3 +50,18 @@ def agenda_theme() -> Theme:
             label_font_weight="bold",
         ),
     )
+
+
+# ---------------------------------------------------------------------------
+# Registry adapter
+# ---------------------------------------------------------------------------
+
+
+def _register() -> None:
+    from src.render.theme import INKY_BLACK, INKY_RED
+    from src.render.themes.registry import register_theme
+
+    register_theme("agenda", agenda_theme, inky_palette=(INKY_RED, INKY_BLACK))
+
+
+_register()

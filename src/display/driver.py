@@ -137,7 +137,7 @@ class DryRunDisplay(DisplayDriver):
     def show(self, image: Image.Image, force_full: bool = False) -> None:
         del force_full
         # Save timestamped version
-        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")  # allow-naive-datetime — file-name timestamp
         path = self.output_dir / f"dashboard_{ts}.png"
         image.save(path)
 

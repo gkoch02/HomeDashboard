@@ -10,9 +10,10 @@ from PIL import Image
 
 from src.services.output import (
     OutputService,
-    _load_last_inky_refresh,
-    _save_last_inky_refresh,
-    should_throttle_inky_refresh,
+    _load_last_refresh,
+    _resolve_min_refresh_seconds,
+    _save_last_refresh,
+    should_throttle_display_refresh,
 )
 
 
@@ -28,6 +29,7 @@ def _make_cfg(tmp_path: Path) -> MagicMock:
     cfg.display.model = "epd7in5_V2"
     cfg.display.enable_partial_refresh = False
     cfg.display.max_partials_before_full = 4
+    cfg.display.min_refresh_interval_seconds = None
     return cfg
 
 
@@ -197,8 +199,6 @@ class TestPublishHardware:
 
     def test_hardware_publish_latest_png_save_failure_does_not_raise(self, tmp_path, caplog):
         """A failure saving latest.png must log a warning but not crash."""
-        import logging
-
         svc = OutputService(_make_cfg(tmp_path), _make_tz())
         image = _make_image()
 
@@ -217,6 +217,8 @@ class TestPublishHardware:
         cfg.display.provider = "inky"
         cfg.display.model = "impression_7_3_2025"
         cfg.display.enable_partial_refresh = True
+        # Disable the cooldown so the test isolates the driver-build path.
+        cfg.display.min_refresh_interval_seconds = 0
         svc = OutputService(cfg, _make_tz())
         image = Image.new("RGB", (800, 480), "white")
         mock_display = MagicMock()
@@ -237,43 +239,43 @@ class TestPublishHardware:
             state_dir=str(tmp_path / "state"),
         )
 
-    def test_inky_non_fuzzyclock_throttles_within_one_hour(self, tmp_path):
+    def test_inky_default_60s_cooldown_throttles_within_minute(self, tmp_path):
+        """Inky default cooldown is 60s; a 30-second-old refresh blocks the next one."""
         cfg = _make_cfg(tmp_path)
         cfg.display.provider = "inky"
         cfg.display.model = "impression_7_3_2025"
+        cfg.display.min_refresh_interval_seconds = None  # default → 60 for Inky
         svc = OutputService(cfg, _make_tz())
         image = Image.new("RGB", (800, 480), "white")
         state_dir = Path(cfg.state_dir)
         state_dir.mkdir(parents=True, exist_ok=True)
-        (state_dir / "inky_refresh_state.json").write_text(
-            '{"last_refresh_at":"2026-04-08T11:30:00"}\n'
+        # 30 seconds ago — within the default 60s cooldown.
+        last = (_now() - timedelta(seconds=30)).isoformat()
+        (state_dir / "refresh_throttle_state.json").write_text(
+            json.dumps({"last_refresh_at": last})
         )
 
         with (
             patch("src.services.output.image_changed", return_value=True) as mock_changed,
             patch("src.services.output.build_display_driver") as mock_build,
         ):
-            svc.publish(
-                image,
-                dry_run=False,
-                force_full=False,
-                now=datetime(2026, 4, 8, 12, 0),
-                theme_name="default",
-            )
+            svc.publish(image, dry_run=False, force_full=False, now=_now(), theme_name="default")
 
         mock_changed.assert_not_called()
         mock_build.assert_not_called()
 
-    def test_inky_fuzzyclock_bypasses_hourly_throttle(self, tmp_path):
+    def test_inky_default_cooldown_passes_after_60s(self, tmp_path):
         cfg = _make_cfg(tmp_path)
         cfg.display.provider = "inky"
         cfg.display.model = "impression_7_3_2025"
+        cfg.display.min_refresh_interval_seconds = None  # default → 60
         svc = OutputService(cfg, _make_tz())
         image = Image.new("RGB", (800, 480), "white")
         state_dir = Path(cfg.state_dir)
         state_dir.mkdir(parents=True, exist_ok=True)
-        (state_dir / "inky_refresh_state.json").write_text(
-            '{"last_refresh_at":"2026-04-08T11:30:00"}\n'
+        last = (_now() - timedelta(seconds=120)).isoformat()
+        (state_dir / "refresh_throttle_state.json").write_text(
+            json.dumps({"last_refresh_at": last})
         )
 
         with (
@@ -282,17 +284,34 @@ class TestPublishHardware:
                 "src.services.output.build_display_driver", return_value=MagicMock()
             ) as mock_build,
         ):
-            svc.publish(
-                image,
-                dry_run=False,
-                force_full=False,
-                now=datetime(2026, 4, 8, 12, 0),
-                theme_name="fuzzyclock",
-            )
+            svc.publish(image, dry_run=False, force_full=False, now=_now(), theme_name="default")
 
         mock_build.assert_called_once()
 
-    def test_inky_force_full_bypasses_hourly_throttle(self, tmp_path):
+    def test_inky_3600s_cooldown_restores_v4_hourly_throttle(self, tmp_path):
+        """Setting 3600 explicitly preserves the v4 'once an hour' Inky behaviour."""
+        cfg = _make_cfg(tmp_path)
+        cfg.display.provider = "inky"
+        cfg.display.model = "impression_7_3_2025"
+        cfg.display.min_refresh_interval_seconds = 3600
+        svc = OutputService(cfg, _make_tz())
+        image = Image.new("RGB", (800, 480), "white")
+        state_dir = Path(cfg.state_dir)
+        state_dir.mkdir(parents=True, exist_ok=True)
+        last = (_now() - timedelta(minutes=30)).isoformat()
+        (state_dir / "refresh_throttle_state.json").write_text(
+            json.dumps({"last_refresh_at": last})
+        )
+
+        with (
+            patch("src.services.output.image_changed", return_value=True),
+            patch("src.services.output.build_display_driver") as mock_build,
+        ):
+            svc.publish(image, dry_run=False, force_full=False, now=_now(), theme_name="default")
+
+        mock_build.assert_not_called()
+
+    def test_force_full_bypasses_cooldown(self, tmp_path):
         cfg = _make_cfg(tmp_path)
         cfg.display.provider = "inky"
         cfg.display.model = "impression_7_3_2025"
@@ -300,8 +319,8 @@ class TestPublishHardware:
         image = Image.new("RGB", (800, 480), "white")
         state_dir = Path(cfg.state_dir)
         state_dir.mkdir(parents=True, exist_ok=True)
-        (state_dir / "inky_refresh_state.json").write_text(
-            '{"last_refresh_at":"2026-04-08T11:30:00"}\n'
+        (state_dir / "refresh_throttle_state.json").write_text(
+            '{"last_refresh_at":"2026-04-08T11:59:55"}'
         )
 
         with (
@@ -310,72 +329,114 @@ class TestPublishHardware:
                 "src.services.output.build_display_driver", return_value=MagicMock()
             ) as mock_build,
         ):
-            svc.publish(
-                image,
-                dry_run=False,
-                force_full=True,
-                now=datetime(2026, 4, 8, 12, 0),
-                theme_name="default",
-            )
+            svc.publish(image, dry_run=False, force_full=True, now=_now(), theme_name="default")
 
         mock_build.assert_called_once()
 
+    def test_legacy_inky_state_file_migrated_on_first_read(self, tmp_path):
+        """A legacy `inky_refresh_state.json` triggers migration to the new file."""
+        cfg = _make_cfg(tmp_path)
+        cfg.display.provider = "inky"
+        cfg.display.model = "impression_7_3_2025"
+        # Restore v4 hourly cooldown so the legacy "30 minutes ago" timestamp throttles.
+        cfg.display.min_refresh_interval_seconds = 3600
+        svc = OutputService(cfg, _make_tz())
+        image = Image.new("RGB", (800, 480), "white")
+        state_dir = Path(cfg.state_dir)
+        state_dir.mkdir(parents=True, exist_ok=True)
+        legacy = state_dir / "inky_refresh_state.json"
+        last_iso = (_now() - timedelta(minutes=30)).isoformat()
+        legacy.write_text(json.dumps({"last_refresh_at": last_iso}))
 
-class TestInkyThrottleHelper:
-    def test_non_inky_never_throttled(self, tmp_path):
+        with (
+            patch("src.services.output.image_changed", return_value=True),
+            patch("src.services.output.build_display_driver") as mock_build,
+        ):
+            svc.publish(image, dry_run=False, force_full=False, now=_now(), theme_name="default")
+
+        # Legacy was honoured (build skipped because 30m < 3600s) and migrated:
+        mock_build.assert_not_called()
+        assert not legacy.exists()
+        assert (state_dir / "refresh_throttle_state.json").exists()
+
+
+class TestThrottleHelper:
+    def test_zero_min_interval_never_throttles(self, tmp_path):
+        (tmp_path / "refresh_throttle_state.json").write_text(
+            '{"last_refresh_at":"2026-04-08T11:59:59"}'
+        )
         assert (
-            should_throttle_inky_refresh(
+            should_throttle_display_refresh(
                 provider="waveshare",
-                theme_name="default",
                 now=_now(),
                 state_dir=str(tmp_path),
                 force_full=False,
+                min_interval_seconds=0,
             )
             is False
         )
 
-    def test_fuzzyclock_theme_never_throttled(self, tmp_path):
-        state = tmp_path / "inky_refresh_state.json"
-        state.write_text('{"last_refresh_at":"2026-04-08T11:30:00"}\n')
+    def test_force_full_never_throttles(self, tmp_path):
+        (tmp_path / "refresh_throttle_state.json").write_text(
+            '{"last_refresh_at":"2026-04-08T11:59:59"}'
+        )
         assert (
-            should_throttle_inky_refresh(
+            should_throttle_display_refresh(
                 provider="inky",
-                theme_name="fuzzyclock_invert",
                 now=_now(),
                 state_dir=str(tmp_path),
-                force_full=False,
+                force_full=True,
+                min_interval_seconds=60,
             )
             is False
         )
 
-    def test_throttles_when_last_refresh_under_one_hour(self, tmp_path):
-        state = tmp_path / "inky_refresh_state.json"
-        state.write_text('{"last_refresh_at":"2026-04-08T11:30:00"}\n')
+    def test_throttles_when_under_cooldown(self, tmp_path):
+        (tmp_path / "refresh_throttle_state.json").write_text(
+            '{"last_refresh_at":"2026-04-08T11:59:30"}'
+        )
         assert (
-            should_throttle_inky_refresh(
+            should_throttle_display_refresh(
                 provider="inky",
-                theme_name="default",
                 now=_now(),
                 state_dir=str(tmp_path),
                 force_full=False,
+                min_interval_seconds=60,
             )
             is True
         )
 
-    def test_does_not_throttle_after_one_hour(self, tmp_path):
-        state = tmp_path / "inky_refresh_state.json"
-        refreshed_at = (_now() - timedelta(hours=1, minutes=1)).isoformat()
-        state.write_text(f'{{"last_refresh_at":"{refreshed_at}"}}\n')
+    def test_passes_after_cooldown(self, tmp_path):
+        last = (_now() - timedelta(seconds=120)).isoformat()
+        (tmp_path / "refresh_throttle_state.json").write_text(json.dumps({"last_refresh_at": last}))
         assert (
-            should_throttle_inky_refresh(
+            should_throttle_display_refresh(
                 provider="inky",
-                theme_name="default",
                 now=_now(),
                 state_dir=str(tmp_path),
                 force_full=False,
+                min_interval_seconds=60,
             )
             is False
         )
+
+
+class TestResolveMinRefreshSeconds:
+    def test_explicit_value_passes_through(self):
+        assert _resolve_min_refresh_seconds("inky", 3600) == 3600
+        assert _resolve_min_refresh_seconds("waveshare", 30) == 30
+
+    def test_negative_clamped_to_zero(self):
+        assert _resolve_min_refresh_seconds("inky", -10) == 0
+
+    def test_inky_default_60(self):
+        assert _resolve_min_refresh_seconds("inky", None) == 60
+
+    def test_waveshare_default_0(self):
+        assert _resolve_min_refresh_seconds("waveshare", None) == 0
+
+    def test_unknown_provider_default_0(self):
+        assert _resolve_min_refresh_seconds("unknown", None) == 0
 
 
 # ---------------------------------------------------------------------------
@@ -421,50 +482,70 @@ class TestWriteHealthMarker:
 
 
 # ---------------------------------------------------------------------------
-# Inky refresh state I/O — defensive branches
+# Refresh state I/O — defensive branches
 # ---------------------------------------------------------------------------
 
 
-class TestLoadLastInkyRefreshDefensive:
+class TestLoadLastRefreshDefensive:
     def test_returns_none_when_state_file_missing(self, tmp_path):
-        # No file at all → returns None directly (no exception path).
-        assert _load_last_inky_refresh(str(tmp_path)) is None
+        assert _load_last_refresh(str(tmp_path)) is None
 
     def test_returns_none_when_value_is_not_a_string(self, tmp_path):
-        """Triggers the `if not isinstance(value, str): return None` branch."""
-        (tmp_path / "inky_refresh_state.json").write_text(json.dumps({"last_refresh_at": 12345}))
-        assert _load_last_inky_refresh(str(tmp_path)) is None
+        (tmp_path / "refresh_throttle_state.json").write_text(
+            json.dumps({"last_refresh_at": 12345})
+        )
+        assert _load_last_refresh(str(tmp_path)) is None
 
     def test_returns_none_when_value_key_missing(self, tmp_path):
-        """value is None → not a string → return None."""
-        (tmp_path / "inky_refresh_state.json").write_text(json.dumps({}))
-        assert _load_last_inky_refresh(str(tmp_path)) is None
+        (tmp_path / "refresh_throttle_state.json").write_text(json.dumps({}))
+        assert _load_last_refresh(str(tmp_path)) is None
 
     def test_returns_none_on_unparseable_json(self, tmp_path):
-        """Triggers the trailing `except Exception: return None`."""
-        (tmp_path / "inky_refresh_state.json").write_text("not-json{{{")
-        assert _load_last_inky_refresh(str(tmp_path)) is None
+        (tmp_path / "refresh_throttle_state.json").write_text("not-json{{{")
+        assert _load_last_refresh(str(tmp_path)) is None
 
     def test_returns_none_on_invalid_iso_timestamp(self, tmp_path):
-        """fromisoformat raises ValueError → except branch returns None."""
+        (tmp_path / "refresh_throttle_state.json").write_text(
+            json.dumps({"last_refresh_at": "totally-not-a-date"})
+        )
+        assert _load_last_refresh(str(tmp_path)) is None
+
+    def test_returns_none_when_json_root_is_not_an_object(self, tmp_path):
+        (tmp_path / "refresh_throttle_state.json").write_text(json.dumps([]))
+        assert _load_last_refresh(str(tmp_path)) is None
+        (tmp_path / "refresh_throttle_state.json").write_text(json.dumps("x"))
+        assert _load_last_refresh(str(tmp_path)) is None
+
+
+class TestSaveLastRefreshDefensive:
+    def test_save_failure_logs_warning_and_does_not_raise(self, tmp_path, caplog):
+        with caplog.at_level(logging.WARNING, logger="src.services.output"):
+            with patch("pathlib.Path.write_text", side_effect=OSError("disk full")):
+                _save_last_refresh(str(tmp_path), datetime(2026, 4, 8, 12, 0))
+
+        assert "refresh throttle" in caplog.text
+
+
+class TestLegacyInkyMigration:
+    def test_legacy_file_loaded_when_new_file_missing(self, tmp_path):
+        legacy = tmp_path / "inky_refresh_state.json"
+        legacy.write_text('{"last_refresh_at": "2026-04-08T11:30:00"}')
+        ts = _load_last_refresh(str(tmp_path))
+        assert ts == datetime(2026, 4, 8, 11, 30)
+        # Migration deleted the legacy file and wrote the new one.
+        assert not legacy.exists()
+        assert (tmp_path / "refresh_throttle_state.json").exists()
+
+    def test_legacy_file_with_garbage_json_returns_none(self, tmp_path):
+        (tmp_path / "inky_refresh_state.json").write_text("not-json")
+        assert _load_last_refresh(str(tmp_path)) is None
+
+    def test_legacy_file_with_missing_key_returns_none(self, tmp_path):
+        (tmp_path / "inky_refresh_state.json").write_text("{}")
+        assert _load_last_refresh(str(tmp_path)) is None
+
+    def test_legacy_file_with_invalid_iso_returns_none(self, tmp_path):
         (tmp_path / "inky_refresh_state.json").write_text(
             json.dumps({"last_refresh_at": "totally-not-a-date"})
         )
-        assert _load_last_inky_refresh(str(tmp_path)) is None
-
-    def test_returns_none_when_json_root_is_not_an_object(self, tmp_path):
-        """Valid JSON that isn't a dict (e.g. a list or string) must not raise."""
-        (tmp_path / "inky_refresh_state.json").write_text(json.dumps([]))
-        assert _load_last_inky_refresh(str(tmp_path)) is None
-        (tmp_path / "inky_refresh_state.json").write_text(json.dumps("x"))
-        assert _load_last_inky_refresh(str(tmp_path)) is None
-
-
-class TestSaveLastInkyRefreshDefensive:
-    def test_save_failure_logs_warning_and_does_not_raise(self, tmp_path, caplog):
-        """A write failure must be caught and surfaced as a warning."""
-        with caplog.at_level(logging.WARNING, logger="src.services.output"):
-            with patch("pathlib.Path.write_text", side_effect=OSError("disk full")):
-                _save_last_inky_refresh(str(tmp_path), datetime(2026, 4, 8, 12, 0))
-
-        assert "Inky refresh state" in caplog.text
+        assert _load_last_refresh(str(tmp_path)) is None

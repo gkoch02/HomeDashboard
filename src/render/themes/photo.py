@@ -124,3 +124,18 @@ def photo_theme() -> Theme:
         show_borders=False,
     )
     return Theme(name="photo", style=style, layout=layout)
+
+
+# ---------------------------------------------------------------------------
+# Registry adapter
+# ---------------------------------------------------------------------------
+
+
+def _register() -> None:
+    from src.render.theme import INKY_BLUE, INKY_RED
+    from src.render.themes.registry import register_theme
+
+    register_theme("photo", photo_theme, inky_palette=(INKY_BLUE, INKY_RED))
+
+
+_register()

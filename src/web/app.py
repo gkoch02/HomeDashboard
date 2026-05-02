@@ -120,9 +120,11 @@ def create_app(
     # P2 blueprints
     from src.web.routes.actions import actions_bp
     from src.web.routes.config import config_bp
+    from src.web.routes.preview import preview_bp
 
     app.register_blueprint(config_bp)
     app.register_blueprint(actions_bp)
+    app.register_blueprint(preview_bp)
 
     logger.info(
         "Web UI started — state_dir=%s output_dir=%s",

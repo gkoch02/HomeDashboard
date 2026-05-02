@@ -13,6 +13,7 @@ import logging
 from flask import Blueprint, current_app, jsonify, render_template, request
 
 from src.config import load_config
+from src.config_schema import to_json as schema_to_json
 from src.web.config_editor import (
     apply_patch,
     config_write_lock,
@@ -86,6 +87,51 @@ def get_config():
 def get_config_backups():
     config_path = current_app.config["APP_CONFIG_PATH"]
     return jsonify({"backups": list_config_backups(config_path)})
+
+
+@config_bp.route("/api/config/schema")
+def get_config_schema():
+    """Return the v5 config schema, optionally with current values inlined.
+
+    The schema drives the web editor's form generation: every editable
+    field, its label, type, choices, and whether it's secret. Secret
+    fields are returned with a ``has_value`` boolean instead of a
+    plaintext value. Replaces the hand-rolled per-field rendering that
+    v4's config.html used to do.
+    """
+    config_path = current_app.config["APP_CONFIG_PATH"]
+    cfg_data = get_config_for_web(config_path)
+    values = _flatten_for_schema(cfg_data)
+    return jsonify(schema_to_json(values=values))
+
+
+def _flatten_for_schema(cfg_for_web: dict) -> dict:
+    """Flatten the nested ``get_config_for_web`` output to dotted-path keys.
+
+    Secret fields surface as ``_*_set`` flags in the source dict; the
+    schema view consumes them via ``has_value`` instead, so we copy them
+    into their dotted path (truthy when ``True``) and ignore plaintext.
+    Some non-secret legacy/template values are prefixed with ``_`` (for
+    example ``google._calendar_id``); those are preserved under their
+    public schema path.
+    """
+    out: dict[str, object] = {}
+    for top_key, value in cfg_for_web.items():
+        if isinstance(value, dict):
+            for inner_key, inner_value in value.items():
+                if inner_key.startswith("_"):
+                    # _api_key_set → drives `has_value` for that secret.
+                    if inner_key.endswith("_set"):
+                        secret_name = inner_key[1:-4]  # strip leading "_" and trailing "_set"
+                        out[f"{top_key}.{secret_name}"] = inner_value
+                    else:
+                        public_name = inner_key[1:]
+                        out[f"{top_key}.{public_name}"] = inner_value
+                    continue
+                out[f"{top_key}.{inner_key}"] = inner_value
+        else:
+            out[top_key] = value
+    return out
 
 
 @config_bp.route("/api/config/restore-latest", methods=["POST"])

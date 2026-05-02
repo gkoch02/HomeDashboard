@@ -240,7 +240,7 @@ def _build_status() -> dict:
     quiet_hours_active = is_quiet_hours_now(
         cfg.schedule.quiet_hours_start, cfg.schedule.quiet_hours_end
     )
-    now = datetime.now()
+    now = datetime.now()  # allow-naive-datetime — local wall clock for status display
 
     sources: dict = {}
     for source in ("events", "weather", "birthdays", "air_quality"):

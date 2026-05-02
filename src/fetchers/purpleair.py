@@ -208,3 +208,43 @@ def fetch_air_quality(cfg: PurpleAirConfig) -> AirQualityData:
         humidity=humidity,
         pressure=pressure,
     )
+
+
+# ---------------------------------------------------------------------------
+# Registry adapter
+# ---------------------------------------------------------------------------
+
+
+def _air_quality_fetch(ctx) -> AirQualityData:
+    from src import data_pipeline
+
+    return data_pipeline.fetch_air_quality(ctx.cfg.purpleair)
+
+
+def _air_quality_enabled(cfg) -> bool:
+    return bool(cfg.purpleair.api_key and cfg.purpleair.sensor_id)
+
+
+def _air_quality_log(aq: AirQualityData) -> str:
+    return f"Fetched air quality: AQI={aq.aqi} ({aq.category})"
+
+
+def _register() -> None:
+    from src.fetchers.cache import _deser_air_quality, _ser_air_quality
+    from src.fetchers.registry import Fetcher, register_fetcher
+
+    register_fetcher(
+        Fetcher(
+            name="air_quality",
+            fetch=_air_quality_fetch,
+            serialize=lambda data: _ser_air_quality(data) if data else None,
+            deserialize=lambda blob: _deser_air_quality(blob) if blob else None,
+            ttl_minutes=lambda cfg: cfg.cache.air_quality_ttl_minutes,
+            interval_minutes=lambda cfg: cfg.cache.air_quality_fetch_interval,
+            enabled=_air_quality_enabled,
+            log_success=_air_quality_log,
+        )
+    )
+
+
+_register()

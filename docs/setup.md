@@ -126,6 +126,72 @@ not available via ICS. Use `birthdays.source: file` or `birthdays.source: calend
 
 ---
 
+## CalDAV (Nextcloud / Radicale / iCloud / etc.)
+
+CalDAV is a third event-source option, alongside the Google API and ICS feeds. It works
+with self-hosted servers (Nextcloud, Radicale, Synology, Baikal) and major hosted
+providers (Apple iCloud, Fastmail).
+
+### Trade-offs vs ICS
+
+| | ICS feed | CalDAV |
+|---|---|---|
+| Authentication | URL is the secret | HTTP Basic (username + password file) |
+| Multi-account | One URL per account; merged via `additional_ical_urls` | One server per dashboard; pick a calendar via `caldav_calendar_url` or use the principal default |
+| Self-hosted servers | Some don't expose ICS | Universal — every CalDAV server supports it |
+| Refresh | Re-download whole feed | Time-windowed search query (lighter when calendars are large) |
+
+CalDAV takes precedence over both Google API and ICS when configured — so leaving any
+of those settings around does not block the CalDAV path; the dispatcher in
+`src/fetchers/calendar.py` simply ignores the lower-precedence ones.
+
+### Step 1 — Get the CalDAV server URL
+
+| Provider | URL pattern |
+|---|---|
+| Nextcloud | `https://<host>/remote.php/dav/calendars/<user>/` |
+| Radicale | `https://<host>:5232/<user>/` |
+| Apple iCloud | `https://caldav.icloud.com/` |
+| Fastmail | `https://caldav.fastmail.com/dav/calendars/user/<user>@fastmail.com/` |
+| Synology Calendar | `https://<host>:5006/caldav.php/<user>/home/` |
+
+When in doubt, the principal endpoint usually works — `caldav` discovers the available
+calendars from there. Set `caldav_calendar_url` to a specific calendar URL if you want
+to pick exactly one.
+
+### Step 2 — Create a one-line password file
+
+Never inline the password in `config.yaml`. Put it in its own file:
+
+```bash
+mkdir -p credentials
+printf '%s\n' 'YOUR-CALDAV-APP-PASSWORD' > credentials/caldav_password.txt
+chmod 600 credentials/caldav_password.txt
+```
+
+iCloud and Fastmail require an **app-specific password**, not your main account
+password. Generate one at:
+
+- iCloud → Sign-In and Security → App-Specific Passwords
+- Fastmail → Settings → Password & Security → App Passwords
+
+### Step 3 — Add to config.yaml
+
+```yaml
+google:
+  caldav_url: "https://nextcloud.example.com/remote.php/dav/calendars/yourname/"
+  caldav_username: "yourname"
+  caldav_password_file: "credentials/caldav_password.txt"
+  # caldav_calendar_url: ""           # optional; leave unset to use the first calendar
+```
+
+`make check` validates the URL scheme, ensures the username and password file are set,
+and warns if both `caldav_url` and `ical_url` are configured (CalDAV wins). On a
+fetch failure the dashboard logs a warning and falls back to cached events — same
+graceful-degradation contract as the ICS path.
+
+---
+
 ## Birthday Configuration
 
 Set `birthdays.source` in config to one of three modes:

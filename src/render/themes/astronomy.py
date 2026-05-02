@@ -48,3 +48,18 @@ def astronomy_theme() -> Theme:
             show_borders=True,
         ),
     )
+
+
+# ---------------------------------------------------------------------------
+# Registry adapter
+# ---------------------------------------------------------------------------
+
+
+def _register() -> None:
+    from src.render.theme import INKY_BLUE, INKY_YELLOW
+    from src.render.themes.registry import register_theme
+
+    register_theme("astronomy", astronomy_theme, inky_palette=(INKY_BLUE, INKY_YELLOW))
+
+
+_register()

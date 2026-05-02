@@ -19,6 +19,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from src._io import atomic_write_json
+from src._time import now_utc
 
 logger = logging.getLogger(__name__)
 
@@ -80,7 +81,7 @@ class CircuitBreaker:
         """Record a failure; transition to OPEN after max_failures."""
         st = self._states.get(source, BreakerState())
         st.consecutive_failures += 1
-        st.last_failure_at = datetime.now(timezone.utc).isoformat()
+        st.last_failure_at = now_utc().isoformat()
 
         if st.consecutive_failures >= self._max_failures:
             st.state = "open"
@@ -108,7 +109,7 @@ class CircuitBreaker:
         except ValueError:
             return True
         # Use UTC for consistent cooldown calculation regardless of clock changes.
-        now = datetime.now(timezone.utc)
+        now = now_utc()
         # Legacy naive timestamps were always written via datetime.utcnow().isoformat();
         # attach UTC explicitly. astimezone() on a naive value would assume system local
         # time and skew the elapsed window by the local UTC offset.

@@ -55,3 +55,18 @@ def air_quality_theme() -> Theme:
             label_font_weight="semibold",
         ),
     )
+
+
+# ---------------------------------------------------------------------------
+# Registry adapter
+# ---------------------------------------------------------------------------
+
+
+def _register() -> None:
+    from src.render.theme import INKY_BLUE, INKY_GREEN
+    from src.render.themes.registry import register_theme
+
+    register_theme("air_quality", air_quality_theme, inky_palette=(INKY_BLUE, INKY_GREEN))
+
+
+_register()

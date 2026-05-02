@@ -7,76 +7,52 @@ from PIL import Image, ImageDraw
 
 from src.config import DisplayConfig
 from src.data.models import DashboardData
+from src.display.backend import build_display_backend
 from src.display.driver import get_display_spec
 from src.render.components import (
-    air_quality_panel,
-    astronomy_panel,
-    birthday_bar,
-    countdown_panel,
-    diags_panel,
-    fuzzyclock_panel,
-    header,
-    info_panel,
-    message_panel,
-    monthly_panel,
-    moonphase_panel,
-    qotd_panel,
-    scorecard_panel,
-    sunrise_panel,
-    tides_panel,
-    timeline_panel,
-    today_view,
-    weather_panel,
-    week_view,
-    year_pulse_panel,
+    _builtins as _component_builtins,  # noqa: F401  registers components
 )
-from src.render.components import (
-    weather_full as weather_full_comp,
+from src.render.components.registry import RenderContext, get_component
+from src.render.quantize import INKY_SPECTRA6_PALETTE
+from src.render.theme import (
+    INKY_BLACK as _INKY_BLACK,
 )
-from src.render.quantize import INKY_SPECTRA6_PALETTE, quantize_for_display
+from src.render.theme import (
+    INKY_BLUE as _INKY_BLUE,
+)
+from src.render.theme import (
+    INKY_GREEN as _INKY_GREEN,
+)
+from src.render.theme import (
+    INKY_RED as _INKY_RED,
+)
+from src.render.theme import (
+    INKY_WHITE as _INKY_WHITE,
+)
+from src.render.theme import (
+    INKY_YELLOW as _INKY_YELLOW,
+)
 from src.render.theme import Theme, default_theme
 
 # Base resolution used when no theme is provided (legacy path).
 _BASE_W = 800
 _BASE_H = 480
 
-# Indices into INKY_SPECTRA6_PALETTE — matches InkyE673 (inky_e673.py) controller ordering:
-# 0=Black, 1=White, 2=Yellow, 3=Red, 4=Blue, 5=Green  (no Orange on Spectra 6)
-_INKY_BLACK = 0
-_INKY_WHITE = 1
-_INKY_YELLOW = 2
-_INKY_RED = 3
-_INKY_BLUE = 4
-_INKY_GREEN = 5
 
-_INKY_THEME_KEY_COLORS: dict[str, tuple[int, int]] = {
-    "default": (_INKY_BLUE, _INKY_RED),
-    "agenda": (_INKY_RED, _INKY_BLACK),
-    "terminal": (_INKY_GREEN, _INKY_YELLOW),
-    "minimalist": (_INKY_BLUE, _INKY_RED),
-    "old_fashioned": (_INKY_RED, _INKY_YELLOW),
-    "today": (_INKY_BLUE, _INKY_RED),
-    "fantasy": (_INKY_RED, _INKY_YELLOW),
-    "qotd": (_INKY_RED, _INKY_BLUE),
-    "qotd_invert": (_INKY_YELLOW, _INKY_RED),
-    "weather": (_INKY_BLUE, _INKY_YELLOW),
-    "fuzzyclock": (_INKY_YELLOW, _INKY_BLUE),
-    "fuzzyclock_invert": (_INKY_YELLOW, _INKY_BLUE),
-    "diags": (_INKY_GREEN, _INKY_BLUE),
-    "air_quality": (_INKY_BLUE, _INKY_GREEN),
-    "moonphase": (_INKY_BLUE, _INKY_YELLOW),
-    "moonphase_invert": (_INKY_YELLOW, _INKY_BLUE),
-    "message": (_INKY_RED, _INKY_BLUE),
-    "timeline": (_INKY_BLUE, _INKY_RED),
-    "year_pulse": (_INKY_GREEN, _INKY_BLUE),
-    "monthly": (_INKY_YELLOW, _INKY_RED),
-    "sunrise": (_INKY_YELLOW, _INKY_RED),
-    "scorecard": (_INKY_RED, _INKY_BLUE),
-    "tides": (_INKY_BLUE, _INKY_YELLOW),
-    "photo": (_INKY_BLUE, _INKY_RED),
-    "countdown": (_INKY_RED, _INKY_BLUE),
-    "astronomy": (_INKY_BLUE, _INKY_YELLOW),
-}
+def _resolve_inky_palette(theme: Theme) -> tuple[int, int]:
+    """Return the (primary, secondary) Spectra-6 indices for *theme*.
+
+    Priority: explicit ``ThemeStyle.inky_palette`` > registry mapping
+    populated by each theme's ``register_theme`` call > default ``(BLUE, RED)``.
+    """
+    if theme.style.inky_palette is not None:
+        return theme.style.inky_palette
+    from src.render.themes.registry import get_inky_palette
+
+    pair = get_inky_palette(theme.name)
+    if pair is not None:
+        return pair
+    return (_INKY_BLUE, _INKY_RED)
 
 
 def _resolve_inky_explicit_color(
@@ -154,7 +130,7 @@ def _resolve_style(theme: Theme, render_mode: str, config: DisplayConfig):
         )
     if render_mode == "RGB":
         pal = INKY_SPECTRA6_PALETTE
-        primary, secondary = _INKY_THEME_KEY_COLORS.get(theme.name, (_INKY_BLUE, _INKY_RED))
+        primary, secondary = _resolve_inky_palette(theme)
         return replace(
             style,
             fg=pal[_INKY_BLACK] if style.fg == 0 else pal[_INKY_WHITE],
@@ -225,195 +201,20 @@ def render_dashboard(
     now = data.fetched_at
     today = now.date() if isinstance(now, datetime) else now
 
-    week_forecast = data.weather.forecast if data.weather else None
-
-    # Build the dispatcher: component name → lambda that draws it
-    component_drawers = {
-        "header": lambda: header.draw_header(
-            draw,
-            now,
-            is_stale=data.is_stale,
-            title=title,
-            source_staleness=data.source_staleness,
-            region=layout.header,
-            style=style,
-        ),
-        "week_view": lambda: week_view.draw_week(
-            draw,
-            data.events,
-            today,
-            forecast=week_forecast,
-            region=layout.week_view,
-            style=style,
-        ),
-        "weather": lambda: weather_panel.draw_weather(
-            draw,
-            data.weather,
-            today=today,
-            air_quality=data.air_quality,
-            region=layout.weather,
-            style=style,
-            staleness=data.source_staleness.get("weather"),
-        ),
-        "birthdays": lambda: birthday_bar.draw_birthdays(
-            draw,
-            data.birthdays,
-            today,
-            region=layout.birthdays,
-            style=style,
-            staleness=data.source_staleness.get("birthdays"),
-        ),
-        "info": lambda: info_panel.draw_info(
-            draw,
-            today,
-            region=layout.info,
-            style=style,
-            quote_refresh=quote_refresh,
-        ),
-        "today_view": lambda: today_view.draw_today(
-            draw,
-            data.events,
-            today,
-            forecast=week_forecast,
-            region=layout.today_view,
-            style=style,
-        ),
-        "qotd": lambda: qotd_panel.draw_qotd(
-            draw,
-            today,
-            region=layout.qotd,
-            style=style,
-            quote_refresh=quote_refresh,
-        ),
-        "qotd_weather": lambda: qotd_panel.draw_qotd_weather(
-            draw,
-            data.weather,
-            today,
-            region=layout.weather,
-            style=style,
-        ),
-        "weather_full": lambda: weather_full_comp.draw_weather_full(
-            draw,
-            data.weather,
-            today,
-            air_quality=data.air_quality,
-            region=layout.weather_full,
-            style=style,
-        ),
-        "fuzzyclock": lambda: fuzzyclock_panel.draw_fuzzyclock(
-            draw,
-            now,
-            region=layout.fuzzyclock,
-            style=style,
-        ),
-        "fuzzyclock_weather": lambda: qotd_panel.draw_qotd_weather(
-            draw,
-            data.weather,
-            today,
-            region=layout.weather,
-            style=style,
-        ),
-        "diags": lambda: diags_panel.draw_diags(
-            draw,
-            data,
-            today,
-            region=layout.diags,
-            style=style,
-        ),
-        "air_quality_full": lambda: air_quality_panel.draw_air_quality_full(
-            draw,
-            data,
-            today,
-            region=layout.air_quality_full,
-            style=style,
-        ),
-        "moonphase_full": lambda: moonphase_panel.draw_moonphase(
-            draw,
-            data,
-            today,
-            region=layout.moonphase_full,
-            style=style,
-            quote_refresh=quote_refresh,
-        ),
-        "message": lambda: message_panel.draw_message(
-            draw,
-            message_text or "",
-            region=layout.message,
-            style=style,
-        ),
-        "message_weather": lambda: qotd_panel.draw_qotd_weather(
-            draw,
-            data.weather,
-            today,
-            region=layout.weather,
-            style=style,
-        ),
-        "timeline": lambda: timeline_panel.draw_timeline(
-            draw,
-            data.events,
-            today,
-            now,
-            region=layout.timeline,
-            style=style,
-        ),
-        "year_pulse": lambda: year_pulse_panel.draw_year_pulse(
-            draw,
-            data,
-            today,
-            region=layout.year_pulse,
-            style=style,
-        ),
-        "monthly": lambda: monthly_panel.draw_monthly(
-            draw,
-            data,
-            today,
-            region=layout.monthly,
-            style=style,
-        ),
-        "sunrise": lambda: sunrise_panel.draw_sunrise(
-            draw,
-            data,
-            today,
-            now,
-            region=layout.sunrise,
-            style=style,
-        ),
-        "scorecard": lambda: scorecard_panel.draw_scorecard(
-            draw,
-            data,
-            today,
-            now,
-            region=layout.scorecard,
-            style=style,
-            quote_refresh=quote_refresh,
-        ),
-        "tides": lambda: tides_panel.draw_tides(
-            draw,
-            data,
-            today,
-            now,
-            region=layout.tides,
-            style=style,
-            quote_refresh=quote_refresh,
-        ),
-        "countdown": lambda: countdown_panel.draw_countdown(
-            draw,
-            countdown_events or [],
-            today,
-            region=layout.countdown,
-            style=style,
-        ),
-        "astronomy": lambda: astronomy_panel.draw_astronomy(
-            draw,
-            data,
-            today,
-            now,
-            region=layout.astronomy,
-            style=style,
-            latitude=latitude,
-            longitude=longitude,
-        ),
-    }
+    ctx = RenderContext(
+        draw=draw,
+        data=data,
+        today=today,
+        now=now,
+        layout=layout,
+        style=style,
+        title=title,
+        quote_refresh=quote_refresh,
+        message_text=message_text,
+        countdown_events=countdown_events,
+        latitude=latitude,
+        longitude=longitude,
+    )
 
     # Config visibility overrides (show_weather etc.) respected regardless of draw_order
     visibility = {
@@ -430,35 +231,21 @@ def render_dashboard(
         # Skip if the DisplayConfig visibility flag is False
         if not visibility.get(name, True):
             continue
-        drawer = component_drawers.get(name)
-        if drawer is not None:
-            drawer()
+        adapter = get_component(name)
+        if adapter is not None:
+            adapter(ctx)
 
     # Optional theme overlay (e.g. decorative borders drawn on top of all components)
     if layout.overlay_fn is not None:
         layout.overlay_fn(draw, layout, style)
 
-    # Scale to native display resolution and/or quantize to 1-bit.
-    # Quantization is needed whenever a resize occurred (LANCZOS produces grey pixels)
-    # or the theme rendered onto a greyscale canvas (canvas_mode == "L").
-    needs_resize = (config.width, config.height) != (layout.canvas_w, layout.canvas_h)
-    target_is_color = config.provider == "inky"
-    needs_quantize = (needs_resize or layout.canvas_mode == "L") and not target_is_color
-
-    if needs_resize:
-        if target_is_color:
-            image = image.convert("RGB").resize(
-                (config.width, config.height), Image.Resampling.LANCZOS
-            )
-        else:
-            l_image = image if layout.canvas_mode == "L" else image.convert("L")
-            image = l_image.resize((config.width, config.height), Image.Resampling.LANCZOS)
-
-    if needs_quantize:
-        quant_mode = layout.preferred_quantization_mode or config.quantization_mode
-        image = quantize_for_display(image, quant_mode)
-    # Inky: no pre-quantization — the Inky library maps to physical inks using its own
-    # calibrated palette.  Pre-quantizing with an approximated palette causes grey
-    # anti-aliased pixels to snap to the wrong ink color (e.g. grey → green).
+    # Delegate resize + final quantization to the backend so canvas no longer
+    # forks on `config.provider`.
+    backend = build_display_backend(config)
+    image = backend.resize_and_finalize(
+        image,
+        canvas_size=(layout.canvas_w, layout.canvas_h),
+        layout=layout,
+    )
 
     return image

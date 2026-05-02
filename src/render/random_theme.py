@@ -149,7 +149,7 @@ def pick_random_theme_hourly(
         A concrete theme name (never ``"random_hourly"``).
     """
     if now is None:
-        now = datetime.now()
+        now = datetime.now()  # allow-naive-datetime — naive local for hourly bucket
 
     hour_key = now.strftime("%Y-%m-%dT%H")
     state_path = Path(output_dir) / _HOURLY_STATE_FILE

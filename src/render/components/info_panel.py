@@ -92,10 +92,10 @@ def _quote_for_today(
     ``datetime.now()`` and is accepted as an argument for testability.
     """
     if refresh == "hourly":
-        dt = now if now is not None else datetime.now()
+        dt = now if now is not None else datetime.now()  # allow-naive-datetime — hour bucket only
         key = f"{today.isoformat()}T{dt.hour:02d}"
     elif refresh == "twice_daily":
-        dt = now if now is not None else datetime.now()
+        dt = now if now is not None else datetime.now()  # allow-naive-datetime — am/pm bucket only
         period = "am" if dt.hour < 12 else "pm"
         key = f"{today.isoformat()}-{period}"
     else:

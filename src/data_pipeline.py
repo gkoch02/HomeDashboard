@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import logging
 from concurrent.futures import Future, ThreadPoolExecutor
-from datetime import date, datetime, timezone
+from datetime import date
+from typing import cast
 
+from src._time import now_local
 from src.data.models import (
     AirQualityData,
     Birthday,
@@ -20,12 +22,18 @@ from src.fetchers.cache import (
     load_cached_source_with_metadata_from_blob,
     save_source,
 )
-from src.fetchers.calendar import fetch_birthdays, fetch_events
+
+# Re-exported so the existing test convention of
+# ``patch("src.data_pipeline.fetch_events", ...)`` keeps working — the
+# registered fetcher adapters in each fetcher module dispatch back through
+# these names so a patch applied here flows through to the live call site.
+from src.fetchers.calendar import fetch_birthdays, fetch_events  # noqa: F401
 from src.fetchers.circuit_breaker import CircuitBreaker
 from src.fetchers.host import fetch_host_data
-from src.fetchers.purpleair import fetch_air_quality
+from src.fetchers.purpleair import fetch_air_quality  # noqa: F401
 from src.fetchers.quota_tracker import QuotaTracker
-from src.fetchers.weather import fetch_weather
+from src.fetchers.registry import FetchContext, all_fetchers, get_fetcher
+from src.fetchers.weather import fetch_weather  # noqa: F401
 
 logger = logging.getLogger(__name__)
 
@@ -108,6 +116,17 @@ def retry_fetch(label: str, fn):
 
 
 class DataPipeline:
+    """Orchestrate concurrent fetches across all registered data sources.
+
+    The pipeline iterates the fetcher registry (``src.fetchers.registry``)
+    rather than naming sources directly. Adding a new data source is a
+    single new ``register_fetcher`` call.
+
+    Each instance is single-use: ``stale_sources`` and ``source_staleness``
+    accumulate during one ``fetch()`` call and are baked into the returned
+    ``DashboardData``.
+    """
+
     def __init__(
         self,
         cfg,
@@ -127,7 +146,7 @@ class DataPipeline:
         self.event_window_days = event_window_days
         # Always construct an aware datetime — naive `fetched_at` raises TypeError
         # when subtracted from aware cache timestamps in check_staleness.
-        self.fetched_at = datetime.now(tz or timezone.utc)
+        self.fetched_at = now_local(tz)
 
         cache_cfg = cfg.cache
         self.quota = QuotaTracker(state_dir=cache_dir)
@@ -136,92 +155,65 @@ class DataPipeline:
             cooldown_minutes=cache_cfg.cooldown_minutes,
             state_dir=cache_dir,
         )
-        self.ttl_map = {
-            "events": cache_cfg.events_ttl_minutes,
-            "weather": cache_cfg.weather_ttl_minutes,
-            "birthdays": cache_cfg.birthdays_ttl_minutes,
-            "air_quality": cache_cfg.air_quality_ttl_minutes,
-        }
-        self.interval_map = {
-            "events": cache_cfg.events_fetch_interval,
-            "weather": cache_cfg.weather_fetch_interval,
-            "birthdays": cache_cfg.birthdays_fetch_interval,
-            "air_quality": cache_cfg.air_quality_fetch_interval,
+        # TTLs and intervals are pulled per-source from the registry so adding
+        # a new fetcher does not require editing this map.
+        self.ttl_map: dict[str, int] = {f.name: f.ttl_minutes(cfg) for f in all_fetchers()}
+        self.interval_map: dict[str, int] = {
+            f.name: f.interval_minutes(cfg) for f in all_fetchers()
         }
         self.stale_sources: list[str] = []
         self.source_staleness: dict[str, StalenessLevel] = {}
         self._cache_blob: dict | None = None
 
+    # ---- public ----
+
     def fetch(self) -> DashboardData:
-        """Fetch all data sources and return a DashboardData snapshot.
-
-        Each DataPipeline instance is single-use: stale_sources and
-        source_staleness accumulate during this call and are baked into the
-        returned DashboardData. Do not call fetch() more than once per instance.
-        """
-        events: list[CalendarEvent] = []
-        weather: WeatherData | None = None
-        birthdays: list[Birthday] = []
-        air_quality: AirQualityData | None = None
-
-        # Read the cache file once per fetch — _should_skip and _use_cache
-        # both decode sources out of this in-memory dict instead of re-opening.
+        """Fetch all enabled data sources and return a ``DashboardData`` snapshot."""
+        # Read the cache file once — _should_skip / _use_cache decode out of
+        # this in-memory dict instead of re-opening (perf-tested).
         self._cache_blob = load_cache_blob(self.cache_dir)
 
-        events_cached, events_skip = self._should_skip("events")
-        weather_cached, weather_skip = self._should_skip("weather")
-        birthdays_cached, birthdays_skip = self._should_skip("birthdays")
+        enabled = [f for f in all_fetchers() if f.enabled(self.cfg)]
 
+        # Phase 1: decide which sources to skip (cache hit or breaker open).
+        skip_decisions: dict[str, tuple] = {}
+        cached_values: dict[str, object] = {}
+        for f in enabled:
+            cached, skip = self._should_skip(f.name)
+            skip_decisions[f.name] = (cached, skip)
+            if skip:
+                cached_values[f.name] = cached
+
+        # Phase 2: launch concurrent fetches for the rest. Old-style five-param
+        # signature is preserved for tests that exercise this method directly.
+        events_skip = skip_decisions.get("events", (None, True))[1]
+        weather_skip = skip_decisions.get("weather", (None, True))[1]
+        birthdays_skip = skip_decisions.get("birthdays", (None, True))[1]
         purpleair_enabled = bool(self.cfg.purpleair.api_key and self.cfg.purpleair.sensor_id)
-        if purpleair_enabled:
-            aq_cached, aq_skip = self._should_skip("air_quality")
-        else:
-            aq_cached, aq_skip = None, True
-
-        if events_skip:
-            events = events_cached
-        if weather_skip:
-            weather = weather_cached
-        if birthdays_skip:
-            birthdays = birthdays_cached
-        if aq_skip and aq_cached is not None:
-            air_quality = aq_cached
-
+        aq_skip = skip_decisions.get("air_quality", (None, True))[1] if purpleair_enabled else True
         futures = self._launch_fetches(
-            events_skip,
-            weather_skip,
-            birthdays_skip,
-            purpleair_enabled,
-            aq_skip,
+            events_skip, weather_skip, birthdays_skip, purpleair_enabled, aq_skip
         )
 
-        events = self._resolve_source(
-            "events",
-            futures.get("events"),
-            events,
-            lambda d: logger.info("Fetched %d calendar events", len(d)),
-        )
-        weather = self._resolve_source(
-            "weather",
-            futures.get("weather"),
-            weather,
-            lambda d: logger.info("Fetched weather: %.1f°", d.current_temp),
-        )
-        birthdays = self._resolve_source(
-            "birthdays",
-            futures.get("birthdays"),
-            birthdays,
-            lambda d: logger.info("Fetched %d upcoming birthdays", len(d)),
-        )
-        air_quality = self._resolve_source(
-            "air_quality",
-            futures.get("air_quality"),
-            air_quality,
-            lambda d: logger.info("Fetched air quality: AQI=%d (%s)", d.aqi, d.category),
-        )
+        # Phase 3: resolve each source, falling back to cache on failure.
+        results: dict[str, object] = {}
+        for f in enabled:
+            current = cached_values.get(f.name)
+            if current is None and f.name in {"events", "birthdays"}:
+                current = []
+            success_log_fn = self._make_success_log(f)
+            results[f.name] = self._resolve_source(
+                f.name, futures.get(f.name), current, success_log_fn
+            )
 
-        # Merge missing air quality sensor fields from weather fallback
-        air_quality = _merge_air_quality_with_weather_fallback(air_quality, weather)
+        # Post-processing: fill missing PurpleAir ambient readings from OWM.
+        weather_value = results.get("weather")
+        aq_value = results.get("air_quality")
+        if isinstance(aq_value, AirQualityData) or aq_value is None:
+            results["air_quality"] = _merge_air_quality_with_weather_fallback(
+                aq_value if isinstance(aq_value, AirQualityData) else None,
+                weather_value if isinstance(weather_value, WeatherData) else None,
+            )
 
         quota_threshold = self.cfg.google.daily_quota_warning
         for src in ("events", "weather", "birthdays"):
@@ -229,17 +221,48 @@ class DataPipeline:
 
         host_data: HostData | None = fetch_host_data()
 
+        events_value = results.get("events")
+        weather_value = results.get("weather")
+        birthdays_value = results.get("birthdays")
+        air_quality_value = results.get("air_quality")
+
         return DashboardData(
-            events=events,
-            weather=weather,
-            birthdays=birthdays,
-            air_quality=air_quality,
+            events=cast(list[CalendarEvent], events_value)
+            if isinstance(events_value, list)
+            else [],
+            weather=weather_value if isinstance(weather_value, WeatherData) else None,
+            birthdays=cast(list[Birthday], birthdays_value)
+            if isinstance(birthdays_value, list)
+            else [],
+            air_quality=air_quality_value
+            if isinstance(air_quality_value, AirQualityData)
+            else None,
             host_data=host_data,
             fetched_at=self.fetched_at,
             is_stale=bool(self.stale_sources),
             stale_sources=self.stale_sources,
             source_staleness=self.source_staleness,
         )
+
+    # ---- private ----
+
+    def _fetch_context(self) -> FetchContext:
+        return FetchContext(
+            cfg=self.cfg,
+            tz=self.tz,
+            cache_dir=self.cache_dir,
+            fetched_at=self.fetched_at,
+            event_window_start=self.event_window_start,
+            event_window_days=self.event_window_days,
+        )
+
+    def _make_success_log(self, fetcher):
+        def _log(value):
+            msg = fetcher.log_success(value)
+            if msg:
+                logger.info("%s", msg)
+
+        return _log
 
     def _use_cache(self, source: str):
         cached = load_cached_source_from_blob(source, self._cache_blob)
@@ -257,26 +280,29 @@ class DataPipeline:
     def _cache_is_recent(self, source: str) -> tuple:
         if self.force_refresh:
             return None, False
-        if source == "events":
-            cached_events = load_cached_source_with_metadata_from_blob(source, self._cache_blob)
-            if cached_events is None:
+        fetcher = get_fetcher(source)
+        if fetcher is not None and fetcher.save_metadata is not None:
+            cached_with_meta = load_cached_source_with_metadata_from_blob(source, self._cache_blob)
+            if cached_with_meta is None:
                 return None, False
-            data, cached_at, metadata = cached_events
-            requested_start = (
-                self.event_window_start.isoformat() if self.event_window_start is not None else None
-            )
-            requested_days = self.event_window_days
-            if (
-                metadata.get("window_start") != requested_start
-                or metadata.get("window_days") != requested_days
-            ):
-                logger.info(
-                    "events cache window mismatch; cached=(%s, %s) requested=(%s, %s), refetching",
-                    metadata.get("window_start"),
-                    metadata.get("window_days"),
-                    requested_start,
-                    requested_days,
-                )
+            data, cached_at, metadata = cached_with_meta
+            if not fetcher.cache_metadata_valid(metadata, self._fetch_context()):
+                # Events-style window mismatch — log helpful detail without
+                # forcing every fetcher to surface its own log.
+                if source == "events":
+                    requested_start = (
+                        self.event_window_start.isoformat()
+                        if self.event_window_start is not None
+                        else None
+                    )
+                    logger.info(
+                        "events cache window mismatch; cached=(%s, %s) requested=(%s, %s), "
+                        "refetching",
+                        metadata.get("window_start"),
+                        metadata.get("window_days"),
+                        requested_start,
+                        self.event_window_days,
+                    )
                 return None, False
         else:
             cached = load_cached_source_from_blob(source, self._cache_blob)
@@ -309,52 +335,39 @@ class DataPipeline:
     def _launch_fetches(
         self, events_skip, weather_skip, birthdays_skip, purpleair_enabled, aq_skip
     ):
-        futures: dict[str, Future | None] = {
-            "events": None,
-            "weather": None,
-            "birthdays": None,
-            "air_quality": None,
+        """Submit retry-wrapped fetch jobs for each non-skipped source.
+
+        The argument shape is preserved verbatim from v4 so existing tests
+        that exercise this private method continue to work. Internally each
+        job is dispatched via the registry's ``fetch`` callable, so adding
+        a new source no longer requires editing this method.
+        """
+        skip_by_name = {
+            "events": events_skip,
+            "weather": weather_skip,
+            "birthdays": birthdays_skip,
+            "air_quality": aq_skip if purpleair_enabled else True,
         }
-        needs_fetch = (
-            not events_skip
-            or not weather_skip
-            or not birthdays_skip
-            or (purpleair_enabled and not aq_skip)
-        )
-        if not needs_fetch:
+        ctx = self._fetch_context()
+        fetchers = all_fetchers()
+        runnable: list = []
+        for f in fetchers:
+            if not f.enabled(self.cfg):
+                continue
+            if skip_by_name.get(f.name, False):
+                continue
+            runnable.append(f)
+
+        futures: dict[str, Future | None] = {f.name: None for f in fetchers}
+        if not runnable:
             return futures
 
-        max_workers = 4 if purpleair_enabled and not aq_skip else 3
+        max_workers = max(1, len(runnable))
         with ThreadPoolExecutor(max_workers=max_workers) as pool:
-            if not events_skip:
-                futures["events"] = pool.submit(
-                    retry_fetch,
-                    "Calendar",
-                    lambda: fetch_events(
-                        self.cfg.google,
-                        days=self.event_window_days,
-                        start_date=self.event_window_start,
-                        tz=self.tz,
-                        cache_dir=self.cache_dir,
-                    ),
-                )
-            if not weather_skip:
-                futures["weather"] = pool.submit(
-                    retry_fetch,
-                    "Weather",
-                    lambda: fetch_weather(self.cfg.weather, tz=self.tz),
-                )
-            if not birthdays_skip:
-                futures["birthdays"] = pool.submit(
-                    retry_fetch,
-                    "Birthdays",
-                    lambda: fetch_birthdays(self.cfg.google, self.cfg.birthdays, tz=self.tz),
-                )
-            if purpleair_enabled and not aq_skip:
-                futures["air_quality"] = pool.submit(
-                    retry_fetch,
-                    "AirQuality",
-                    lambda: fetch_air_quality(self.cfg.purpleair),
+            for f in runnable:
+                label = f.name.replace("_", " ").title().replace(" ", "")
+                futures[f.name] = pool.submit(
+                    retry_fetch, label, lambda fetcher=f: fetcher.fetch(ctx)
                 )
         return futures
 
@@ -371,16 +384,7 @@ class DataPipeline:
             return current
         try:
             data = future.result(timeout=120)
-            metadata = None
-            if source == "events":
-                metadata = {
-                    "window_start": (
-                        self.event_window_start.isoformat()
-                        if self.event_window_start is not None
-                        else None
-                    ),
-                    "window_days": self.event_window_days,
-                }
+            metadata = self._cache_metadata_for(source)
             save_source(source, data, self.fetched_at, self.cache_dir, metadata=metadata)
             self.source_staleness[source] = StalenessLevel.FRESH
             self.breaker.record_success(source)
@@ -400,3 +404,11 @@ class DataPipeline:
                 )
                 return cached_data
             return current
+
+    def _cache_metadata_for(self, source: str) -> dict | None:
+        """Return per-source cache metadata to persist alongside the value."""
+        fetcher = get_fetcher(source)
+        if fetcher is None:
+            return None
+        metadata = fetcher.save_metadata(self._fetch_context())
+        return metadata or None

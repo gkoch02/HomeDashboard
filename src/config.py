@@ -26,6 +26,14 @@ class GoogleConfig:
     # Get the URL from Google Calendar → Settings → [calendar] → "Secret address in iCal format".
     ical_url: str = ""
     additional_ical_urls: list[str] = field(default_factory=list)
+    # CalDAV alternative — when ``caldav_url`` is set, events are fetched from a
+    # CalDAV server (Nextcloud, Radicale, Apple iCloud, …) instead of Google API
+    # or ICS. ``caldav_password_file`` points at a one-line file containing the
+    # account password (never inline secrets in YAML).
+    caldav_url: str = ""
+    caldav_username: str = ""
+    caldav_password_file: str = ""
+    caldav_calendar_url: str = ""  # optional specific calendar; default = first
 
 
 @dataclass
@@ -139,6 +147,10 @@ class DisplayConfig:
     show_birthdays: bool = True
     show_info_panel: bool = True
     quantization_mode: str = "threshold"
+    # Minimum seconds between hardware refreshes. None ⇒ provider default
+    # (60 for Inky, 0 for Waveshare). Set 3600 on Inky to restore the v4
+    # "exactly once an hour" hourly throttle.
+    min_refresh_interval_seconds: int | None = None
 
 
 @dataclass
@@ -232,7 +244,7 @@ class Config:
 def resolve_tz(tz_name: str) -> tzinfo:
     """Return a tzinfo for the given IANA name, or the system local timezone for 'local'."""
     if tz_name == "local":
-        tz = datetime.now().astimezone().tzinfo
+        tz = datetime.now().astimezone().tzinfo  # allow-naive-datetime — extracting local tzinfo
         if tz is None:
             logger.warning("Could not determine local timezone; falling back to UTC")
             return zoneinfo.ZoneInfo("UTC")
@@ -253,6 +265,14 @@ def load_config(path: str = "config/config.yaml") -> Config:
     with open(config_path) as f:
         raw = yaml.safe_load(f) or {}
 
+    # v5: upgrade older config shapes in-memory before parsing into dataclasses.
+    # This is non-destructive — the on-disk file is only rewritten by the
+    # explicit ``write_pre_migration_backup`` path used by the bootstrap.
+    from src.config_migrations import migrate_in_memory, needs_migration
+
+    if needs_migration(raw):
+        raw = migrate_in_memory(raw)
+
     cfg = Config()
 
     if "google" in raw:
@@ -265,6 +285,10 @@ def load_config(path: str = "config/config.yaml") -> Config:
             daily_quota_warning=g.get("daily_quota_warning", 500),
             ical_url=g.get("ical_url", ""),
             additional_ical_urls=g.get("additional_ical_urls", []),
+            caldav_url=g.get("caldav_url", ""),
+            caldav_username=g.get("caldav_username", ""),
+            caldav_password_file=g.get("caldav_password_file", ""),
+            caldav_calendar_url=g.get("caldav_calendar_url", ""),
         )
 
     if "weather" in raw:
@@ -312,6 +336,7 @@ def load_config(path: str = "config/config.yaml") -> Config:
             show_birthdays=d.get("show_birthdays", True),
             show_info_panel=d.get("show_info_panel", True),
             quantization_mode=d.get("quantization_mode", "threshold"),
+            min_refresh_interval_seconds=d.get("min_refresh_interval_seconds"),
         )
 
     if "schedule" in raw:
@@ -477,9 +502,55 @@ def validate_config(
         return errors, warnings  # Can't validate further without a config file
 
     # --- Google / Calendar ---
+    using_caldav = bool(cfg.google.caldav_url)
     using_ical = bool(cfg.google.ical_url)
 
-    if using_ical:
+    if using_caldav:
+        caldav_url = cfg.google.caldav_url
+        if not caldav_url.startswith(("http://", "https://")):
+            errors.append(
+                ConfigError(
+                    field="google.caldav_url",
+                    message=f"CalDAV URL must start with http:// or https://, got: {caldav_url!r}",
+                    hint="Set google.caldav_url to your server's CalDAV endpoint.",
+                )
+            )
+        if not cfg.google.caldav_username:
+            errors.append(
+                ConfigError(
+                    field="google.caldav_username",
+                    message="CalDAV username is required when caldav_url is set.",
+                    hint="Set google.caldav_username to your account login.",
+                )
+            )
+        if not cfg.google.caldav_password_file:
+            errors.append(
+                ConfigError(
+                    field="google.caldav_password_file",
+                    message="CalDAV password_file is required when caldav_url is set.",
+                    hint="Point google.caldav_password_file at a one-line file containing the password.",
+                )
+            )
+        elif not Path(cfg.google.caldav_password_file).is_file():
+            warnings.append(
+                ConfigWarning(
+                    field="google.caldav_password_file",
+                    message=(f"CalDAV password file not found: {cfg.google.caldav_password_file}"),
+                    hint="Create the file with the account's password (one line).",
+                )
+            )
+        if using_ical:
+            warnings.append(
+                ConfigWarning(
+                    field="google.caldav_url",
+                    message=(
+                        "Both caldav_url and ical_url are configured; "
+                        "caldav_url takes precedence for calendar events."
+                    ),
+                    hint="Remove google.ical_url if you intend to use CalDAV.",
+                )
+            )
+    elif using_ical:
         ical_url = cfg.google.ical_url
         if not ical_url.startswith(("http://", "https://")):
             errors.append(

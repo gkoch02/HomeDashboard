@@ -1,8 +1,10 @@
-# CLAUDE.md — Dashboard-v4
+# CLAUDE.md — Dashboard v5
 
 ## Project Overview
 
-Python eInk dashboard for Raspberry Pi. Displays a weekly calendar (Google Calendar), weather (OpenWeatherMap), upcoming birthdays, and a daily quote. Renders to a supported eInk display (Waveshare or Pimoroni Inky Impression) or PNG preview. Includes an optional Flask web UI for status monitoring and config editing.
+Python eInk dashboard for Raspberry Pi. Displays a weekly calendar (Google Calendar / ICS / CalDAV), weather (OpenWeatherMap), upcoming birthdays, and a daily quote. Renders to a supported eInk display (Waveshare or Pimoroni Inky Impression) or PNG preview. Includes an optional Flask web UI for status monitoring, config editing, and live theme preview.
+
+**v5 architecture themes**: pluggable registries for fetchers / themes / components, schema-driven config + web editor, unified display backend, content-hash refresh throttle, CalDAV calendar source. See `docs/upgrading-from-v4.md` for the migration walkthrough.
 
 ## Quick Commands
 
@@ -38,11 +40,13 @@ ruff format src/ tests/                        # Format
 - **google-api-python-client / google-auth** — Google Calendar & Contacts APIs
 - **requests** — OpenWeatherMap API + ICS feed fetching
 - **icalendar** — ICS feed parsing (used when `google.ical_url` is configured)
+- **caldav** — CalDAV server support (used when `google.caldav_url` is configured); declared in core `dependencies`
 - **PyYAML** — config parsing
 - **numpy** — Inky palette quantization (`src/render/quantize.py` fast path) and Inky `show()`/`clear()` buffer assembly (`src/display/driver.py`); declared in core `dependencies`
 - **Flask 3 + Waitress** — optional web UI (`requirements-web.txt`; `pip install -e ".[web]"`)
-- **pytest** — testing (with unittest.mock); coverage via **pytest-cov** (target: ≥90%, currently ~99%); theme pixel-hash snapshots in `tests/snapshots/theme_pixel_hashes.json`
+- **pytest** — testing (with unittest.mock); coverage via **pytest-cov** (target: ≥90%, currently ~97%); theme pixel-hash snapshots in `tests/snapshots/theme_pixel_hashes.json`
 - **ruff** — linting and formatting (max line length: 100)
+- **AST-based custom guard** in `tools/check_naive_datetime.py` enforces aware-datetime discipline; CI runs it via `tests/test_naive_datetime_guard.py`
 
 ## Repository Structure
 
@@ -56,14 +60,19 @@ src/
 │                              #   meteor-shower lookup. Used by the astronomy theme; no network.
 ├── _io.py                     # Shared `atomic_write_json()` (tempfile + os.replace);
 │                              #   used by cache, breaker, quota, sync state, refresh tracker
+├── _time.py                   # Sanctioned aware-datetime helpers: now_utc, now_local,
+│                              #   to_aware, assert_aware. Enforced by tools/check_naive_datetime.py
 ├── services/
 │   ├── run_policy.py          # resolve_tz, should_skip_refresh, should_force_full_refresh
 │   ├── theme.py               # resolve_theme_name (CLI → rules → schedule → cfg.theme / random)
 │   ├── theme_rules.py         # Context-aware rule evaluator (weather / daypart / season / weekday / calendar)
-│   └── output.py              # OutputService — publish image to display or PNG; write last_success.txt;
-│                              #   Inky hourly throttle for non-fuzzyclock themes
-├── _version.py                # Single source of truth: __version__ = "4.3.1"
+│   └── output.py              # OutputService — publish to display or PNG; write last_success.txt;
+│                              #   content-hash + cooldown refresh throttle (replaces v4 hourly Inky throttle)
+├── _version.py                # Single source of truth: __version__
 ├── config.py                  # YAML → typed dataclasses; validate_config()
+├── config_schema.py           # v5 declarative schema (FieldSpec/SectionSpec) — source of truth
+│                              #   for editable / secret / enum metadata; powers the web editor
+├── config_migrations.py       # Schema-versioned migration runner; v4_to_v5 step + backup helper
 ├── dummy_data.py              # Realistic dummy data for --dummy / dev previews
 ├── filters.py                 # Event filtering (calendar, keyword, all-day)
 ├── data/models.py             # Pure dataclasses: CalendarEvent, WeatherData, AirQualityData,
@@ -71,20 +80,31 @@ src/
 ├── display/
 │   ├── driver.py              # DisplayDriver ABC → DryRunDisplay, WaveshareDisplay, InkyDisplay;
 │   │                          #   provider/model specs + image_changed()
+│   ├── backend.py             # DisplayBackend ABC → WaveshareBackend, InkyBackend; unifies the
+│   │                          #   resize + finalize step (canvas.py no longer forks on provider)
 │   └── refresh_tracker.py     # Partial vs full refresh state machine
 ├── fetchers/
-│   ├── calendar.py            # Dispatcher: routes to Google API or ICS; birthday extraction
+│   ├── registry.py            # v5 fetcher plugin registry (Fetcher dataclass + FetchContext);
+│   │                          #   DataPipeline iterates this instead of naming sources directly
+│   ├── __init__.py            # Side-effect imports populate the fetcher registry
+│   ├── calendar.py            # Dispatcher: routes to CalDAV / ICS / Google API; birthday extraction;
+│   │                          #   registers events + birthdays via the registry
 │   ├── calendar_google.py     # Google Calendar API — full sync, incremental sync, sync state
 │   ├── calendar_ical.py       # ICS feed fetching and parsing
-│   ├── weather.py             # OpenWeatherMap (current + forecast + alerts)
-│   ├── purpleair.py           # PurpleAir sensor → PM1 / PM2.5 / PM10 / AQI + ambient readings
-│   ├── host.py                # System metrics via /proc: uptime, load, RAM, disk, CPU temp, IP
-│   ├── cache.py               # Multi-source JSON cache with per-source TTL
+│   ├── calendar_caldav.py     # CalDAV server fetching (Nextcloud / Radicale / iCloud / etc.)
+│   ├── weather.py             # OpenWeatherMap (current + forecast + alerts); registry adapter
+│   ├── purpleair.py           # PurpleAir sensor → PM1 / PM2.5 / PM10 / AQI + ambient readings; registry adapter
+│   ├── host.py                # System metrics via /proc (sync, no caching, no breaker — outside the registry)
+│   ├── cache.py               # Multi-source JSON cache with per-source TTL; ser/deser delegated through registry
 │   ├── circuit_breaker.py     # Per-source circuit breaker
 │   └── quota_tracker.py       # Daily API call counter
 └── render/
-    ├── canvas.py              # Top-level render orchestrator (dispatches to components by theme)
-    ├── theme.py               # Theme system (ComponentRegion, ThemeLayout, ThemeStyle); AVAILABLE_THEMES
+    ├── canvas.py              # Top-level render orchestrator; iterates the component registry
+    │                          #   and delegates resize+finalize to display.backend
+    ├── theme.py               # Theme system (ComponentRegion, ThemeLayout, ThemeStyle);
+    │                          #   exports INKY_BLACK/WHITE/YELLOW/RED/BLUE/GREEN palette indices;
+    │                          #   _THEME_REGISTRY and AVAILABLE_THEMES are read-through proxies
+    │                          #   over src.render.themes.registry
     ├── quantize.py            # quantize_for_display() for Waveshare 1-bit output +
     │                          #   quantize_to_palette() for Inky palette mapping
     ├── random_theme.py        # Daily/hourly random theme selection + persistence
@@ -94,32 +114,43 @@ src/
     ├── moon.py                # Moon phase calculator
     ├── primitives.py          # Shared draw utilities (truncation, wrapping, colors, fmt_time,
     │                          #   events_for_day, deg_to_compass)
-    ├── themes/                # themes (26): standard week-view (default, agenda,
-    │                          #   terminal, minimalist, old_fashioned, today, fantasy); full-screen
-    │                          #   focused (qotd, qotd_invert, fuzzyclock, fuzzyclock_invert,
-    │                          #   weather, moonphase, moonphase_invert); specialized views
-    │                          #   (timeline, year_pulse, monthly, sunrise, air_quality,
-    │                          #   astronomy, scorecard, tides); photo overlay (photo);
-    │                          #   utility (countdown, message, diags)
+    ├── themes/                # themes (26 — 25 concrete + `default` pseudo): standard week-view
+    │                          #   (default, agenda, terminal, minimalist, old_fashioned, today,
+    │                          #   fantasy); full-screen focused (qotd, qotd_invert, fuzzyclock,
+    │                          #   fuzzyclock_invert, weather, moonphase, moonphase_invert);
+    │                          #   specialized views (timeline, year_pulse, monthly, sunrise,
+    │                          #   air_quality, astronomy, scorecard, tides); photo overlay
+    │                          #   (photo); utility (countdown, message, diags)
+    │   ├── registry.py        # v5 theme plugin registry (register_theme + per-theme
+    │   │                      #   inky_palette pair); adding a theme is one new file plus a
+    │   │                      #   register_theme(...) call at its bottom
+    │   └── __init__.py        # Side-effect imports of every theme module populate the registry
     └── components/            # One file per UI region: header, week_view, weather_panel,
-                               #   weather_full, birthday_bar, today_view, info_panel, qotd_panel,
-                               #   fuzzyclock_panel, diags_panel, air_quality_panel,
-                               #   astronomy_panel, moonphase_panel, message_panel,
-                               #   timeline_panel, year_pulse_panel, monthly_panel,
-                               #   sunrise_panel, scorecard_panel, tides_panel, countdown_panel
-└── web/                       # Optional Flask web UI (install: pip install -r requirements-web.txt)
+        │                      #   weather_full, birthday_bar, today_view, info_panel, qotd_panel,
+        │                      #   fuzzyclock_panel, diags_panel, air_quality_panel,
+        │                      #   astronomy_panel, moonphase_panel, message_panel,
+        │                      #   timeline_panel, year_pulse_panel, monthly_panel,
+        │                      #   sunrise_panel, scorecard_panel, tides_panel, countdown_panel
+        ├── registry.py        # v5 component plugin registry (RenderContext + @register_component)
+        ├── _builtins.py       # Adapter registrations for all 25 built-in components
+        └── __init__.py        # Side-effect import of _builtins populates the component registry
+└── web/                       # Optional Flask web UI (install: pip install -e ".[web]")
     ├── __main__.py            # Entry point: python -m src.web [--config web.yaml] [--port 8080]
     ├── app.py                 # Flask application factory (create_app); registers all blueprints
     ├── auth.py                # HTTP Basic Auth middleware; scrypt password hashing
     ├── csrf.py                # CSRF protection: session-bound token via X-CSRF-Token header
     ├── event_store.py         # Append-only JSONL event stream (state/web_events.jsonl) for status history
     ├── state_reader.py        # Pure read functions: last_success, breakers, cache ages, quota, host
-    ├── config_editor.py       # Safe config read/write: EDITABLE_FIELD_PATHS allowlist, apply_patch()
+    ├── config_editor.py       # Safe config read/write: EDITABLE_FIELD_PATHS derived from
+    │                          #   src.config_schema.editable_field_paths(); apply_patch()
     ├── routes/
     │   ├── status.py          # GET / (HTML), GET /api/status (JSON)
     │   ├── image.py           # GET /image/latest, GET /image/theme/<name>
     │   ├── logs.py            # GET /api/logs?lines=N
-    │   ├── config.py          # GET/POST /api/config, GET /config (HTML editor)
+    │   ├── config.py          # GET/POST /api/config, GET /config (HTML editor),
+    │   │                      #   GET /api/config/schema (v5: schema-driven form metadata)
+    │   ├── preview.py         # POST /api/preview — render any registered theme to PNG
+    │   │                      #   against dummy data; CSRF-protected
     │   └── actions.py         # POST /api/trigger-refresh, /api/reset-breaker, /api/clear-cache
     ├── templates/             # Jinja2 templates: base.html, status.html, config.html
     └── static/                # dashboard.js, style.css
@@ -130,15 +161,16 @@ config/
 └── quotes.json                # Bundled daily quotes
 
 docs/
-├── setup.md                   # Google Calendar, ICS feed, birthdays, Pi hardware setup
-├── web-ui.md                  # Web UI setup, auth, pages, manual refresh, security
+├── setup.md                   # Google Calendar, ICS feed, CalDAV, birthdays, Pi hardware setup
+├── web-ui.md                  # Web UI setup, auth, pages, manual refresh, live preview, security
 ├── themes.md                  # All themes, random rotation, schedule, custom themes; embeds Waveshare + Inky preview PNGs
 ├── previews.md                # How to regenerate the Waveshare and Inky preview PNGs embedded in themes.md
 ├── configuration.md           # Full config.yaml reference
-├── development.md             # Makefile, CLI, project structure, dependencies
+├── development.md             # Makefile, CLI, project structure, dependencies, registry recipes
 ├── faq.md                     # Frequently asked questions (quiet hours, troubleshooting, etc.)
-├── architecture.md            # Architecture overview and design decisions
-└── upgrading-from-v3.md       # Migration guide from v3
+├── architecture.md            # Architecture overview and design decisions (incl. v5 registries)
+├── upgrading-from-v3.md       # Migration guide from v3
+└── upgrading-from-v4.md       # Migration guide from v4 → v5
 
 tests/                         # test files, extensive mocking
 fonts/                         # Bundled TTF fonts
@@ -154,8 +186,17 @@ requirements-pi.txt            # Raspberry Pi-specific deps (gpiozero, lgpio, in
 
 ## Architecture Patterns
 
+### Plugin registries (v5)
+Three internal plugin registries replace the v4 hard-coded dispatch sites. Adding a new source/theme/component is a single new file plus a registration call:
+
+- **Fetcher registry** (`src/fetchers/registry.py`) — `Fetcher(name, fetch, serialize, deserialize, ttl_minutes, interval_minutes, enabled, save_metadata, cache_metadata_valid, log_success)`. `DataPipeline.fetch()` iterates `all_fetchers()`; `cache.py` delegates ser/deser through the same registry. The `events` fetcher's `cache_metadata_valid` enforces the events-window cache invalidation rule.
+- **Theme registry** (`src/render/themes/registry.py`) — `register_theme(name, factory, *, inky_palette=(primary, secondary))`. The Inky Spectra-6 colour story for each theme lives next to its registration, not in a central dict. The legacy `_THEME_REGISTRY` and `AVAILABLE_THEMES` exports on `src.render.theme` are read-through proxies for backwards compatibility.
+- **Component registry** (`src/render/components/registry.py`) — `RenderContext` + `@register_component(name)`. Adapters take a `RenderContext` and pull what they need from it. The 25 built-in adapters live in `src/render/components/_builtins.py`; new components can register directly inside their own module.
+
+Each registry's package `__init__.py` imports every built-in module so consumers see a fully-populated registry by the time they read it. Re-registration of a name is a silent no-op — module reloads in tests don't raise.
+
 ### Per-source independence
-Fetchers, caching, circuit breaking, and staleness are all per-source (calendar, weather, birthdays, air_quality). A weather API failure doesn't block calendar rendering. PurpleAir is fully optional — when `purpleair.api_key` and `purpleair.sensor_id` are absent, the source is silently skipped.
+Fetchers, caching, circuit breaking, and staleness are all per-source (calendar, weather, birthdays, air_quality). A weather API failure doesn't block calendar rendering. PurpleAir is fully optional — when `purpleair.api_key` and `purpleair.sensor_id` are absent, the source's `Fetcher.enabled(cfg)` returns False and it's skipped silently (no breaker entry, no cache miss).
 
 ### Theme system
 Three-layer design: **ComponentRegion** (bounding box) → **ThemeLayout** (canvas + regions + draw order + `canvas_mode`) → **ThemeStyle** (colors, fonts, spacing). Components receive region + style and draw only within bounds. Themes are frozen dataclasses.
@@ -176,9 +217,21 @@ Theme-resolution priority (highest → lowest): **CLI `--theme` > `theme_rules` 
 `DataPipeline.fetch()`: read `state/dashboard_cache.json` once into `_cache_blob` (via `load_cache_blob()`) → check cache freshness per source (`load_cached_source_from_blob()`) → check circuit breaker → launch concurrent fetches via `ThreadPoolExecutor` → resolve results (cache fallback on failure) → fetch host data synchronously → return `DashboardData`. `self.fetched_at` is always an aware datetime (`datetime.now(tz or timezone.utc)`) so subtraction against cache timestamps never raises `TypeError`.
 
 ### Rendering
-Components are pure functions: `draw_*(draw, data, region, style) -> None`. No global state. Same input produces the same PNG.
+Components are pure functions: `draw_*(draw, data, region, style) -> None`. No global state. Same input produces the same PNG. The component registry wraps each in an adapter `(ctx: RenderContext) -> None` that pulls the right kwargs from `ctx`.
 
-`render_dashboard()` creates the canvas in a mode derived from theme + display provider. After drawing and any optional overlay, a resize via LANCZOS is applied if display dimensions differ from canvas dimensions. Waveshare output is quantized to final 1-bit output via `quantize_for_display()`. Inky output is mapped to the limited Spectra 6 RGB palette via `quantize_to_palette()`. The SHA-256 image hash used for refresh suppression is computed on the final backend-ready image bytes.
+`render_dashboard()` creates the canvas in a mode derived from theme + display provider. After drawing and any optional overlay, the rendered canvas is handed to `build_display_backend(config).resize_and_finalize(...)` from `src/display/backend.py`. `WaveshareBackend` does LANCZOS-resize-then-quantize-to-1-bit; `InkyBackend` does an RGB resize and defers palette mapping to the Inky library at write time. `canvas.py` no longer branches on `config.provider`. The SHA-256 image hash used for refresh suppression is computed on the final backend-ready image bytes.
+
+### Display refresh throttle (v5)
+`OutputService.publish()` skips hardware writes when both:
+1. The image hash matches the last persisted hash (`output/last_image_hash.txt`), OR
+2. The cooldown window since the last refresh has not yet elapsed.
+
+The cooldown is `display.min_refresh_interval_seconds` (config), defaulting to 60s on Inky and 0s on Waveshare. Setting 3600 on Inky restores the v4 "exactly once an hour" behaviour. `--force-full-refresh` bypasses both checks. State persists in `state/refresh_throttle_state.json` (the legacy `inky_refresh_state.json` is migrated transparently on first read). The fuzzyclock theme allowlist that v4 carried is gone — content-hash equality already short-circuits identical-content refreshes for any theme.
+
+### Config schema + migration runner (v5)
+`src/config_schema.py` is the single source of truth for which fields are editable via the web UI, which are secret (and must never be sent to the browser as plaintext), and which have enumerated choices. `editable_field_paths()` replaces the v4 hand-rolled `EDITABLE_FIELD_PATHS` constant in `web.config_editor`. `to_json(values=...)` powers `GET /api/config/schema` for the schema-driven web editor.
+
+`src/config_migrations.py` runs at the top of `load_config()` and upgrades older YAML shapes to `CURRENT_SCHEMA_VERSION = 5` in-memory before parsing. `v4_to_v5` is currently a metadata bump (v5 is a strict superset of v4 — every v4 config still parses unchanged) and the attachment point for future renames. A versioned `.bak-v<N>` backup helper is wired in for migrations that need to mutate state on disk.
 
 ## Key Conventions
 
@@ -209,13 +262,15 @@ Components are pure functions: `draw_*(draw, data, region, style) -> None`. No g
 
 ## Adding New Features
 
-**New component**: Create `src/render/components/my_component.py` → implement `draw_my_component(draw, data, region, style)` → add `ComponentRegion` to themes → register in `canvas.py` draw dispatch → add to theme `draw_order`.
+**New component**: Create `src/render/components/my_component.py` → implement `draw_my_component(draw, data, region, style)` → add a `ComponentRegion` to `ThemeLayout` if the new component is full-canvas → register the adapter (either with a `@register_component("my_component")` decorator inside the new module, or by adding an entry to `src/render/components/_builtins.py`) → add `"my_component"` to the relevant theme's `draw_order`. No edits to `canvas.py` required — the registry handles dispatch.
 
-**New theme**: Create `src/render/themes/my_theme.py` → implement `my_theme() -> Theme` factory → register in `load_theme()` in `theme.py` → add name to `AVAILABLE_THEMES` → regenerate the pixel-hash baseline with `UPDATE_SNAPSHOTS=1 pytest tests/test_theme_pixel_snapshots.py` and commit the updated `tests/snapshots/theme_pixel_hashes.json`. New themes are automatically included in the random rotation pool (both daily and hourly). To exclude a theme from the pool (e.g. utility or diagnostic views), add its name to `_EXCLUDED_FROM_POOL` in `src/render/random_theme.py`. To author a greyscale theme, set `canvas_mode="L"` in `ThemeLayout` and use `fg=0, bg=255` in `ThemeStyle` — the quantize step handles the final L→`"1"` conversion automatically.
+**New theme**: Create `src/render/themes/my_theme.py` → implement `my_theme() -> Theme` factory → at the bottom of the module call `register_theme("my_theme", my_theme, inky_palette=(INKY_X, INKY_Y))` (palette indices imported from `src.render.theme`) → add the new module to `src/render/themes/__init__.py` so the side-effect import fires → regenerate the pixel-hash baseline with `UPDATE_SNAPSHOTS=1 pytest tests/test_theme_pixel_snapshots.py` and commit the updated `tests/snapshots/theme_pixel_hashes.json`. New themes are automatically included in the random rotation pool (both daily and hourly). To exclude a theme from the pool (e.g. utility or diagnostic views), add its name to `_EXCLUDED_FROM_POOL` in `src/render/random_theme.py`. To author a greyscale theme, set `canvas_mode="L"` in `ThemeLayout` and use `fg=0, bg=255` in `ThemeStyle` — the Waveshare backend handles the final L→`"1"` conversion automatically.
 
-**New fetcher**: Create `src/fetchers/my_fetcher.py` → use `cache.py` and `circuit_breaker.py` → integrate into `DataPipeline` in `data_pipeline.py` → extend `DashboardData` if needed → add ser/deser branch to `cache.py` `save_source()`/`load_cached_source()`. See `purpleair.py` as a reference implementation.
+**New fetcher**: Create `src/fetchers/my_fetcher.py` → implement a `fetch_my_source(cfg, ...)` function → at the bottom of the module call `register_fetcher(Fetcher(name="my_source", fetch=..., serialize=..., deserialize=..., ttl_minutes=lambda cfg: ..., interval_minutes=lambda cfg: ..., enabled=lambda cfg: ..., log_success=...))` → add the module import to `src/fetchers/__init__.py`. Extend `DashboardData` in `src/data/models.py` if a new top-level field is needed. The cache, breaker, quota tracker, and pipeline orchestration are all driven by the registry — no edits to `data_pipeline.py` or `cache.py` are required. See `src/fetchers/calendar_caldav.py` + the `_register()` block in `src/fetchers/calendar.py` as the v5 reference.
 
-**New config option**: Add field to relevant dataclass in `config.py` → add to `config.example.yaml` → use in `DashboardApp`, `DataPipeline`, or components.
+**New config option**: Add the field to the relevant dataclass in `config.py` → wire it into the YAML parser in the same file → add a sample value to `config.example.yaml` → if the field should be web-editable, add a `FieldSpec` entry to the appropriate `SectionSpec` in `src/config_schema.py` (mark `secret=True` for credentials) → use the field in `DashboardApp`, `DataPipeline`, or components. The web UI's `EDITABLE_FIELD_PATHS` allowlist regenerates from the schema automatically.
+
+**New web endpoint**: Create `src/web/routes/my_route.py` → declare a `Blueprint("my_route", __name__)` → register it in `src/web/app.py` → mutating endpoints must call `csrf_protect()` from `src.web.csrf` and clients must echo the session's CSRF token via the `X-CSRF-Token` header. See `src/web/routes/preview.py` as a v5 reference.
 
 ## Fonts
 
@@ -253,7 +308,8 @@ Components are pure functions: `draw_*(draw, data, region, style) -> None`. No g
 |---|---|---|
 | `fg` / `bg` | `0` / `1` | Base foreground/background values. For `canvas_mode="L"` themes use `fg=0, bg=255` instead. Inky remaps these to palette entries internally. |
 | `accent_info` / `accent_warn` / `accent_alert` / `accent_good` | `None` | Optional semantic accent roles. Waveshare falls back to monochrome-safe values; Inky maps these to palette colors for low-risk status emphasis. |
-| `accent_primary` / `accent_secondary` | `None` | General-purpose accent fills. Waveshare falls back to `fg`; Inky maps to per-theme key color pair from `_INKY_THEME_KEY_COLORS` in `canvas.py`. Accessed via `style.primary_accent_fill()` / `style.secondary_accent_fill()` methods. |
+| `accent_primary` / `accent_secondary` | `None` | General-purpose accent fills. Waveshare falls back to `fg`; Inky maps to the per-theme `inky_palette` registered via `register_theme(...)`. Accessed via `style.primary_accent_fill()` / `style.secondary_accent_fill()` methods. |
+| `inky_palette` | `None` | Optional per-theme override of the registered palette pair. Tuple `(primary, secondary)` of Spectra-6 indices. Useful for variant themes that want to flip palette without re-registering. |
 | `photo_path` | `""` | Absolute or relative path to a JPEG/PNG image for the `photo` theme. Set by `app.py` from `cfg.photo.path` at runtime. Ignored by all other themes. |
 | `invert_header` | `True` | Fill header bar with `fg`, draw text in `bg` |
 | `invert_today_col` | `True` | Fill today column with `fg`, draw text in `bg` |
@@ -289,12 +345,12 @@ default to `None` and fall back gracefully so adding a new field never breaks ex
 - Quiet hours (default 23:00–06:00): app exits immediately during this window (dry-run bypasses this)
 - Morning startup: the first run within 30 minutes after `quiet_hours_end` forces a full refresh at most once per day. After the forced refresh fires on a real (non-dry-run) run, today's date is persisted to `state/morning_refresh_state.json`; subsequent ticks in the same window see the marker and skip the force-full. A missing, unreadable, or malformed marker (including valid non-object JSON like `[]`) is treated as "never" → next tick self-heals. `--dry-run` runs never write the marker (so `--date` previews can't pre-mark a future day). `--force-full-refresh` also bypasses the marker check and does not update it.
 - eInk partial refreshes degrade quality; full refresh forced after `max_partials_before_full` partials
-- Inky Impression panels do not support partial refresh. For `display.provider: inky`, non-fuzzyclock themes are limited to one hardware refresh per hour; `fuzzyclock` and `fuzzyclock_invert` bypass that limit; `--force-full-refresh` also bypasses it
+- Inky Impression panels do not support partial refresh. v5 replaced the v4 hourly throttle with a backend-agnostic content-hash + cooldown throttle in `services/output.py`: any rendered image whose SHA-256 differs from the last persisted hash is allowed to refresh, subject to `display.min_refresh_interval_seconds` (default 60s on Inky, 0s on Waveshare). Set 3600 on Inky to restore v4's "exactly once an hour" behaviour. `--force-full-refresh` bypasses both checks. The fuzzyclock allowlist that v4 carried is gone — content-hash equality already short-circuits identical-content refreshes for any theme.
 - Default canvas: 800×480; scaled via LANCZOS to match display resolution
 - LANCZOS resize produces greyscale pixels; those are quantized to 1-bit by `quantize_for_display()`. The default `threshold` mode differs from the previous hard `.convert("1")` which used Floyd-Steinberg by Pillow default — set `display.quantization_mode: "floyd_steinberg"` to restore the old resize behavior if needed
 - `canvas_mode = "L"` themes must use `bg=255` (not `bg=1`) in `ThemeStyle`; `bg=1` is near-black in L mode. All 25 built-in themes use `canvas_mode="1"` (default) and are unaffected
-- Image hash comparison (`last_image_hash.txt`) skips eInk writes when content unchanged
-- Inky throttle state persists in `state/inky_refresh_state.json`
+- Image hash comparison (`output/last_image_hash.txt`) skips eInk writes when content unchanged
+- Refresh throttle state persists in `state/refresh_throttle_state.json` (renamed from v4's `inky_refresh_state.json`; the legacy file is read once and migrated transparently on first run after upgrade — see `_load_last_refresh` in `services/output.py`)
 - Health marker written to `output/last_success.txt` on every successful run (ISO timestamp)
 - Daily random theme state persists in `state/random_theme_state.json`; delete it to force a new pick mid-day
 - Hourly random theme state persists in `state/random_theme_hourly_state.json`; delete it to force a new pick mid-hour
@@ -319,7 +375,13 @@ default to `None` and fall back gracefully so adding a new field never breaks ex
 - `retry_fetch()` in `data_pipeline.py` retries only likely transient failures and does not retry likely permanent config/data errors (`RuntimeError`, `ValueError`, `TypeError`, `KeyError`)
 - `gpiozero` pin factory is set to `lgpio` for Pi hardware runtime (required for modern Pi OS)
 - Supported display providers/models: `waveshare` → `epd7in5` (640×384), `epd7in5_V2` (800×480, default), `epd7in5_V3` (800×480), `epd7in5b_V2` (800×480), `epd7in5_HD` (880×528), `epd9in7` (1200×825), `epd13in3k` (1600×1200); `inky` → `impression_7_3_2025` (800×480). Set via `display.provider` + `display.model`; canvas renders at 800×480 and scales when needed.
-- **ICS feed**: when `google.ical_url` is set, `fetch_events()` dispatches to `_fetch_from_ical()` instead of the Google API path — `service_account_path` is ignored for event fetching; the Google API path (including incremental sync) is completely bypassed
+- **Calendar backend dispatch precedence** (highest → lowest, evaluated in `src/fetchers/calendar.py:fetch_events`):
+  1. `google.caldav_url` set → CalDAV via `src/fetchers/calendar_caldav.py`
+  2. `google.ical_url` set → ICS feed via `src/fetchers/calendar_ical.py`
+  3. otherwise → Google Calendar API via `src/fetchers/calendar_google.py`
+
+  When either alternative is configured the Google API path (including incremental sync) is completely bypassed; `service_account_path` is ignored for event fetching.
+- **CalDAV**: `caldav_url`, `caldav_username`, `caldav_password_file` are all required; `caldav_calendar_url` is optional (defaults to the principal's first calendar). `validate_config` errors when the URL doesn't start with `http://` or `https://` and warns when CalDAV + ICS are both configured (CalDAV wins). The `caldav` Python package is in core dependencies but `import caldav` is local to `fetch_from_caldav` so users on Google API / ICS only paths don't run the import. Connection / auth / search failures return `[]` and log a warning (graceful degradation matches the ICS path).
 - ICS feeds have no sync token mechanism — the full feed is always re-downloaded and re-parsed on every calendar fetch; at the default 2-hour `events_fetch_interval` this is negligible
 - `_fetch_from_ical()` uses `requests.get(..., timeout=30)` and the `icalendar` library; HTTP errors or parse errors are caught, logged as warnings, and return `[]` (graceful degradation)
 - ICS calendar name is taken from the `X-WR-CALNAME` property of the VCALENDAR component; falls back to the URL hostname if absent
@@ -338,7 +400,9 @@ default to `None` and fall back gracefully so adding a new field never breaks ex
 - `moonphase` and `moonphase_invert` are both included in the random rotation pool by default. `moonphase_invert` shares the same overlay function (`_draw_moonphase_overlay`) from `moonphase.py` — it adapts to fg/bg colors automatically.
 - `moonphase_panel.py` has its own `_quote_for_panel()` function with a `"moonphase-"` key prefix so its quote selection is independent from `info_panel`'s quote (they won't show the same quote on the same day).
 - Web UI config is in `config/web.yaml` (separate from `config/config.yaml`); it is git-ignored and contains the password hash — never commit it
-- `EDITABLE_FIELD_PATHS` in `config_editor.py` is the sole allowlist for web-editable config keys; sensitive fields (API keys, credential paths) are never sent to the browser — they appear only as `_*_set: bool` flags in API responses
+- `EDITABLE_FIELD_PATHS` in `config_editor.py` is now derived from `src.config_schema.editable_field_paths()` — adding a new editable field is a single `FieldSpec` entry in `config_schema.py`, not a dict edit in two places. Sensitive fields are marked `secret=True` in the schema and surface as `_*_set: bool` flags in `GET /api/config` responses (or as a `has_value` boolean in `GET /api/config/schema`); the plaintext is never sent to the browser.
+- `GET /api/config/schema` returns `to_json(values=...)` from `config_schema.py` — sections, field types, labels, descriptions, choices, secret flags, and the current values inlined for non-secret fields. The schema response is the source of truth for the web editor's form rendering.
+- `POST /api/preview` (`src/web/routes/preview.py`) renders any registered theme against dummy data and returns the PNG bytes inline. CSRF-protected, rejects pseudo names (`random`, `random_daily`, `random_hourly`) and unknown themes with HTTP 400, render exceptions with HTTP 500. Patch-preview (rendering against a candidate config diff) was deferred to v5.1 — visual feedback on the theme dropdown was the critical win.
 - `apply_patch()` in `config_editor.py` validates the patched YAML through `load_config()` + `validate_config()` in a temp file before writing; `validate_config()` does a lazy import of `src.display.driver.WAVESHARE_MODELS` (which imports PIL) — tests that call `apply_patch` must patch `src.web.config_editor.validate_config` to avoid the PIL dependency
 - Manual refresh uses a trigger-file approach: the web UI touches `state/web_trigger`; the `dashboard-trigger.path` systemd unit watches for this file and starts `dashboard.service`; the service deletes the file via `ExecStartPost`; no sudo required
 - `dashboard-web.service` and `dashboard-trigger.path` are installed by `make web-enable` using the same `__USER__`/`__INSTALL_DIR__` substitution as `dashboard.service`
@@ -347,14 +411,14 @@ default to `None` and fall back gracefully so adding a new field never breaks ex
 - `load_and_dither_image()` in `primitives.py` is a shared utility for loading, resizing, and dithering images to 1-bit; currently used only by the `photo` theme's background function
 - `additional_ical_urls` in `GoogleConfig` allows fetching events from multiple ICS feeds. When `ical_url` is set, both it and all `additional_ical_urls` are fetched and merged by `fetch_from_ical()` in `calendar_ical.py`
 - `contacts_email` in `GoogleConfig` is required when `birthdays.source` is `"contacts"` — the service account must have domain-wide delegation, and this field specifies whose contacts to read via the People API
-- Inky Spectra 6 color mapping: `_INKY_THEME_KEY_COLORS` in `canvas.py` assigns a `(primary, secondary)` palette index pair to each theme. When `display.provider: inky`, `_resolve_style()` remaps `fg`/`bg` to Inky palette indices and fills unset accent roles (`accent_info` → blue, `accent_warn` → yellow, `accent_alert` → red, `accent_good` → green, `accent_primary`/`accent_secondary` → per-theme key colors). Palette indices: 0=black, 1=white, 2=red, 3=blue, 4=yellow, 5=green
+- Inky Spectra 6 color mapping (v5): each theme's `(primary, secondary)` palette index pair is registered alongside the theme via `register_theme(name, factory, inky_palette=(p, s))` and lives next to the theme module — not in a central dict. `canvas._resolve_inky_palette(theme)` reads `theme.style.inky_palette` first (per-theme override), then `themes.registry.get_inky_palette(name)`, then falls back to `(INKY_BLUE, INKY_RED)`. When `display.provider: inky`, `_resolve_style()` remaps `fg`/`bg` to Inky palette indices and fills unset accent roles (`accent_info` → blue, `accent_warn` → yellow, `accent_alert` → red, `accent_good` → green, `accent_primary`/`accent_secondary` → the resolved palette pair). Palette index constants live on `src.render.theme` (`INKY_BLACK=0, INKY_WHITE=1, INKY_YELLOW=2, INKY_RED=3, INKY_BLUE=4, INKY_GREEN=5`) so theme modules can import them without a circular dependency on `canvas`.
 - `accent_primary` and `accent_secondary` on `ThemeStyle` are general-purpose accent fills; `primary_accent_fill()` and `secondary_accent_fill()` methods return `fg` when the accent is `None` (monochrome fallback). Components should call these methods rather than reading the fields directly
 - `monthly` theme uses the `monthly` region on `ThemeLayout` and dispatches via `draw_monthly()` in `monthly_panel.py`. The grid is Sunday-first and always renders a six-row layout (cells outside the current month are blanked). On Inky it opts into the RGB canvas path via `prefer_color_on_inky=True` and uses a 5-step heatmap palette (`(255,249,235)` → `(175,28,28)`); on Waveshare the same density is shown via a 1-bit outlined meter (`_draw_monochrome_density_indicator`). `monthly` is included in the random rotation pool. Typography: DM Sans family (`dm_bold`/`dm_semibold`/`dm_medium`/`dm_regular`)
 - `tests/test_theme_pixel_snapshots.py` SHA-256s the raw `render_dashboard()` output for every theme in `_THEME_REGISTRY` (pinned `FIXED_NOW = 2026-04-06 10:30` + dummy data) and compares against `tests/snapshots/theme_pixel_hashes.json`. A guard test also fails when a newly registered theme has no baseline. The hash assertion is gated on runtime `PIL.__version__` exactly matching `reference_env.pillow_version` in the JSON — when it doesn't, the render still runs (catches crashes) but the assertion is skipped. This way routine upstream Pillow releases don't fail CI spuriously. The strict assertion fires in the dedicated `snapshot-tests` CI job, which reads `reference_env.pillow_version` and `pip install Pillow==<pinned>` before running. When a theme edit is intentional (or Pillow is upgraded deliberately), regenerate baselines with `UPDATE_SNAPSHOTS=1 pytest tests/test_theme_pixel_snapshots.py` and commit the updated JSON alongside the source change; the job will pick up the new Pillow version automatically.
-- `numpy` is declared in core `[project].dependencies` (not just `[dev]`/`[web]`) because `src/display/driver.py` (`InkyDisplay.show`/`clear`) and `src/render/quantize.py` (fast path) import it unconditionally at runtime. The `test-core-install` CI job runs the non-web test suite against a bare `pip install . pytest` (no `[dev]`/`[web]` extras, no `flask`/`waitress`) to guard against core code drifting toward optional-extra packages. Web tests are explicitly excluded via `--ignore-glob='tests/test_web_*.py'` because they legitimately require the `[web]` extras.
+- `numpy` and `caldav` are declared in core `[project].dependencies` (not just `[dev]`/`[web]`). `numpy` is because `src/display/driver.py` (`InkyDisplay.show`/`clear`) and `src/render/quantize.py` (fast path) import it unconditionally at runtime. `caldav` is because `src/fetchers/calendar_caldav.py` imports it inside `fetch_from_caldav` only when `cfg.google.caldav_url` is set — but declaring it in core lets `pip install .` work end-to-end without an extras pin. The `test-core-install` CI job runs the non-web test suite against a bare `pip install . pytest` (no `[dev]`/`[web]` extras, no `flask`/`waitress`) to guard against core code drifting toward optional-extra packages. Web tests are explicitly excluded via `--ignore-glob='tests/test_web_*.py'` because they legitimately require the `[web]` extras.
 - `atomic_write_json()` lives in `src/_io.py` and is the only sanctioned way to persist JSON state from the renderer. Callers: `fetchers/cache.py` (the per-source cache), `fetchers/circuit_breaker.py`, `fetchers/quota_tracker.py`, `fetchers/calendar_google.py` (sync state), and `display/refresh_tracker.py`. The web UI re-implements an inline copy in `web/routes/actions.py` because it also needs to update the cache file from a different process. Any new persistent state should go through this helper.
 - Cache reads in `DataPipeline.fetch()` go through `load_cache_blob()` once at the top of the method, then each `_should_skip` / `_use_cache` call decodes its source out of the in-memory blob via `load_cached_source_from_blob()`. Avoid calling `load_cached_source()` (which re-opens the file) inside the pipeline — it exists for callers outside the fetch path. `tests/test_data_pipeline_*.py` includes a regression guard that asserts the cache file is opened at most once per `fetch()`, including the breaker-OPEN fallback path.
-- All persisted timestamps are written as **aware** ISO strings (so subtracting them from an aware `datetime.now(...)` never raises `TypeError`), but the offset varies by writer: `DataPipeline.fetched_at` uses the configured app timezone (`datetime.now(tz or timezone.utc)`), `OutputService.write_health_marker` / `write_error_marker` use `datetime.now(self.tz)` for `output/last_success.txt` / `output/last_error.txt`, and the circuit breaker's `last_failure_at` is always UTC (`datetime.now(timezone.utc)`). For backwards compatibility, readers (`_normalise_fetched_at` in `cache.py`, the breaker's `time_since_last_failure`, and `state_reader.read_last_success` / `read_last_error`) treat naive ISO timestamps as UTC — never as local time. Tests that compare cache ages or breaker cooldowns must construct aware `fetched_at` values; pinning `TZ` (e.g. via `monkeypatch.setenv("TZ", "America/Los_Angeles")` + `time.tzset()`) is required when asserting that legacy-naive parsing genuinely uses UTC and not the local zone.
+- All persisted timestamps are written as **aware** ISO strings (so subtracting them from an aware `now_utc()` / `now_local(tz)` never raises `TypeError`). Production code uses the helpers in `src/_time.py` (`now_utc`, `now_local`, `to_aware`, `assert_aware`) rather than bare `datetime.now()`. The CI guard `tools/check_naive_datetime.py` (run via `tests/test_naive_datetime_guard.py`) fails the build on `datetime.now()` (no args) or `datetime.utcnow()` outside `src/_time.py`. Lines that genuinely want naive local wall-clock time (file-name timestamps, quiet-hours comparisons against config strings, test fallbacks) carry an `# allow-naive-datetime` marker. The offset varies by writer: `DataPipeline.fetched_at` uses the configured app timezone (`now_local(tz)`), `OutputService` markers use `now_local(self.tz)`, and the circuit breaker's `last_failure_at` is always UTC (`now_utc()`). For backwards compatibility, readers (`_normalise_fetched_at` in `cache.py`, the breaker's `time_since_last_failure`, and `state_reader.read_last_success` / `read_last_error`) treat naive ISO timestamps as UTC — never as local time. Tests that compare cache ages or breaker cooldowns must construct aware `fetched_at` values; pinning `TZ` (e.g. via `monkeypatch.setenv("TZ", "America/Los_Angeles")` + `time.tzset()`) is required when asserting that legacy-naive parsing genuinely uses UTC and not the local zone.
 - Cache decoding is split into a typed pair in `fetchers/cache.py`: `_decode_v2_block()` (current schema, returns `(data, fetched_at, metadata)`) and `_decode_v1_legacy()` (flat pre-v2 format, returns `(data, fetched_at)` — no metadata). Public helpers `load_cached_source*` and the `*_from_blob` variants dispatch on `raw.get("schema_version")`. v1 cache files keep working without re-fetching.
 - `OutputService.write_error_marker(exc)` writes `output/last_error.txt` with `{timestamp, exception_type, message}` on every failed run; the marker is intentionally NOT cleared on success — readers (the web UI status page) compare its timestamp to `output/last_success.txt` to decide whether the error is "current" or "stale".
 - Web in-memory config swap: `routes/config.py::_refresh_in_memory_config()` reloads the YAML and stages new `DASH_CFG` and `SOURCE_TTLS` values, then assigns both back-to-back inside `config_write_lock()` so a concurrent reader can't see a half-applied state. `config_write_lock()` is exposed as a public context manager in `web/config_editor.py` for exactly this kind of multi-step coordination — `apply_patch()` and `restore_latest_backup()` use the same lock internally. If the post-save reload fails, the app logs a warning and keeps the last-loaded config (process is not restarted).
