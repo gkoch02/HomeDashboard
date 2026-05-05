@@ -478,9 +478,7 @@ class TestCountdownValidation:
         from src.config import CountdownConfig, CountdownEvent
 
         cfg = Config()
-        cfg.countdown = CountdownConfig(
-            events=[CountdownEvent(name=n, date=d) for n, d in events]
-        )
+        cfg.countdown = CountdownConfig(events=[CountdownEvent(name=n, date=d) for n, d in events])
         return cfg
 
     def test_valid_countdown_event_no_issues(self):
