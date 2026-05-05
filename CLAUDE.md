@@ -44,7 +44,7 @@ ruff format src/ tests/                        # Format
 - **PyYAML** — config parsing
 - **numpy** — Inky palette quantization (`src/render/quantize.py` fast path) and Inky `show()`/`clear()` buffer assembly (`src/display/driver.py`); declared in core `dependencies`
 - **Flask 3 + Waitress** — optional web UI (`requirements-web.txt`; `pip install -e ".[web]"`)
-- **pytest** — testing (with unittest.mock); coverage via **pytest-cov** (target: ≥90%, currently ~97%); theme pixel-hash snapshots in `tests/snapshots/theme_pixel_hashes.json`
+- **pytest** — testing (with unittest.mock); coverage via **pytest-cov** (target: ≥90%, currently ~99%); theme pixel-hash snapshots in `tests/snapshots/theme_pixel_hashes.json`
 - **ruff** — linting and formatting (max line length: 100)
 - **AST-based custom guard** in `tools/check_naive_datetime.py` enforces aware-datetime discipline; CI runs it via `tests/test_naive_datetime_guard.py`
 

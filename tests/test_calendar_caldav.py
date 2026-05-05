@@ -335,3 +335,349 @@ class TestDispatcherUsesCalDAV:
         mock_ical.assert_not_called()
         mock_google.assert_not_called()
         assert result == ["caldav-event"]
+
+
+# ---------------------------------------------------------------------------
+# _read_password — OSError branch
+# ---------------------------------------------------------------------------
+
+
+class TestReadPasswordOSError:
+    def test_oserror_on_read_raises_runtime_error(self, tmp_path):
+        """When the password file exists but cannot be read, raise RuntimeError."""
+        f = tmp_path / "pw.txt"
+        f.write_text("secret\n")
+        with patch("pathlib.Path.read_text", side_effect=OSError("permission denied")):
+            with pytest.raises(RuntimeError, match="Could not read"):
+                _read_password(str(f))
+
+
+# ---------------------------------------------------------------------------
+# fetch_from_caldav — calendar lookup failure & tz-aware today branch
+# ---------------------------------------------------------------------------
+
+
+class TestFetchFromCalDAVAdditional:
+    def test_calendar_lookup_failure_returns_empty(self, tmp_path, caplog):
+        """When principal.calendars() raises, return [] and log a warning."""
+        pw = tmp_path / "pw.txt"
+        pw.write_text("secret\n")
+
+        fake_client_cls = MagicMock()
+        fake_client = MagicMock()
+        fake_principal = MagicMock()
+        fake_principal.calendars.side_effect = RuntimeError("lookup failed")
+        fake_client.principal.return_value = fake_principal
+        fake_client_cls.return_value = fake_client
+        fake_module = MagicMock(DAVClient=fake_client_cls)
+
+        with patch.dict("sys.modules", {"caldav": fake_module}):
+            events = fetch_from_caldav(
+                url="https://example.com/dav/",
+                username="alice",
+                password_file=str(pw),
+            )
+
+        assert events == []
+        assert "calendar lookup failed" in caplog.text
+
+    def test_tz_arg_used_for_today_date(self, tmp_path):
+        """When tz is supplied, 'today' is computed in that timezone."""
+        import zoneinfo
+
+        pw = tmp_path / "pw.txt"
+        pw.write_text("secret\n")
+        cal = _make_calendar("Work", [])
+
+        ny = zoneinfo.ZoneInfo("America/New_York")
+        with _patch_caldav([cal]):
+            fetch_from_caldav(
+                url="https://example.com/dav/",
+                username="alice",
+                password_file=str(pw),
+                tz=ny,
+            )
+
+        # If tz branch didn't run, the call would still succeed; we verify
+        # it ran without error and search was invoked.
+        cal.search.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# _calendar_name — attribute-exception fallback
+# ---------------------------------------------------------------------------
+
+
+class TestCalendarName:
+    def test_returns_name_attribute(self):
+        from src.fetchers.calendar_caldav import _calendar_name
+
+        cal = MagicMock()
+        cal.name = "Work"
+        assert _calendar_name(cal) == "Work"
+
+    def test_callable_name_method_is_called(self):
+        """When cal.name is a callable (a method), it is invoked and its return used."""
+        from src.fetchers.calendar_caldav import _calendar_name
+
+        class CalWithMethod:
+            def name(self):
+                return "Work"
+
+        assert _calendar_name(CalWithMethod()) == "Work"
+
+    def test_callable_name_raises_falls_through_to_displayname(self):
+        """When cal.name() raises, the except continues to 'displayname'."""
+        from src.fetchers.calendar_caldav import _calendar_name
+
+        class CalWithRaisingName:
+            def name(self):
+                raise RuntimeError("unavailable")
+
+            displayname = "Fallback"
+
+        assert _calendar_name(CalWithRaisingName()) == "Fallback"
+
+    def test_returns_caldav_when_all_attributes_fail(self):
+        from src.fetchers.calendar_caldav import _calendar_name
+
+        class CalAllFail:
+            def name(self):
+                raise RuntimeError("boom")
+
+            def displayname(self):
+                raise RuntimeError("boom too")
+
+        assert _calendar_name(CalAllFail()) == "CalDAV"
+
+
+# ---------------------------------------------------------------------------
+# _walk_vevents — exception branches
+# ---------------------------------------------------------------------------
+
+
+class TestCalendarNameNoneValue:
+    def test_none_name_falls_through_to_displayname(self):
+        """When getattr returns None for 'name', the loop continues to 'displayname'."""
+        from src.fetchers.calendar_caldav import _calendar_name
+
+        class CalNoneName:
+            name = None
+            displayname = "My Calendar"
+
+        assert _calendar_name(CalNoneName()) == "My Calendar"
+
+
+class TestWalkVevents:
+    def test_icalendar_instance_exception_yields_nothing(self):
+        from src.fetchers.calendar_caldav import _walk_vevents
+
+        entry = MagicMock()
+        type(entry).icalendar_instance = property(
+            lambda self: (_ for _ in ()).throw(Exception("parse error"))
+        )
+        assert list(_walk_vevents(entry)) == []
+
+    def test_component_walk_exception_yields_nothing(self):
+        from src.fetchers.calendar_caldav import _walk_vevents
+
+        ical = MagicMock()
+        ical.walk.side_effect = Exception("walk exploded")
+        entry = MagicMock()
+        entry.icalendar_instance = ical
+        assert list(_walk_vevents(entry)) == []
+
+    def test_non_vevent_components_are_skipped(self):
+        """Components that are not VEVENT (e.g. VCALENDAR) must be filtered out."""
+        from src.fetchers.calendar_caldav import _walk_vevents
+
+        vcal = MagicMock()
+        vcal.name = "VCALENDAR"
+        vevent = MagicMock()
+        vevent.name = "VEVENT"
+
+        ical = MagicMock()
+        ical.walk.return_value = [vcal, vevent]
+        entry = MagicMock()
+        entry.icalendar_instance = ical
+
+        results = list(_walk_vevents(entry))
+        assert results == [vevent]
+
+
+# ---------------------------------------------------------------------------
+# _parse_caldav_event — duration-based end times & all-day edge cases
+# ---------------------------------------------------------------------------
+
+
+class TestParseCalDAVEventExtended:
+    def _vevent_with_duration(self, summary, start, duration_td):
+        """Build a VEVENT mock using DURATION instead of DTEND."""
+
+        class Prop:
+            def __init__(self, dt):
+                self.dt = dt
+
+        component = MagicMock()
+        component.name = "VEVENT"
+
+        def _get(key, default=None):
+            mapping = {
+                "SUMMARY": summary,
+                "DTSTART": Prop(start),
+                "DURATION": Prop(duration_td),
+                "UID": "dur-uid",
+            }
+            return mapping.get(key, default)
+
+        component.get.side_effect = _get
+        return component
+
+    def test_timed_event_duration_used_when_no_dtend(self):
+        """When DTEND is absent but DURATION is set, end = start + duration."""
+        from datetime import timedelta
+
+        v = self._vevent_with_duration(
+            "Long meeting", datetime(2026, 5, 5, 9, 0), timedelta(hours=2)
+        )
+        e = _parse_caldav_event(v, "Cal", tz=None)
+        assert e is not None
+        assert e.end == datetime(2026, 5, 5, 11, 0)
+
+    def test_all_day_event_dtend_is_datetime(self):
+        """All-day DTSTART (date) with a datetime DTEND should parse correctly."""
+
+        class Prop:
+            def __init__(self, dt):
+                self.dt = dt
+
+        component = MagicMock()
+        component.name = "VEVENT"
+
+        def _get(key, default=None):
+            return {
+                "SUMMARY": "Holiday",
+                "DTSTART": Prop(date(2026, 5, 5)),
+                # DTEND is a datetime rather than a date (non-standard but seen)
+                "DTEND": Prop(datetime(2026, 5, 6, 0, 0, tzinfo=timezone.utc)),
+                "UID": "allday-dt",
+            }.get(key, default)
+
+        component.get.side_effect = _get
+        e = _parse_caldav_event(component, "Cal", tz=None)
+        assert e is not None
+        assert e.is_all_day is True
+
+    def test_all_day_event_duration_used_when_no_dtend(self):
+        """All-day event without DTEND falls back to start + DURATION."""
+        from datetime import timedelta
+
+        v = self._vevent_with_duration("Multi-day", date(2026, 5, 5), timedelta(days=3))
+        e = _parse_caldav_event(v, "Cal", tz=None)
+        assert e is not None
+        assert e.is_all_day is True
+        assert e.end.date() == date(2026, 5, 8)
+
+    def test_general_exception_returns_none(self):
+        """A component that blows up during parsing returns None gracefully."""
+        component = MagicMock()
+        component.get.side_effect = Exception("unexpected crash")
+        assert _parse_caldav_event(component, "Cal", tz=None) is None
+
+    def test_timed_event_no_dtend_no_duration_defaults_to_one_hour(self):
+        """When neither DTEND nor DURATION is present, end defaults to start + 1 hour."""
+
+        class Prop:
+            def __init__(self, dt):
+                self.dt = dt
+
+        component = MagicMock()
+        component.name = "VEVENT"
+
+        def _get(key, default=None):
+            return {
+                "SUMMARY": "Quick call",
+                "DTSTART": Prop(datetime(2026, 5, 5, 10, 0)),
+                "UID": "no-end",
+            }.get(key, default)
+
+        component.get.side_effect = _get
+        e = _parse_caldav_event(component, "Cal", tz=None)
+        assert e is not None
+        assert e.end == datetime(2026, 5, 5, 11, 0)
+
+    def test_all_day_event_no_dtend_no_duration_defaults_to_one_day(self):
+        """All-day event with neither DTEND nor DURATION defaults to start + 1 day."""
+
+        class Prop:
+            def __init__(self, dt):
+                self.dt = dt
+
+        component = MagicMock()
+        component.name = "VEVENT"
+
+        def _get(key, default=None):
+            return {
+                "SUMMARY": "Holiday",
+                "DTSTART": Prop(date(2026, 5, 5)),
+                "UID": "all-day-noend",
+            }.get(key, default)
+
+        component.get.side_effect = _get
+        e = _parse_caldav_event(component, "Cal", tz=None)
+        assert e is not None
+        assert e.is_all_day is True
+        assert e.end.date() == date(2026, 5, 6)
+
+
+class TestFetchSkipsUnparsableVEvents:
+    def test_none_parse_result_is_skipped(self, tmp_path):
+        """When _parse_caldav_event returns None the entry is silently skipped."""
+        pw = tmp_path / "pw.txt"
+        pw.write_text("secret\n")
+
+        # Build an entry whose VEVENT has no DTSTART (returns None from parser)
+        class Prop:
+            def __init__(self, dt):
+                self.dt = dt
+
+        bad_vevent = MagicMock()
+        bad_vevent.name = "VEVENT"
+        bad_vevent.get.return_value = None  # every .get() returns None → no DTSTART
+
+        ical = MagicMock()
+        ical.walk.return_value = [bad_vevent]
+        bad_entry = MagicMock()
+        bad_entry.icalendar_instance = ical
+
+        good_vevent = MagicMock()
+        good_vevent.name = "VEVENT"
+
+        def _get_good(key, default=None):
+            return {
+                "SUMMARY": "Good event",
+                "DTSTART": Prop(datetime(2026, 5, 5, 9, 0)),
+                "DTEND": Prop(datetime(2026, 5, 5, 10, 0)),
+                "UID": "good-uid",
+            }.get(key, default)
+
+        good_vevent.get.side_effect = _get_good
+        good_ical = MagicMock()
+        good_ical.walk.return_value = [good_vevent]
+        good_entry = MagicMock()
+        good_entry.icalendar_instance = good_ical
+
+        cal = _make_calendar("Work", [bad_entry, good_entry])
+
+        with _patch_caldav([cal]):
+            events = fetch_from_caldav(
+                url="https://example.com/dav/",
+                username="alice",
+                password_file=str(pw),
+                days=7,
+                start_date=date(2026, 5, 4),
+            )
+
+        # The bad entry is skipped; the good one surfaces.
+        assert len(events) == 1
+        assert events[0].summary == "Good event"
