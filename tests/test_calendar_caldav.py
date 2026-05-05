@@ -513,7 +513,6 @@ class TestWalkVevents:
 class TestParseCalDAVEventExtended:
     def _vevent_with_duration(self, summary, start, duration_td):
         """Build a VEVENT mock using DURATION instead of DTEND."""
-        from datetime import timedelta
 
         class Prop:
             def __init__(self, dt):

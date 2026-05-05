@@ -111,7 +111,6 @@ class TestBackup:
 
     def test_write_pre_migration_backup_oserror_returns_none(self, tmp_path):
         """When shutil.copy2 raises OSError, return None and log a warning."""
-        import shutil
         from unittest.mock import patch
 
         cfg = tmp_path / "config.yaml"

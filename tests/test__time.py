@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone, tzinfo
 import zoneinfo
+from datetime import datetime, timezone
 
 import pytest
 
