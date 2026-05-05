@@ -108,3 +108,33 @@ class TestBackup:
     def test_write_pre_migration_backup_missing_source(self, tmp_path):
         cfg = tmp_path / "missing.yaml"
         assert write_pre_migration_backup(str(cfg), 4) is None
+
+    def test_write_pre_migration_backup_oserror_returns_none(self, tmp_path):
+        """When shutil.copy2 raises OSError, return None and log a warning."""
+        import shutil
+        from unittest.mock import patch
+
+        cfg = tmp_path / "config.yaml"
+        cfg.write_text("title: test\n")
+        with patch("shutil.copy2", side_effect=OSError("disk full")):
+            result = write_pre_migration_backup(str(cfg), 4)
+        assert result is None
+
+
+class TestMigrateInMemoryNoStep:
+    def test_no_registered_step_stamps_current_and_continues(self):
+        """When a config is at an unknown old version with no migration step
+        registered, migrate_in_memory must NOT loop — it stamps current and
+        returns safely."""
+        from src import config_migrations as cm
+
+        original = cm._MIGRATIONS
+        cm._MIGRATIONS = []  # empty — no step covers any version
+        try:
+            # Feed a dict at version 3 (no step covers 3 → 5)
+            out = cm.migrate_in_memory({"schema_version": 3, "title": "X"})
+        finally:
+            cm._MIGRATIONS = original
+
+        assert out["schema_version"] == cm.CURRENT_SCHEMA_VERSION
+        assert out["title"] == "X"

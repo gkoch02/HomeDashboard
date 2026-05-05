@@ -316,3 +316,196 @@ class TestLoadConfigWarnsOnMissingFile:
         with caplog.at_level(logging.WARNING, logger="src.config"):
             load_config(str(tmp_path / "nonexistent.yaml"))
         assert "not found" in caplog.text.lower()
+
+
+# ---------------------------------------------------------------------------
+# CalDAV validation
+# ---------------------------------------------------------------------------
+
+
+class TestCalDAVValidation:
+    def test_caldav_bad_scheme_is_error(self):
+        cfg = Config(
+            google=GoogleConfig(
+                caldav_url="caldavs://example.com/dav/",
+                caldav_username="alice",
+                caldav_password_file="/some/file",
+            )
+        )
+        errors, _ = validate_config(cfg)
+        assert any(e.field == "google.caldav_url" for e in errors)
+
+    def test_caldav_missing_username_is_error(self):
+        cfg = Config(
+            google=GoogleConfig(
+                caldav_url="https://example.com/dav/",
+                caldav_username="",
+                caldav_password_file="/some/file",
+            )
+        )
+        errors, _ = validate_config(cfg)
+        assert any(e.field == "google.caldav_username" for e in errors)
+
+    def test_caldav_missing_password_file_is_error(self):
+        cfg = Config(
+            google=GoogleConfig(
+                caldav_url="https://example.com/dav/",
+                caldav_username="alice",
+                caldav_password_file="",
+            )
+        )
+        errors, _ = validate_config(cfg)
+        assert any(e.field == "google.caldav_password_file" for e in errors)
+
+    def test_caldav_password_file_not_on_disk_warns(self, tmp_path):
+        cfg = Config(
+            google=GoogleConfig(
+                caldav_url="https://example.com/dav/",
+                caldav_username="alice",
+                caldav_password_file=str(tmp_path / "missing_pw.txt"),
+            )
+        )
+        _, warnings = validate_config(cfg)
+        assert any(w.field == "google.caldav_password_file" for w in warnings)
+
+    def test_caldav_and_ical_both_set_warns(self, tmp_path):
+        pw = tmp_path / "pw.txt"
+        pw.write_text("secret\n")
+        cfg = Config(
+            google=GoogleConfig(
+                caldav_url="https://example.com/dav/",
+                caldav_username="alice",
+                caldav_password_file=str(pw),
+                ical_url="https://example.com/calendar.ics",
+            )
+        )
+        _, warnings = validate_config(cfg)
+        assert any(w.field == "google.caldav_url" for w in warnings)
+
+
+# ---------------------------------------------------------------------------
+# theme_rules validation
+# ---------------------------------------------------------------------------
+
+
+class TestThemeRulesValidation:
+    def _cfg_with_rule(self, theme, **when_kwargs):
+        from src.config import ThemeRule, ThemeRuleCondition, ThemeRulesConfig
+
+        cfg = Config()
+        cfg.theme_rules = ThemeRulesConfig(
+            rules=[ThemeRule(when=ThemeRuleCondition(**when_kwargs), theme=theme)]
+        )
+        return cfg
+
+    def test_unknown_theme_in_rule_warns(self):
+        cfg = self._cfg_with_rule("nonexistent_theme_xyz")
+        _, warnings = validate_config(cfg)
+        assert any("theme_rules[0].theme" in w.field for w in warnings)
+
+    def test_valid_theme_in_rule_no_warning(self):
+        cfg = self._cfg_with_rule("agenda")
+        _, warnings = validate_config(cfg)
+        assert not any("theme_rules" in w.field for w in warnings)
+
+    def test_invalid_daypart_warns(self):
+        cfg = self._cfg_with_rule("agenda", daypart="noon")
+        _, warnings = validate_config(cfg)
+        assert any("theme_rules[0].when.daypart" in w.field for w in warnings)
+
+    def test_valid_daypart_no_warning(self):
+        cfg = self._cfg_with_rule("agenda", daypart="morning")
+        _, warnings = validate_config(cfg)
+        assert not any("daypart" in w.field for w in warnings)
+
+    def test_daypart_list_with_one_bad_value_warns(self):
+        cfg = self._cfg_with_rule("agenda", daypart=["morning", "noon"])
+        _, warnings = validate_config(cfg)
+        assert any("daypart" in w.field for w in warnings)
+
+    def test_invalid_season_warns(self):
+        cfg = self._cfg_with_rule("agenda", season="monsoon")
+        _, warnings = validate_config(cfg)
+        assert any("theme_rules[0].when.season" in w.field for w in warnings)
+
+    def test_valid_season_no_warning(self):
+        cfg = self._cfg_with_rule("agenda", season="winter")
+        _, warnings = validate_config(cfg)
+        assert not any("season" in w.field for w in warnings)
+
+    def test_invalid_weekday_warns(self):
+        cfg = self._cfg_with_rule("agenda", weekday="funday")
+        _, warnings = validate_config(cfg)
+        assert any("theme_rules[0].when.weekday" in w.field for w in warnings)
+
+    def test_valid_weekday_no_warning(self):
+        cfg = self._cfg_with_rule("agenda", weekday="weekend")
+        _, warnings = validate_config(cfg)
+        assert not any("weekday" in w.field for w in warnings)
+
+    def test_invalid_calendar_state_warns(self):
+        cfg = self._cfg_with_rule("agenda", calendar="partying")
+        _, warnings = validate_config(cfg)
+        assert any("theme_rules[0].when.calendar" in w.field for w in warnings)
+
+    def test_valid_calendar_state_no_warning(self):
+        cfg = self._cfg_with_rule("agenda", calendar="active")
+        _, warnings = validate_config(cfg)
+        assert not any("when.calendar" in w.field for w in warnings)
+
+    def test_multiple_rules_indexed_correctly(self):
+        from src.config import ThemeRule, ThemeRuleCondition, ThemeRulesConfig
+
+        cfg = Config()
+        cfg.theme_rules = ThemeRulesConfig(
+            rules=[
+                ThemeRule(when=ThemeRuleCondition(daypart="morning"), theme="agenda"),
+                ThemeRule(when=ThemeRuleCondition(season="monsoon"), theme="agenda"),
+            ]
+        )
+        _, warnings = validate_config(cfg)
+        assert any("theme_rules[1].when.season" in w.field for w in warnings)
+        assert not any("theme_rules[0]" in w.field for w in warnings)
+
+
+# ---------------------------------------------------------------------------
+# countdown.events validation
+# ---------------------------------------------------------------------------
+
+
+class TestCountdownValidation:
+    def _cfg_with_countdown(self, *events):
+        from src.config import CountdownConfig, CountdownEvent
+
+        cfg = Config()
+        cfg.countdown = CountdownConfig(
+            events=[CountdownEvent(name=n, date=d) for n, d in events]
+        )
+        return cfg
+
+    def test_valid_countdown_event_no_issues(self):
+        cfg = self._cfg_with_countdown(("Trip", "2027-01-01"))
+        errors, warnings = validate_config(cfg)
+        assert not any("countdown" in e.field for e in errors)
+        assert not any("countdown" in w.field for w in warnings)
+
+    def test_missing_event_name_warns(self):
+        cfg = self._cfg_with_countdown(("", "2027-01-01"))
+        _, warnings = validate_config(cfg)
+        assert any("countdown.events[0].name" in w.field for w in warnings)
+
+    def test_malformed_date_is_error(self):
+        cfg = self._cfg_with_countdown(("Trip", "01-01-2027"))
+        errors, _ = validate_config(cfg)
+        assert any("countdown.events[0].date" in e.field for e in errors)
+
+    def test_completely_invalid_date_string_is_error(self):
+        cfg = self._cfg_with_countdown(("Trip", "not-a-date"))
+        errors, _ = validate_config(cfg)
+        assert any("countdown.events[0].date" in e.field for e in errors)
+
+    def test_multiple_events_indexed_correctly(self):
+        cfg = self._cfg_with_countdown(("Trip", "2027-01-01"), ("Party", "not-valid"))
+        errors, _ = validate_config(cfg)
+        assert any("countdown.events[1].date" in e.field for e in errors)
+        assert not any("countdown.events[0].date" in e.field for e in errors)

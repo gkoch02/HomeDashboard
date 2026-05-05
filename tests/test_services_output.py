@@ -549,3 +549,61 @@ class TestLegacyInkyMigration:
             json.dumps({"last_refresh_at": "totally-not-a-date"})
         )
         assert _load_last_refresh(str(tmp_path)) is None
+
+    def test_legacy_rename_oserror_still_returns_timestamp(self, tmp_path):
+        """When the atomic rename of the legacy file fails with OSError, the
+        parsed timestamp is still returned — the migration is best-effort."""
+        legacy = tmp_path / "inky_refresh_state.json"
+        legacy.write_text('{"last_refresh_at": "2026-04-08T11:30:00"}')
+
+        with patch("pathlib.Path.replace", side_effect=OSError("read-only fs")):
+            ts = _load_last_refresh(str(tmp_path))
+
+        # Timestamp was still parsed and returned even though rename failed.
+        assert ts == datetime(2026, 4, 8, 11, 30)
+
+
+class TestThrottleNoStateFile:
+    def test_no_state_file_does_not_throttle(self, tmp_path):
+        """When min_interval > 0 but no prior refresh state exists, don't throttle."""
+        from datetime import timezone
+
+        result = should_throttle_display_refresh(
+            provider="inky",
+            now=datetime(2026, 5, 5, 12, 0, tzinfo=timezone.utc),
+            state_dir=str(tmp_path),
+            force_full=False,
+            min_interval_seconds=3600,
+        )
+        assert result is False
+
+
+class TestWriteErrorMarker:
+    def test_creates_error_marker_file(self, tmp_path):
+        from src.config import Config
+
+        cfg = Config()
+        cfg.output_dir = str(tmp_path)
+        svc = OutputService(cfg, tz=None)
+        exc = RuntimeError("something broke")
+        svc.write_error_marker(exc)
+
+        marker = tmp_path / "last_error.txt"
+        assert marker.exists()
+        payload = json.loads(marker.read_text())
+        assert payload["exception_type"] == "RuntimeError"
+        assert payload["message"] == "something broke"
+        assert "timestamp" in payload
+
+    def test_write_failure_logs_warning_and_does_not_raise(self, tmp_path, caplog):
+        from src.config import Config
+
+        cfg = Config()
+        cfg.output_dir = str(tmp_path)
+        svc = OutputService(cfg, tz=None)
+
+        with caplog.at_level(logging.WARNING, logger="src.services.output"):
+            with patch("pathlib.Path.write_text", side_effect=OSError("disk full")):
+                svc.write_error_marker(RuntimeError("oops"))
+
+        assert "last_error.txt" in caplog.text
