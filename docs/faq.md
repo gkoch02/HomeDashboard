@@ -103,10 +103,13 @@ The free tier allows 1,000 calls/day -- more than enough for the default
 ### How do I add a new theme?
 
 1. Create `src/render/themes/my_theme.py` with a factory function returning a `Theme`
-2. Register it in `_THEME_REGISTRY` in `src/render/theme.py`
-3. That's it -- `AVAILABLE_THEMES` is derived automatically from the registry
+2. At the bottom of the module, call `register_theme("my_theme", my_theme, inky_palette=(p, s))` from `src.render.themes.registry`
+3. Add the module to `src/render/themes/__init__.py` so the side-effect import fires
+4. Regenerate the pixel-hash baseline with `UPDATE_SNAPSHOTS=1 pytest tests/test_theme_pixel_snapshots.py` and commit `tests/snapshots/theme_pixel_hashes.json`
 
-See [Themes documentation](themes.md) and existing themes for examples.
+`AVAILABLE_THEMES` is derived automatically from the registry. See
+[Development → Adding a fetcher / theme / component](development.md#adding-a-fetcher--theme--component) for the full recipe and
+[Themes documentation](themes.md) for the live catalog.
 
 ### How does random theme rotation work?
 

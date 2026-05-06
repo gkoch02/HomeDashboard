@@ -11,13 +11,16 @@ from __future__ import annotations
 
 from src.render.components import (
     air_quality_panel,
+    almanac_panel,
     astronomy_panel,
     birthday_bar,
+    constellation_map_panel,
     countdown_panel,
     diags_panel,
     fuzzyclock_panel,
     header,
     info_panel,
+    light_cycle_panel,
     message_panel,
     monthly_panel,
     moonphase_panel,
@@ -309,6 +312,49 @@ def _astronomy(ctx: RenderContext) -> None:
         ctx.today,
         ctx.now,
         region=ctx.layout.astronomy,
+        style=ctx.style,
+        latitude=ctx.latitude,
+        longitude=ctx.longitude,
+    )
+
+
+@register_component("light_cycle")
+def _light_cycle(ctx: RenderContext) -> None:
+    light_cycle_panel.draw_light_cycle(
+        ctx.draw,
+        ctx.data,
+        ctx.today,
+        ctx.now,
+        region=ctx.layout.light_cycle,
+        style=ctx.style,
+        latitude=ctx.latitude,
+        longitude=ctx.longitude,
+    )
+
+
+@register_component("almanac")
+def _almanac(ctx: RenderContext) -> None:
+    almanac_panel.draw_almanac(
+        ctx.draw,
+        ctx.data,
+        ctx.today,
+        ctx.now,
+        region=ctx.layout.almanac,
+        style=ctx.style,
+        latitude=ctx.latitude,
+        longitude=ctx.longitude,
+        quote_refresh=ctx.quote_refresh,
+    )
+
+
+@register_component("constellation_map")
+def _constellation_map(ctx: RenderContext) -> None:
+    constellation_map_panel.draw_constellation_map(
+        ctx.draw,
+        ctx.data,
+        ctx.today,
+        ctx.now,
+        region=ctx.layout.constellation_map,
         style=ctx.style,
         latitude=ctx.latitude,
         longitude=ctx.longitude,

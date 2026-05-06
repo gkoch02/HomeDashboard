@@ -94,16 +94,17 @@ CLI (main.py)
 - **`render/theme.py`** — `Theme`, `ThemeLayout`, `ThemeStyle`, `load_theme()`; the `_THEME_REGISTRY` and `AVAILABLE_THEMES` exports are read-through proxies over `render/themes/registry.py`
 - **`render/themes/registry.py`** — v5 theme plugin registry; each theme registers its factory + Inky `(primary, secondary)` palette pair
 - **`render/components/registry.py`** — v5 component plugin registry; defines `RenderContext` and the `@register_component(name)` decorator
-- **`render/components/_builtins.py`** — adapter registrations for all 25 built-in components
+- **`render/components/_builtins.py`** — adapter registrations for the built-in components
 - **`render/quantize.py`** — `quantize_for_display(image, mode)`: converts greyscale L → mode "1" using threshold, floyd_steinberg, or ordered (Bayer) dithering. Also exports the Spectra-6 palette + Inky palette helpers used by `display.backend`
-- **`render/themes/`** — One file per theme (25 concrete + `default` pseudo); each ends with a `register_theme(...)` call
+- **`render/themes/`** — One file per theme (28 concrete + `default` pseudo); each ends with a `register_theme(...)` call
+- **`render/star_catalog.py`** — Curated J2000 bright-star + constellation-line data for the `constellation_map` theme; pure data, no I/O
 - **`render/components/`** — One file per UI region: `draw_*(draw, data, region, style)`
 - **`render/random_theme.py`** — Daily/hourly random theme selection with persistence
 - **`render/fonts.py`** — Font loader with `@lru_cache`
 - **`render/primitives.py`** — Shared draw utilities (truncation, wrapping, colors)
 
 ### Astronomy
-- **`astronomy.py`** — Pure-Python NOAA solar calculator (sunrise/sunset/twilight), meteor-shower lookup, day-length delta. No network calls. Used by the `astronomy` theme.
+- **`astronomy.py`** — Pure-Python NOAA solar calculator (sunrise/sunset/twilight, day-length delta) plus equatorial-↔-horizontal coordinate transforms (GMST, local sidereal time, RA/Dec → alt/az), simplified Schlyter lunar position, and meteor-shower lookup. No network calls. Used by the `astronomy`, `light_cycle`, `almanac`, and `constellation_map` themes.
 
 ### Display
 - **`display/driver.py`** — `DisplayDriver` ABC → `DryRunDisplay`, `WaveshareDisplay`, `InkyDisplay`; `image_changed()` SHA-256 helper
@@ -124,7 +125,7 @@ Three internal plugin registries collapse the v4 hard-coded dispatch sites. Addi
 
 - **`src/fetchers/registry.py`** — `Fetcher` dataclass + `FetchContext`; `DataPipeline` and `cache.py` iterate it.
 - **`src/render/themes/registry.py`** — `register_theme(name, factory, *, inky_palette=...)`; the per-theme Inky palette pair lives next to the theme module, not in a central dict.
-- **`src/render/components/registry.py`** — `RenderContext` + `@register_component(name)`; the 25 built-in adapters are registered in `src/render/components/_builtins.py`.
+- **`src/render/components/registry.py`** — `RenderContext` + `@register_component(name)`; the built-in adapters are registered in `src/render/components/_builtins.py`.
 
 Each registry's package `__init__.py` runs side-effect imports of its members so consumers see a fully-populated registry by the time they read it. Re-registration of a name is a silent no-op so module reloads in tests don't raise. See [Adding a fetcher / theme / component](development.md) in the development guide for full recipes.
 
@@ -179,7 +180,7 @@ Three-layer design:
 Themes are frozen dataclasses. Components are pure functions that receive `(draw, data, region, style)` and draw within bounds.
 
 **Canvas mode** (`ThemeLayout.canvas_mode`) controls the internal rendering surface:
-- `"1"` (default) — strict 1-bit bilevel. All 25 built-in themes use this. `fg=0` (black), `bg=1` (white in 1-bit mode).
+- `"1"` (default) — strict 1-bit bilevel. Every built-in theme except `constellation_map` uses this. `fg=0` (black), `bg=1` (white in 1-bit mode).
 - `"L"` (opt-in) — 8-bit greyscale. New themes that need intermediate grey values (gradients, photo backgrounds) set this explicitly. **Must use `fg=0, bg=255`** in `ThemeStyle` (in L mode, `1` is near-black, not white).
 
 The final quantization step (`quantize_for_display()` in `render/quantize.py`) is applied whenever the canvas is `"L"` or a resize occurred, converting the greyscale image to the 1-bit output expected by the display drivers. The algorithm is controlled by `display.quantization_mode` in `config.yaml`.

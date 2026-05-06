@@ -227,6 +227,143 @@ def next_meteor_shower(today: date) -> tuple[MeteorShower, int]:
     return shower, days
 
 
+# ---------------------------------------------------------------------------
+# Equatorial / horizontal coordinate transforms
+#
+# Used by the constellation_map theme.  All inputs/outputs are in conventional
+# astronomy units (RA in hours, Dec in degrees, longitudes east-positive in
+# degrees, sidereal times in degrees).  Algorithms follow Meeus / Schlyter and
+# are accurate to a few arcminutes — far more than enough for an eInk star
+# chart.
+# ---------------------------------------------------------------------------
+
+
+_J2000 = 2451545.0
+
+
+def _julian_day_full(dt: datetime) -> float:
+    """Return the Julian Day for a full timezone-aware datetime (UTC inside).
+
+    Naive datetimes are interpreted as UTC.  Callers that hold a naive
+    *local* datetime must convert it to aware (or to UTC) first — passing a
+    naive local time will silently produce a JD offset by the local
+    UTC-offset, and every downstream sidereal-time / coordinate-transform
+    result will inherit that error.
+    """
+    if dt.tzinfo is not None:
+        ut = dt.astimezone(timezone.utc)
+    else:
+        ut = dt.replace(tzinfo=timezone.utc)
+    jd0 = _julian_day(ut.date())
+    fraction = (ut.hour + ut.minute / 60.0 + ut.second / 3600.0) / 24.0
+    return jd0 + fraction
+
+
+def gmst_degrees(dt: datetime) -> float:
+    """Greenwich Mean Sidereal Time in degrees [0, 360) at *dt*.
+
+    Uses the IAU 1982 expression in degrees (Meeus eqn 12.4 simplified) —
+    plenty accurate for star-chart placement (well under one degree).
+    """
+    jd = _julian_day_full(dt)
+    d = jd - _J2000
+    t = d / 36525.0
+    g = 280.46061837 + 360.98564736629 * d + 0.000387933 * t * t - (t * t * t) / 38710000.0
+    return g % 360.0
+
+
+def local_sidereal_time(dt: datetime, longitude: float) -> float:
+    """Local Sidereal Time in degrees [0, 360).
+
+    *longitude* is east-positive degrees (Western Hemisphere is negative).
+    """
+    return (gmst_degrees(dt) + longitude) % 360.0
+
+
+def equatorial_to_horizontal(
+    ra_hours: float,
+    dec_deg: float,
+    lst_deg: float,
+    latitude_deg: float,
+) -> tuple[float, float]:
+    """Convert equatorial (RA hours / Dec deg) to horizontal (alt / az) deg.
+
+    *azimuth* is measured clockwise from due North through East (0=N, 90=E,
+    180=S, 270=W).  Negative altitudes mean the object is below the horizon.
+    """
+    ha = math.radians(lst_deg - ra_hours * 15.0)
+    dec = math.radians(dec_deg)
+    lat = math.radians(latitude_deg)
+
+    sin_alt = math.sin(dec) * math.sin(lat) + math.cos(dec) * math.cos(lat) * math.cos(ha)
+    sin_alt = max(-1.0, min(1.0, sin_alt))
+    alt = math.asin(sin_alt)
+
+    cos_alt = math.cos(alt)
+    if cos_alt < 1e-9:
+        # At the zenith / nadir azimuth is undefined; pick North.
+        return math.degrees(alt), 0.0
+
+    # atan2 form is well-behaved across the full circle without sign juggling.
+    sin_az = -math.cos(dec) * math.sin(ha) / cos_alt
+    cos_az = (math.sin(dec) - sin_alt * math.sin(lat)) / (cos_alt * math.cos(lat))
+    az = math.atan2(sin_az, cos_az)
+    return math.degrees(alt), math.degrees(az) % 360.0
+
+
+def moon_equatorial(dt: datetime) -> tuple[float, float]:
+    """Compute the moon's geocentric (RA hours, Dec deg) at *dt*.
+
+    Uses Schlyter's simplified algorithm without the perturbation terms —
+    typical accuracy is around 5 arcminutes (~0.1°), well within one chart
+    pixel for a sky-disc that subtends 90° per ~200 px.  Adequate for a
+    visual sky chart; not accurate enough for ephemeris-grade work.
+    """
+    jd = _julian_day_full(dt)
+    d = jd - 2451543.5  # Schlyter's "day-number" epoch (2000-01-01 00:00 UT)
+
+    # Mean orbital elements of the Moon (degrees)
+    n_node = (125.1228 - 0.0529538083 * d) % 360.0
+    incl = 5.1454
+    arg_perigee = (318.0634 + 0.1643573223 * d) % 360.0
+    a = 60.2666  # Earth radii
+    e = 0.054900
+    mean_anom = (115.3654 + 13.0649929509 * d) % 360.0
+
+    # Solve Kepler's equation (Newton-Raphson, two iterations is plenty here)
+    m_rad = math.radians(mean_anom)
+    e_anom = m_rad + e * math.sin(m_rad) * (1.0 + e * math.cos(m_rad))
+    for _ in range(2):
+        e_anom = e_anom - (e_anom - e * math.sin(e_anom) - m_rad) / (1.0 - e * math.cos(e_anom))
+
+    xv = a * (math.cos(e_anom) - e)
+    yv = a * math.sqrt(1.0 - e * e) * math.sin(e_anom)
+    true_anom = math.atan2(yv, xv)
+    r = math.hypot(xv, yv)
+
+    n_rad = math.radians(n_node)
+    incl_rad = math.radians(incl)
+    vw_rad = true_anom + math.radians(arg_perigee)
+
+    xh = r * (
+        math.cos(n_rad) * math.cos(vw_rad) - math.sin(n_rad) * math.sin(vw_rad) * math.cos(incl_rad)
+    )  # noqa: E501
+    yh = r * (
+        math.sin(n_rad) * math.cos(vw_rad) + math.cos(n_rad) * math.sin(vw_rad) * math.cos(incl_rad)
+    )  # noqa: E501
+    zh = r * math.sin(vw_rad) * math.sin(incl_rad)
+
+    # Ecliptic → equatorial (mean obliquity of the ecliptic)
+    ecl = math.radians(23.4393 - 3.563e-7 * d)
+    xe = xh
+    ye = yh * math.cos(ecl) - zh * math.sin(ecl)
+    ze = yh * math.sin(ecl) + zh * math.cos(ecl)
+
+    ra_deg = math.degrees(math.atan2(ye, xe)) % 360.0
+    dec_deg = math.degrees(math.atan2(ze, math.hypot(xe, ye)))
+    return ra_deg / 15.0, dec_deg
+
+
 def dark_sky_window(times: SunTimes) -> tuple[datetime, datetime] | None:
     """Return the (start, end) of the astronomical dark-sky window.
 

@@ -27,7 +27,7 @@ Valid values:
 
 - **Week-view**: `default`, `agenda`, `terminal`, `minimalist`, `old_fashioned`, `today`, `fantasy`
 - **Full-screen focused**: `qotd`, `qotd_invert`, `weather`, `fuzzyclock`, `fuzzyclock_invert`, `moonphase`, `moonphase_invert`, `photo`
-- **Specialized**: `air_quality`, `astronomy`, `timeline`, `year_pulse`, `monthly`, `sunrise`, `scorecard`, `tides`
+- **Specialized**: `air_quality`, `almanac`, `astronomy`, `constellation_map`, `timeline`, `year_pulse`, `monthly`, `sunrise`, `light_cycle`, `scorecard`, `tides`
 - **Utility**: `countdown`, `message`, `diags`
 - **Rotation**: `random_daily` (alias `random`), `random_hourly`
 
@@ -178,11 +178,14 @@ Rules that reference weather or calendar data silently skip on the first boot (n
 | Theme | Best for | Notes |
 |---|---|---|
 | `air_quality` | indoor/outdoor AQI dashboard | PurpleAir-first full-screen layout |
+| `almanac` | editorial daily reference | Old-Farmer's-Almanac front page: ornamental masthead with Roman-numeral volume, big editorial dateline, four bordered sections in a 2×2 grid (Heavens, From the Sky, Week Ahead, Next in the Garden), and a footer aphorism with author in small caps. Combines weather, astronomy, moon, calendar, birthdays, and quote — no new fetcher. |
 | `astronomy` | sky-tonight dashboard | Sunrise/sunset, civil/nautical/astronomical twilight, moon phase + next full/new, next meteor shower, dark-sky window. Uses `weather.latitude` / `weather.longitude` for twilight math (falls back gracefully without them). Pure-Python — no API calls. |
+| `constellation_map` | tonight's actual sky | Dark-canvas star chart projected for the user's location and the current moment. Renders ~45 named bright stars, seven recognisable northern constellations connected by lines, and the moon at its current alt/az. During daylight the chart auto-projects for tonight's solar midnight so it stays informative. Requires `weather.latitude` / `weather.longitude`; pure-Python sky math (no API). |
 | `timeline` | busy-day planning | Single-day hourly timeline |
 | `year_pulse` | longer-horizon planning | Year progress plus upcoming events and birthdays |
 | `monthly` | month-at-a-glance planning | Traditional month grid with event-density heatmap |
 | `sunrise` | daylight-oriented planning | Sun arc, day/night split, compact footer metrics |
+| `light_cycle` | whole-day-at-a-glance | 24-hour radial clock with twilight bands on the rim, today's events as ticks inside the ring, needle and sun/moon glyph at the current moment, date and weather in the central disc. Uses `weather.latitude` / `weather.longitude` for full astronomical / nautical / civil twilight bands (falls back to OWM sunrise/sunset without them). Pure-Python — no API calls. |
 | `scorecard` | big-number metrics | KPI tiles for weather, AQI, calendar, and system data |
 | `tides` | maximum information density | Alternating horizontal bands spanning many data sources |
 
@@ -209,140 +212,158 @@ list of available orientations and how to retune them.
 
 Classic layout. Black text on white with a 7-day calendar grid and three bottom panels.
 
-[![Default theme — Waveshare/Inky split](../output/theme_default_split.png)](../output/theme_default_split.png)
+[![Default theme — Waveshare/Inky split](../assets/previews/theme_default_split.png)](../assets/previews/theme_default_split.png)
 
 #### agenda
 
 High-visibility week view designed to be read from across a room. Dominant 7-day grid in heavy DM Sans Bold with a slim weather + birthdays strip at the bottom (no quote panel); red today/accent on Inky.
 
-[![Agenda theme — Waveshare/Inky split](../output/theme_agenda_split.png)](../output/theme_agenda_split.png)
+[![Agenda theme — Waveshare/Inky split](../assets/previews/theme_agenda_split.png)](../assets/previews/theme_agenda_split.png)
 
 #### terminal
 
 High-contrast inverted week view with compact spacing and a retro terminal-inspired type system.
 
-[![Terminal theme — Waveshare/Inky split](../output/theme_terminal_split.png)](../output/theme_terminal_split.png)
+[![Terminal theme — Waveshare/Inky split](../assets/previews/theme_terminal_split.png)](../assets/previews/theme_terminal_split.png)
 
 #### minimalist
 
 Border-light editorial layout focused on the calendar and weather, with birthdays hidden.
 
-[![Minimalist theme — Waveshare/Inky split](../output/theme_minimalist_split.png)](../output/theme_minimalist_split.png)
+[![Minimalist theme — Waveshare/Inky split](../assets/previews/theme_minimalist_split.png)](../assets/previews/theme_minimalist_split.png)
 
 #### old_fashioned
 
 Victorian broadsheet layout with serif typography and decorative rules.
 
-[![Old Fashioned theme — Waveshare/Inky split](../output/theme_old_fashioned_split.png)](../output/theme_old_fashioned_split.png)
+[![Old Fashioned theme — Waveshare/Inky split](../assets/previews/theme_old_fashioned_split.png)](../assets/previews/theme_old_fashioned_split.png)
+
+#### almanac
+
+Old-Farmer's-Almanac front page in **Astloch** (blackletter masthead and dateline) + Playfair Display (body) + Cinzel (section labels and small caps). An ornamental masthead carries a Roman-numeral volume, day-of-year issue number, and the day's name; below it, the date is set in a large editorial line ("MAY 6, 2026") between two triple rules. The body splits into four bordered editorial sections in a 2×2 grid: **The Heavens** (sunrise/sunset, day length, today's lengthening or shortening, moon phase + illumination, next full moon), **From the Sky** (a short prose weather observation with wind direction, alerts, and high/low), **The Week Ahead** (today's first event plus the next few timed events and birthdays), and **Next in the Garden** (season + day-of-year, sun lengthening/shortening, next named meteor shower with ZHR). A triple rule and the day's quote close the page in italic small-caps; a row of small ornaments stamps the very bottom. Reuses every existing data source — weather, `src.astronomy`, `src.render.moon`, calendar, birthdays, quote — with no new fetcher. On Inky the rules, ornaments, bullets, and attribution all render in red.
+
+[![Almanac theme — Waveshare/Inky split](../assets/previews/theme_almanac_split.png)](../assets/previews/theme_almanac_split.png)
 
 #### today
 
 Single-day agenda with a large date panel and roomy event list.
 
-[![Today theme — Waveshare/Inky split](../output/theme_today_split.png)](../output/theme_today_split.png)
+[![Today theme — Waveshare/Inky split](../assets/previews/theme_today_split.png)](../assets/previews/theme_today_split.png)
 
 #### fantasy
 
 Ornamental black-canvas week view with a fantasy-inspired visual system.
 
-[![Fantasy theme — Waveshare/Inky split](../output/theme_fantasy_split.png)](../output/theme_fantasy_split.png)
+[![Fantasy theme — Waveshare/Inky split](../assets/previews/theme_fantasy_split.png)](../assets/previews/theme_fantasy_split.png)
 
 #### qotd
 
 Full-screen quote layout with a compact weather strip across the bottom.
 
-[![QOTD theme — Waveshare/Inky split](../output/theme_qotd_split.png)](../output/theme_qotd_split.png)
+[![QOTD theme — Waveshare/Inky split](../assets/previews/theme_qotd_split.png)](../assets/previews/theme_qotd_split.png)
 
 #### qotd_invert
 
 Inverted version of `qotd` with white quote text on black.
 
-[![QOTD Invert theme — Waveshare/Inky split](../output/theme_qotd_invert_split.png)](../output/theme_qotd_invert_split.png)
+[![QOTD Invert theme — Waveshare/Inky split](../assets/previews/theme_qotd_invert_split.png)](../assets/previews/theme_qotd_invert_split.png)
 
 #### weather
 
 Full-screen weather dashboard with current conditions, alerts, forecast, and optional AQI.
 
-[![Weather theme — Waveshare/Inky split](../output/theme_weather_split.png)](../output/theme_weather_split.png)
+[![Weather theme — Waveshare/Inky split](../assets/previews/theme_weather_split.png)](../assets/previews/theme_weather_split.png)
 
 #### fuzzyclock
 
 Natural-language clock with a compact weather strip and no calendar panels.
 
-[![Fuzzyclock theme — Waveshare/Inky split](../output/theme_fuzzyclock_split.png)](../output/theme_fuzzyclock_split.png)
+[![Fuzzyclock theme — Waveshare/Inky split](../assets/previews/theme_fuzzyclock_split.png)](../assets/previews/theme_fuzzyclock_split.png)
 
 #### fuzzyclock_invert
 
 Inverted version of `fuzzyclock`.
 
-[![Fuzzyclock Invert theme — Waveshare/Inky split](../output/theme_fuzzyclock_invert_split.png)](../output/theme_fuzzyclock_invert_split.png)
+[![Fuzzyclock Invert theme — Waveshare/Inky split](../assets/previews/theme_fuzzyclock_invert_split.png)](../assets/previews/theme_fuzzyclock_invert_split.png)
 
 #### moonphase
 
 Full-screen moon display with phase progression, sunrise/sunset, compact weather, and quote.
 
-[![Moonphase theme — Waveshare/Inky split](../output/theme_moonphase_split.png)](../output/theme_moonphase_split.png)
+[![Moonphase theme — Waveshare/Inky split](../assets/previews/theme_moonphase_split.png)](../assets/previews/theme_moonphase_split.png)
 
 #### moonphase_invert
 
 Inverted version of `moonphase`.
 
-[![Moonphase Invert theme — Waveshare/Inky split](../output/theme_moonphase_invert_split.png)](../output/theme_moonphase_invert_split.png)
+[![Moonphase Invert theme — Waveshare/Inky split](../assets/previews/theme_moonphase_invert_split.png)](../assets/previews/theme_moonphase_invert_split.png)
 
 #### photo
 
 Full-canvas photo theme driven by `photo.path`. Intended for custom-image displays rather than calendar-heavy use.
 
-[![Photo theme — Waveshare/Inky split](../output/theme_photo_split.png)](../output/theme_photo_split.png)
+[![Photo theme — Waveshare/Inky split](../assets/previews/theme_photo_split.png)](../assets/previews/theme_photo_split.png)
 
 #### air_quality
 
 Full-screen PurpleAir-oriented AQI dashboard with particulate, ambient, weather, and forecast sections.
 
-[![Air Quality theme — Waveshare/Inky split](../output/theme_air_quality_split.png)](../output/theme_air_quality_split.png)
+[![Air Quality theme — Waveshare/Inky split](../assets/previews/theme_air_quality_split.png)](../assets/previews/theme_air_quality_split.png)
 
 #### astronomy
 
 Four-quadrant "sky tonight" layout plus a dark-sky-window footer: sunrise, solar noon, sunset, day-length delta, moon phase with illumination and next full/new dates, civil/nautical/astronomical dusk times, and the next annual meteor shower with its peak date and approximate zenithal hourly rate. All data is computed locally from `src.astronomy`; no API calls beyond weather lat/lon. When `weather.latitude` / `weather.longitude` are not configured, the theme falls back to OWM-reported sunrise/sunset and hides the twilight section.
 
-[![Astronomy theme — Waveshare/Inky split](../output/theme_astronomy_split.png)](../output/theme_astronomy_split.png)
+[![Astronomy theme — Waveshare/Inky split](../assets/previews/theme_astronomy_split.png)](../assets/previews/theme_astronomy_split.png)
+
+#### constellation_map
+
+Dark-canvas star chart of tonight's sky, projected for the configured `weather.latitude` / `weather.longitude` using a "looking up" equidistant azimuthal projection — zenith at the centre, horizon at the rim, North at top, East to the **left**, South at bottom, West to the right. The disc is framed by a Cinzel-labelled cardinal ring with dotted altitude rings at 30° and 60°. About 45 bright named stars from a curated Bright Star subset are sized by visual magnitude; seven of the most recognisable northern constellations (Ursa Major, Cassiopeia, Orion, Lyra, Cygnus, Boötes, Leo) are joined by thin lines and labelled in italic small caps. The moon is plotted at its current altitude/azimuth using a simplified Schlyter ephemeris — when above the horizon it appears as the actual phase glyph in a halo. During daylight, the chart auto-projects for tonight's solar midnight so it stays informative. The footer shows location, the moon's current phase name, and the next named meteor shower. On Inky the rim, cardinal labels, and constellation names render in yellow with blue constellation lines and altitude rings; Waveshare stays clean monochrome white-on-black. All sky math is pure Python — no API calls.
+
+[![Constellation Map theme — Waveshare/Inky split](../assets/previews/theme_constellation_map_split.png)](../assets/previews/theme_constellation_map_split.png)
 
 #### timeline
 
 Single-day hourly timeline that makes free blocks and overlaps easy to spot.
 
-[![Timeline theme — Waveshare/Inky split](../output/theme_timeline_split.png)](../output/theme_timeline_split.png)
+[![Timeline theme — Waveshare/Inky split](../assets/previews/theme_timeline_split.png)](../assets/previews/theme_timeline_split.png)
 
 #### year_pulse
 
 Year progress plus a compact upcoming-items list for longer-horizon planning.
 
-[![Year Pulse theme — Waveshare/Inky split](../output/theme_year_pulse_split.png)](../output/theme_year_pulse_split.png)
+[![Year Pulse theme — Waveshare/Inky split](../assets/previews/theme_year_pulse_split.png)](../assets/previews/theme_year_pulse_split.png)
 
 #### monthly
 
 Full-screen wall-calendar month view with day cells shaded by event density.
 Waveshare uses a crisp monochrome month grid with compact density indicators; Inky uses a warm yellow-orange-red ramp.
 
-[![Monthly theme — Waveshare/Inky split](../output/theme_monthly_split.png)](../output/theme_monthly_split.png)
+[![Monthly theme — Waveshare/Inky split](../assets/previews/theme_monthly_split.png)](../assets/previews/theme_monthly_split.png)
 
 #### sunrise
 
 Sun arc and day/night split layout organized around daylight.
 
-[![Sunrise theme — Waveshare/Inky split](../output/theme_sunrise_split.png)](../output/theme_sunrise_split.png)
+[![Sunrise theme — Waveshare/Inky split](../assets/previews/theme_sunrise_split.png)](../assets/previews/theme_sunrise_split.png)
+
+#### light_cycle
+
+Full-canvas 24-hour radial clock with the entire day arranged around a single dial. The rim carries hour ticks and 00 / 06 / 12 / 18 numerals; the twilight ring fills with progressively denser radial dashes from civil to nautical to astronomical twilight, and a solid wedge for true night. Today's timed events appear as small ticks just inside the ring, a triangular needle marks the current moment, and a sun (or moon, when below the horizon) glyph rides the rim at the current-time position. The center disc shows day name, big date numeral, month, and weather summary; a footer reports rise / set / event count. On Inky the title and accents render in yellow with a blue needle. All sun-time math is computed locally from `src.astronomy` using `weather.latitude` / `weather.longitude` (falls back to OWM-reported sunrise/sunset when coordinates are absent — twilight bands collapse to a single night band).
+
+[![Light Cycle theme — Waveshare/Inky split](../assets/previews/theme_light_cycle_split.png)](../assets/previews/theme_light_cycle_split.png)
 
 #### scorecard
 
 Big-number tile dashboard for weather, AQI, calendar, and system metrics.
 
-[![Scorecard theme — Waveshare/Inky split](../output/theme_scorecard_split.png)](../output/theme_scorecard_split.png)
+[![Scorecard theme — Waveshare/Inky split](../assets/previews/theme_scorecard_split.png)](../assets/previews/theme_scorecard_split.png)
 
 #### tides
 
 Alternating horizontal bands with the densest multi-source layout in the theme set.
 
-[![Tides theme — Waveshare/Inky split](../output/theme_tides_split.png)](../output/theme_tides_split.png)
+[![Tides theme — Waveshare/Inky split](../assets/previews/theme_tides_split.png)](../assets/previews/theme_tides_split.png)
 
 #### countdown
 
@@ -357,7 +378,7 @@ countdown:
       date: "2026-08-12"
 ```
 
-[![Countdown theme — Waveshare/Inky split](../output/theme_countdown_split.png)](../output/theme_countdown_split.png)
+[![Countdown theme — Waveshare/Inky split](../assets/previews/theme_countdown_split.png)](../assets/previews/theme_countdown_split.png)
 
 #### message
 
@@ -367,13 +388,13 @@ Manual message display for reminders or announcements. Use:
 venv/bin/python -m src.main --dry-run --dummy --theme message --message "Dentist at 3pm"
 ```
 
-[![Message theme — Waveshare/Inky split](../output/theme_message_split.png)](../output/theme_message_split.png)
+[![Message theme — Waveshare/Inky split](../assets/previews/theme_message_split.png)](../assets/previews/theme_message_split.png)
 
 #### diags
 
 Structured diagnostic readout for validating live data and system state.
 
-[![Diags theme — Waveshare/Inky split](../output/theme_diags_split.png)](../output/theme_diags_split.png)
+[![Diags theme — Waveshare/Inky split](../assets/previews/theme_diags_split.png)](../assets/previews/theme_diags_split.png)
 
 ---
 
@@ -392,9 +413,12 @@ Bundled font families used by the current built-in themes:
 | Font | Used by |
 |---|---|
 | Plus Jakarta Sans | default and general fallback |
-| DM Sans | `minimalist`, `weather`, `fuzzyclock`, `timeline`, `diags`, `monthly`, `countdown`, `astronomy` |
-| Playfair Display | `old_fashioned`, `qotd`, `moonphase` |
-| Cinzel | `fantasy`, `old_fashioned`, `moonphase` accents |
+| DM Sans | `minimalist`, `weather`, `fuzzyclock`, `timeline`, `diags`, `monthly`, `countdown`, `astronomy`, `light_cycle`, `constellation_map` (margin) |
+| Playfair Display | `old_fashioned`, `qotd`, `moonphase`, `almanac` |
+| Cinzel | `fantasy`, `old_fashioned`, `moonphase` accents, `almanac` (section labels + small caps) |
+| Righteous | `light_cycle` (centre date numeral) |
+| Audiowide | `constellation_map` (cardinal letters, star + constellation labels) |
+| Astloch | `almanac` (masthead + dateline character font) |
 | Space Grotesk | `air_quality`, `message`, `year_pulse`, `scorecard` |
 | Share Tech Mono / terminal fonts | `terminal`, `diags`, select utility text |
 

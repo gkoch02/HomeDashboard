@@ -26,12 +26,13 @@ dry: _check-venv
 	$(VENV) -m src.main --dry-run --dummy
 
 previews: _check-venv
+	@mkdir -p assets/previews
 	@for theme in agenda air_quality default diags fantasy fuzzyclock fuzzyclock_invert minimalist moonphase moonphase_invert old_fashioned qotd qotd_invert terminal timeline today weather year_pulse; do \
 		echo "Generating preview for theme: $$theme"; \
 		$(VENV) -m src.main --dry-run --dummy --theme $$theme; \
-		cp output/latest.png output/theme_$$theme.png; \
+		cp output/latest.png assets/previews/theme_$$theme.png; \
 	done
-	@echo "All theme previews saved to output/theme_*.png"
+	@echo "All theme previews saved to assets/previews/theme_*.png"
 
 previews-split: _check-venv
 	$(VENV) scripts/build_split_previews.py

@@ -1,7 +1,7 @@
 """Combine Waveshare and Inky theme previews into a single split image.
 
-For every theme that has both ``output/theme_<name>.png`` and
-``output/theme_<name>_inky.png``, write ``output/theme_<name>_split.png``
+For every theme that has both ``assets/previews/theme_<name>.png`` and
+``assets/previews/theme_<name>_inky.png``, write ``assets/previews/theme_<name>_split.png``
 showing the Waveshare render on one half and the Inky render on the other.
 
 Each theme picks the split orientation that best surfaces its Inky color
@@ -23,7 +23,11 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw
 
-OUTPUT_DIR = Path(__file__).resolve().parent.parent / "output"
+REPO_ROOT = Path(__file__).resolve().parent.parent
+# Doc-asset directory where the per-theme preview PNGs live.  Same name on
+# disk for the input PNGs (theme_<name>.png and theme_<name>_inky.png) and
+# the generated split outputs (theme_<name>_split.png).
+PREVIEW_DIR = REPO_ROOT / "assets" / "previews"
 DIVIDER_WIDTH = 2
 DIVIDER_COLOR = (128, 128, 128)
 
@@ -47,6 +51,9 @@ _THEME_SPLIT_MODES: dict[str, str] = {
     "message": "vertical",
     "today": "vertical",
     "monthly": "vertical",
+    "light_cycle": "vertical",
+    "almanac": "vertical",
+    "constellation_map": "vertical",
     # Strong horizontal banding (header / hero / footer strip): a
     # horizontal cut keeps each band intact on each side.
     "weather": "horizontal",
@@ -109,26 +116,26 @@ def _combine(waveshare_path: Path, inky_path: Path, out_path: Path, mode: str) -
 
 
 def main() -> int:
-    if not OUTPUT_DIR.is_dir():
-        print(f"output directory not found: {OUTPUT_DIR}", file=sys.stderr)
+    if not PREVIEW_DIR.is_dir():
+        print(f"preview directory not found: {PREVIEW_DIR}", file=sys.stderr)
         return 1
 
     pairs: list[tuple[str, Path, Path]] = []
-    for inky_path in sorted(OUTPUT_DIR.glob("theme_*_inky.png")):
+    for inky_path in sorted(PREVIEW_DIR.glob("theme_*_inky.png")):
         theme = inky_path.name[len("theme_") : -len("_inky.png")]
-        waveshare_path = OUTPUT_DIR / f"theme_{theme}.png"
+        waveshare_path = PREVIEW_DIR / f"theme_{theme}.png"
         if waveshare_path.exists():
             pairs.append((theme, waveshare_path, inky_path))
 
     if not pairs:
-        print(f"no theme preview pairs found under {OUTPUT_DIR}", file=sys.stderr)
+        print(f"no theme preview pairs found under {PREVIEW_DIR}", file=sys.stderr)
         return 1
 
     for theme, waveshare_path, inky_path in pairs:
         mode = _THEME_SPLIT_MODES.get(theme, DEFAULT_MODE)
-        out_path = OUTPUT_DIR / f"theme_{theme}_split.png"
+        out_path = PREVIEW_DIR / f"theme_{theme}_split.png"
         _combine(waveshare_path, inky_path, out_path, mode)
-        print(f"wrote {out_path.relative_to(OUTPUT_DIR.parent)} ({mode})")
+        print(f"wrote {out_path.relative_to(PREVIEW_DIR.parent)} ({mode})")
 
     return 0
 

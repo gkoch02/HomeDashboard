@@ -85,11 +85,12 @@ This path needs no hardware, API keys, or credentials.
 
 ```text
 home-dashboard/
+├── assets/previews/ # committed per-theme preview PNGs (referenced by docs/themes.md)
 ├── config/          # example config, web config template, bundled quotes
 ├── deploy/          # systemd units and setup helpers
 ├── docs/            # operator and contributor docs
-├── fonts/           # bundled fonts
-├── output/          # previews, logs, and image-hash marker
+├── fonts/           # bundled fonts (see CLAUDE.md → Bundled fonts for the catalog)
+├── output/          # runtime artefacts (latest.png, dry-run scratch, logs, image-hash marker)
 ├── state/           # runtime state (cache, breaker, sync tokens, theme state)
 ├── src/             # application code
 ├── tests/           # pytest suite
@@ -202,7 +203,21 @@ See `src/fetchers/calendar_caldav.py` plus the `_register()` block at the bottom
 New themes are automatically eligible for the random rotation pool. To exclude one
 (utility / diagnostic views), add its name to `_EXCLUDED_FROM_POOL` in
 `src/render/random_theme.py`. To author a greyscale theme, set `canvas_mode="L"` in
-`ThemeLayout` and use `fg=0, bg=255` in `ThemeStyle`.
+`ThemeLayout` and use `fg=0, bg=255` in `ThemeStyle` (or invert that polarity to
+`fg=255, bg=0` for a dark canvas — see `constellation_map` for the white-on-black
+reference).
+
+If the theme uses an OFL display font that isn't already in `fonts/`, drop the
+`.ttf` and the upstream `OFL.txt` license file into `fonts/`, add an accessor
+to `src/render/fonts.py`, and reference it via `style.font_title` /
+`style.font_section_label` / `style.font_date_number` (see `light_cycle`'s
+Righteous numeral, `almanac`'s Astloch masthead, or `constellation_map`'s
+Audiowide labels). Don't ship a font without its license.
+
+If the theme should be embedded in `docs/themes.md`, regenerate its preview
+PNGs (`make previews`, plus an Inky render via the snippet in
+[Theme Previews](previews.md)) and the combined split image
+(`make previews-split`). All preview PNGs live under `assets/previews/`.
 
 ### New component
 
@@ -222,7 +237,7 @@ New themes are automatically eligible for the random rotation pool. To exclude o
      ```
 
    - or as an entry in `src/render/components/_builtins.py` if you'd rather keep
-     adapter wrappers centralised next to the existing 25.
+     adapter wrappers centralised next to the existing built-in registrations.
 4. Add `"my_panel"` to the relevant theme's `draw_order`. No edits to `canvas.py`.
 
 ### New web-editable config field

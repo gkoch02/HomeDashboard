@@ -11,12 +11,15 @@ from __future__ import annotations
 # Side-effect imports populate the theme registry. Order is not significant.
 from src.render.themes import agenda as _agenda  # noqa: F401
 from src.render.themes import air_quality as _air_quality  # noqa: F401
+from src.render.themes import almanac as _almanac  # noqa: F401
 from src.render.themes import astronomy as _astronomy  # noqa: F401
+from src.render.themes import constellation_map as _constellation_map  # noqa: F401
 from src.render.themes import countdown as _countdown  # noqa: F401
 from src.render.themes import diags as _diags  # noqa: F401
 from src.render.themes import fantasy as _fantasy  # noqa: F401
 from src.render.themes import fuzzyclock as _fuzzyclock  # noqa: F401
 from src.render.themes import fuzzyclock_invert as _fuzzyclock_invert  # noqa: F401
+from src.render.themes import light_cycle as _light_cycle  # noqa: F401
 from src.render.themes import message as _message  # noqa: F401
 from src.render.themes import minimalist as _minimalist  # noqa: F401
 from src.render.themes import monthly as _monthly  # noqa: F401

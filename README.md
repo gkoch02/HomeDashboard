@@ -4,7 +4,7 @@
 
 Home Dashboard is a low-maintenance eInk wall display for family logistics on a Raspberry Pi. It shows calendar events, weather, birthdays, quotes, and optional diagnostics on supported Waveshare and Inky displays, with graceful fallback behavior for unattended use.
 
-![Default theme preview](output/theme_default.png)
+![Default theme preview](assets/previews/theme_default.png)
 
 ## Start Here
 
@@ -45,7 +45,7 @@ sudo reboot
 - Weekly calendar via Google Calendar API or private ICS feed
 - Current weather, forecast, and optional PurpleAir air quality
 - Birthdays from a file, calendar events, or Google Contacts
-- 25 built-in themes plus scheduled and random rotation modes
+- 28 built-in themes plus scheduled and random rotation modes
 - Optional Web UI for status, config editing, and manual refresh
 - Per-source caching, circuit breakers, stale-data indicators, and quiet hours
 

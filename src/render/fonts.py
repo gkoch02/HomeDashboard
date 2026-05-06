@@ -145,6 +145,31 @@ def playfair_bold(size: int) -> ImageFont.FreeTypeFont:
     return get_font("PlayfairDisplay-Bold.ttf", size)
 
 
+# Astloch — antique blackletter / fraktur display face (OFL).  Two weights;
+# perfect "character" font for editorial mastheads and 19th-century almanacs.
+def astloch(size: int) -> ImageFont.FreeTypeFont:
+    return get_font("Astloch-Regular.ttf", size)
+
+
+def astloch_bold(size: int) -> ImageFont.FreeTypeFont:
+    return get_font("Astloch-Bold.ttf", size)
+
+
+# Righteous — single-weight condensed display sans (OFL).  Heavier strokes
+# and tighter aperture than DM Sans; used for hero numerals where the digits
+# need to read clearly at scale.
+def righteous(size: int) -> ImageFont.FreeTypeFont:
+    return get_font("Righteous-Regular.ttf", size)
+
+
+# Audiowide — single-weight retro-futuristic display sans (OFL).  Tall, even
+# strokes with squared apertures; reads as an "observatory" / sci-fi face.
+# Used by the constellation_map theme for the chart's star, constellation,
+# and cardinal labels — stays legible at small sizes against the dark sky.
+def audiowide(size: int) -> ImageFont.FreeTypeFont:
+    return get_font("Audiowide-Regular.ttf", size)
+
+
 # NuCore — high-contrast display font for scorecard/sunrise/tides themes.
 def nucore(size: int) -> ImageFont.FreeTypeFont:
     return get_font("NuCore.otf", size)

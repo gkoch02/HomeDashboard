@@ -4,7 +4,7 @@
 
 How to regenerate the per-theme preview PNGs that are embedded in
 [Themes](themes.md). Both the standard (Waveshare 1-bit) and Inky color
-(Spectra 6) variants live under `output/`.
+(Spectra 6) variants live under `assets/previews/`.
 
 - [Overview](#overview)
 - [Standard preview set](#standard-preview-set)
@@ -17,7 +17,7 @@ How to regenerate the per-theme preview PNGs that are embedded in
 
 ## Overview
 
-Theme previews are just dry-run renders written to PNG files in `output/`. They are useful for:
+Theme previews are just dry-run renders written to PNG files in `assets/previews/`. They are useful for:
 
 - comparing layouts across themes without hardware
 - reviewing typography and spacing after theme edits
@@ -41,14 +41,14 @@ make previews
 That renders the standard preview PNGs:
 
 ```text
-output/theme_<theme>.png
+assets/previews/theme_<theme>.png
 ```
 
 Example single-theme dry run:
 
 ```bash
 venv/bin/python -m src.main --dry-run --dummy --theme fuzzyclock
-cp output/latest.png output/theme_fuzzyclock.png
+cp output/latest.png assets/previews/theme_fuzzyclock.png
 ```
 
 If you do not have `venv/` yet, you can run the same command with another Python environment as
@@ -81,14 +81,14 @@ python3 -m src.main \
   --dummy \
   --theme fuzzyclock
 
-cp output/latest.png output/theme_fuzzyclock_inky.png
+cp output/latest.png assets/previews/theme_fuzzyclock_inky.png
 ```
 
 Example full batch for all concrete themes:
 
 ```bash
-for theme in agenda air_quality astronomy countdown default diags fantasy fuzzyclock fuzzyclock_invert \
-             message minimalist monthly moonphase moonphase_invert old_fashioned photo qotd \
+for theme in agenda air_quality almanac astronomy constellation_map countdown default diags fantasy fuzzyclock fuzzyclock_invert \
+             light_cycle message minimalist monthly moonphase moonphase_invert old_fashioned photo qotd \
              qotd_invert scorecard sunrise terminal tides timeline today weather year_pulse; do
   if [ "$theme" = "message" ]; then
     python3 -m src.main --config /path/to/inky-config.yaml --dry-run --dummy \
@@ -97,7 +97,7 @@ for theme in agenda air_quality astronomy countdown default diags fantasy fuzzyc
     python3 -m src.main --config /path/to/inky-config.yaml --dry-run --dummy \
       --theme "$theme"
   fi
-  cp output/latest.png "output/theme_${theme}_inky.png"
+  cp output/latest.png "assets/previews/theme_${theme}_inky.png"
 done
 ```
 
@@ -123,8 +123,8 @@ with:
 make previews-split
 ```
 
-That walks `output/`, pairs every `theme_<name>.png` with its `theme_<name>_inky.png`
-sibling, and writes `output/theme_<name>_split.png`. The script depends only on
+That walks `assets/previews/`, pairs every `theme_<name>.png` with its `theme_<name>_inky.png`
+sibling, and writes `assets/previews/theme_<name>_split.png`. The script depends only on
 Pillow, so it runs against any Python environment with the project deps installed:
 
 ```bash
@@ -155,15 +155,15 @@ showcases it.
 
 Standard preview set:
 
-- `output/theme_<theme>.png`
+- `assets/previews/theme_<theme>.png`
 
 Inky color preview set:
 
-- `output/theme_<theme>_inky.png`
+- `assets/previews/theme_<theme>_inky.png`
 
 Combined split previews (used by [Themes](themes.md)):
 
-- `output/theme_<theme>_split.png`
+- `assets/previews/theme_<theme>_split.png`
 
 Latest dry run from the last command:
 
