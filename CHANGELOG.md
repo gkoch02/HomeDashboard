@@ -4,6 +4,79 @@ All notable changes to Home Dashboard are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased]
+
+### Added
+
+- **`light_cycle` theme** — full-canvas 24-hour radial clock.  The rim
+  carries hour ticks + 00 / 06 / 12 / 18 numerals; a twilight ring fills
+  with progressively denser radial dashes (civil → nautical →
+  astronomical) and a solid wedge for true night.  Today's timed events
+  appear as small radial dashes inside the ring, a triangular needle
+  marks the current moment, and a sun (or moon, when the sun is below
+  the horizon) glyph rides the rim.  The centre disc shows day name +
+  big day-of-month numeral (Righteous, OFL) + month + weather summary.
+  Pure-Python sky math; falls back to OWM-reported sunrise/sunset when
+  `weather.latitude` / `longitude` are absent.  Inky palette
+  `(YELLOW, BLUE)`.
+- **`almanac` theme** — Old-Farmer's-Almanac front page in **Astloch**
+  (OFL blackletter masthead + dateline) plus Playfair Display body and
+  Cinzel section labels.  Editorial 2×2 body grid (Heavens, From the
+  Sky, The Week Ahead, Next in the Garden) reuses every existing data
+  source — weather, astronomy, moon, calendar, birthdays, quote — with
+  no new fetcher.  Inky palette `(RED, BLACK)` lights up the rules,
+  ornaments, bullets, attribution, and shower name.
+- **`constellation_map` theme** — dark-canvas star chart projected for
+  the configured `weather.latitude` / `longitude` using a "looking up"
+  equidistant azimuthal projection.  Bundled J2000 catalogue covers
+  ~45 named bright stars and seven recognisable northern
+  constellations (Ursa Major, Cassiopeia, Orion, Lyra, Cygnus, Boötes,
+  Leo); the moon is plotted at its computed alt/az when above the
+  horizon.  During daylight the chart auto-projects for tonight's
+  solar midnight.  Star and constellation labels render in
+  **Audiowide** (OFL retro-futuristic display sans).  Inky palette
+  `(YELLOW, BLUE)` — yellow chrome + labels, blue constellation lines
+  and altitude rings.
+- **Astronomy module extensions** — `gmst_degrees`,
+  `local_sidereal_time`, `equatorial_to_horizontal` (RA/Dec → alt/az),
+  and `moon_equatorial` (simplified Schlyter lunar position).  Pure
+  Python, no network calls.  Used by the new `light_cycle`,
+  `almanac`, and `constellation_map` themes.
+- **`src/render/star_catalog.py`** — curated J2000 bright-star +
+  constellation outline data.  Pure data, no I/O.
+- **Bundled OFL fonts** — Astloch (Regular + Bold), Audiowide
+  (Regular), Righteous (Regular).  Each ships alongside its upstream
+  `OFL.txt` license file under `fonts/`.
+
+### Changed
+
+- **Preview images moved** from `output/theme_*.png` to
+  `assets/previews/theme_*.png`.  The `output/` directory is now
+  exclusively for runtime artefacts (`latest.png`, dry-run scratch,
+  `last_success.txt`, image-hash marker); committed documentation
+  assets live under `assets/previews/`.  `make previews`,
+  `scripts/build_split_previews.py`, the web `/image/theme/<name>`
+  route, and every doc reference were updated; `.gitignore` no longer
+  needs the `!output/theme_*.png` exception.
+- **`almanac` body fonts bumped 2–4 pt** for readability across the
+  page.  Day-length and today's lengthening rows now combine into a
+  single editorial line so the Heavens column fits cleanly above the
+  mid-rule.
+- **`light_cycle` centre disc spacing** — date / month / weather lines
+  now position from `draw.textbbox()` rather than approximate font
+  metrics, so the tall day numeral never overlaps the month label.
+- **`constellation_map`** uses Audiowide instead of Cinzel for star /
+  constellation / cardinal labels — heavier strokes stay legible at
+  small sizes against the dark sky on both Waveshare 1-bit and Inky
+  Spectra-6.
+
+### Fixed
+
+- **Leap-day birthdays in `almanac`** no longer drop silently in
+  non-leap years (the `except ValueError: continue` branch) or crash
+  on the year-+1 rollover.  Both branches now follow the convention
+  `birthday_bar.py` already uses (Feb 29 → Feb 28 in non-leap years).
+
 ## [5.0.0] — Pluggable & Polished
 
 The v5 release is a structural refactor that pays down v4's hard-coded

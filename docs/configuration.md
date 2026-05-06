@@ -85,7 +85,7 @@ schedule:
 timezone: "local"                  # IANA name or "local"
 title: "Home Dashboard"            # text shown in the header bar
 theme: "default"                   # see themes.md for the full catalog;
-                                   # use one of the 26 built-in theme names,
+                                   # use one of the 29 built-in theme names,
                                    # or `random_daily` / `random_hourly` for rotation
 
 # photo:                           # only used when theme: photo (see setup.md → Photo theme)
