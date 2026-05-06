@@ -226,6 +226,43 @@ class TestUpcomingCalendarSummary:
         # Therefore the function falls back to the quiet message
         assert out == ["Quiet days ahead."]
 
+    def test_leap_day_birthday_in_non_leap_year_uses_feb_28(self):
+        """Feb-29 birthdays must surface in non-leap years (as Feb 28), not be dropped."""
+        # 2026-02-22: Feb 28 2026 (anniversary) is 6 days away → inside the window.
+        today = date(2026, 2, 22)
+        data = DashboardData(
+            events=[],
+            birthdays=[Birthday(name="Leap", date=date(2000, 2, 29))],
+        )
+        out = _upcoming_calendar_summary(data, today, max_lines=4)
+        assert any("Leap" in line and "Feb 28" in line for line in out)
+
+    def test_leap_day_birthday_in_leap_year_keeps_feb_29(self):
+        """In a leap year the Feb 29 anniversary should render as Feb 29."""
+        today = date(2024, 2, 22)  # 2024 is leap
+        data = DashboardData(
+            events=[],
+            birthdays=[Birthday(name="Leap", date=date(2000, 2, 29))],
+        )
+        out = _upcoming_calendar_summary(data, today, max_lines=4)
+        assert any("Leap" in line and "Feb 29" in line for line in out)
+
+    def test_leap_day_birthday_rollover_into_non_leap_year(self):
+        """After Feb 29 in a leap year, the rollover into the next (non-leap)
+        year must not raise — the year-+1 anniversary falls back to Feb 28."""
+        # 2024-03-15: this year's anniversary (Feb 29 → Feb 29 2024) is in the
+        # past.  Roll forward to 2025 (non-leap) — must use Feb 28 instead of
+        # raising ValueError.  The result is ~340 days away so it falls outside
+        # the 14-day window, but the important thing is that the call succeeds.
+        today = date(2024, 3, 15)
+        data = DashboardData(
+            events=[],
+            birthdays=[Birthday(name="Leap", date=date(2000, 2, 29))],
+        )
+        out = _upcoming_calendar_summary(data, today, max_lines=4)
+        # No crash; not within the window so no birthday line surfaces.
+        assert not any("Leap" in line for line in out)
+
 
 # ---------------------------------------------------------------------------
 # Theme rendering

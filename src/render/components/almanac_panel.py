@@ -235,15 +235,20 @@ def _upcoming_calendar_summary(data: DashboardData, today: date, max_lines: int)
         if len(items) >= max_lines:
             return items[:max_lines]
 
-    # Upcoming birthdays inside the next two weeks
+    # Upcoming birthdays inside the next two weeks.  Feb 29 birthdays follow
+    # the same convention as ``birthday_bar``: anniversary is Feb 28 in
+    # non-leap years (rather than silently dropping the entry or crashing).
     if data.birthdays:
         for b in data.birthdays:
             try:
                 bday_this_year = b.date.replace(year=today.year)
             except ValueError:
-                continue
+                bday_this_year = b.date.replace(year=today.year, day=28)
             if bday_this_year < today:
-                bday_this_year = b.date.replace(year=today.year + 1)
+                try:
+                    bday_this_year = b.date.replace(year=today.year + 1)
+                except ValueError:
+                    bday_this_year = b.date.replace(year=today.year + 1, day=28)
             delta = (bday_this_year - today).days
             if 0 <= delta <= 14:
                 month_day = bday_this_year.strftime("%b %-d")
