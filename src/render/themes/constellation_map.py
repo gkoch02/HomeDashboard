@@ -13,7 +13,7 @@ math runs out of :mod:`src.astronomy` — no API calls.
 
 from __future__ import annotations
 
-from src.render.fonts import cinzel_regular, dm_medium, dm_regular
+from src.render.fonts import dm_medium, dm_regular, righteous
 from src.render.theme import (
     INKY_BLUE,
     INKY_YELLOW,
@@ -54,8 +54,12 @@ def constellation_map_theme() -> Theme:
             font_regular=dm_regular,
             font_medium=dm_medium,
             font_bold=dm_medium,
-            font_section_label=cinzel_regular,
-            font_title=cinzel_regular,
+            # Righteous: a single-weight OFL display sans whose heavy strokes
+            # and tight apertures stay legible at the small sizes the chart
+            # uses for star + constellation + cardinal labels against the
+            # dark sky.  Cinzel + DM Sans were too thin to read on Spectra-6.
+            font_section_label=righteous,
+            font_title=righteous,
             label_font_size=11,
             label_font_weight="regular",
             # accent_primary / accent_secondary are intentionally left

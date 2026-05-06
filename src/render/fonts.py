@@ -145,6 +145,14 @@ def playfair_bold(size: int) -> ImageFont.FreeTypeFont:
     return get_font("PlayfairDisplay-Bold.ttf", size)
 
 
+# Righteous — single-weight condensed display sans (OFL).  Heavier strokes
+# and tighter aperture than DM Sans / Cinzel, so it stays legible at the
+# very small sizes the constellation_map theme uses for star and
+# constellation labels on a dark sky.
+def righteous(size: int) -> ImageFont.FreeTypeFont:
+    return get_font("Righteous-Regular.ttf", size)
+
+
 # NuCore — high-contrast display font for scorecard/sunrise/tides themes.
 def nucore(size: int) -> ImageFont.FreeTypeFont:
     return get_font("NuCore.otf", size)

@@ -415,7 +415,8 @@ Bundled font families used by the current built-in themes:
 | Plus Jakarta Sans | default and general fallback |
 | DM Sans | `minimalist`, `weather`, `fuzzyclock`, `timeline`, `diags`, `monthly`, `countdown`, `astronomy`, `light_cycle`, `constellation_map` (margin) |
 | Playfair Display | `old_fashioned`, `qotd`, `moonphase`, `almanac` |
-| Cinzel | `fantasy`, `old_fashioned`, `moonphase` accents, `almanac` (section labels + small caps), `constellation_map` (star + constellation labels) |
+| Cinzel | `fantasy`, `old_fashioned`, `moonphase` accents, `almanac` (section labels + small caps) |
+| Righteous | `constellation_map` (cardinal letters, star + constellation labels) |
 | Space Grotesk | `air_quality`, `message`, `year_pulse`, `scorecard` |
 | Share Tech Mono / terminal fonts | `terminal`, `diags`, select utility text |
 

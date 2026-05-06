@@ -222,8 +222,8 @@ def _draw_chart_chrome(
                 width=1,
             )
 
-    # Cardinal direction labels just outside the rim, in Cinzel
-    label_font = (style.font_section_label or style.font_bold)(11)
+    # Cardinal direction labels just outside the rim
+    label_font = (style.font_section_label or style.font_bold)(15)
     label_pad = 8
     cardinals = [
         ("N", _DISC_CENTER_X, _DISC_CENTER_Y - _DISC_RADIUS - label_pad - 8),
@@ -285,8 +285,8 @@ def _draw_star_label(
     style: ThemeStyle,
     fg,
 ) -> None:
-    """Cinzel-italic label placed up-right of a labeled star."""
-    label_font = (style.font_section_label or style.font_bold)(9)
+    """Display-font label placed up-right of a labeled star."""
+    label_font = (style.font_section_label or style.font_bold)(11)
     cx, cy = xy
     r = _star_radius(mag)
     # Offset: a few pixels up and to the right of the star.
@@ -352,10 +352,10 @@ def _draw_constellation_label(
         return
     cx = sum(p[0] for p in points) // len(points)
     cy = sum(p[1] for p in points) // len(points)
-    label_font = (style.font_section_label or style.font_bold)(10)
+    label_font = (style.font_section_label or style.font_bold)(13)
     upper = name.upper()
     lw = text_width(draw, upper, label_font)
-    draw.text((cx - lw // 2, cy - 26), upper, font=label_font, fill=accent)
+    draw.text((cx - lw // 2, cy - 30), upper, font=label_font, fill=accent)
 
 
 # ---------------------------------------------------------------------------
@@ -379,8 +379,8 @@ def _draw_header(
     style: ThemeStyle,
     fg,
 ) -> None:
-    title_font = (style.font_section_label or style.font_bold)(13)
-    info_font = style.font_medium(12)
+    title_font = (style.font_section_label or style.font_bold)(16)
+    info_font = style.font_medium(14)
     title = "TONIGHT'S SKY"
     draw.text((region.x + _PAD_X, region.y + 12), title, font=title_font, fill=fg)
     when = obs_time.astimezone(tz) if tz is not None and obs_time.tzinfo else obs_time
@@ -406,8 +406,8 @@ def _draw_footer(
     fg,
     accent,
 ) -> None:
-    body_font = style.font_regular(11)
-    bold_font = style.font_medium(11)
+    body_font = style.font_regular(13)
+    bold_font = style.font_medium(13)
     fy = region.y + region.h - _FOOTER_H + 14
 
     # Left side: location
