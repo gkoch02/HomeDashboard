@@ -240,7 +240,7 @@ Victorian broadsheet layout with serif typography and decorative rules.
 
 #### almanac
 
-Old-Farmer's-Almanac front page in Playfair Display + Cinzel. An ornamental masthead carries a Roman-numeral volume, day-of-year issue number, and the day's name; below it, the date is set in a large editorial line ("MAY 6, 2026") between two triple rules. The body splits into four bordered editorial sections in a 2×2 grid: **The Heavens** (sunrise/sunset, day length, today's lengthening or shortening, moon phase + illumination, next full moon), **From the Sky** (a short prose weather observation with wind direction, alerts, and high/low), **The Week Ahead** (today's first event plus the next few timed events and birthdays), and **Next in the Garden** (season + day-of-year, sun lengthening/shortening, next named meteor shower with ZHR). A triple rule and the day's quote close the page in italic small-caps; a row of small ornaments stamps the very bottom. Reuses every existing data source — weather, `src.astronomy`, `src.render.moon`, calendar, birthdays, quote — with no new fetcher. On Inky the rules, ornaments, bullets, and attribution all render in red.
+Old-Farmer's-Almanac front page in **Astloch** (blackletter masthead and dateline) + Playfair Display (body) + Cinzel (section labels and small caps). An ornamental masthead carries a Roman-numeral volume, day-of-year issue number, and the day's name; below it, the date is set in a large editorial line ("MAY 6, 2026") between two triple rules. The body splits into four bordered editorial sections in a 2×2 grid: **The Heavens** (sunrise/sunset, day length, today's lengthening or shortening, moon phase + illumination, next full moon), **From the Sky** (a short prose weather observation with wind direction, alerts, and high/low), **The Week Ahead** (today's first event plus the next few timed events and birthdays), and **Next in the Garden** (season + day-of-year, sun lengthening/shortening, next named meteor shower with ZHR). A triple rule and the day's quote close the page in italic small-caps; a row of small ornaments stamps the very bottom. Reuses every existing data source — weather, `src.astronomy`, `src.render.moon`, calendar, birthdays, quote — with no new fetcher. On Inky the rules, ornaments, bullets, and attribution all render in red.
 
 [![Almanac theme — Waveshare/Inky split](../output/theme_almanac_split.png)](../output/theme_almanac_split.png)
 
@@ -417,6 +417,7 @@ Bundled font families used by the current built-in themes:
 | Playfair Display | `old_fashioned`, `qotd`, `moonphase`, `almanac` |
 | Cinzel | `fantasy`, `old_fashioned`, `moonphase` accents, `almanac` (section labels + small caps) |
 | Righteous | `constellation_map` (cardinal letters, star + constellation labels) |
+| Astloch | `almanac` (masthead + dateline character font) |
 | Space Grotesk | `air_quality`, `message`, `year_pulse`, `scorecard` |
 | Share Tech Mono / terminal fonts | `terminal`, `diags`, select utility text |
 

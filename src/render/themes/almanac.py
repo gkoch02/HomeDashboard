@@ -4,17 +4,23 @@ Front-page composition: ornamental masthead, large editorial dateline, four
 bordered sections in a 2×2 grid (Heavens / Sky / Week Ahead / Garden), and
 a footer aphorism with author in small caps.
 
-Typography is Playfair Display (body) + Cinzel (section labels and small caps)
-for a 19th-century reference-book feel.  All data is already available
-(weather, astronomy, moon, quote, events, birthdays) — no new fetcher needed.
+Typography:
+  * **Astloch** (OFL blackletter) — character font for the masthead title
+    and big editorial dateline.  Sets the 19th-century almanac mood
+    immediately and is the visual signature of the theme.
+  * **Playfair Display** — running body text and the closing quote.
+  * **Cinzel** — section labels and the quote attribution in small caps.
+
+All data is already available (weather, astronomy, moon, quote, events,
+birthdays) — no new fetcher needed.
 """
 
 from __future__ import annotations
 
 from src.render.fonts import (
+    astloch_bold,
     cinzel_black,
     cinzel_semibold,
-    playfair_bold,
     playfair_medium,
     playfair_regular,
     playfair_semibold,
@@ -52,8 +58,12 @@ def almanac_theme() -> Theme:
             font_regular=playfair_regular,
             font_medium=playfair_medium,
             font_semibold=playfair_semibold,
-            font_bold=playfair_bold,
-            font_title=playfair_bold,
+            # Body bold falls back to Playfair SemiBold (no Playfair Bold needed
+            # since Astloch handles the masthead/dateline weight visually).
+            font_bold=playfair_semibold,
+            # Astloch (blackletter) carries the masthead title and dateline —
+            # the "character" font that makes the page read as an almanac.
+            font_title=astloch_bold,
             font_section_label=cinzel_black,
             font_quote=playfair_regular,
             font_quote_author=cinzel_semibold,

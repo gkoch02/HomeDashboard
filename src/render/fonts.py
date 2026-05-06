@@ -145,6 +145,16 @@ def playfair_bold(size: int) -> ImageFont.FreeTypeFont:
     return get_font("PlayfairDisplay-Bold.ttf", size)
 
 
+# Astloch — antique blackletter / fraktur display face (OFL).  Two weights;
+# perfect "character" font for editorial mastheads and 19th-century almanacs.
+def astloch(size: int) -> ImageFont.FreeTypeFont:
+    return get_font("Astloch-Regular.ttf", size)
+
+
+def astloch_bold(size: int) -> ImageFont.FreeTypeFont:
+    return get_font("Astloch-Bold.ttf", size)
+
+
 # Righteous — single-weight condensed display sans (OFL).  Heavier strokes
 # and tighter aperture than DM Sans / Cinzel, so it stays legible at the
 # very small sizes the constellation_map theme uses for star and

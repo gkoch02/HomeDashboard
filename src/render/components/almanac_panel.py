@@ -312,8 +312,10 @@ def _draw_masthead(
     fg = style.fg
     accent = style.primary_accent_fill()
 
-    title_font = (style.font_section_label or style.font_bold)(17)
-    masthead = "THE  DAILY  ALMANAC"
+    # Masthead uses the theme's title font so the "character" face (e.g.
+    # Astloch blackletter) carries both the masthead and the dateline below.
+    title_font = (style.font_title or style.font_section_label or style.font_bold)(20)
+    masthead = "The Daily Almanac"
     tw = text_width(draw, masthead, title_font)
     cx = region.x + region.w // 2
     draw.text(
@@ -351,9 +353,12 @@ def _draw_masthead(
         fill=fg,
     )
 
-    # Big editorial dateline
-    big_font = (style.font_title or style.font_bold)(32)
-    dateline = today.strftime("%B %-d, %Y").upper()
+    # Big editorial dateline.  Kept title-case ("May 6, 2026") because
+    # blackletter character fonts like Astloch use very ornate capitals that
+    # are illegible all-caps; mixed case shows off the iconic lower-case
+    # gothic forms while the M-cap stays decorative.
+    big_font = (style.font_title or style.font_bold)(34)
+    dateline = today.strftime("%B %-d, %Y")
     bw = text_width(draw, dateline, big_font)
     draw.text(
         (cx - bw // 2, region.y + _DATELINE_BIG_Y),
