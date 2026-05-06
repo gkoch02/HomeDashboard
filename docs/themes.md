@@ -27,7 +27,7 @@ Valid values:
 
 - **Week-view**: `default`, `agenda`, `terminal`, `minimalist`, `old_fashioned`, `today`, `fantasy`
 - **Full-screen focused**: `qotd`, `qotd_invert`, `weather`, `fuzzyclock`, `fuzzyclock_invert`, `moonphase`, `moonphase_invert`, `photo`
-- **Specialized**: `air_quality`, `astronomy`, `timeline`, `year_pulse`, `monthly`, `sunrise`, `light_cycle`, `scorecard`, `tides`
+- **Specialized**: `air_quality`, `almanac`, `astronomy`, `timeline`, `year_pulse`, `monthly`, `sunrise`, `light_cycle`, `scorecard`, `tides`
 - **Utility**: `countdown`, `message`, `diags`
 - **Rotation**: `random_daily` (alias `random`), `random_hourly`
 
@@ -178,6 +178,7 @@ Rules that reference weather or calendar data silently skip on the first boot (n
 | Theme | Best for | Notes |
 |---|---|---|
 | `air_quality` | indoor/outdoor AQI dashboard | PurpleAir-first full-screen layout |
+| `almanac` | editorial daily reference | Old-Farmer's-Almanac front page: ornamental masthead with Roman-numeral volume, big editorial dateline, four bordered sections in a 2×2 grid (Heavens, From the Sky, Week Ahead, Next in the Garden), and a footer aphorism with author in small caps. Combines weather, astronomy, moon, calendar, birthdays, and quote — no new fetcher. |
 | `astronomy` | sky-tonight dashboard | Sunrise/sunset, civil/nautical/astronomical twilight, moon phase + next full/new, next meteor shower, dark-sky window. Uses `weather.latitude` / `weather.longitude` for twilight math (falls back gracefully without them). Pure-Python — no API calls. |
 | `timeline` | busy-day planning | Single-day hourly timeline |
 | `year_pulse` | longer-horizon planning | Year progress plus upcoming events and birthdays |
@@ -235,6 +236,12 @@ Border-light editorial layout focused on the calendar and weather, with birthday
 Victorian broadsheet layout with serif typography and decorative rules.
 
 [![Old Fashioned theme — Waveshare/Inky split](../output/theme_old_fashioned_split.png)](../output/theme_old_fashioned_split.png)
+
+#### almanac
+
+Old-Farmer's-Almanac front page in Playfair Display + Cinzel. An ornamental masthead carries a Roman-numeral volume, day-of-year issue number, and the day's name; below it, the date is set in a large editorial line ("MAY 6, 2026") between two triple rules. The body splits into four bordered editorial sections in a 2×2 grid: **The Heavens** (sunrise/sunset, day length, today's lengthening or shortening, moon phase + illumination, next full moon), **From the Sky** (a short prose weather observation with wind direction, alerts, and high/low), **The Week Ahead** (today's first event plus the next few timed events and birthdays), and **Next in the Garden** (season + day-of-year, sun lengthening/shortening, next named meteor shower with ZHR). A triple rule and the day's quote close the page in italic small-caps; a row of small ornaments stamps the very bottom. Reuses every existing data source — weather, `src.astronomy`, `src.render.moon`, calendar, birthdays, quote — with no new fetcher. On Inky the rules, ornaments, bullets, and attribution all render in red.
+
+[![Almanac theme — Waveshare/Inky split](../output/theme_almanac_split.png)](../output/theme_almanac_split.png)
 
 #### today
 
@@ -400,8 +407,8 @@ Bundled font families used by the current built-in themes:
 |---|---|
 | Plus Jakarta Sans | default and general fallback |
 | DM Sans | `minimalist`, `weather`, `fuzzyclock`, `timeline`, `diags`, `monthly`, `countdown`, `astronomy`, `light_cycle` |
-| Playfair Display | `old_fashioned`, `qotd`, `moonphase` |
-| Cinzel | `fantasy`, `old_fashioned`, `moonphase` accents |
+| Playfair Display | `old_fashioned`, `qotd`, `moonphase`, `almanac` |
+| Cinzel | `fantasy`, `old_fashioned`, `moonphase` accents, `almanac` (section labels + small caps) |
 | Space Grotesk | `air_quality`, `message`, `year_pulse`, `scorecard` |
 | Share Tech Mono / terminal fonts | `terminal`, `diags`, select utility text |
 

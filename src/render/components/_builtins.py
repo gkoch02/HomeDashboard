@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from src.render.components import (
     air_quality_panel,
+    almanac_panel,
     astronomy_panel,
     birthday_bar,
     countdown_panel,
@@ -327,4 +328,19 @@ def _light_cycle(ctx: RenderContext) -> None:
         style=ctx.style,
         latitude=ctx.latitude,
         longitude=ctx.longitude,
+    )
+
+
+@register_component("almanac")
+def _almanac(ctx: RenderContext) -> None:
+    almanac_panel.draw_almanac(
+        ctx.draw,
+        ctx.data,
+        ctx.today,
+        ctx.now,
+        region=ctx.layout.almanac,
+        style=ctx.style,
+        latitude=ctx.latitude,
+        longitude=ctx.longitude,
+        quote_refresh=ctx.quote_refresh,
     )

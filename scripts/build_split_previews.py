@@ -48,6 +48,7 @@ _THEME_SPLIT_MODES: dict[str, str] = {
     "today": "vertical",
     "monthly": "vertical",
     "light_cycle": "vertical",
+    "almanac": "vertical",
     # Strong horizontal banding (header / hero / footer strip): a
     # horizontal cut keeps each band intact on each side.
     "weather": "horizontal",

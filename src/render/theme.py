@@ -146,6 +146,10 @@ class ThemeLayout:
     light_cycle: ComponentRegion = field(
         default_factory=lambda: ComponentRegion(0, 0, 800, 480, visible=False)
     )
+    # Used by the ``almanac`` theme for the full-canvas editorial almanac page.
+    almanac: ComponentRegion = field(
+        default_factory=lambda: ComponentRegion(0, 0, 800, 480, visible=False)
+    )
     draw_order: list[str] = field(
         default_factory=lambda: ["header", "week_view", "weather", "birthdays", "info"]
     )
