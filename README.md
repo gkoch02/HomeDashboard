@@ -4,7 +4,7 @@
 
 Home Dashboard is a low-maintenance eInk wall display for family logistics on a Raspberry Pi. It shows calendar events, weather, birthdays, quotes, and optional diagnostics on supported Waveshare and Inky displays, with graceful fallback behavior for unattended use.
 
-![Default theme preview](output/theme_default.png)
+![Default theme preview](assets/previews/theme_default.png)
 
 ## Start Here
 
