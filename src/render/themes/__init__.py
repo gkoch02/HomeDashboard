@@ -13,6 +13,7 @@ from src.render.themes import agenda as _agenda  # noqa: F401
 from src.render.themes import air_quality as _air_quality  # noqa: F401
 from src.render.themes import almanac as _almanac  # noqa: F401
 from src.render.themes import astronomy as _astronomy  # noqa: F401
+from src.render.themes import constellation_map as _constellation_map  # noqa: F401
 from src.render.themes import countdown as _countdown  # noqa: F401
 from src.render.themes import diags as _diags  # noqa: F401
 from src.render.themes import fantasy as _fantasy  # noqa: F401

@@ -27,7 +27,7 @@ Valid values:
 
 - **Week-view**: `default`, `agenda`, `terminal`, `minimalist`, `old_fashioned`, `today`, `fantasy`
 - **Full-screen focused**: `qotd`, `qotd_invert`, `weather`, `fuzzyclock`, `fuzzyclock_invert`, `moonphase`, `moonphase_invert`, `photo`
-- **Specialized**: `air_quality`, `almanac`, `astronomy`, `timeline`, `year_pulse`, `monthly`, `sunrise`, `light_cycle`, `scorecard`, `tides`
+- **Specialized**: `air_quality`, `almanac`, `astronomy`, `constellation_map`, `timeline`, `year_pulse`, `monthly`, `sunrise`, `light_cycle`, `scorecard`, `tides`
 - **Utility**: `countdown`, `message`, `diags`
 - **Rotation**: `random_daily` (alias `random`), `random_hourly`
 
@@ -180,6 +180,7 @@ Rules that reference weather or calendar data silently skip on the first boot (n
 | `air_quality` | indoor/outdoor AQI dashboard | PurpleAir-first full-screen layout |
 | `almanac` | editorial daily reference | Old-Farmer's-Almanac front page: ornamental masthead with Roman-numeral volume, big editorial dateline, four bordered sections in a 2×2 grid (Heavens, From the Sky, Week Ahead, Next in the Garden), and a footer aphorism with author in small caps. Combines weather, astronomy, moon, calendar, birthdays, and quote — no new fetcher. |
 | `astronomy` | sky-tonight dashboard | Sunrise/sunset, civil/nautical/astronomical twilight, moon phase + next full/new, next meteor shower, dark-sky window. Uses `weather.latitude` / `weather.longitude` for twilight math (falls back gracefully without them). Pure-Python — no API calls. |
+| `constellation_map` | tonight's actual sky | Dark-canvas star chart projected for the user's location and the current moment. Renders ~45 named bright stars, seven recognisable northern constellations connected by lines, and the moon at its current alt/az. During daylight the chart auto-projects for tonight's solar midnight so it stays informative. Requires `weather.latitude` / `weather.longitude`; pure-Python sky math (no API). |
 | `timeline` | busy-day planning | Single-day hourly timeline |
 | `year_pulse` | longer-horizon planning | Year progress plus upcoming events and birthdays |
 | `monthly` | month-at-a-glance planning | Traditional month grid with event-density heatmap |
@@ -315,6 +316,12 @@ Four-quadrant "sky tonight" layout plus a dark-sky-window footer: sunrise, solar
 
 [![Astronomy theme — Waveshare/Inky split](../output/theme_astronomy_split.png)](../output/theme_astronomy_split.png)
 
+#### constellation_map
+
+Dark-canvas star chart of tonight's sky, projected for the configured `weather.latitude` / `weather.longitude` using a "looking up" equidistant azimuthal projection — zenith at the centre, horizon at the rim, North at top, East to the **left**, South at bottom, West to the right. The disc is framed by a Cinzel-labelled cardinal ring with dotted altitude rings at 30° and 60°. About 45 bright named stars from a curated Bright Star subset are sized by visual magnitude; seven of the most recognisable northern constellations (Ursa Major, Cassiopeia, Orion, Lyra, Cygnus, Boötes, Leo) are joined by thin lines and labelled in italic small caps. The moon is plotted at its current altitude/azimuth using a simplified Schlyter ephemeris — when above the horizon it appears as the actual phase glyph in a halo. During daylight, the chart auto-projects for tonight's solar midnight so it stays informative. The footer shows location, the moon's current phase name, and the next named meteor shower. On Inky the rim, cardinal labels, and constellation names render in yellow with blue constellation lines and altitude rings; Waveshare stays clean monochrome white-on-black. All sky math is pure Python — no API calls.
+
+[![Constellation Map theme — Waveshare/Inky split](../output/theme_constellation_map_split.png)](../output/theme_constellation_map_split.png)
+
 #### timeline
 
 Single-day hourly timeline that makes free blocks and overlaps easy to spot.
@@ -406,9 +413,9 @@ Bundled font families used by the current built-in themes:
 | Font | Used by |
 |---|---|
 | Plus Jakarta Sans | default and general fallback |
-| DM Sans | `minimalist`, `weather`, `fuzzyclock`, `timeline`, `diags`, `monthly`, `countdown`, `astronomy`, `light_cycle` |
+| DM Sans | `minimalist`, `weather`, `fuzzyclock`, `timeline`, `diags`, `monthly`, `countdown`, `astronomy`, `light_cycle`, `constellation_map` (margin) |
 | Playfair Display | `old_fashioned`, `qotd`, `moonphase`, `almanac` |
-| Cinzel | `fantasy`, `old_fashioned`, `moonphase` accents, `almanac` (section labels + small caps) |
+| Cinzel | `fantasy`, `old_fashioned`, `moonphase` accents, `almanac` (section labels + small caps), `constellation_map` (star + constellation labels) |
 | Space Grotesk | `air_quality`, `message`, `year_pulse`, `scorecard` |
 | Share Tech Mono / terminal fonts | `terminal`, `diags`, select utility text |
 

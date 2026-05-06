@@ -14,6 +14,7 @@ from src.render.components import (
     almanac_panel,
     astronomy_panel,
     birthday_bar,
+    constellation_map_panel,
     countdown_panel,
     diags_panel,
     fuzzyclock_panel,
@@ -343,4 +344,18 @@ def _almanac(ctx: RenderContext) -> None:
         latitude=ctx.latitude,
         longitude=ctx.longitude,
         quote_refresh=ctx.quote_refresh,
+    )
+
+
+@register_component("constellation_map")
+def _constellation_map(ctx: RenderContext) -> None:
+    constellation_map_panel.draw_constellation_map(
+        ctx.draw,
+        ctx.data,
+        ctx.today,
+        ctx.now,
+        region=ctx.layout.constellation_map,
+        style=ctx.style,
+        latitude=ctx.latitude,
+        longitude=ctx.longitude,
     )
