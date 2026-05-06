@@ -76,10 +76,13 @@ _DATELINE_KICKER_Y = 46
 _DATELINE_BIG_Y = 64
 _HEADER_BOTTOM_RULE_Y = 110
 
-# Body band (four editorial sections in a 2×2 grid)
+# Body band (four editorial sections in a 2×2 grid).  The mid-rule lands a
+# little below the geometric centre so the top row (which carries the deeper
+# Heavens key/value list) gets the extra breathing room it needs at the
+# editorial body-text size.
 _BODY_TOP = _HEADER_BOTTOM_RULE_Y + 12
 _BODY_BOTTOM = 388
-_BODY_MID_Y = (_BODY_TOP + _BODY_BOTTOM) // 2
+_BODY_MID_Y = 272
 _COL_DIVIDER_X = 400  # vertical rule between left & right columns
 
 # Footer band (triple rule + quote + author + ornament)
@@ -309,7 +312,7 @@ def _draw_masthead(
     fg = style.fg
     accent = style.primary_accent_fill()
 
-    title_font = (style.font_section_label or style.font_bold)(15)
+    title_font = (style.font_section_label or style.font_bold)(17)
     masthead = "THE  DAILY  ALMANAC"
     tw = text_width(draw, masthead, title_font)
     cx = region.x + region.w // 2
@@ -336,7 +339,7 @@ def _draw_masthead(
     )
 
     # Kicker line: VOL. <roman> · NO. <day-of-year> · WEEKDAY
-    kicker_font = (style.font_section_label or style.font_bold)(11)
+    kicker_font = (style.font_section_label or style.font_bold)(13)
     vol = _roman(today.year - 1799)  # arbitrary but stable
     day_of_year = today.timetuple().tm_yday
     kicker = f"VOL. {vol}   NO. {day_of_year}   ·   {today.strftime('%A').upper()}"
@@ -349,7 +352,7 @@ def _draw_masthead(
     )
 
     # Big editorial dateline
-    big_font = (style.font_title or style.font_bold)(28)
+    big_font = (style.font_title or style.font_bold)(32)
     dateline = today.strftime("%B %-d, %Y").upper()
     bw = text_width(draw, dateline, big_font)
     draw.text(
@@ -383,7 +386,7 @@ def _draw_section_header(
     points (❖, ✨, …), so the ornament here is hand-drawn next to the label
     rather than baked into the string.  Returns the next y to draw at.
     """
-    label_font = (style.font_section_label or style.font_bold)(11)
+    label_font = (style.font_section_label or style.font_bold)(13)
     accent = style.primary_accent_fill()
     fg = style.fg
 
@@ -415,7 +418,7 @@ def _draw_kv_row(
     key_w: int,
     style: ThemeStyle,
     *,
-    body_size: int = 13,
+    body_size: int = 15,
 ) -> int:
     """Draw a Playfair key/value row in the editorial body."""
     key_font = style.font_regular(body_size)
@@ -456,11 +459,16 @@ def _draw_heavens(
         if sunrise and sunset:
             day_len = sunset - sunrise
 
-    key_w = 110
+    key_w = 130
     y = _draw_kv_row(draw, x, y, "Sunrise", _fmt_clock(sunrise, tz), key_w, style)
     y = _draw_kv_row(draw, x, y, "Sunset", _fmt_clock(sunset, tz), key_w, style)
-    y = _draw_kv_row(draw, x, y, "Day length", _fmt_duration(day_len), key_w, style)
-    y = _draw_kv_row(draw, x, y, "Today", _fmt_signed_minutes(delta), key_w, style)
+    # Day length + today's lengthening combined into one editorial line so
+    # the Heavens column fits comfortably in the top body row.
+    if delta is None:
+        day_value = _fmt_duration(day_len)
+    else:
+        day_value = f"{_fmt_duration(day_len)}   ({_fmt_signed_minutes(delta)})"
+    y = _draw_kv_row(draw, x, y, "Day length", day_value, key_w, style)
 
     # Moon row: glyph + name + illumination — kept as one editorial line.
     from src.render.fonts import weather_icon as _wi
@@ -468,8 +476,8 @@ def _draw_heavens(
     moon_glyph = moon_phase_glyph(today)
     moon_name = moon_phase_name(today)
     illum = moon_illumination(today)
-    glyph_font = _wi(26)
-    moon_font = style.font_semibold(13)
+    glyph_font = _wi(28)
+    moon_font = style.font_semibold(15)
     glyph_h = text_height(glyph_font)
     moon_h = text_height(moon_font)
     line_h = max(glyph_h, moon_h)
@@ -499,7 +507,7 @@ def _draw_sky(
     """Editorial weather prose (top-right)."""
     y = _draw_section_header(draw, x, y, "FROM THE SKY", style)
 
-    body_font = style.font_regular(13)
+    body_font = style.font_regular(15)
     if weather is None:
         draw.text(
             (x, y),
@@ -558,7 +566,7 @@ def _draw_week_ahead(
     y = _draw_section_header(draw, x, y, "THE WEEK AHEAD", style)
 
     items = _upcoming_calendar_summary(data, today, max_lines=4)
-    body_font = style.font_regular(13)
+    body_font = style.font_regular(15)
     accent = style.primary_accent_fill()
     bullet = "•"
     for item in items:
@@ -580,8 +588,8 @@ def _draw_garden(
     """Season + day-of-year + meteor shower (bottom-right)."""
     y = _draw_section_header(draw, x, y, "NEXT IN THE GARDEN", style)
 
-    body_font = style.font_regular(13)
-    bold_font = style.font_semibold(13)
+    body_font = style.font_regular(15)
+    bold_font = style.font_semibold(15)
     accent = style.primary_accent_fill()
 
     season = _season(today)
@@ -652,14 +660,14 @@ def _draw_footer(
     )
 
     quote = _quote_for_today(today, refresh=quote_refresh, now=now)
-    quote_font = (style.font_quote or style.font_regular)(14)
-    author_font = (style.font_quote_author or style.font_semibold)(11)
+    quote_font = (style.font_quote or style.font_regular)(17)
+    author_font = (style.font_quote_author or style.font_semibold)(13)
 
     text = f"“{quote['text']}”"
     avail = region.w - 2 * _PAD_X
     lines = wrap_lines(text, quote_font, avail)
     if len(lines) > 2:
-        quote_font = (style.font_quote or style.font_regular)(12)
+        quote_font = (style.font_quote or style.font_regular)(14)
         lines = wrap_lines(text, quote_font, avail)[:3]
     else:
         lines = lines[:2]
