@@ -27,7 +27,7 @@ Valid values:
 
 - **Week-view**: `default`, `agenda`, `terminal`, `minimalist`, `old_fashioned`, `today`, `fantasy`
 - **Full-screen focused**: `qotd`, `qotd_invert`, `weather`, `fuzzyclock`, `fuzzyclock_invert`, `moonphase`, `moonphase_invert`, `photo`
-- **Specialized**: `air_quality`, `astronomy`, `timeline`, `year_pulse`, `monthly`, `sunrise`, `scorecard`, `tides`
+- **Specialized**: `air_quality`, `astronomy`, `timeline`, `year_pulse`, `monthly`, `sunrise`, `light_cycle`, `scorecard`, `tides`
 - **Utility**: `countdown`, `message`, `diags`
 - **Rotation**: `random_daily` (alias `random`), `random_hourly`
 
@@ -183,6 +183,7 @@ Rules that reference weather or calendar data silently skip on the first boot (n
 | `year_pulse` | longer-horizon planning | Year progress plus upcoming events and birthdays |
 | `monthly` | month-at-a-glance planning | Traditional month grid with event-density heatmap |
 | `sunrise` | daylight-oriented planning | Sun arc, day/night split, compact footer metrics |
+| `light_cycle` | whole-day-at-a-glance | 24-hour radial clock with twilight bands on the rim, today's events as ticks inside the ring, needle and sun/moon glyph at the current moment, date and weather in the central disc. Uses `weather.latitude` / `weather.longitude` for full astronomical / nautical / civil twilight bands (falls back to OWM sunrise/sunset without them). Pure-Python — no API calls. |
 | `scorecard` | big-number metrics | KPI tiles for weather, AQI, calendar, and system data |
 | `tides` | maximum information density | Alternating horizontal bands spanning many data sources |
 
@@ -332,6 +333,12 @@ Sun arc and day/night split layout organized around daylight.
 
 [![Sunrise theme — Waveshare/Inky split](../output/theme_sunrise_split.png)](../output/theme_sunrise_split.png)
 
+#### light_cycle
+
+Full-canvas 24-hour radial clock with the entire day arranged around a single dial. The rim carries hour ticks and 00 / 06 / 12 / 18 numerals; the twilight ring fills with progressively denser radial dashes from civil to nautical to astronomical twilight, and a solid wedge for true night. Today's timed events appear as small ticks just inside the ring, a triangular needle marks the current moment, and a sun (or moon, when below the horizon) glyph rides the rim at the current-time position. The center disc shows day name, big date numeral, month, and weather summary; a footer reports rise / set / event count. On Inky the title and accents render in yellow with a blue needle. All sun-time math is computed locally from `src.astronomy` using `weather.latitude` / `weather.longitude` (falls back to OWM-reported sunrise/sunset when coordinates are absent — twilight bands collapse to a single night band).
+
+[![Light Cycle theme — Waveshare/Inky split](../output/theme_light_cycle_split.png)](../output/theme_light_cycle_split.png)
+
 #### scorecard
 
 Big-number tile dashboard for weather, AQI, calendar, and system metrics.
@@ -392,7 +399,7 @@ Bundled font families used by the current built-in themes:
 | Font | Used by |
 |---|---|
 | Plus Jakarta Sans | default and general fallback |
-| DM Sans | `minimalist`, `weather`, `fuzzyclock`, `timeline`, `diags`, `monthly`, `countdown`, `astronomy` |
+| DM Sans | `minimalist`, `weather`, `fuzzyclock`, `timeline`, `diags`, `monthly`, `countdown`, `astronomy`, `light_cycle` |
 | Playfair Display | `old_fashioned`, `qotd`, `moonphase` |
 | Cinzel | `fantasy`, `old_fashioned`, `moonphase` accents |
 | Space Grotesk | `air_quality`, `message`, `year_pulse`, `scorecard` |
