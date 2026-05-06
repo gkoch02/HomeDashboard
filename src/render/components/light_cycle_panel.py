@@ -319,63 +319,69 @@ def _draw_center_disc(
     weather,
     style: ThemeStyle,
 ) -> None:
-    """Render day-of-week, big date numeral, month, and weather summary."""
+    """Render day-of-week, big date numeral, month, and weather summary.
+
+    The four lines are stacked using each line's actual textbbox height +
+    a fixed gap, anchored on the date numeral's centre.  This avoids the
+    classic "tall numeral overlaps the next line" trap that font-metric
+    approximations produce — the gaps below are guaranteed clear of the
+    numeral's descender.
+    """
     fg = style.fg
     bg = style.bg
     font_bold = style.font_bold
     font_medium = style.font_medium
     font_regular = style.font_regular
+    accent = style.primary_accent_fill()
 
     # Background disc — clear out anything from rings that bled inward.
-    draw.ellipse(_bbox(_INNER_DISC_R), fill=bg, outline=style.primary_accent_fill())
+    draw.ellipse(_bbox(_INNER_DISC_R), fill=bg, outline=accent)
 
-    # Day-of-week, top of disc
+    # --- Big date numeral, centred vertically on the disc ---
+    day_str = str(today.day)
+    day_font = (style.font_date_number or font_bold)(70)
+    day_bbox = draw.textbbox((0, 0), day_str, font=day_font)
+    day_w = day_bbox[2] - day_bbox[0]
+    day_h = day_bbox[3] - day_bbox[1]
+    day_x = _CENTER_X - day_w // 2 - day_bbox[0]
+    day_y = _CENTER_Y - day_h // 2 - day_bbox[1]
+    draw.text((day_x, day_y), day_str, font=day_font, fill=fg)
+
+    gap = 8  # vertical breathing room between disc lines
+    day_top = _CENTER_Y - day_h // 2
+    day_bottom = _CENTER_Y + day_h // 2
+
+    # --- Day-of-week label, sitting above the numeral ---
     dow = now.strftime("%A").upper()
     dow_font = font_medium(13)
-    dow_w = text_width(draw, dow, dow_font)
-    draw.text(
-        (_CENTER_X - dow_w // 2, _CENTER_Y - 70),
-        dow,
-        font=dow_font,
-        fill=style.primary_accent_fill(),
-    )
+    dow_bbox = draw.textbbox((0, 0), dow, font=dow_font)
+    dow_w = dow_bbox[2] - dow_bbox[0]
+    dow_h = dow_bbox[3] - dow_bbox[1]
+    dow_x = _CENTER_X - dow_w // 2 - dow_bbox[0]
+    dow_y = day_top - gap - dow_h - dow_bbox[1]
+    draw.text((dow_x, dow_y), dow, font=dow_font, fill=accent)
 
-    # Big date numeral, centred
-    day_str = str(today.day)
-    day_font = (style.font_date_number or font_bold)(72)
-    day_w = text_width(draw, day_str, day_font)
-    day_h = text_height(day_font)
-    draw.text(
-        (_CENTER_X - day_w // 2, _CENTER_Y - day_h // 2 - 6),
-        day_str,
-        font=day_font,
-        fill=fg,
-    )
-
-    # Month name below numeral
+    # --- Month label, sitting below the numeral ---
     month = today.strftime("%B").upper()
-    month_font = font_medium(12)
-    month_w = text_width(draw, month, month_font)
-    draw.text(
-        (_CENTER_X - month_w // 2, _CENTER_Y + 28),
-        month,
-        font=month_font,
-        fill=fg,
-    )
+    month_font = font_medium(13)
+    month_bbox = draw.textbbox((0, 0), month, font=month_font)
+    month_w = month_bbox[2] - month_bbox[0]
+    month_h = month_bbox[3] - month_bbox[1]
+    month_x = _CENTER_X - month_w // 2 - month_bbox[0]
+    month_y = day_bottom + gap - month_bbox[1]
+    draw.text((month_x, month_y), month, font=month_font, fill=fg)
 
-    # Weather summary at the bottom of the disc
+    # --- Weather summary, anchored just below the month line ---
     if weather is not None:
         temp_str = f"{weather.current_temp:.0f}°"
         if weather.high is not None and weather.low is not None:
             temp_str += f"   H {weather.high:.0f}°  L {weather.low:.0f}°"
         wx_font = font_regular(11)
-        wx_w = text_width(draw, temp_str, wx_font)
-        draw.text(
-            (_CENTER_X - wx_w // 2, _CENTER_Y + 52),
-            temp_str,
-            font=wx_font,
-            fill=fg,
-        )
+        wx_bbox = draw.textbbox((0, 0), temp_str, font=wx_font)
+        wx_w = wx_bbox[2] - wx_bbox[0]
+        wx_x = _CENTER_X - wx_w // 2 - wx_bbox[0]
+        wx_y = month_y + month_h + 6 - wx_bbox[1]
+        draw.text((wx_x, wx_y), temp_str, font=wx_font, fill=fg)
 
 
 # ---------------------------------------------------------------------------

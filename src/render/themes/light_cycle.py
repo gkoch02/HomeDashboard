@@ -25,7 +25,7 @@ holds today's date and weather summary.
 
 from __future__ import annotations
 
-from src.render.fonts import dm_bold, dm_medium, dm_regular, dm_semibold
+from src.render.fonts import dm_bold, dm_medium, dm_regular, dm_semibold, righteous
 from src.render.theme import (
     INKY_BLUE,
     INKY_YELLOW,
@@ -62,6 +62,10 @@ def light_cycle_theme() -> Theme:
             font_bold=dm_bold,
             font_title=dm_bold,
             font_section_label=dm_bold,
+            # Righteous (OFL display sans) for the hero day-of-month numeral —
+            # heavier strokes than DM Sans Bold so the digit reads cleanly at
+            # 70+ pt against the inner disc.
+            font_date_number=righteous,
             label_font_size=11,
             label_font_weight="bold",
             accent_primary=INKY_YELLOW,
