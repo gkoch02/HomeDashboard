@@ -69,11 +69,14 @@ from src.render.theme import ComponentRegion, ThemeStyle
 
 _PAD_X = 24
 
-# Header band (masthead + date line)
+# Header band (masthead + date line).
+# Triple-rule under the masthead spans y ∈ [_MASTHEAD_RULE_Y, _MASTHEAD_RULE_Y+9]
+# (lines at y, y+5, y+9).  The kicker baseline must clear the bottom rule line
+# by a comfortable margin so descenders don't intersect the rule.
 _MASTHEAD_TOP = 14
 _MASTHEAD_RULE_Y = 38
-_DATELINE_KICKER_Y = 46
-_DATELINE_BIG_Y = 64
+_DATELINE_KICKER_Y = 52  # was 46 — overlapped the bottom-most rule at y=47
+_DATELINE_BIG_Y = 68
 _HEADER_BOTTOM_RULE_Y = 110
 
 # Body band (four editorial sections in a 2×2 grid).  The mid-rule lands a
@@ -615,16 +618,16 @@ def _draw_garden(
         delta = day_length_delta(today, latitude, longitude)
         if delta is not None:
             seconds = int(delta.total_seconds())
-            sign = "lengthens" if seconds > 0 else "shortens"
-            mag = abs(seconds)
-            mins, secs = divmod(mag, 60)
-            duration = f"{mins}m {secs:02d}s" if mins else f"{secs}s"
-            draw.text(
-                (x, y),
-                f"Sun {sign} by {duration} daily",
-                font=body_font,
-                fill=style.fg,
-            )
+            if seconds == 0:
+                # Solstice (or precision floor) — no measurable change today.
+                day_phrase = "Day length unchanged today"
+            else:
+                sign = "lengthens" if seconds > 0 else "shortens"
+                mag = abs(seconds)
+                mins, secs = divmod(mag, 60)
+                duration = f"{mins}m {secs:02d}s" if mins else f"{secs}s"
+                day_phrase = f"Sun {sign} by {duration} daily"
+            draw.text((x, y), day_phrase, font=body_font, fill=style.fg)
             y += text_height(body_font) + 4
 
     shower, days = next_meteor_shower(today)

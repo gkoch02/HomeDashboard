@@ -13,7 +13,6 @@ from src.dummy_data import generate_dummy_data
 from src.render.canvas import render_dashboard
 from src.render.components.constellation_map_panel import (
     _alt_az_to_chart_xy,
-    _is_dark_sky,
     _resolve_observation_time,
     _star_radius,
     _utc,
@@ -204,16 +203,6 @@ class TestResolveObservationTime:
         assert _resolve_observation_time(dt, dt.date(), 0.0, 0.0) == dt
 
 
-class TestIsDarkSky:
-    def test_night_at_nyc_is_dark(self):
-        night = datetime(2026, 4, 23, 4, 0, tzinfo=timezone.utc)  # 0 EDT
-        assert _is_dark_sky(night, night.date(), NYC_LAT, NYC_LON) is True
-
-    def test_assumes_dark_without_coordinates(self):
-        dt = datetime(2026, 4, 23, 12, 0, tzinfo=timezone.utc)
-        assert _is_dark_sky(dt, dt.date(), None, None) is True
-
-
 # ---------------------------------------------------------------------------
 # Drawing helpers
 # ---------------------------------------------------------------------------
@@ -221,7 +210,17 @@ class TestIsDarkSky:
 
 class TestStarRadius:
     def test_brightest_largest(self):
-        assert _star_radius(-1.5) > _star_radius(0.5) > _star_radius(2.5) > _star_radius(4.5)
+        # Four monotonic tiers: very bright (mag<0), bright (mag<1),
+        # medium (mag<2), dim (mag>=2).  The dim tier is a single pixel.
+        assert _star_radius(-1.5) > _star_radius(0.5) > _star_radius(1.5) > _star_radius(4.5)
+
+    def test_mag_2_to_3_stars_are_pixel_dot(self):
+        """Mag 2-3 stars round to the dim-tier pixel size, not medium.
+
+        Guards against the old bug where mag<2.0 and mag<3.0 both returned 2.
+        """
+        assert _star_radius(2.5) == 1
+        assert _star_radius(2.99) == 1
 
     def test_dim_stars_are_pixel_dot(self):
         assert _star_radius(4.5) == 1

@@ -429,8 +429,12 @@ def _draw_now_glyph_and_needle(
     gx, gy = _polar(_GLYPH_R + 22, now_hr)
     bbox = draw.textbbox((0, 0), glyph, font=glyph_font)
     gw, gh = bbox[2] - bbox[0], bbox[3] - bbox[1]
-    # Clear a small disc behind the glyph so it reads against the twilight band
     halo_r = max(gw, gh) // 2 + 5
+    # Clamp the glyph y so its halo never bleeds into the footer band — at
+    # hour 12 (noon, bottom of the dial) the radial position would otherwise
+    # land within ~4 px of the footer label baseline.
+    footer_top = _CENTER_Y + (480 - _CENTER_Y - 28) - 4  # footer label sits at region.y + h - 28
+    gy = min(gy, footer_top - halo_r)
     draw.ellipse(
         (gx - halo_r, gy - halo_r, gx + halo_r, gy + halo_r),
         fill=style.bg,
@@ -496,8 +500,11 @@ def _draw_footer_legend(
     def _fmt(hr: float | None) -> str:
         if hr is None:
             return "—"
-        h = int(hr) % 24
-        m = int(round((hr - int(hr)) * 60)) % 60
+        # Round to the nearest minute up-front, then split into h/m so a
+        # 23:59:30 → 60-minute carry advances the hour instead of producing
+        # "11:00p" while h stays 23.
+        total_minutes = int(round(hr * 60.0)) % (24 * 60)
+        h, m = divmod(total_minutes, 60)
         suffix = "a" if h < 12 else "p"
         h12 = h % 12 or 12
         return f"{h12}:{m:02d}{suffix}"

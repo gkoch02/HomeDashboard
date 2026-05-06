@@ -35,7 +35,6 @@ from datetime import date, datetime, timedelta, timezone, tzinfo
 from PIL import ImageDraw
 
 from src.astronomy import (
-    SUNRISE_ALTITUDE,
     equatorial_to_horizontal,
     local_sidereal_time,
     moon_equatorial,
@@ -43,7 +42,7 @@ from src.astronomy import (
     sun_times,
 )
 from src.data.models import DashboardData
-from src.render.fonts import cinzel_regular, dm_medium, dm_regular, weather_icon
+from src.render.fonts import weather_icon
 from src.render.moon import moon_phase_glyph, moon_phase_name
 from src.render.primitives import text_height, text_width
 from src.render.star_catalog import (
@@ -51,7 +50,6 @@ from src.render.star_catalog import (
     LABELED_STARS,
     STARS,
     STARS_BY_NAME,
-    Star,
 )
 from src.render.theme import ComponentRegion, ThemeStyle
 
@@ -139,33 +137,6 @@ def _resolve_observation_time(
     return now_utc
 
 
-def _is_dark_sky(
-    now: datetime,
-    today: date,
-    latitude: float | None,
-    longitude: float | None,
-) -> bool:
-    """True when the sun is below the (refraction-corrected) horizon at *now*."""
-    if latitude is None or longitude is None or (latitude, longitude) == (0.0, 0.0):
-        return True  # No location data → assume the chart is meaningful
-
-    lst = local_sidereal_time(_utc(now), longitude)
-    # Compute sun's RA/Dec at *now* via the existing solar-declination helper —
-    # the equation-of-time gives the apparent solar noon offset, which drives RA.
-    from src.astronomy import _julian_day_full, _solar_declination_and_eot
-
-    jd = _julian_day_full(_utc(now))
-    decl_deg, eot_min = _solar_declination_and_eot(jd)
-    # RA(sun) ≈ LST_at_solar_noon - 12h; equivalently RA(sun) hours = (mean
-    # solar time hour at Greenwich + offset) — but we only need alt sign so
-    # use the direct hour-angle formulation instead.
-    # Hour angle of the sun ≈ LST - RA(sun); we recover RA via equation of time.
-    sun_ra_deg = (lst - 15.0 * (-eot_min / 60.0 + 12.0)) % 360.0  # crude — see below
-    sun_ra_hours = sun_ra_deg / 15.0
-    alt, _ = equatorial_to_horizontal(sun_ra_hours, decl_deg, lst, latitude)
-    return alt < SUNRISE_ALTITUDE
-
-
 # ---------------------------------------------------------------------------
 # Drawing helpers
 # ---------------------------------------------------------------------------
@@ -179,15 +150,12 @@ def _star_radius(mag: float) -> int:
         return 3
     if mag < 2.0:
         return 2
-    if mag < 3.0:
-        return 2
     return 1
 
 
 def _draw_chart_chrome(
     draw: ImageDraw.ImageDraw,
     fg,
-    bg,
     accent_primary,
     accent_secondary,
     style: ThemeStyle,
@@ -234,9 +202,6 @@ def _draw_chart_chrome(
     for letter, lx, ly in cardinals:
         lw = text_width(draw, letter, label_font)
         draw.text((lx - lw // 2, ly), letter, font=label_font, fill=fg)
-
-    # bg used implicitly via canvas fill; reference it so linters don't flag.
-    _ = bg
 
 
 def _draw_constellation_lines(
@@ -398,10 +363,10 @@ def _draw_footer(
     draw: ImageDraw.ImageDraw,
     region: ComponentRegion,
     today: date,
-    obs_time: datetime,
     weather,
     latitude: float | None,
     longitude: float | None,
+    moon_visible: bool,
     style: ThemeStyle,
     fg,
     accent,
@@ -421,9 +386,14 @@ def _draw_footer(
     loc = "  ·  ".join(loc_parts) if loc_parts else "OBSERVER UNSET"
     draw.text((region.x + _PAD_X, fy), loc, font=bold_font, fill=fg)
 
-    # Right side: tonight's moon + next meteor shower
+    # Right side: tonight's moon + next meteor shower.  When the moon is below
+    # the horizon for *obs_time*, qualify the phase so the reader doesn't
+    # search the disc for a glyph that isn't there.
     parts: list[str] = []
-    parts.append(f"Moon · {moon_phase_name(today)}")
+    moon_label = f"Moon · {moon_phase_name(today)}"
+    if not moon_visible:
+        moon_label += " · below horizon"
+    parts.append(moon_label)
     shower, days = next_meteor_shower(today)
     if days == 0:
         parts.append(f"{shower.name} tonight")
@@ -439,10 +409,6 @@ def _draw_footer(
         font=body_font,
         fill=accent,
     )
-
-    # Reference unused obs_time intentionally — present in the signature so
-    # future enhancements (e.g. tonight's astronomical-midnight LST) have it.
-    _ = obs_time
 
 
 # ---------------------------------------------------------------------------
@@ -483,10 +449,11 @@ def draw_constellation_map(
     _draw_header(draw, region, obs_time, tz, style, fg)
 
     # Disc chrome (horizon, altitude rings, cardinal labels)
-    _draw_chart_chrome(draw, fg, bg, accent_primary, accent_secondary, style)
+    _draw_chart_chrome(draw, fg, accent_primary, accent_secondary, style)
 
     # Project every catalogue star to chart coordinates (skipping ones below
     # the horizon).
+    moon_visible = False
     if latitude is not None and longitude is not None and (latitude, longitude) != (0.0, 0.0):
         lst = local_sidereal_time(obs_time, longitude)
         star_xy: dict[str, tuple[int, int]] = {}
@@ -520,8 +487,9 @@ def draw_constellation_map(
                 draw, cname, star_xy, CONSTELLATIONS[cname], style, accent_primary
             )
 
-        # Moon
-        _draw_moon(draw, today, obs_time, latitude, longitude, style, fg, bg)
+        # Moon — record visibility so the footer can flag a below-horizon moon
+        # rather than print a phase line that doesn't match the disc.
+        moon_visible = _draw_moon(draw, today, obs_time, latitude, longitude, style, fg, bg)
     else:
         # No coordinates → render an explanatory message inside the disc.
         msg_font = style.font_medium(13)
@@ -539,14 +507,11 @@ def draw_constellation_map(
         draw,
         region,
         today,
-        obs_time,
         weather,
         latitude,
         longitude,
+        moon_visible,
         style,
         fg,
         accent_primary,
     )
-
-    # Type-pin the lazy imports so static-analysis sees them as referenced.
-    _ = (Star, dm_regular, dm_medium, cinzel_regular)

@@ -242,7 +242,14 @@ _J2000 = 2451545.0
 
 
 def _julian_day_full(dt: datetime) -> float:
-    """Return the Julian Day for a full timezone-aware datetime (UTC inside)."""
+    """Return the Julian Day for a full timezone-aware datetime (UTC inside).
+
+    Naive datetimes are interpreted as UTC.  Callers that hold a naive
+    *local* datetime must convert it to aware (or to UTC) first — passing a
+    naive local time will silently produce a JD offset by the local
+    UTC-offset, and every downstream sidereal-time / coordinate-transform
+    result will inherit that error.
+    """
     if dt.tzinfo is not None:
         ut = dt.astimezone(timezone.utc)
     else:
@@ -307,8 +314,10 @@ def equatorial_to_horizontal(
 def moon_equatorial(dt: datetime) -> tuple[float, float]:
     """Compute the moon's geocentric (RA hours, Dec deg) at *dt*.
 
-    Uses Schlyter's simplified algorithm — good to ~1–2 arcminutes, which is
-    well under one chart pixel for a sky-disc that subtends 90° per ~200 px.
+    Uses Schlyter's simplified algorithm without the perturbation terms —
+    typical accuracy is around 5 arcminutes (~0.1°), well within one chart
+    pixel for a sky-disc that subtends 90° per ~200 px.  Adequate for a
+    visual sky chart; not accurate enough for ephemeris-grade work.
     """
     jd = _julian_day_full(dt)
     d = jd - 2451543.5  # Schlyter's "day-number" epoch (2000-01-01 00:00 UT)

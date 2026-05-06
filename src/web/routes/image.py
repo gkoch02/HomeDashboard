@@ -19,23 +19,30 @@ image_bp = Blueprint("image", __name__)
 _SAFE_NAME_RE = re.compile(r"^[a-z0-9_]+$")
 
 
-def _output_dir() -> Path:
-    """Runtime artefacts directory (latest.png lives here)."""
-    configured = Path(current_app.config["OUTPUT_DIR"])
-    if configured.is_absolute():
-        return configured
-    return Path(current_app.root_path).parent.parent / configured
+def _resolve_dir(config_key: str, default_relative: tuple[str, ...]) -> Path:
+    """Resolve a Flask app-config dir, with a project-relative default.
 
-
-def _preview_dir() -> Path:
-    """Committed theme-preview asset directory (assets/previews)."""
-    configured = current_app.config.get("PREVIEW_DIR")
+    Reads ``current_app.config[config_key]`` if set; otherwise falls back to
+    ``<repo_root>/<default_relative...>``.  Relative configured paths are
+    likewise resolved against ``<repo_root>``.
+    """
+    configured = current_app.config.get(config_key)
     if configured is not None:
         candidate = Path(configured)
         if candidate.is_absolute():
             return candidate
         return Path(current_app.root_path).parent.parent / candidate
-    return Path(current_app.root_path).parent.parent / "assets" / "previews"
+    return Path(current_app.root_path).parent.parent.joinpath(*default_relative)
+
+
+def _output_dir() -> Path:
+    """Runtime artefacts directory (latest.png lives here)."""
+    return _resolve_dir("OUTPUT_DIR", ("output",))
+
+
+def _preview_dir() -> Path:
+    """Committed theme-preview asset directory (assets/previews)."""
+    return _resolve_dir("PREVIEW_DIR", ("assets", "previews"))
 
 
 @image_bp.route("/image/latest")
