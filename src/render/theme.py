@@ -142,6 +142,10 @@ class ThemeLayout:
     astronomy: ComponentRegion = field(
         default_factory=lambda: ComponentRegion(0, 0, 800, 480, visible=False)
     )
+    # Used by the ``light_cycle`` theme for the full-canvas radial 24-hour clock.
+    light_cycle: ComponentRegion = field(
+        default_factory=lambda: ComponentRegion(0, 0, 800, 480, visible=False)
+    )
     draw_order: list[str] = field(
         default_factory=lambda: ["header", "week_view", "weather", "birthdays", "info"]
     )

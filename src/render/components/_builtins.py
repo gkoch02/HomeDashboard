@@ -18,6 +18,7 @@ from src.render.components import (
     fuzzyclock_panel,
     header,
     info_panel,
+    light_cycle_panel,
     message_panel,
     monthly_panel,
     moonphase_panel,
@@ -309,6 +310,20 @@ def _astronomy(ctx: RenderContext) -> None:
         ctx.today,
         ctx.now,
         region=ctx.layout.astronomy,
+        style=ctx.style,
+        latitude=ctx.latitude,
+        longitude=ctx.longitude,
+    )
+
+
+@register_component("light_cycle")
+def _light_cycle(ctx: RenderContext) -> None:
+    light_cycle_panel.draw_light_cycle(
+        ctx.draw,
+        ctx.data,
+        ctx.today,
+        ctx.now,
+        region=ctx.layout.light_cycle,
         style=ctx.style,
         latitude=ctx.latitude,
         longitude=ctx.longitude,
