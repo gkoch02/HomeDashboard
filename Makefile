@@ -1,4 +1,4 @@
-.PHONY: dry test coverage deploy setup install check previews previews-split version lint fmt docs-check \
+.PHONY: dry test coverage deploy setup install check previews previews-split banner version lint fmt docs-check \
         pi-install install-display-drivers pi-enable pi-status pi-logs configure \
         web-enable web-status web-logs
 
@@ -36,6 +36,9 @@ previews: _check-venv
 
 previews-split: _check-venv
 	$(VENV) scripts/build_split_previews.py
+
+banner: _check-venv
+	$(VENV) scripts/build_banner.py
 
 test: _check-venv
 	$(VENV) -m pytest tests/ -v
