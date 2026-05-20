@@ -29,8 +29,11 @@ make configure      # Run deploy/configure.sh interactive setup
 make web-enable     # Install and start web UI systemd service (run ON Pi)
 make web-status     # Web service status + recent log tail (run ON Pi)
 make web-logs       # Tail output/dashboard-web.log (run ON Pi)
-ruff check src/ tests/                         # Lint
-ruff format src/ tests/                        # Format
+make banner         # Regenerate the eInk-faithful README logo → assets/banner.png
+make lint           # ruff check src/ tests/
+make fmt            # ruff format src/ tests/
+ruff check src/ tests/                         # Lint (direct invocation)
+ruff format src/ tests/                        # Format (direct invocation)
 ```
 
 ## Tech Stack
@@ -178,7 +181,8 @@ docs/
 tests/                         # test files, extensive mocking
 fonts/                         # Bundled TTF fonts
 deploy/                        # Systemd service + timer + configure.sh + logrotate
-scripts/                       # Build/dev helpers: build_split_previews.py, check_docs.py
+scripts/                       # Build/dev helpers: build_split_previews.py, check_docs.py, build_banner.py
+assets/                        # Tracked image assets: banner.png (README hero) + previews/ (theme PNGs)
 state/                         # Runtime state: cache, breaker, quota, sync tokens (git-ignored)
 output/                        # Generated PNGs + logs + health marker (git-ignored except latest.png)
 credentials/                   # Google service account JSON (git-ignored)
@@ -434,3 +438,4 @@ default to `None` and fall back gracefully so adding a new field never breaks ex
 - The web `event_store` (`state/web_events.jsonl`) is append-only JSONL and `append_event()` serialises concurrent writes through a module-level `threading.Lock()` so two simultaneous web requests can't interleave half-lines into the file.
 - `scripts/build_split_previews.py` (`make previews-split`) combines `assets/previews/theme_<name>.png` and `assets/previews/theme_<name>_inky.png` into `assets/previews/theme_<name>_split.png` for the docs. Each theme picks an orientation from `_THEME_SPLIT_MODES` (anti-diagonal default, plus `main_diagonal`, `vertical`, `horizontal`); the orientation is chosen to keep each theme's Inky color story visible — vertical for centered hero content, horizontal for banded layouts (weather strip, scorecard). Cross-reference `_INKY_THEME_KEY_COLORS` in `canvas.py` when adding entries.
 - `make previews` regenerates Waveshare previews for the curated theme list embedded in the Makefile rule (not every concrete theme); the Inky `_inky` previews and the moon-phase preview date pinning live in their own scripts/CI steps. Don't expect `make previews` alone to refresh every PNG referenced by `docs/themes.md`.
+- `scripts/build_banner.py` (`make banner`) renders the README hero logo at `assets/banner.png`. It is a standalone PIL script that does **not** import the rest of the project — it draws a 1600×400 wordmark + tagline + motif strip at 8-bit greyscale and then quantizes to 1-bit via Floyd-Steinberg, mirroring `render/quantize.py::quantize_for_display()` so the on-screen result looks like authentic eInk output. The render is deterministic (no `datetime.now()`); re-running produces byte-identical output.
