@@ -172,9 +172,10 @@ def _draw_weather_block(draw: ImageDraw.ImageDraw, origin: tuple[int, int]) -> N
         width=4,
     )
 
-    # Compact label under the glyph.
-    label = "CLEAR · 72 / 51"
-    draw.text((x0, y0 + 96), label, font=label_font, fill=BLACK)
+    # Label sits below the sun glyph (glyph bottom is y0+108 because the
+    # weather-icons font has a 15-px top margin baked into the ink box).
+    label = "CLEAR · HIGH 72 / LOW 51"
+    draw.text((x0, y0 + 116), label, font=label_font, fill=BLACK)
 
 
 def _draw_moon(draw: ImageDraw.ImageDraw, center: tuple[int, int], radius: int) -> None:
