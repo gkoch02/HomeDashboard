@@ -35,6 +35,9 @@ make docs-check   # validate markdown links and theme inventories
 
 ## Adding a Theme
 
+v5 themes self-register via a `register_theme(...)` call at the bottom of their own
+module — there is no central registry dict to edit.
+
 1. Create `src/render/themes/my_theme.py`.
 2. Return a `Theme` built from the current theme API:
 
@@ -60,13 +63,36 @@ def my_theme() -> Theme:
     return Theme(name="my_theme", style=style, layout=layout)
 ```
 
-3. Register the theme in `src/render/theme.py` by adding it to `_THEME_REGISTRY`.
-4. If it should never appear in rotation, add it to `_EXCLUDED_FROM_POOL` in `src/render/random_theme.py`.
-5. If the theme is user-facing, update:
+3. At the bottom of the same module, register the theme and its Inky palette pair:
+
+```python
+def _register() -> None:
+    from src.render.theme import INKY_BLUE, INKY_RED
+    from src.render.themes.registry import register_theme
+
+    register_theme("my_theme", my_theme, inky_palette=(INKY_BLUE, INKY_RED))
+
+_register()
+```
+
+4. Add the module to `src/render/themes/__init__.py` so the side-effect import fires
+   on package load.
+5. If it should never appear in random rotation (utility / diagnostic views), add the
+   name to `_EXCLUDED_FROM_POOL` in `src/render/random_theme.py`.
+6. Regenerate the pixel-hash baseline — the snapshot guard fails on any unregistered
+   theme:
+
+```bash
+UPDATE_SNAPSHOTS=1 pytest tests/test_theme_pixel_snapshots.py
+```
+
+   Commit the updated `tests/snapshots/theme_pixel_hashes.json` alongside the source.
+
+7. If the theme is user-facing, update:
    - `docs/themes.md` (add a `#### <name>` section with a short description and both
      the Waveshare and Inky preview images — see existing entries for the pattern)
    - any theme lists in config or setup docs that are intended to be exhaustive
-6. Regenerate the preview PNGs that `docs/themes.md` embeds — see
+8. Regenerate the preview PNGs that `docs/themes.md` embeds — see
    [docs/previews.md](docs/previews.md) for the Waveshare and Inky commands.
    For a quick sanity check before committing previews:
 
@@ -74,17 +100,45 @@ def my_theme() -> Theme:
 venv/bin/python -m src.main --dry-run --dummy --theme my_theme
 ```
 
-For greyscale custom themes, set `ThemeLayout.canvas_mode = "L"` and use `fg=0, bg=255` in `ThemeStyle`.
+For greyscale custom themes, set `ThemeLayout.canvas_mode = "L"` and use `fg=0, bg=255` in `ThemeStyle` (or `fg=255, bg=0` for a dark canvas — `bg=1` is near-black in L mode).
 
 ## Adding a Fetcher or Data Source
 
-1. Create the fetcher module in `src/fetchers/`.
-2. Return typed data models from `src/data/models.py`.
-3. Add cache serialization support in `src/fetchers/cache.py`.
-4. Integrate the source into `src/data_pipeline.py`.
-5. Extend `DashboardData` if the source becomes part of the render pipeline.
-6. Add tests that mock all external I/O.
-7. Update operator docs if the source introduces new config or new UI behavior.
+v5 fetchers self-register via a `register_fetcher(...)` call. The `DataPipeline`,
+cache layer, circuit breaker, and quota tracker all iterate the registry — no edits
+to `data_pipeline.py` or `cache.py` are required.
+
+1. Create the fetcher module in `src/fetchers/` with a function that takes the
+   relevant config (or the full `Config`) and returns a serialisable value.
+2. Return typed data models from `src/data/models.py`; extend `DashboardData` if a
+   new top-level field is needed.
+3. At the bottom of the module, register the adapter:
+
+```python
+from src.fetchers.registry import Fetcher, register_fetcher
+
+def _ser(value): ...   # value → JSON-able primitives
+def _deser(blob): ...  # JSON-able → value
+
+register_fetcher(Fetcher(
+    name="my_source",
+    fetch=lambda ctx: my_source_fetch(ctx.cfg.my_source, tz=ctx.tz),
+    serialize=_ser,
+    deserialize=_deser,
+    ttl_minutes=lambda cfg: cfg.cache.my_source_ttl_minutes,
+    interval_minutes=lambda cfg: cfg.cache.my_source_fetch_interval,
+    enabled=lambda cfg: bool(cfg.my_source.api_key),
+    log_success=lambda v: f"Fetched my_source: {v}",
+))
+```
+
+4. Add `from src.fetchers import my_source as _my_source  # noqa: F401` to
+   `src/fetchers/__init__.py` so the side-effect import fires.
+5. Add tests that mock all external I/O.
+6. Update operator docs if the source introduces new config or new UI behavior.
+
+See `src/fetchers/calendar_caldav.py` plus the `_register()` block at the bottom of
+`src/fetchers/calendar.py` as the v5 reference.
 
 ## Adding a Config Option
 
