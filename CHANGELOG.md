@@ -47,6 +47,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - **Bundled OFL fonts** — Astloch (Regular + Bold), Audiowide
   (Regular), Righteous (Regular).  Each ships alongside its upstream
   `OFL.txt` license file under `fonts/`.
+- **eInk-faithful README logo banner** — `scripts/build_banner.py`
+  (`make banner`) renders a 1600×400 hero image at `assets/banner.png`
+  combining a Maratype wordmark, a DM Sans tagline, and a compressed
+  motif strip; output is quantized to 1-bit with Floyd-Steinberg dither
+  (mirroring `render/quantize.py::quantize_for_display()`) so the
+  banner reads as authentic eInk on screen.  Standalone PIL script — no
+  imports from the rest of the project — and deterministic (no
+  `datetime.now()`), so re-running produces byte-identical output.
 
 ### Changed
 
@@ -76,6 +84,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   non-leap years (the `except ValueError: continue` branch) or crash
   on the year-+1 rollover.  Both branches now follow the convention
   `birthday_bar.py` already uses (Feb 29 → Feb 28 in non-leap years).
+- **README banner — sun glyph / weather label overlap** in
+  `scripts/build_banner.py`.  The weather-icons font for the sunny
+  glyph carries a 15 px top margin and rays extending to `y0 + 108`,
+  but the "CLEAR" label was placed at `y0 + 96` so the text sat in
+  the same vertical band as the sun's lower-left rays.  Dropped the
+  label to `y0 + 116` so it clears the glyph.
 
 ## [5.0.0] — Pluggable & Polished
 
