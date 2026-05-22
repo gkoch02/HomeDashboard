@@ -135,7 +135,7 @@ def _draw_moon_row(
     style: ThemeStyle,
 ) -> None:
     """Draw the hero moon and 3 flanking moons per side."""
-    hero_size = 162
+    hero_size = 210
     hero_font = weather_icon(hero_size)
     hero_glyph = moon_phase_glyph(today)
 
@@ -150,12 +150,12 @@ def _draw_moon_row(
 
     # Flanking moons: offsets from center, sizes, and day deltas
     flanks = [
-        (-1, 50, -130),
-        (-2, 44, -205),
-        (-3, 36, -275),
-        (1, 50, 130),
-        (2, 44, 205),
-        (3, 36, 275),
+        (-1, 62, -152),
+        (-2, 54, -226),
+        (-3, 44, -294),
+        (1, 62, 152),
+        (2, 54, 226),
+        (3, 44, 294),
     ]
 
     label_font = playfair_regular(16)
@@ -350,9 +350,9 @@ def draw_moonphase(
     # Phase name
     y = _draw_phase_name(draw, today, cx, y, style)
 
-    # Hero moon + flanking moons (fixed 215px zone)
+    # Hero moon + flanking moons (fixed 251px zone)
     moon_row_y = y + 2
-    moon_row_h = 215
+    moon_row_h = 251
     _draw_moon_row(draw, today, cx, moon_row_y, moon_row_h, style)
     y = moon_row_y + moon_row_h + 4
 
