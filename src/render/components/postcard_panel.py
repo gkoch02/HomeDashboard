@@ -176,34 +176,68 @@ def _draw_scene(
     today: date,
     now: datetime,
 ) -> None:
+    """Painter's-algorithm scene composition.
+
+    Drawing order, back to front, follows what the viewer should see in
+    a real landscape:
+
+      1. Sky gradient (background)
+      2. Fog bands (atmospheric, sits within the sky)
+      3. Stars (deep sky on clear/partly nights)
+      4. Sun / moon (still sky — must draw BEFORE mountains so the
+         distant ridge eclipses them at the horizon, the way it does
+         in nature)
+      5. Mountains (far + near silhouettes occlude the sky elements)
+      6. Water surface (foreground gradient + ripples)
+      7. Water reflection of sun/moon (painted ON the water surface,
+         so it has to come after step 6)
+      8. Clouds (in front of distant mountains, in front of the sun)
+      9. Foreground shore + trees + pebbles
+     10. Weather overlays (rain, snow, lightning) — atmospheric, in
+         front of everything except active "wildlife" markers
+     11. Sailboat + birds — narrative accents on top
+    """
     icon = data.weather.current_icon if data.weather is not None else None
     kind, is_night = _scene_kind(icon)
+    horizon_y = rect[1] + int((rect[3] - rect[1]) * _HORIZON_Y_FRAC)
 
+    # 1–2. Sky + fog.
     _draw_sky(image, rect, kind, is_night, today, now)
     if kind == "fog":
         _draw_fog_bands(image, rect, today)
-    horizon_y = rect[1] + int((rect[3] - rect[1]) * _HORIZON_Y_FRAC)
-    _draw_distant_mountains(image, rect, horizon_y, today)
-    _draw_water(image, rect, horizon_y, kind)
-    _draw_foreground_shore(image, rect, horizon_y, today)
+
+    # 3–4. Sky-resident celestial bodies (drawn BEHIND mountains).
+    sun_cy = horizon_y - 60 * SS
+    moon_cy = horizon_y - 70 * SS
+    source_cx = rect[0] + (rect[2] - rect[0]) // 3
     if kind in ("clear", "partly") and not is_night:
-        sun_cy = horizon_y - 60 * SS
         _draw_sun(image, rect, sun_cy, today)
-        # Bright sun → broken vertical shimmer on the water below.
-        source_cx = rect[0] + (rect[2] - rect[0]) // 3
+    elif kind in ("clear", "partly") and is_night:
+        _draw_stars(image, rect, horizon_y, today)
+        _draw_moon(image, rect, moon_cy, today)
+
+    # 5. Mountains occlude the sky elements above.
+    _draw_distant_mountains(image, rect, horizon_y, today)
+
+    # 6–7. Water surface + sun/moon reflection on it.
+    _draw_water(image, rect, horizon_y, kind)
+    if kind in ("clear", "partly") and not is_night:
         _draw_water_reflection(
             image, rect, horizon_y, source_cx=source_cx, source_cy=sun_cy, today=today
         )
     elif kind in ("clear", "partly") and is_night:
-        _draw_stars(image, rect, horizon_y, today)
-        moon_cy = horizon_y - 70 * SS
-        _draw_moon(image, rect, moon_cy, today)
-        source_cx = rect[0] + (rect[2] - rect[0]) // 3
         _draw_water_reflection(
             image, rect, horizon_y, source_cx=source_cx, source_cy=moon_cy, today=today
         )
+
+    # 8. Clouds — in front of distant peaks, in front of the sun.
     if kind == "partly" or kind == "overcast":
         _draw_clouds(image, rect, kind, today)
+
+    # 9. Foreground silhouette (shore + trees + pebbles).
+    _draw_foreground_shore(image, rect, horizon_y, today)
+
+    # 10. Weather overlays.
     if kind == "rain" or kind == "storm":
         _draw_clouds(image, rect, "overcast", today, dark=True)
         _draw_rain_streaks(image, rect, today, heavy=(kind == "storm"))
@@ -212,11 +246,10 @@ def _draw_scene(
     if kind == "snow":
         _draw_clouds(image, rect, "overcast", today)
         _draw_snowflakes(image, rect, today)
+
+    # 11. Narrative accents — drawn last so they always read clearly.
     if kind in ("clear", "partly") and not is_night:
         _draw_birds(image, rect, today)
-    # Sailboat silhouette on calm water (clear or partly cloudy daytime
-    # only — rough water in storms / rain wouldn't carry a small craft).
-    if kind in ("clear", "partly") and not is_night:
         _draw_sailboat(image, rect, horizon_y, today)
 
 
