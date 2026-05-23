@@ -179,6 +179,8 @@ Rules that reference weather or calendar data silently skip on the first boot (n
 |---|---|---|
 | `air_quality` | indoor/outdoor AQI dashboard | PurpleAir-first full-screen layout |
 | `almanac` | editorial daily reference | Old-Farmer's-Almanac front page: ornamental masthead with Roman-numeral volume, big editorial dateline, four bordered sections in a 2×2 grid (Heavens, From the Sky, Week Ahead, Next in the Garden), and a footer aphorism with author in small caps. Combines weather, astronomy, moon, calendar, birthdays, and quote — no new fetcher. |
+| `halftone` | contemplative weather plate | Procedurally-drawn dithered weather illustration (sun, clouds, rain stipple, thunderstorm, snow, fog, or moon-at-current-phase) as a hero engraving; below it a typeset margin band with temperature, condition, location, next event, and quote. Floyd-Steinberg quantization turns the procedural greyscale gradients into engraving-style halftone. Pure-Python — no external assets. |
+| `trends` | long-context dashboard | Five stacked sparkline rows: 24h temp, AQI scale, 7-day daylight, 14-day event density, 30-day moon. Bayer-filled area under each curve gives a clean halftone density read on eInk. First chart/graph theme; ordered-Bayer quantization preserves the regular dot pattern. |
 | `astronomy` | sky-tonight dashboard | Sunrise/sunset, civil/nautical/astronomical twilight, moon phase + next full/new, next meteor shower, dark-sky window. Uses `weather.latitude` / `weather.longitude` for twilight math (falls back gracefully without them). Pure-Python — no API calls. |
 | `constellation_map` | tonight's actual sky | Dark-canvas star chart projected for the user's location and the current moment. Renders ~45 named bright stars, seven recognisable northern constellations connected by lines, and the moon at its current alt/az. During daylight the chart auto-projects for tonight's solar midnight so it stays informative. Requires `weather.latitude` / `weather.longitude`; pure-Python sky math (no API). |
 | `timeline` | busy-day planning | Single-day hourly timeline |
@@ -243,6 +245,18 @@ Victorian broadsheet layout with serif typography and decorative rules.
 Old-Farmer's-Almanac front page in **Astloch** (blackletter masthead and dateline) + Playfair Display (body) + Cinzel (section labels and small caps). An ornamental masthead carries a Roman-numeral volume, day-of-year issue number, and the day's name; below it, the date is set in a large editorial line ("MAY 6, 2026") between two triple rules. The body splits into four bordered editorial sections in a 2×2 grid: **The Heavens** (sunrise/sunset, day length, today's lengthening or shortening, moon phase + illumination, next full moon), **From the Sky** (a short prose weather observation with wind direction, alerts, and high/low), **The Week Ahead** (today's first event plus the next few timed events and birthdays), and **Next in the Garden** (season + day-of-year, sun lengthening/shortening, next named meteor shower with ZHR). A triple rule and the day's quote close the page in italic small-caps; a row of small ornaments stamps the very bottom. Reuses every existing data source — weather, `src.astronomy`, `src.render.moon`, calendar, birthdays, quote — with no new fetcher. On Inky the rules, ornaments, bullets, and attribution all render in red.
 
 [![Almanac theme — Waveshare/Inky split](../assets/previews/theme_almanac_split.png)](../assets/previews/theme_almanac_split.png)
+
+#### halftone
+
+Procedurally-drawn dithered weather plate evoking a 19th-century natural-history engraving. The 800×320 hero region picks an illustration from the current OWM icon code: a rayed sun with halftone-graded sky (`01d`), a moon disc with smooth terminator shading and scattered stars (`01n`), overlapping cumulus for the partly-cloudy / overcast family (`02–04`), a dark cloud with stippled rain (`09`/`10`) or sharp lightning + heavy rain (`11`), a soft cloud with engraved snowflakes (`13`), or layered horizontal banding for fog (`50`). Below it, a 6-px ordered-Bayer rule separates a typeset margin band carrying the temperature numeral, condition in small caps, H/L/feels, next event, location, sunrise/sunset, and the daily quote. Drawn in 8-bit greyscale and quantized to 1-bit via Floyd-Steinberg — the smooth gradients become the engraving's halftone texture. On Inky the sun and moon pick up a warm yellow accent ring. Pure-Python, no external assets.
+
+[![Halftone theme — Waveshare/Inky split](../assets/previews/theme_halftone_split.png)](../assets/previews/theme_halftone_split.png)
+
+#### trends
+
+Stacked sparkline dashboard — the first chart/graph theme. A 32-px masthead carries today's date and current time; below it five evenly-stacked rows each visualise a different time series: **TEMP — 24h** (current observation + interpolated forecast across ±12 h), **AIR** (current AQI on a 6-zone health scale with progressive Bayer density per zone), **DAYLIGHT — 7d** (daily day-length for the next week, computed in-process via `src.astronomy`), **EVENTS — 14d** (per-day event count bars), and **MOON — 30d** (illumination curve through one synodic month, with the current phase glyph stamped at right). Each chart sits on a Bayer-filled area whose ordered dot pattern survives the eInk quantize step. Every row degrades gracefully when its data source is missing (no weather, no PurpleAir sensor, no lat/lon). On Inky the series render in blue with a yellow today-marker.
+
+[![Trends theme — Waveshare/Inky split](../assets/previews/theme_trends_split.png)](../assets/previews/theme_trends_split.png)
 
 #### today
 
@@ -413,13 +427,13 @@ Bundled font families used by the current built-in themes:
 | Font | Used by |
 |---|---|
 | Plus Jakarta Sans | default and general fallback |
-| DM Sans | `minimalist`, `weather`, `fuzzyclock`, `timeline`, `diags`, `monthly`, `countdown`, `astronomy`, `light_cycle`, `constellation_map` (margin) |
-| Playfair Display | `old_fashioned`, `qotd`, `moonphase`, `almanac` |
-| Cinzel | `fantasy`, `old_fashioned`, `moonphase` accents, `almanac` (section labels + small caps) |
+| DM Sans | `minimalist`, `weather`, `fuzzyclock`, `timeline`, `diags`, `monthly`, `countdown`, `astronomy`, `light_cycle`, `constellation_map` (margin), `trends` |
+| Playfair Display | `old_fashioned`, `qotd`, `moonphase`, `almanac`, `halftone` |
+| Cinzel | `fantasy`, `old_fashioned`, `moonphase` accents, `almanac` (section labels + small caps), `halftone` (small-caps labels) |
 | Righteous | `light_cycle` (centre date numeral) |
 | Audiowide | `constellation_map` (cardinal letters, star + constellation labels) |
 | Astloch | `almanac` (masthead + dateline character font) |
 | Space Grotesk | `air_quality`, `message`, `year_pulse`, `scorecard` |
-| Share Tech Mono / terminal fonts | `terminal`, `diags`, select utility text |
+| Share Tech Mono / terminal fonts | `terminal`, `diags`, `trends` (tabular numerals), select utility text |
 
 To regenerate the Waveshare and Inky preview images embedded above, see [Previews](previews.md).

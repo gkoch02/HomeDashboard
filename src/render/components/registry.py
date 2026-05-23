@@ -30,7 +30,7 @@ from dataclasses import dataclass
 from datetime import date, datetime
 from typing import Any, Callable
 
-from PIL import ImageDraw
+from PIL import Image, ImageDraw
 
 from src.data.models import DashboardData
 
@@ -51,6 +51,10 @@ class RenderContext:
     countdown_events: list | None = None
     latitude: float | None = None
     longitude: float | None = None
+    # Raw PIL Image backing ``draw``. Components that need pixel-level access
+    # (radial gradients, paste of L-mode sub-images) use this; the rest can
+    # ignore it.
+    image: Image.Image | None = None
 
 
 ComponentAdapter = Callable[[RenderContext], None]

@@ -214,6 +214,7 @@ def render_dashboard(
         countdown_events=countdown_events,
         latitude=latitude,
         longitude=longitude,
+        image=image,
     )
 
     # Config visibility overrides (show_weather etc.) respected regardless of draw_order

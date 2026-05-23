@@ -27,7 +27,7 @@ dry: _check-venv
 
 previews: _check-venv
 	@mkdir -p assets/previews
-	@for theme in agenda air_quality default diags fantasy fuzzyclock fuzzyclock_invert minimalist moonphase moonphase_invert old_fashioned qotd qotd_invert terminal timeline today weather year_pulse; do \
+	@for theme in agenda air_quality default diags fantasy fuzzyclock fuzzyclock_invert halftone minimalist moonphase moonphase_invert old_fashioned qotd qotd_invert terminal timeline today trends weather year_pulse; do \
 		echo "Generating preview for theme: $$theme"; \
 		$(VENV) -m src.main --dry-run --dummy --theme $$theme; \
 		cp output/latest.png assets/previews/theme_$$theme.png; \
