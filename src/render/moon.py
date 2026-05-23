@@ -66,6 +66,16 @@ def moon_phase_age(d: date) -> float:
     return diff % _SYNODIC_MONTH
 
 
+def is_waxing(d: date) -> bool:
+    """Return True if the moon is in the waxing half of its synodic cycle.
+
+    Waxing = age in the first half of the synodic month (new moon → full moon)
+    with the lit limb on the right; waning = second half (full → next new)
+    with the lit limb on the left.
+    """
+    return moon_phase_age(d) < _SYNODIC_MONTH / 2
+
+
 def moon_phase_name(d: date) -> str:
     """Return a human-readable phase name for the given date."""
     age = moon_phase_age(d)

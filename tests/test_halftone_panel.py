@@ -73,27 +73,27 @@ class TestHalftoneRegistration:
 
 class TestIllustrationKind:
     @pytest.mark.parametrize(
-        "icon,expected",
+        "icon,kind,is_night",
         [
-            ("01d", "sun"),
-            ("01n", "moon"),
-            ("02d", "partly_cloudy"),
-            ("02n", "partly_cloudy"),
-            ("03d", "partly_cloudy"),
-            ("04d", "overcast"),
-            ("09d", "rain"),
-            ("10d", "rain"),
-            ("10n", "rain"),
-            ("11d", "storm"),
-            ("13d", "snow"),
-            ("50d", "fog"),
-            (None, "missing"),
-            ("", "missing"),
-            ("zz", "missing"),
+            ("01d", "sun", False),
+            ("01n", "moon", True),
+            ("02d", "partly_cloudy", False),
+            ("02n", "partly_cloudy", True),
+            ("03d", "partly_cloudy", False),
+            ("04d", "overcast", False),
+            ("09d", "rain", False),
+            ("10d", "rain", False),
+            ("10n", "rain", True),
+            ("11d", "storm", False),
+            ("13d", "snow", False),
+            ("50d", "fog", False),
+            (None, "missing", False),
+            ("", "missing", False),
+            ("zz", "missing", False),
         ],
     )
-    def test_maps_icon_to_kind(self, icon, expected):
-        assert _illustration_kind(icon) == expected
+    def test_maps_icon_to_kind(self, icon, kind, is_night):
+        assert _illustration_kind(icon) == (kind, is_night)
 
 
 # ---------------------------------------------------------------------------
@@ -279,6 +279,59 @@ class TestNoWeatherFallback:
         theme = load_theme("halftone")
         img = render_dashboard(data, DisplayConfig(), theme=theme)
         assert img.size == (800, 480)
+
+
+def _hero_ink_count(img, *, x_range=(0, 800), y_range=(0, 280)) -> int:
+    """Count black-ink pixels in the given hero-region rectangle of a 1-bit image."""
+    x0, x1 = x_range
+    y0, y1 = y_range
+    return sum(1 for y in range(y0, y1) for x in range(x0, x1) if not img.getpixel((x, y)))
+
+
+class TestIllustrationInkCoverage:
+    """Each illustration kind must paint a meaningful amount of ink into the hero.
+
+    These guards catch silent regressions where an illustration helper
+    no-ops or paints solid white (which would still pass the render-doesn't-crash
+    smoke tests above).
+    """
+
+    def _render_with_icon(self, icon: str):
+        data = _data_with_icon(icon)
+        theme = load_theme("halftone")
+        return render_dashboard(data, DisplayConfig(), theme=theme)
+
+    def test_fog_covers_entire_hero(self):
+        img = self._render_with_icon("50d")
+        # The fog bands span the full width; sample five columns and confirm
+        # every one of them has substantial ink (the halftone of the grey
+        # bands).
+        for x in (40, 200, 400, 600, 760):
+            col_ink = sum(1 for y in range(20, 280) if not img.getpixel((x, y)))
+            assert col_ink > 30, f"fog column at x={x} only has {col_ink} ink pixels"
+
+    def test_lightning_produces_dark_center(self):
+        img = self._render_with_icon("11d")
+        # The lightning bolt is solid ink in a narrow vertical strip near the
+        # hero centre. Compare ink density inside that strip versus an equally
+        # wide strip well to one side.
+        centre = _hero_ink_count(img, x_range=(380, 430), y_range=(120, 280))
+        side = _hero_ink_count(img, x_range=(80, 130), y_range=(120, 280))
+        assert centre > side, (
+            f"lightning strip ({centre}) should hold more ink than the "
+            f"adjacent stormy-sky strip ({side})"
+        )
+
+    def test_overcast_renders_three_clouds(self):
+        img = self._render_with_icon("04d")
+        # Three layered clouds should leave ink across left, centre, and right
+        # thirds of the hero (none of them empty).
+        left = _hero_ink_count(img, x_range=(60, 260), y_range=(40, 250))
+        centre = _hero_ink_count(img, x_range=(300, 500), y_range=(40, 250))
+        right = _hero_ink_count(img, x_range=(540, 740), y_range=(40, 250))
+        assert left > 500
+        assert centre > 500
+        assert right > 500
 
 
 class TestRenderWithDummyData:

@@ -290,6 +290,27 @@ class TestRowFallbacks:
         # No lat/lon → DAYLIGHT row uses the fallback string.
         assert img.size == (800, 480)
 
+    def test_renders_with_only_latitude_set(self):
+        data = generate_dummy_data(now=FIXED_NOW)
+        theme = load_theme("trends")
+        img = render_dashboard(data, DisplayConfig(), theme=theme, latitude=NYC_LAT, longitude=None)
+        # One of the pair missing → DAYLIGHT row falls back rather than
+        # computing a daylight series with a nonsense longitude.
+        assert img.size == (800, 480)
+
+    def test_renders_with_only_longitude_set(self):
+        data = generate_dummy_data(now=FIXED_NOW)
+        theme = load_theme("trends")
+        img = render_dashboard(data, DisplayConfig(), theme=theme, latitude=None, longitude=NYC_LON)
+        assert img.size == (800, 480)
+
+    def test_renders_with_zero_coords(self):
+        """``(0, 0)`` is treated as 'unset' (matches the rest of the codebase)."""
+        data = generate_dummy_data(now=FIXED_NOW)
+        theme = load_theme("trends")
+        img = render_dashboard(data, DisplayConfig(), theme=theme, latitude=0.0, longitude=0.0)
+        assert img.size == (800, 480)
+
     def test_renders_with_no_air_quality(self):
         data = generate_dummy_data(now=FIXED_NOW)
         data = replace(data, air_quality=None)

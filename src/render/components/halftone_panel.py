@@ -25,7 +25,7 @@ from PIL import Image, ImageDraw
 
 from src.data.models import CalendarEvent, DashboardData
 from src.render.components.info_panel import _quote_for_today
-from src.render.moon import moon_illumination, moon_phase_age
+from src.render.moon import is_waxing, moon_illumination
 from src.render.primitives import draw_text_truncated, draw_text_wrapped, text_height, wrap_lines
 from src.render.quantize import _BAYER_4X4, INKY_SPECTRA6_PALETTE
 from src.render.theme import INKY_YELLOW, ComponentRegion, ThemeStyle
@@ -93,9 +93,11 @@ def draw_halftone(
     if style is None:
         style = ThemeStyle(fg=0, bg=255)
     if image is None:
-        # Component must have pixel access for radial gradients. The canvas
-        # always supplies one in production; tests that build a draw object
-        # directly should pass the backing image too.
+        # The production caller (``canvas.render_dashboard``) always passes
+        # the backing image via ``RenderContext.image``. This branch only
+        # fires for tests that build an ``ImageDraw.Draw`` directly without
+        # forwarding the image — fall back to the private attribute rather
+        # than crashing so those tests keep working.
         image = draw._image  # type: ignore[attr-defined]
 
     mode = image.mode
@@ -126,27 +128,33 @@ def draw_halftone(
 # ---------------------------------------------------------------------------
 
 
-def _illustration_kind(icon: str | None) -> str:
-    """Map an OWM icon code (e.g. ``"10d"``) to an illustration kind."""
+def _illustration_kind(icon: str | None) -> tuple[str, bool]:
+    """Map an OWM icon code (e.g. ``"10d"``) to ``(kind, is_night)``.
+
+    ``is_night`` is True when the icon's day/night suffix is ``"n"``; for
+    the ``01`` family this also determines whether we draw the sun or the
+    moon variant.
+    """
     if not icon:
-        return "missing"
+        return ("missing", False)
     code = icon[:2]
     day_night = icon[2:3] if len(icon) > 2 else "d"
+    is_night = day_night == "n"
     if code == "01":
-        return "moon" if day_night == "n" else "sun"
+        return ("moon" if is_night else "sun", is_night)
     if code in ("02", "03"):
-        return "partly_cloudy"
+        return ("partly_cloudy", is_night)
     if code == "04":
-        return "overcast"
+        return ("overcast", is_night)
     if code in ("09", "10"):
-        return "rain"
+        return ("rain", is_night)
     if code == "11":
-        return "storm"
+        return ("storm", is_night)
     if code == "13":
-        return "snow"
+        return ("snow", is_night)
     if code == "50":
-        return "fog"
-    return "missing"
+        return ("fog", is_night)
+    return ("missing", False)
 
 
 def _draw_illustration(
@@ -157,8 +165,7 @@ def _draw_illustration(
     now: datetime,
 ) -> None:
     icon = data.weather.current_icon if data.weather is not None else None
-    kind = _illustration_kind(icon)
-    is_night = bool(icon) and len(icon) > 2 and icon[2] == "n"
+    kind, is_night = _illustration_kind(icon)
 
     if kind == "sun":
         _draw_sky(image, hero_rect, day=True)
@@ -370,12 +377,7 @@ def _draw_moon(
     radius: int,
 ) -> None:
     illum = moon_illumination(today)
-    age = moon_phase_age(today)
-    # First half of the synodic month is waxing (lit from the right limb).
-    from src.render.moon import _SYNODIC_MONTH
-
-    waxing = age < _SYNODIC_MONTH / 2
-    disc = _moon_disc(radius * 2 + 1, illum, waxing)
+    disc = _moon_disc(radius * 2 + 1, illum, is_waxing(today))
     mode = image.mode
     if mode == "RGB":
         disc_rgb = disc.convert("RGB")
@@ -499,12 +501,14 @@ def _draw_cloud(
         # underside. Keep values well above the sky tones so the cloud reads
         # as opaque against the dithered sky.
         top, bottom = 255, 195
-    interior = Image.new("L", (bw, bh))
+    # Build the vertical gradient as a 1-px-wide strip then NEAREST-resize to
+    # full width — same pattern as ``_draw_sky``. Much faster than a per-pixel
+    # nested loop, especially on a Pi.
+    strip = Image.new("L", (1, bh))
     for y in range(bh):
         t = y / max(1, bh - 1)
-        v = int(top + (bottom - top) * t)
-        for x in range(bw):
-            interior.putpixel((x, y), v)
+        strip.putpixel((0, y), int(top + (bottom - top) * t))
+    interior = strip.resize((bw, bh), Image.Resampling.NEAREST)
     if image.mode == "RGB":
         interior = interior.convert("RGB")
 
@@ -644,8 +648,7 @@ def _fmt_temp(t: float | None) -> str:
 
 
 def _format_event_time(dt: datetime) -> str:
-    s = dt.strftime("%-I:%M %p").lstrip("0")
-    return s.replace(" AM", " AM").replace(" PM", " PM")
+    return dt.strftime("%-I:%M %p").lstrip("0")
 
 
 def _next_event_line(events: list[CalendarEvent], now: datetime) -> str | None:
@@ -684,14 +687,16 @@ def _draw_margin_band(
 ) -> None:
     """Paint the typeset data band below the hero illustration.
 
-    Two-column layout, anchored to the top of the band:
+    Two-column layout anchored to the top, with the daily quote (wrapped to
+    two lines) and right-aligned author stamped at the bottom:
 
         ┌─────────────────────────────────────────────────────────────┐
-        │ 42°    PARTLY CLOUDY              SATURDAY · MAY 23 · 2026  │
+        │ 42°    PARTLY CLOUDY              MONDAY · APRIL 6 · 2026   │
         │        H 48° · L 35° · feels 38°    sun ↑ 6:24   sun ↓ 7:51 │
         │        Next  9:00 AM Farmers Market                         │
         │                                                             │
-        │ "It's not what you look at … "        — Henry David Thoreau │
+        │ "It's not what you look at that matters, it's what          │
+        │  you see."                          — Henry David Thoreau   │
         └─────────────────────────────────────────────────────────────┘
     """
     mode = image.mode

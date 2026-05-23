@@ -68,6 +68,8 @@ def draw_trends(
     if style is None:
         style = ThemeStyle(fg=0, bg=255)
     if image is None:
+        # See ``draw_halftone`` — production always supplies ``image`` via
+        # ``RenderContext.image``; this is the test-only fallback.
         image = draw._image  # type: ignore[attr-defined]
 
     x0, y0, w, h = region.x, region.y, region.w, region.h
@@ -189,6 +191,10 @@ def _chart_x_range(x0: int, w: int) -> tuple[int, int]:
     return (x0 + LABEL_W, x0 + w - ANNOTATION_W - CHART_GAP)
 
 
+def _chart_y_range(y0: int, h: int) -> tuple[int, int]:
+    return (y0 + CHART_PAD_TOP, y0 + h - CHART_PAD_BOTTOM)
+
+
 def _draw_text_right(
     draw: ImageDraw.ImageDraw,
     text: str,
@@ -206,10 +212,6 @@ def _draw_text_right(
     y = top - bb[1]
     draw.text((x, y), text, font=font, fill=fill)
     return tw, th
-
-
-def _chart_y_range(y0: int, h: int) -> tuple[int, int]:
-    return (y0 + CHART_PAD_TOP, y0 + h - CHART_PAD_BOTTOM)
 
 
 # ---------------------------------------------------------------------------
@@ -268,39 +270,31 @@ def _draw_sparkline(
         t = (v - vmin) / (vmax - vmin)
         return y1 - t * chart_h
 
-    # Build the line + the fill polygon, handling None-as-gap.
-    line_points: list[tuple[float, float]] = []
-    fill_segments: list[list[tuple[int, int]]] = []
+    # Split the input into contiguous (non-None) segments so each can be
+    # drawn as its own polyline + Bayer-filled polygon. ``None`` values mark
+    # gaps that break the series.
+    segments: list[list[tuple[float, float]]] = []
     current: list[tuple[float, float]] = []
     for i, v in enumerate(values):
         if v is None:
             if len(current) >= 2:
-                fill_segments.append(_fill_polygon_from_curve(current, y1))
-                line_points.extend(current)
-                line_points.append((None, None))  # type: ignore[arg-type]
+                segments.append(current)
             current = []
             continue
         current.append((_x_for(i), _y_for(v)))
     if len(current) >= 2:
-        fill_segments.append(_fill_polygon_from_curve(current, y1))
-        line_points.extend(current)
+        segments.append(current)
 
-    # Render Bayer fills first, then the line on top.
-    for poly in fill_segments:
-        _bayer_fill_polygon(image, poly, on_color=fill_color, threshold=bayer_threshold)
-
-    # Draw the polyline. ``line_points`` may contain ``(None, None)`` markers
-    # to split segments; PIL doesn't accept those so split into chunks.
-    chunk: list[tuple[float, float]] = []
-    for p in line_points:
-        if p == (None, None):  # type: ignore[comparison-overlap]
-            if len(chunk) >= 2:
-                draw.line(chunk, fill=line_fill, width=2)
-            chunk = []
-        else:
-            chunk.append(p)
-    if len(chunk) >= 2:
-        draw.line(chunk, fill=line_fill, width=2)
+    # Bayer-fill the area under each segment first, then draw the line on top.
+    for seg in segments:
+        _bayer_fill_polygon(
+            image,
+            _fill_polygon_from_curve(seg, y1),
+            on_color=fill_color,
+            threshold=bayer_threshold,
+        )
+    for seg in segments:
+        draw.line(seg, fill=line_fill, width=2)
 
     # Now marker.
     if now_index is not None and 0 <= now_index < n and values[now_index] is not None:
@@ -405,9 +399,7 @@ def _draw_temp_row(
     label_font = style.font_medium(12)
     value = weather.current_temp
     txt = "—" if value is None else f"{int(round(value))}°"
-    tw, th = _draw_text_right(
-        draw, txt, right=annot_right, top=y0 + 8, font=big_font, fill=style.fg
-    )
+    _, th = _draw_text_right(draw, txt, right=annot_right, top=y0 + 8, font=big_font, fill=style.fg)
     sub_lines = [
         f"NOW  ·  H {_round_temp(weather.high)}°",
         f"L {_round_temp(weather.low)}°",
@@ -520,6 +512,7 @@ def _draw_aqi_row(
 
     fill_color = style.primary_accent_fill()
     accent_now = style.secondary_accent_fill()
+    zone_label_font = style.font_medium(11)
 
     # Six zones progressively darker; we Bayer-fill each with increasing density.
     zone_bounds_low = 0
@@ -539,10 +532,9 @@ def _draw_aqi_row(
         ]
         _bayer_fill_polygon(image, poly, on_color=fill_color, threshold=threshold)
         # Zone label below the bar.
-        label_font = style.font_medium(11)
-        lb = draw.textbbox((0, 0), label, font=label_font)
+        lb = draw.textbbox((0, 0), label, font=zone_label_font)
         mid_x = (x_start + x_end) // 2 - (lb[2] - lb[0]) // 2 - lb[0]
-        draw.text((mid_x, bar_y1 + 4 - lb[1]), label, font=label_font, fill=style.fg)
+        draw.text((mid_x, bar_y1 + 4 - lb[1]), label, font=zone_label_font, fill=style.fg)
         zone_bounds_low = upper
 
     # Frame around the whole scale bar.
@@ -696,7 +688,7 @@ def _draw_events_row(
 
     n = len(counts)
     bar_w = max(6, chart_w // n - 3)
-    gap = max(2, (chart_w - bar_w * n) // max(1, n - 1)) if n > 1 else 0
+    gap = max(2, (chart_w - bar_w * n) // (n - 1)) if n > 1 else 0
     total_w = bar_w * n + gap * (n - 1)
     start_x = cx0 + (chart_w - total_w) // 2
     baseline_y = cy1 - 2
@@ -798,7 +790,7 @@ def _draw_moon_row(
             break
 
     # Annotation: percentage + days-to-next-full + phase glyph stamped at far right.
-    annot_left, annot_right = _annotation_x_range(x0, w)
+    _, annot_right = _annotation_x_range(x0, w)
     glyph_font = weather_icon(40)
     glyph = moon_phase_glyph(today)
     label_font = style.font_medium(12)
