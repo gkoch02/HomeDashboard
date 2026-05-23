@@ -22,6 +22,7 @@ from src.render.components.trends_panel import (
     _build_temp_series,
     _draw_sparkline,
     _event_count_for_day,
+    _format_day_length_hours,
     _interpolate,
 )
 from src.render.theme import AVAILABLE_THEMES, load_theme
@@ -145,6 +146,30 @@ class TestBuildTempSeries:
         series, _ = _build_temp_series(w)
         # With no forecast, interpolation should still fill all values.
         assert all(v is not None for v in series)
+
+
+class TestFormatDayLengthHours:
+    def test_none_returns_em_dash(self):
+        assert _format_day_length_hours(None) == "—"
+
+    def test_basic(self):
+        assert _format_day_length_hours(13.5) == "13h 30m"
+
+    def test_whole_hour(self):
+        assert _format_day_length_hours(12.0) == "12h 00m"
+
+    def test_carries_minute_overflow_into_hour(self):
+        # 10 + 59.94/60 → minutes round to 60. Must carry into hours rather
+        # than render the impossible "10h 60m".
+        assert _format_day_length_hours(10 + 59.94 / 60) == "11h 00m"
+
+    def test_just_under_full_hour(self):
+        # 10.9999 → 10 hours + 59.994 minutes → rounds to 60 → carries.
+        assert _format_day_length_hours(10.9999) == "11h 00m"
+
+    def test_just_over_full_hour(self):
+        # No carry, just normal formatting.
+        assert _format_day_length_hours(10 + 0.5 / 60) == "10h 00m"
 
 
 class TestEventCountForDay:

@@ -585,6 +585,23 @@ def _draw_aqi_row(
 # ---------------------------------------------------------------------------
 
 
+def _format_day_length_hours(hours: float | None) -> str:
+    """Format a day length given in fractional hours as ``"Hh MMm"``.
+
+    Returns ``"—"`` when *hours* is None. Handles the case where rounding
+    minutes up lands on 60 by carrying into the hours, so we never emit
+    impossible strings like ``"10h 60m"``.
+    """
+    if hours is None:
+        return "—"
+    hh = int(hours)
+    mm = int(round((hours - hh) * 60))
+    if mm == 60:
+        hh += 1
+        mm = 0
+    return f"{hh}h {mm:02d}m"
+
+
 def _draw_daylight_row(
     draw: ImageDraw.ImageDraw,
     image: Image.Image,
@@ -627,13 +644,7 @@ def _draw_daylight_row(
 
     # Annotation: today's day length + signed delta vs yesterday.
     _, annot_right = _annotation_x_range(x0, w)
-    today_hours = series[0]
-    if today_hours is None:
-        big_text = "—"
-    else:
-        hh = int(today_hours)
-        mm = int(round((today_hours - hh) * 60))
-        big_text = f"{hh}h {mm:02d}m"
+    big_text = _format_day_length_hours(series[0])
     big_font = cyber_mono(24)
     _, big_h = _draw_text_right(
         draw, big_text, right=annot_right, top=y0 + 8, font=big_font, fill=style.fg
