@@ -25,10 +25,17 @@ from PIL import Image, ImageDraw
 
 from src.data.models import CalendarEvent, DashboardData
 from src.render.components.info_panel import _quote_for_today
+from src.render.fonts import weather_icon
 from src.render.moon import is_waxing, moon_illumination
 from src.render.primitives import draw_text_truncated, draw_text_wrapped, text_height, wrap_lines
 from src.render.quantize import _BAYER_4X4, INKY_SPECTRA6_PALETTE
 from src.render.theme import INKY_YELLOW, ComponentRegion, ThemeStyle
+
+# Weather Icons font glyphs — Righteous itself has no ↑/↓ arrows, so the
+# sunrise/sunset row borrows these two glyphs from the bundled Weather
+# Icons font and centers them on the Righteous text midline.
+_SUNRISE_GLYPH = "\uf051"  # wi-sunrise
+_SUNSET_GLYPH = "\uf052"  # wi-sunset
 
 # ---------------------------------------------------------------------------
 # Region geometry
@@ -796,18 +803,38 @@ def _draw_margin_band(
     else:
         sun_y = y0 + 48
 
-    # --- Sunrise / sunset line right-aligned. The display font (Righteous)
-    # has no ↑/↓ glyphs, so we lean on "RISE" / "SET" labels instead — they
-    # also read more legibly on a dithered plate.
+    # --- Sunrise / sunset line right-aligned. Righteous itself has no
+    # ↑/↓ arrows, so the glyphs come from the bundled Weather Icons font
+    # (wi-sunrise / wi-sunset). Each chunk's ink-center is aligned to a
+    # shared midline derived from a Righteous "M" so the two fonts —
+    # which carry different baselines — read as one row.
     if weather and (weather.sunrise or weather.sunset):
-        rise = _format_event_time(weather.sunrise) if weather.sunrise else "—"
-        setp = _format_event_time(weather.sunset) if weather.sunset else "—"
-        sun_text = f"RISE {rise}   SET {setp}"
+        rise_text = _format_event_time(weather.sunrise) if weather.sunrise else "—"
+        set_text = _format_event_time(weather.sunset) if weather.sunset else "—"
         sun_font = style.font_semibold(17)
-        sb = draw.textbbox((0, 0), sun_text, font=sun_font)
-        sx = x0 + w - MARGIN_PAD_X - (sb[2] - sb[0]) - sb[0]
-        sy = sun_y - sb[1]
-        draw.text((sx, sy), sun_text, font=sun_font, fill=ink)
+        icon_font = weather_icon(24)
+        glyph_pad = 4
+        pair_gap = 14
+
+        chunks = [
+            (_SUNRISE_GLYPH, icon_font),
+            (rise_text, sun_font),
+            (_SUNSET_GLYPH, icon_font),
+            (set_text, sun_font),
+        ]
+        measured = [(s, f, draw.textbbox((0, 0), s, font=f)) for s, f in chunks]
+        # Pads applied after each chunk: [glyph→time] [time→glyph] [glyph→time] (final 0)
+        pads = (glyph_pad, pair_gap, glyph_pad, 0)
+        total_w = sum(bb[2] - bb[0] for _, _, bb in measured) + sum(pads)
+
+        ref_bb = draw.textbbox((0, 0), "M", font=sun_font)
+        row_mid = sun_y + (ref_bb[3] - ref_bb[1]) // 2
+
+        cursor = x0 + w - MARGIN_PAD_X - total_w
+        for (s, f, bb), pad in zip(measured, pads):
+            glyph_mid = (bb[1] + bb[3]) // 2
+            draw.text((cursor - bb[0], row_mid - glyph_mid), s, font=f, fill=ink)
+            cursor += (bb[2] - bb[0]) + pad
 
     # --- Daily quote at the bottom; wraps to two lines so the larger font
     # still has room to breathe. Author sits right-aligned beneath.
