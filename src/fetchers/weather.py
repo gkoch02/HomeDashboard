@@ -86,6 +86,7 @@ def fetch_weather(cfg: WeatherConfig, tz: tzinfo | None = None) -> WeatherData:
         sunrise=sunrise,
         sunset=sunset,
         location_name=location_name,
+        units=cfg.units,
     )
 
 

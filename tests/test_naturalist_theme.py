@@ -109,14 +109,41 @@ class TestWeatherModifier:
             ("11d", 50.0, "storm"),
             ("13d", 28.0, "snow"),
             ("50d", 50.0, "fog"),
-            ("01d", 20.0, "frost"),  # clear + freezing → frost
+            ("01d", 20.0, "frost"),  # clear + freezing (imperial default) → frost
             ("01d", 50.0, "neutral"),
             ("02d", 50.0, "neutral"),
             (None, None, "neutral"),
         ],
     )
-    def test_maps_conditions(self, icon, temp, modifier):
+    def test_maps_conditions_default_imperial(self, icon, temp, modifier):
+        """No units → imperial default (preserves legacy behavior)."""
         assert _weather_modifier(icon, temp) == modifier
+
+    @pytest.mark.parametrize(
+        "units,temp,expected",
+        [
+            # Imperial: freeze at 32°F.
+            ("imperial", 32.0, "frost"),
+            ("imperial", 33.0, "neutral"),
+            ("imperial", 15.0, "frost"),
+            # Metric: freeze at 0°C — common warm-day temps must NOT trigger frost.
+            ("metric", 0.0, "frost"),
+            ("metric", 1.0, "neutral"),
+            ("metric", 15.0, "neutral"),  # regression: was misclassified as frost
+            ("metric", -5.0, "frost"),
+            # Standard: freeze at 273.15 K.
+            ("standard", 273.15, "frost"),
+            ("standard", 280.0, "neutral"),
+            # Unknown units → falls back to imperial threshold.
+            ("xyz", 20.0, "frost"),
+            ("xyz", 40.0, "neutral"),
+        ],
+    )
+    def test_frost_is_unit_aware(self, units, temp, expected):
+        """Regression for PR #167 review: the frost gate was hardcoded to 32,
+        which mis-fires on metric (15°C looks frozen) and never fires on
+        standard (32 K is colder than the universe)."""
+        assert _weather_modifier("01d", temp, units) == expected
 
 
 class TestLatinName:

@@ -155,8 +155,38 @@ def _season(today: date) -> str:
     return "winter"
 
 
-def _weather_modifier(icon: str | None, temp: float | None) -> str:
-    """Map current weather to a specimen-surface treatment."""
+# Freezing-point threshold per OWM unit system.  ``WeatherData.current_temp``
+# is whatever value the OWM API returned for ``cfg.weather.units``, so the
+# frost gate needs to know which scale it's comparing against — otherwise a
+# clear 15 °C spring day would render as a frost-stippled plate in ``metric``.
+_FREEZING_BY_UNIT = {
+    "imperial": 32.0,  # °F
+    "metric": 0.0,  # °C
+    "standard": 273.15,  # K
+}
+
+
+def _is_freezing(temp: float | None, units: str | None) -> bool:
+    """Return True when *temp* is at or below freezing for its unit system.
+
+    Falls back to the imperial threshold when *units* is missing or unknown
+    (legacy cache entries written before the field existed, or an explicit
+    ``None`` from a custom data source).  This preserves the original
+    behaviour for the dominant case without crashing on unfamiliar input.
+    """
+    if temp is None:
+        return False
+    threshold = _FREEZING_BY_UNIT.get(units or "imperial", _FREEZING_BY_UNIT["imperial"])
+    return temp <= threshold
+
+
+def _weather_modifier(icon: str | None, temp: float | None, units: str | None = None) -> str:
+    """Map current weather to a specimen-surface treatment.
+
+    ``units`` is the OWM unit system attached to *temp* (``"imperial"``,
+    ``"metric"``, or ``"standard"``).  Required for the ``frost`` branch so
+    that a clear day in metric mode isn't misread as freezing.
+    """
     if icon is None:
         return "neutral"
     code = icon[:2]
@@ -168,7 +198,7 @@ def _weather_modifier(icon: str | None, temp: float | None) -> str:
         return "snow"
     if code == "50":
         return "fog"
-    if code == "01" and (temp is not None) and temp <= 32:
+    if code == "01" and _is_freezing(temp, units):
         return "frost"
     return "neutral"
 
@@ -261,7 +291,8 @@ def draw_naturalist(
     weather = data.weather
     icon = weather.current_icon if weather else None
     temp = weather.current_temp if weather else None
-    modifier = _weather_modifier(icon, temp)
+    units = weather.units if weather else None
+    modifier = _weather_modifier(icon, temp, units)
 
     _draw_masthead(draw, today, season, modifier, style=style, ink=ink, red=red)
     _draw_specimen(image, season, modifier, today, mode=mode)
