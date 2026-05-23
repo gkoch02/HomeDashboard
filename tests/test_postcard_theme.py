@@ -51,8 +51,14 @@ class TestPostcardRegistration:
     def test_postcard_region_visible(self):
         t = load_theme("postcard")
         assert t.layout.postcard.visible is True
-        assert t.layout.postcard.w == 800
-        assert t.layout.postcard.h == 480
+        # 2× supersampled canvas; backend resizes to display res via LANCZOS.
+        assert t.layout.postcard.w == 1600
+        assert t.layout.postcard.h == 960
+
+    def test_canvas_is_supersampled(self):
+        t = load_theme("postcard")
+        assert t.layout.canvas_w == 1600
+        assert t.layout.canvas_h == 960
 
     def test_draw_order_only_postcard(self):
         t = load_theme("postcard")

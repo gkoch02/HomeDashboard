@@ -53,8 +53,14 @@ class TestNaturalistRegistration:
     def test_region_visible(self):
         t = load_theme("naturalist")
         assert t.layout.naturalist.visible is True
-        assert t.layout.naturalist.w == 800
-        assert t.layout.naturalist.h == 480
+        # 2× supersampled canvas; backend resizes to display res via LANCZOS.
+        assert t.layout.naturalist.w == 1600
+        assert t.layout.naturalist.h == 960
+
+    def test_canvas_is_supersampled(self):
+        t = load_theme("naturalist")
+        assert t.layout.canvas_w == 1600
+        assert t.layout.canvas_h == 960
 
     def test_draw_order_only_naturalist(self):
         t = load_theme("naturalist")

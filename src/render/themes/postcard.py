@@ -42,19 +42,23 @@ def postcard_theme() -> Theme:
     return Theme(
         name="postcard",
         layout=ThemeLayout(
-            canvas_w=800,
-            canvas_h=480,
+            # 2× supersampled canvas — the WaveshareBackend's LANCZOS resize
+            # down to the display's native 800×480 acts as a free anti-alias
+            # pass over every procedural curve + every text glyph before the
+            # final Floyd-Steinberg quantize.
+            canvas_w=1600,
+            canvas_h=960,
             canvas_mode="L",
             preferred_quantization_mode="floyd_steinberg",
             prefer_color_on_inky=True,
-            postcard=ComponentRegion(0, 0, 800, 480),
+            postcard=ComponentRegion(0, 0, 1600, 960),
             # Hide all standard regions — this theme is full-canvas.
-            header=ComponentRegion(0, 0, 800, 40, visible=False),
-            week_view=ComponentRegion(0, 40, 800, 320, visible=False),
-            weather=ComponentRegion(0, 360, 300, 120, visible=False),
-            birthdays=ComponentRegion(300, 360, 250, 120, visible=False),
-            info=ComponentRegion(550, 360, 250, 120, visible=False),
-            today_view=ComponentRegion(0, 60, 800, 280, visible=False),
+            header=ComponentRegion(0, 0, 1600, 80, visible=False),
+            week_view=ComponentRegion(0, 80, 1600, 640, visible=False),
+            weather=ComponentRegion(0, 720, 600, 240, visible=False),
+            birthdays=ComponentRegion(600, 720, 500, 240, visible=False),
+            info=ComponentRegion(1100, 720, 500, 240, visible=False),
+            today_view=ComponentRegion(0, 120, 1600, 560, visible=False),
             draw_order=["postcard"],
         ),
         style=ThemeStyle(

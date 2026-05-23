@@ -60,29 +60,36 @@ from src.render.theme import INKY_RED, ComponentRegion, ThemeStyle
 
 # ---------------------------------------------------------------------------
 # Page layout
+#
+# Every absolute pixel size is multiplied by ``SS`` because the theme renders
+# onto a 2× supersampled canvas (1600×960) that the display backend
+# LANCZOS-downsamples to the panel's native 800×480.  That gives us free
+# anti-aliasing on every engraved branch, every leaf outline, and every
+# typeset glyph before the final Floyd-Steinberg quantize.
 # ---------------------------------------------------------------------------
 
-_PAD_X = 28
+SS = 2  # supersample factor — must match the theme's canvas multiplier.
 
-_HEADER_TOP = 14
-_HEADER_RULE_Y = 46
-_SUBTITLE_Y = 60
+_PAD_X = 28 * SS
 
-_BODY_TOP = 118
-_BODY_BOTTOM = 390
-_FOOTER_RULE_Y = 394
-_QUOTE_Y = 408
+_HEADER_TOP = 14 * SS
+_HEADER_RULE_Y = 46 * SS
+_SUBTITLE_Y = 60 * SS
 
-# Specimen area (the branch).  The right column carries the leader-line
-# callouts, sized to fit four data rows.
-_SPEC_X0 = 40
-_SPEC_Y0 = _BODY_TOP + 6
-_SPEC_X1 = 430
-_SPEC_Y1 = _BODY_BOTTOM - 6
+_BODY_TOP = 118 * SS
+_BODY_BOTTOM = 390 * SS
+_FOOTER_RULE_Y = 394 * SS
+_QUOTE_Y = 408 * SS
+
+# Specimen area (the branch).
+_SPEC_X0 = 40 * SS
+_SPEC_Y0 = _BODY_TOP + 6 * SS
+_SPEC_X1 = 430 * SS
+_SPEC_Y1 = _BODY_BOTTOM - 6 * SS
 
 # Callout column anchors.
-_CALLOUT_X0 = 470
-_CALLOUT_W = 800 - _PAD_X - _CALLOUT_X0
+_CALLOUT_X0 = 470 * SS
+_CALLOUT_W = 800 * SS - _PAD_X - _CALLOUT_X0
 
 
 # ---------------------------------------------------------------------------
@@ -301,10 +308,10 @@ def _draw_masthead(
     """Plate header: PLATE no. + dateline above a triple rule, Latin specimen
     name + weekday/date beneath.  All text is solid ink at sizes chosen to
     stay legible after the final Floyd-Steinberg quantization step."""
-    plate_label_font = style.font_section_label(16)
-    dateline_font = style.font_section_label(16)
-    subtitle_font = style.font_section_label(20)
-    day_font = style.font_section_label(14)
+    plate_label_font = style.font_section_label(16 * SS)
+    dateline_font = style.font_section_label(16 * SS)
+    subtitle_font = style.font_section_label(20 * SS)
+    day_font = style.font_section_label(14 * SS)
 
     # Left:  PLATE [Roman]
     plate_text = f"PLATE  {_plate_number(today)}"
@@ -315,30 +322,37 @@ def _draw_masthead(
     month_text = today.strftime("%B").upper()
     dateline_text = f"{year_roman}  ·  {month_text}"
     db = draw.textbbox((0, 0), dateline_text, font=dateline_font)
+    canvas_w = 800 * SS
     draw.text(
-        (800 - _PAD_X - (db[2] - db[0]) - db[0], _HEADER_TOP),
+        (canvas_w - _PAD_X - (db[2] - db[0]) - db[0], _HEADER_TOP),
         dateline_text,
         font=dateline_font,
         fill=ink,
     )
 
-    # Centre rule under the labels — a heavy + thin double rule.
-    draw.line([(_PAD_X, _HEADER_RULE_Y), (800 - _PAD_X, _HEADER_RULE_Y)], fill=ink, width=2)
+    # Centre rule — heavy + thin double rule.
     draw.line(
-        [(_PAD_X, _HEADER_RULE_Y + 5), (800 - _PAD_X, _HEADER_RULE_Y + 5)],
+        [(_PAD_X, _HEADER_RULE_Y), (canvas_w - _PAD_X, _HEADER_RULE_Y)],
         fill=ink,
-        width=1,
+        width=2 * SS,
     )
-    # A centred ornament between the two rules — bigger so it reads as a
-    # printed mark, not noise.
-    cx = 400
-    glyph_font = style.font_section_label(18)
+    draw.line(
+        [(_PAD_X, _HEADER_RULE_Y + 5 * SS), (canvas_w - _PAD_X, _HEADER_RULE_Y + 5 * SS)],
+        fill=ink,
+        width=SS,
+    )
+    # Centred ornament breaking the rule.
+    cx = canvas_w // 2
+    glyph_font = style.font_section_label(18 * SS)
     glyph = "✦"
     gb = draw.textbbox((0, 0), glyph, font=glyph_font)
-    pad = 16
+    pad = 16 * SS
     gx = cx - (gb[2] - gb[0]) // 2 - gb[0]
-    gy = _HEADER_RULE_Y - 12
-    draw.rectangle((cx - pad, _HEADER_RULE_Y - 4, cx + pad, _HEADER_RULE_Y + 8), fill=style.bg)
+    gy = _HEADER_RULE_Y - 12 * SS
+    draw.rectangle(
+        (cx - pad, _HEADER_RULE_Y - 4 * SS, cx + pad, _HEADER_RULE_Y + 8 * SS),
+        fill=style.bg,
+    )
     draw.text((gx, gy), glyph, font=glyph_font, fill=red)
 
     # Subtitle — small-caps Latin specimen name centred under the masthead.
@@ -351,7 +365,7 @@ def _draw_masthead(
     day_label = today.strftime("%A · %B %-d").upper()
     db2 = draw.textbbox((0, 0), day_label, font=day_font)
     dx = cx - (db2[2] - db2[0]) // 2 - db2[0]
-    draw.text((dx, _SUBTITLE_Y + 32), day_label, font=day_font, fill=ink)
+    draw.text((dx, _SUBTITLE_Y + 32 * SS), day_label, font=day_font, fill=ink)
 
 
 # ---------------------------------------------------------------------------
@@ -363,10 +377,10 @@ def _draw_masthead(
 # canopy, mid trunk, a lower branch, and the root crown of the procedural
 # specimen for any season.
 _FEATURE_POINTS = {
-    "leaf_top": (315, _BODY_TOP + 50),
-    "node_mid": (290, _BODY_TOP + 130),
-    "branch_low": (220, _BODY_TOP + 195),
-    "root": (200, _BODY_TOP + 245),
+    "leaf_top": (315 * SS, _BODY_TOP + 50 * SS),
+    "node_mid": (290 * SS, _BODY_TOP + 130 * SS),
+    "branch_low": (220 * SS, _BODY_TOP + 195 * SS),
+    "root": (200 * SS, _BODY_TOP + 245 * SS),
 }
 
 
@@ -408,14 +422,14 @@ def _draw_specimen(
         (br, -1, 0),
         (br, 0, -1),
     ):
-        draw.line([(x, y), (x + dx * 8, y + dy * 8)], fill=tick_fill, width=1)
+        draw.line([(x, y), (x + dx * 8 * SS, y + dy * 8 * SS)], fill=tick_fill, width=SS)
 
     if modifier == "fog":
         _stipple_fog(image, rng)
 
     # Trunk — slightly curved vertical line, thicker toward the bottom.
-    trunk_top = (_SPEC_X0 + 180, _SPEC_Y0 + 60)
-    trunk_bot = (_SPEC_X0 + 160, _SPEC_Y1 - 40)
+    trunk_top = (_SPEC_X0 + 180 * SS, _SPEC_Y0 + 60 * SS)
+    trunk_bot = (_SPEC_X0 + 160 * SS, _SPEC_Y1 - 40 * SS)
     _draw_trunk(draw, trunk_top, trunk_bot, mode=mode, rng=rng)
 
     # Branches — three on each side at varied heights/lengths.
@@ -426,16 +440,14 @@ def _draw_specimen(
         bx = int(trunk_top[0] + (trunk_bot[0] - trunk_top[0]) * t)
         by = int(trunk_top[1] + (trunk_bot[1] - trunk_top[1]) * t)
         side = 1 if i % 2 == 0 else -1
-        # Slight upward angle, varying length
-        length = rng.randint(55, 95)
+        length = rng.randint(55 * SS, 95 * SS)
         angle_deg = rng.uniform(-65, -25) if side == 1 else rng.uniform(-155, -115)
         end_x = int(bx + length * math.cos(math.radians(angle_deg)))
         end_y = int(by + length * math.sin(math.radians(angle_deg)))
         _draw_branch(draw, (bx, by), (end_x, end_y), mode=mode)
         nodes.append((end_x, end_y))
-        # Add a sub-branch occasionally for visual richness.
         if rng.random() < 0.5:
-            sub_len = rng.randint(20, 35)
+            sub_len = rng.randint(20 * SS, 35 * SS)
             sub_angle = math.radians(angle_deg + rng.uniform(-30, 30))
             sx = int(end_x + sub_len * math.cos(sub_angle))
             sy = int(end_y + sub_len * math.sin(sub_angle))
@@ -480,13 +492,12 @@ def _draw_trunk(
     for i in range(n_segs):
         t0 = i / n_segs
         t1 = (i + 1) / n_segs
-        x0 = top[0] + (bot[0] - top[0]) * t0 + math.sin(t0 * math.pi * 1.5) * 4
+        x0 = top[0] + (bot[0] - top[0]) * t0 + math.sin(t0 * math.pi * 1.5) * 4 * SS
         y0 = top[1] + (bot[1] - top[1]) * t0
-        x1 = top[0] + (bot[0] - top[0]) * t1 + math.sin(t1 * math.pi * 1.5) * 4
+        x1 = top[0] + (bot[0] - top[0]) * t1 + math.sin(t1 * math.pi * 1.5) * 4 * SS
         y1 = top[1] + (bot[1] - top[1]) * t1
-        # Trunk thickness grows from top to bottom.
-        w0 = 5 + int(11 * t0)
-        w1 = 5 + int(11 * t1)
+        w0 = (5 + int(11 * t0)) * SS
+        w1 = (5 + int(11 * t1)) * SS
         poly = [
             (x0 - w0 / 2, y0),
             (x0 + w0 / 2, y0),
@@ -497,18 +508,17 @@ def _draw_trunk(
     # Right-hand highlight strokes — small white hatches that suggest a
     # rounded trunk surface in classic engraving style.
     highlight_fill = _grey(220, mode)
-    for i in range(22):
-        t = i / 22
-        cx = top[0] + (bot[0] - top[0]) * t + math.sin(t * math.pi * 1.5) * 4
+    for i in range(22 * SS):
+        t = i / (22 * SS)
+        cx = top[0] + (bot[0] - top[0]) * t + math.sin(t * math.pi * 1.5) * 4 * SS
         cy = top[1] + (bot[1] - top[1]) * t
-        w = 5 + int(11 * t)
-        # Stagger position toward the right limb of the trunk.
-        sx = cx + (w / 2) - 2 - rng.random() * 2
+        w = (5 + int(11 * t)) * SS
+        sx = cx + (w / 2) - 2 * SS - rng.random() * 2 * SS
         if rng.random() < 0.55:
             draw.line(
-                [(sx - 2, cy - 1), (sx, cy + 1)],
+                [(sx - 2 * SS, cy - SS), (sx, cy + SS)],
                 fill=highlight_fill,
-                width=1,
+                width=SS,
             )
 
 
@@ -527,13 +537,12 @@ def _draw_branch(
         t = i / n
         x = start[0] + (end[0] - start[0]) * t
         y = start[1] + (end[1] - start[1]) * t
-        # Mild upward arc.
-        arc = -math.sin(t * math.pi) * 8 * (1 - t * 0.4)
+        arc = -math.sin(t * math.pi) * 8 * SS * (1 - t * 0.4)
         segs.append((int(x), int(y + arc)))
-    base_w = 1 if thin else 3
+    base_w = SS if thin else 3 * SS
     for i in range(len(segs) - 1):
         t = i / max(1, len(segs) - 2)
-        w = max(1, base_w - int(t * 2))
+        w = max(SS, base_w - int(t * 2 * SS))
         draw.line([segs[i], segs[i + 1]], fill=_ink(mode), width=w)
 
 
@@ -547,16 +556,15 @@ def _draw_roots(
     """Three curving roots spreading from the base."""
     for i, side in enumerate((-1, 0, 1)):
         angle = math.radians(90 + side * 60)
-        length = rng.randint(40, 70)
+        length = rng.randint(40 * SS, 70 * SS)
         n = 10
         prev = trunk_bot
         for j in range(1, n + 1):
             t = j / n
             x = trunk_bot[0] + length * t * math.cos(angle)
-            # Add downward arc.
-            y = trunk_bot[1] + length * t * math.sin(angle) + (1 - (1 - t) ** 2) * 8
+            y = trunk_bot[1] + length * t * math.sin(angle) + (1 - (1 - t) ** 2) * 8 * SS
             now = (int(x), int(y))
-            w = max(1, 3 - int(t * 2))
+            w = max(SS, 3 * SS - int(t * 2 * SS))
             draw.line([prev, now], fill=_ink(mode), width=w)
             prev = now
 
@@ -571,54 +579,49 @@ def _draw_leaves(
     """Scatter leaves around branch endpoints, density keyed to season."""
     if season == "winter":
         count_per_node = 0 if modifier != "snow" else 1
-        size_range = (6, 9)
+        size_range = (6 * SS, 9 * SS)
         outline_only = True
     elif season == "spring":
         count_per_node = 4
-        size_range = (7, 10)
-        outline_only = False  # mix of filled and outlined for fresh look
+        size_range = (7 * SS, 10 * SS)
+        outline_only = False
     elif season == "summer":
         count_per_node = 8
-        size_range = (8, 13)
+        size_range = (8 * SS, 13 * SS)
         outline_only = False
     else:  # autumn
         count_per_node = 5
-        size_range = (7, 12)
+        size_range = (7 * SS, 12 * SS)
         outline_only = False
 
     draw = ImageDraw.Draw(image)
     mode = image.mode
     ink = _ink(mode)
-    # Two tones for the leaves — solid black silhouettes plus a lighter
-    # outline-only treatment for visual depth (some leaves "in front", others
-    # "behind").
     for nx, ny in nodes:
         for i in range(count_per_node):
-            ox = rng.randint(-26, 26)
-            oy = rng.randint(-24, 14)
+            ox = rng.randint(-26 * SS, 26 * SS)
+            oy = rng.randint(-24 * SS, 14 * SS)
             size = rng.randint(*size_range)
             if outline_only or (i % 3 == 2):
                 _draw_leaf_outline(draw, nx + ox, ny + oy, size, ink, rng)
             else:
                 _draw_leaf_filled(draw, nx + ox, ny + oy, size, ink, rng)
 
-    # Spring: add a sprinkle of buds (tiny circles) hugging the branches.
     if season == "spring":
         for nx, ny in nodes:
             for _ in range(3):
-                ox = rng.randint(-10, 10)
-                oy = rng.randint(-10, 10)
+                ox = rng.randint(-10 * SS, 10 * SS)
+                oy = rng.randint(-10 * SS, 10 * SS)
                 draw.ellipse(
-                    (nx + ox - 2, ny + oy - 2, nx + ox + 2, ny + oy + 2),
+                    (nx + ox - 2 * SS, ny + oy - 2 * SS, nx + ox + 2 * SS, ny + oy + 2 * SS),
                     fill=ink,
                 )
 
-    # Autumn: scatter a few fallen leaves under the canopy.
     if season == "autumn":
         for _ in range(10):
-            fx = rng.randint(_SPEC_X0 + 20, _SPEC_X1 - 20)
-            fy = rng.randint(_SPEC_Y1 - 60, _SPEC_Y1 - 14)
-            size = rng.randint(6, 10)
+            fx = rng.randint(_SPEC_X0 + 20 * SS, _SPEC_X1 - 20 * SS)
+            fy = rng.randint(_SPEC_Y1 - 60 * SS, _SPEC_Y1 - 14 * SS)
+            size = rng.randint(6 * SS, 10 * SS)
             _draw_leaf_outline(draw, fx, fy, size, ink, rng)
 
 
@@ -656,8 +659,7 @@ def _draw_leaf_filled(
     """Solid black almond leaf with a thin white vein down the long axis."""
     pts, v0, v1 = _leaf_polygon(cx, cy, size, rng)
     draw.polygon(pts, fill=ink)
-    # Vein: a thin highlight inside the dark leaf.
-    draw.line([v0, v1], fill=(255 if isinstance(ink, int) else (255, 255, 255)), width=1)
+    draw.line([v0, v1], fill=(255 if isinstance(ink, int) else (255, 255, 255)), width=SS)
 
 
 def _draw_leaf_outline(
@@ -671,7 +673,7 @@ def _draw_leaf_outline(
     """Outlined almond leaf with a central vein — reads as a paler 'background' leaf."""
     pts, v0, v1 = _leaf_polygon(cx, cy, size, rng)
     draw.polygon(pts, outline=ink)
-    draw.line([v0, v1], fill=ink, width=1)
+    draw.line([v0, v1], fill=ink, width=SS)
 
 
 def _draw_rain_overlay(
@@ -682,13 +684,14 @@ def _draw_rain_overlay(
     heavy: bool = False,
 ) -> None:
     streak_fill = _grey(95 if heavy else 130, mode)
-    count = 140 if heavy else 80
+    # Particle counts scale with area to keep visual density constant.
+    count = (140 if heavy else 80) * SS * SS
     for _ in range(count):
-        x = rng.randint(_SPEC_X0 + 4, _SPEC_X1 - 4)
-        y = rng.randint(_SPEC_Y0 + 8, _SPEC_Y1 - 8)
-        length = rng.randint(5, 10)
-        slant = rng.choice((-2, -1))
-        draw.line([(x, y), (x + slant, y + length)], fill=streak_fill, width=1)
+        x = rng.randint(_SPEC_X0 + 4 * SS, _SPEC_X1 - 4 * SS)
+        y = rng.randint(_SPEC_Y0 + 8 * SS, _SPEC_Y1 - 8 * SS)
+        length = rng.randint(5 * SS, 10 * SS)
+        slant = rng.choice((-2 * SS, -SS))
+        draw.line([(x, y), (x + slant, y + length)], fill=streak_fill, width=SS)
 
 
 def _draw_snow_on_branches(
@@ -704,21 +707,20 @@ def _draw_snow_on_branches(
     snow_fill = _grey(245, mode) if mode == "L" else (255, 255, 255)
     edge_fill = _ink(mode)
     for nx, ny in nodes:
-        cap_w = rng.randint(6, 12)
-        cap_h = 3
+        cap_w = rng.randint(6 * SS, 12 * SS)
+        cap_h = 3 * SS
         draw.ellipse(
-            (nx - cap_w // 2, ny - cap_h, nx + cap_w // 2, ny + cap_h - 1),
+            (nx - cap_w // 2, ny - cap_h, nx + cap_w // 2, ny + cap_h - SS),
             fill=snow_fill,
             outline=edge_fill,
         )
-    # Ground snow line — a wavy band along the bottom of the specimen frame.
-    ground_y = _SPEC_Y1 - 18
+    ground_y = _SPEC_Y1 - 18 * SS
     pts = [(_SPEC_X0, ground_y)]
     x = _SPEC_X0
     while x <= _SPEC_X1:
-        y = ground_y + rng.randint(-3, 3)
+        y = ground_y + rng.randint(-3 * SS, 3 * SS)
         pts.append((x, y))
-        x += 12
+        x += 12 * SS
     pts.append((_SPEC_X1, ground_y))
     pts.append((_SPEC_X1, _SPEC_Y1))
     pts.append((_SPEC_X0, _SPEC_Y1))
@@ -734,9 +736,9 @@ def _draw_frost_stipple(
 ) -> None:
     frost_fill = _grey(220, mode)
     for nx, ny in nodes:
-        for _ in range(14):
-            fx = nx + rng.randint(-22, 22)
-            fy = ny + rng.randint(-22, 22)
+        for _ in range(14 * SS * SS):
+            fx = nx + rng.randint(-22 * SS, 22 * SS)
+            fy = ny + rng.randint(-22 * SS, 22 * SS)
             draw.point((fx, fy), fill=frost_fill)
 
 
@@ -748,7 +750,7 @@ def _stipple_fog(image: Image.Image, rng: random.Random) -> None:
     overlay = Image.new("L", (base_w, base_h), 248)
     od = ImageDraw.Draw(overlay)
     for i in range(7):
-        y = int((i + 0.5) / 7 * base_h) + rng.randint(-3, 3)
+        y = int((i + 0.5) / 7 * base_h) + rng.randint(-3 * SS, 3 * SS)
         tone = 215 + rng.randint(-8, 8)
         od.rectangle((0, y, base_w, y + base_h // 14), fill=tone)
     if mode == "RGB":
@@ -809,8 +811,10 @@ def _draw_callouts(
     near-black tone (40) so it dithers to a near-solid line rather than a
     mid-grey hash.
     """
-    label_font = style.font_section_label(14)
-    value_font = style.font_semibold(16) if style.font_semibold else style.font_regular(16)
+    label_font = style.font_section_label(14 * SS)
+    value_font = (
+        style.font_semibold(16 * SS) if style.font_semibold else style.font_regular(16 * SS)
+    )
 
     rows: list[tuple[str, str, str, str]] = []
     # 1) FIG. I — Event of the day.
@@ -849,25 +853,25 @@ def _draw_callouts(
         rows.append(("FIG. IV", "AER", "awaiting data", "root"))
 
     # Vertical layout of the four callout rows inside the right column.
-    row_h = (_BODY_BOTTOM - _BODY_TOP - 16) // 4
-    figure_gutter = 78  # space reserved for "FIG. I" before the KEY column
+    row_h = (_BODY_BOTTOM - _BODY_TOP - 16 * SS) // 4
+    figure_gutter = 78 * SS
     for i, (figure, key, value, anchor) in enumerate(rows):
-        row_y0 = _BODY_TOP + 8 + i * row_h
+        row_y0 = _BODY_TOP + 8 * SS + i * row_h
         row_cy = row_y0 + row_h // 2
         # Leader line from a feature point → bend → label start.
-        feature = feature_pts.get(anchor, (_SPEC_X1 - 30, row_cy))
-        bend_x = _CALLOUT_X0 - 18
-        draw.line([feature, (bend_x, feature[1])], fill=red, width=1)
-        draw.line([(bend_x, feature[1]), (bend_x, row_cy)], fill=red, width=1)
-        draw.line([(bend_x, row_cy), (_CALLOUT_X0 - 4, row_cy)], fill=red, width=1)
+        feature = feature_pts.get(anchor, (_SPEC_X1 - 30 * SS, row_cy))
+        bend_x = _CALLOUT_X0 - 18 * SS
+        draw.line([feature, (bend_x, feature[1])], fill=red, width=SS)
+        draw.line([(bend_x, feature[1]), (bend_x, row_cy)], fill=red, width=SS)
+        draw.line([(bend_x, row_cy), (_CALLOUT_X0 - 4 * SS, row_cy)], fill=red, width=SS)
         # Anchor dot at the feature point.
         fx, fy = feature
-        draw.ellipse((fx - 3, fy - 3, fx + 3, fy + 3), fill=red)
+        draw.ellipse((fx - 3 * SS, fy - 3 * SS, fx + 3 * SS, fy + 3 * SS), fill=red)
         # Figure label (small caps, red).
-        draw.text((_CALLOUT_X0, row_y0 + 2), figure, font=label_font, fill=red)
+        draw.text((_CALLOUT_X0, row_y0 + 2 * SS), figure, font=label_font, fill=red)
         # Key (small caps).
         draw.text(
-            (_CALLOUT_X0 + figure_gutter, row_y0 + 2),
+            (_CALLOUT_X0 + figure_gutter, row_y0 + 2 * SS),
             key,
             font=label_font,
             fill=ink,
@@ -875,18 +879,18 @@ def _draw_callouts(
         # Value (body Playfair semibold for legibility).
         draw_text_truncated(
             draw,
-            (_CALLOUT_X0, row_y0 + 24),
+            (_CALLOUT_X0, row_y0 + 24 * SS),
             value,
             value_font,
             _CALLOUT_W,
             fill=ink,
         )
         # Underline — near-black so it dithers to a near-solid line.
-        rule_y = row_y0 + row_h - 4
+        rule_y = row_y0 + row_h - 4 * SS
         draw.line(
             [(_CALLOUT_X0, rule_y), (_CALLOUT_X0 + _CALLOUT_W, rule_y)],
             fill=_grey(40, mode),
-            width=1,
+            width=SS,
         )
 
 
@@ -907,31 +911,34 @@ def _draw_footer(
     mode: str,
 ) -> None:
     # Heavy + thin double rule.
+    canvas_w = 800 * SS
     draw.line(
-        [(_PAD_X, _FOOTER_RULE_Y), (800 - _PAD_X, _FOOTER_RULE_Y)],
+        [(_PAD_X, _FOOTER_RULE_Y), (canvas_w - _PAD_X, _FOOTER_RULE_Y)],
         fill=ink,
-        width=2,
+        width=2 * SS,
     )
     draw.line(
-        [(_PAD_X, _FOOTER_RULE_Y + 5), (800 - _PAD_X, _FOOTER_RULE_Y + 5)],
+        [(_PAD_X, _FOOTER_RULE_Y + 5 * SS), (canvas_w - _PAD_X, _FOOTER_RULE_Y + 5 * SS)],
         fill=ink,
-        width=1,
+        width=SS,
     )
 
     # Quote in Playfair, larger so it carries the footer without crowding.
     quote = _quote_for_today(today, refresh=quote_refresh, now=now)
-    quote_font = style.font_quote(17) if style.font_quote else style.font_regular(17)
+    quote_font = style.font_quote(17 * SS) if style.font_quote else style.font_regular(17 * SS)
     author_font = (
-        style.font_quote_author(13) if style.font_quote_author else style.font_semibold(13)
+        style.font_quote_author(13 * SS)
+        if style.font_quote_author
+        else style.font_semibold(13 * SS)
     )
     quote_text = f"“{quote['text']}”"
     author_text = f"— {quote['author'].upper()}"
-    quote_w = 800 - _PAD_X * 2
+    quote_w = canvas_w - _PAD_X * 2
     lines = wrap_lines(quote_text, quote_font, quote_w)[:2]
     line_h = text_height(quote_font)
-    line_spacing = 2
+    line_spacing = 2 * SS
     block_h = line_h * len(lines) + line_spacing * max(0, len(lines) - 1)
-    qy = _QUOTE_Y + 6
+    qy = _QUOTE_Y + 6 * SS
     draw_text_wrapped(
         draw,
         (_PAD_X, qy),
@@ -943,8 +950,8 @@ def _draw_footer(
         fill=ink,
     )
     ab = draw.textbbox((0, 0), author_text, font=author_font)
-    ax = 800 - _PAD_X - (ab[2] - ab[0]) - ab[0]
-    ay = qy + block_h + 4
+    ax = canvas_w - _PAD_X - (ab[2] - ab[0]) - ab[0]
+    ay = qy + block_h + 4 * SS
     draw.text((ax, ay), author_text, font=author_font, fill=red)
 
 
@@ -954,10 +961,22 @@ def _draw_footer(
 
 
 def _draw_border_ornaments(draw: ImageDraw.ImageDraw, *, mode: str, red) -> None:
-    """Tiny diamond marks at the four corners."""
+    """Tiny diamond marks at the four corners of the plate."""
     fill = red
-    for cx, cy in ((10, 10), (790, 10), (10, 470), (790, 470)):
+    canvas_w = 800 * SS
+    canvas_h = 480 * SS
+    for cx, cy in (
+        (10 * SS, 10 * SS),
+        (canvas_w - 10 * SS, 10 * SS),
+        (10 * SS, canvas_h - 10 * SS),
+        (canvas_w - 10 * SS, canvas_h - 10 * SS),
+    ):
         draw.polygon(
-            [(cx, cy - 4), (cx + 4, cy), (cx, cy + 4), (cx - 4, cy)],
+            [
+                (cx, cy - 4 * SS),
+                (cx + 4 * SS, cy),
+                (cx, cy + 4 * SS),
+                (cx - 4 * SS, cy),
+            ],
             fill=fill,
         )
