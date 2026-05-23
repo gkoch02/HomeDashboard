@@ -37,7 +37,7 @@ from src.render.theme import INKY_YELLOW, ComponentRegion, ThemeStyle
 HERO_H = 296
 RULE_H = 6
 MARGIN_PAD_X = 28
-TEMP_NUMERAL_SIZE = 96
+TEMP_NUMERAL_SIZE = 112
 
 # Centre of the hero region — sun/moon and most cloud assemblies position
 # themselves relative to this point.
@@ -725,7 +725,7 @@ def _draw_margin_band(
     text_col_x = temp_right + 22
 
     # --- Condition (small caps) to the right of the temperature numeral
-    condition_font = style.font_section_label(20)
+    condition_font = style.font_section_label(24)
     condition_text = (weather.current_description or "").upper() if weather else "AWAITING DATA"
     if condition_text:
         cb = draw.textbbox((0, 0), condition_text, font=condition_font)
@@ -738,7 +738,7 @@ def _draw_margin_band(
         )
 
     # --- Stats line under the condition
-    stats_font = style.font_semibold(17)
+    stats_font = style.font_semibold(20)
     parts: list[str] = []
     if weather is not None:
         parts.append(f"H {_fmt_temp(weather.high)}")
@@ -749,7 +749,7 @@ def _draw_margin_band(
     if stats_text:
         sb = draw.textbbox((0, 0), stats_text, font=stats_font)
         draw.text(
-            (text_col_x - sb[0], y0 + 50 - sb[1]),
+            (text_col_x - sb[0], y0 + 54 - sb[1]),
             stats_text,
             font=stats_font,
             fill=ink,
@@ -758,9 +758,9 @@ def _draw_margin_band(
     # --- Next event line — below stats
     next_line = _next_event_line(data.events, now)
     if next_line:
-        event_font = style.font_semibold(17)
+        event_font = style.font_semibold(20)
         eb = draw.textbbox((0, 0), next_line, font=event_font)
-        ey = y0 + 82 - eb[1]
+        ey = y0 + 90 - eb[1]
         # Limit to the available width before the right-column starts.
         max_w = (x0 + w - MARGIN_PAD_X - 260) - text_col_x
         if max_w > 80:
@@ -774,7 +774,7 @@ def _draw_margin_band(
             )
 
     # --- Right-aligned location/date (small caps), anchored to the top-right
-    location_font = style.font_section_label(17)
+    location_font = style.font_section_label(20)
     location_text = (
         (weather.location_name or "").upper()
         if weather and weather.location_name
@@ -787,21 +787,21 @@ def _draw_margin_band(
 
     # When the OWM location is set, fall back to a date line below it.
     if weather and weather.location_name:
-        date_font = style.font_semibold(16)
+        date_font = style.font_semibold(19)
         date_text = today.strftime("%A · %B %-d · %Y").upper()
         db = draw.textbbox((0, 0), date_text, font=date_font)
         dx = x0 + w - MARGIN_PAD_X - (db[2] - db[0]) - db[0]
-        draw.text((dx, y0 + 42 - db[1]), date_text, font=date_font, fill=ink)
-        sun_y = y0 + 70
+        draw.text((dx, y0 + 48 - db[1]), date_text, font=date_font, fill=ink)
+        sun_y = y0 + 78
     else:
-        sun_y = y0 + 46
+        sun_y = y0 + 52
 
     # --- Sunrise / sunset line right-aligned
     if weather and (weather.sunrise or weather.sunset):
         rise = _format_event_time(weather.sunrise) if weather.sunrise else "—"
         setp = _format_event_time(weather.sunset) if weather.sunset else "—"
         sun_text = f"sun ↑ {rise}   sun ↓ {setp}"
-        sun_font = style.font_semibold(16)
+        sun_font = style.font_semibold(19)
         sb = draw.textbbox((0, 0), sun_text, font=sun_font)
         sx = x0 + w - MARGIN_PAD_X - (sb[2] - sb[0]) - sb[0]
         sy = sun_y - sb[1]
@@ -810,9 +810,9 @@ def _draw_margin_band(
     # --- Daily quote at the bottom; wraps to two lines so the larger font
     # still has room to breathe. Author sits right-aligned beneath.
     quote = _quote_for_today(today, refresh=quote_refresh, now=now)
-    quote_font = style.font_quote(17) if style.font_quote else style.font_regular(17)
+    quote_font = style.font_quote(19) if style.font_quote else style.font_regular(19)
     author_font = (
-        style.font_quote_author(14) if style.font_quote_author else style.font_semibold(14)
+        style.font_quote_author(16) if style.font_quote_author else style.font_semibold(16)
     )
     quote_text = f"“{quote['text']}”"
     author_text = f"— {quote['author']}"

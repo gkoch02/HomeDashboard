@@ -83,7 +83,7 @@ def halftone_theme() -> Theme:
             font_section_label=cinzel_semibold,
             font_quote=dm_medium,
             font_quote_author=dm_bold,
-            label_font_size=13,
+            label_font_size=15,
             label_font_weight="semibold",
             accent_primary=INKY_BLACK,
             accent_secondary=INKY_YELLOW,
