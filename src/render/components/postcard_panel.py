@@ -38,7 +38,7 @@ from PIL import Image, ImageDraw
 
 from src.data.models import CalendarEvent, DashboardData
 from src.render.components.info_panel import _quote_for_today
-from src.render.moon import is_waxing, moon_illumination, moon_phase_name
+from src.render.moon import is_waxing, moon_illumination
 from src.render.primitives import (
     draw_text_truncated,
     draw_text_wrapped,
@@ -78,10 +78,15 @@ def _ink(mode: str) -> int | tuple[int, int, int]:
 
 
 def _accent_red(mode: str) -> int | tuple[int, int, int]:
-    """Postmark / stamp-border accent.  Red on Inky, mid-grey on L mode."""
+    """Postmark / stamp-border accent.  Red on Inky, solid black on L mode.
+
+    L mode collapses the accent to solid ink because mid-grey would dither
+    into a noisy half-tone pattern after Floyd-Steinberg — fine for
+    procedural illustration but illegible for small text and thin rules.
+    """
     if mode == "RGB":
         return INKY_SPECTRA6_PALETTE[INKY_RED]
-    return 80
+    return 0
 
 
 # ---------------------------------------------------------------------------
@@ -783,36 +788,34 @@ def _draw_back(
     image.paste(paper, (x0, y0))
 
     ink = _ink(mode)
-    secondary = _grey(80, mode)
     red = _accent_red(mode)
 
     inner_x0 = x0 + BACK_PAD_X
     inner_x1 = x1 - BACK_PAD_X
     inner_w = inner_x1 - inner_x0
 
-    # --- Greeting (Playfair italic-styled small heading)
-    greeting_font = style.font_quote(16) if style.font_quote else style.font_regular(16)
+    # --- Greeting (Playfair regular, solid ink so it doesn't fuzz after dither).
+    greeting_font = style.font_semibold(20) if style.font_semibold else style.font_bold(20)
     greeting = "Greetings from today —"
-    draw.text((inner_x0, y0 + BACK_PAD_Y), greeting, font=greeting_font, fill=secondary)
+    draw.text((inner_x0, y0 + BACK_PAD_Y), greeting, font=greeting_font, fill=ink)
 
     # --- Postmark (circular stamp) + Stamp (rectangular, with moon glyph)
-    stamp_top = y0 + 56
+    stamp_top = y0 + 64
     _draw_postmark(image, draw, inner_x0, stamp_top, today, mode=mode, red=red, ink=ink)
     _draw_stamp(
-        image, draw, inner_x1 - 76, stamp_top, today, mode=mode, red=red, ink=ink, style=style
+        image, draw, inner_x1 - 90, stamp_top, today, mode=mode, red=red, ink=ink, style=style
     )
 
-    # --- Dividing rule under the stamps
-    rule_y = stamp_top + 88
-    rule_fill = _grey(60, mode)
-    draw.line([(inner_x0, rule_y), (inner_x1, rule_y)], fill=rule_fill, width=1)
+    # --- Dividing rule under the stamps — solid black for a crisp boundary.
+    rule_y = stamp_top + 94
+    draw.line([(inner_x0, rule_y), (inner_x1, rule_y)], fill=ink, width=1)
 
     # --- Address-line agenda (today's events)
-    label_font = style.font_section_label(11)
+    label_font = style.font_section_label(13)
     label = f"TODAY  ·  {today.strftime('%a %b %-d').upper()}"
     draw.text((inner_x0, rule_y + 6), label, font=label_font, fill=ink)
 
-    agenda_top = rule_y + 26
+    agenda_top = rule_y + 30
     events = _events_today(data.events, today)
     _draw_address_lines(
         draw,
@@ -822,16 +825,15 @@ def _draw_back(
         w=inner_w,
         style=style,
         ink=ink,
-        secondary=secondary,
         red=red,
         mode=mode,
     )
 
-    # --- Quote at the bottom — "Wish you were here" style cursive signature
+    # --- Quote at the bottom — solid ink, larger Playfair body for legibility.
     quote = _quote_for_today(today, refresh=quote_refresh, now=now)
-    quote_font = style.font_quote(13) if style.font_quote else style.font_regular(13)
+    quote_font = style.font_quote(15) if style.font_quote else style.font_regular(15)
     author_font = (
-        style.font_quote_author(10) if style.font_quote_author else style.font_semibold(10)
+        style.font_quote_author(12) if style.font_quote_author else style.font_semibold(12)
     )
     quote_text = f"“{quote['text']}”"
     author_text = f"— {quote['author']}"
@@ -853,10 +855,10 @@ def _draw_back(
         quote_w,
         max_lines=3,
         line_spacing=line_spacing,
-        fill=secondary,
+        fill=ink,
     )
     ax = inner_x1 - (author_bb[2] - author_bb[0]) - author_bb[0]
-    draw.text((ax, ay), author_text, font=author_font, fill=ink)
+    draw.text((ax, ay), author_text, font=author_font, fill=red)
 
 
 def _draw_postmark(
@@ -896,21 +898,21 @@ def _draw_postmark(
                 draw.line([prev, (xv, yv)], fill=red, width=1)
             prev = (xv, yv)
 
-    # Date inside the postmark — month abbrev + day on two lines.
+    # Date inside the postmark — day numeral (big) over month abbrev (small caps).
     from src.render import fonts as _fonts
 
-    label_font = _fonts.cinzel_semibold(11)
-    day_font = _fonts.cinzel_bold(16)
+    day_font = _fonts.cinzel_bold(22)
+    month_font = _fonts.cinzel_semibold(12)
     month_txt = today.strftime("%b").upper()
     day_txt = today.strftime("%-d")
-    mb = draw.textbbox((0, 0), month_txt, font=label_font)
     db = draw.textbbox((0, 0), day_txt, font=day_font)
-    mx = cx - (mb[2] - mb[0]) // 2 - mb[0]
-    my = cy - (mb[3] - mb[1]) - 1
-    draw.text((mx, my), month_txt, font=label_font, fill=red)
+    mb = draw.textbbox((0, 0), month_txt, font=month_font)
     dx = cx - (db[2] - db[0]) // 2 - db[0]
-    dy = cy + 2 - db[1]
+    dy = cy - (db[3] - db[1]) // 2 - db[1] - 2
     draw.text((dx, dy), day_txt, font=day_font, fill=red)
+    mx = cx - (mb[2] - mb[0]) // 2 - mb[0]
+    my = cy + (db[3] - db[1]) // 2 - 2
+    draw.text((mx, my), month_txt, font=month_font, fill=red)
 
 
 def _draw_stamp(
@@ -925,9 +927,9 @@ def _draw_stamp(
     ink,
     style: ThemeStyle,
 ) -> None:
-    """Rectangular postage stamp with perforated edges + moon glyph + denomination."""
-    w = 70
-    h = 82
+    """Rectangular postage stamp with perforated edges + moon glyph + illumination %."""
+    w = 86
+    h = 96
     # Outer perforation: a series of tiny ellipses around the edge.
     pitch = 6
     for px in range(x, x + w + 1, pitch):
@@ -937,35 +939,31 @@ def _draw_stamp(
         draw.ellipse((x - 3, py - 2, x + 1, py + 2), fill=red)
         draw.ellipse((x + w - 1, py - 2, x + w + 3, py + 2), fill=red)
     # Inner stamp border.
-    pad = 4
+    pad = 5
     inner = (x + pad, y + pad, x + w - pad, y + h - pad)
     draw.rectangle(inner, outline=red, width=2)
 
     # Moon glyph centred in the upper portion.
     from src.render import fonts as _fonts
+    from src.render.moon import moon_illumination, moon_phase_glyph
 
-    glyph_font = _fonts.weather_icon(38)
-    from src.render.moon import moon_phase_glyph
-
+    glyph_font = _fonts.weather_icon(42)
     glyph = moon_phase_glyph(today)
     gb = draw.textbbox((0, 0), glyph, font=glyph_font)
-    gx = (x + w) // 2 + x // 2 // 2  # we'll just compute centre cleanly:
     cx = x + w // 2
     gx = cx - (gb[2] - gb[0]) // 2 - gb[0]
-    gy = y + 8 - gb[1]
+    gy = y + 10 - gb[1]
     draw.text((gx, gy), glyph, font=glyph_font, fill=ink)
 
-    # Bottom: phase name in tiny small caps.
-    label_font = _fonts.cinzel_semibold(8)
-    label = moon_phase_name(today).upper()
-    lb = draw.textbbox((0, 0), label, font=label_font)
-    lx = cx - (lb[2] - lb[0]) // 2 - lb[0]
-    ly = y + h - pad - 12 - lb[1]
-    # If the phase name is too wide, truncate.
-    if (lb[2] - lb[0]) > w - 2 * pad - 2:
-        draw_text_truncated(draw, (x + pad + 1, ly), label, label_font, w - 2 * pad - 2, fill=ink)
-    else:
-        draw.text((lx, ly), label, font=label_font, fill=ink)
+    # Bottom: illumination percent (always short) in solid Cinzel caps so it
+    # stays legible after Floyd-Steinberg.
+    illum = moon_illumination(today)
+    pct_font = _fonts.cinzel_bold(14)
+    pct = f"{int(round(illum))}%"
+    pb = draw.textbbox((0, 0), pct, font=pct_font)
+    px_ = cx - (pb[2] - pb[0]) // 2 - pb[0]
+    py_ = y + h - pad - (pb[3] - pb[1]) - 4 - pb[1]
+    draw.text((px_, py_), pct, font=pct_font, fill=ink)
 
 
 def _draw_address_lines(
@@ -977,60 +975,50 @@ def _draw_address_lines(
     w: int,
     style: ThemeStyle,
     ink,
-    secondary,
     red,
     mode: str,
 ) -> None:
-    """Stack of three-to-four address lines: time gutter + summary + faint rule."""
-    time_font = style.font_section_label(11)
-    body_font = style.font_regular(13)
-    rule_fill = _grey(170, mode)
-    line_h = 24
-    max_rows = 6
+    """Stack of address lines: time gutter + summary + ruled underline.
+
+    Body text is solid ink and the underline rules are a darker mid-grey
+    (60) — barely affected by Floyd-Steinberg quantization but visually
+    softer than the body text so the rules read as "address lines" rather
+    than as primary content.
+    """
+    time_font = style.font_section_label(14)
+    body_font = style.font_semibold(17) if style.font_semibold else style.font_regular(17)
+    rule_fill = _grey(60, mode)
+    line_h = 30
+    max_rows = 5
     rows = events[:max_rows]
 
-    # Even if there are no events, draw four empty ruled lines for that classic
-    # postcard look.  Use a placeholder copy in the empty case.
     if not rows:
         for i in range(4):
-            ly = y0 + i * line_h + 16
+            ly = y0 + i * line_h + 22
             draw.line([(x0, ly), (x0 + w, ly)], fill=rule_fill, width=1)
         empty_label = "( nothing scheduled )"
-        draw.text(
-            (x0, y0 + 2),
-            empty_label,
-            font=body_font,
-            fill=secondary,
-        )
+        draw.text((x0, y0 + 2), empty_label, font=body_font, fill=ink)
         return
 
-    gutter_w = 56
+    gutter_w = 70
     for i, ev in enumerate(rows):
         ly = y0 + i * line_h
         rule_y = ly + line_h - 4
-        # Faint rule under each line.
         draw.line([(x0, rule_y), (x0 + w, rule_y)], fill=rule_fill, width=1)
         if ev.is_all_day:
             time_txt = "ALL DAY"
         else:
             time_txt = _fmt_event_time(ev.start).upper()
-        draw.text((x0, ly + 2), time_txt, font=time_font, fill=red)
-        # Event summary in the body font, truncated to fit.
+        draw.text((x0, ly + 4), time_txt, font=time_font, fill=red)
         draw_text_truncated(
             draw,
-            (x0 + gutter_w, ly),
+            (x0 + gutter_w, ly + 2),
             ev.summary,
             body_font,
             w - gutter_w,
             fill=ink,
         )
-    # Trailing "+N more" if events were clipped.
     extra = len(events) - len(rows)
     if extra > 0:
         ly = y0 + len(rows) * line_h
-        draw.text(
-            (x0, ly),
-            f"+{extra} more",
-            font=body_font,
-            fill=secondary,
-        )
+        draw.text((x0, ly + 2), f"+{extra} more", font=body_font, fill=ink)

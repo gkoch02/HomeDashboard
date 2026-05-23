@@ -65,11 +65,11 @@ from src.render.theme import INKY_RED, ComponentRegion, ThemeStyle
 _PAD_X = 28
 
 _HEADER_TOP = 14
-_HEADER_RULE_Y = 40
-_SUBTITLE_Y = 50
+_HEADER_RULE_Y = 46
+_SUBTITLE_Y = 60
 
-_BODY_TOP = 88
-_BODY_BOTTOM = 388
+_BODY_TOP = 118
+_BODY_BOTTOM = 390
 _FOOTER_RULE_Y = 394
 _QUOTE_Y = 408
 
@@ -99,9 +99,11 @@ def _ink(mode: str) -> int | tuple[int, int, int]:
 
 
 def _accent_red(mode: str) -> int | tuple[int, int, int]:
+    """Plate accent — red on Inky, solid black on L mode so it stays crisp
+    after Floyd-Steinberg quantization (mid-grey would dither into hash)."""
     if mode == "RGB":
         return INKY_SPECTRA6_PALETTE[INKY_RED]
-    return 80
+    return 0
 
 
 # ---------------------------------------------------------------------------
@@ -246,7 +248,6 @@ def draw_naturalist(
 
     mode = image.mode
     ink = _ink(mode)
-    secondary = _grey(80, mode)
     red = _accent_red(mode)
 
     season = _season(today)
@@ -255,9 +256,7 @@ def draw_naturalist(
     temp = weather.current_temp if weather else None
     modifier = _weather_modifier(icon, temp)
 
-    _draw_masthead(
-        draw, today, season, modifier, style=style, ink=ink, red=red, secondary=secondary
-    )
+    _draw_masthead(draw, today, season, modifier, style=style, ink=ink, red=red)
     _draw_specimen(image, season, modifier, today, mode=mode)
     feature_pts = _feature_points()
     _draw_callouts(
@@ -268,7 +267,6 @@ def draw_naturalist(
         feature_pts=feature_pts,
         style=style,
         ink=ink,
-        secondary=secondary,
         red=red,
         mode=mode,
     )
@@ -279,7 +277,6 @@ def draw_naturalist(
         style=style,
         quote_refresh=quote_refresh,
         ink=ink,
-        secondary=secondary,
         red=red,
         mode=mode,
     )
@@ -300,11 +297,14 @@ def _draw_masthead(
     style: ThemeStyle,
     ink,
     red,
-    secondary,
 ) -> None:
-    plate_label_font = style.font_section_label(13)
-    dateline_font = style.font_section_label(12)
-    subtitle_font = style.font_section_label(13)
+    """Plate header: PLATE no. + dateline above a triple rule, Latin specimen
+    name + weekday/date beneath.  All text is solid ink at sizes chosen to
+    stay legible after the final Floyd-Steinberg quantization step."""
+    plate_label_font = style.font_section_label(16)
+    dateline_font = style.font_section_label(16)
+    subtitle_font = style.font_section_label(20)
+    day_font = style.font_section_label(14)
 
     # Left:  PLATE [Roman]
     plate_text = f"PLATE  {_plate_number(today)}"
@@ -322,50 +322,51 @@ def _draw_masthead(
         fill=ink,
     )
 
-    # Centre rule under the labels — a triple-rule (heavy + thin + heavy).
+    # Centre rule under the labels — a heavy + thin double rule.
     draw.line([(_PAD_X, _HEADER_RULE_Y), (800 - _PAD_X, _HEADER_RULE_Y)], fill=ink, width=2)
     draw.line(
-        [(_PAD_X, _HEADER_RULE_Y + 4), (800 - _PAD_X, _HEADER_RULE_Y + 4)],
+        [(_PAD_X, _HEADER_RULE_Y + 5), (800 - _PAD_X, _HEADER_RULE_Y + 5)],
         fill=ink,
         width=1,
     )
-    # A centred ornament between the two rules.
+    # A centred ornament between the two rules — bigger so it reads as a
+    # printed mark, not noise.
     cx = 400
-    glyph_font = style.font_section_label(14)
+    glyph_font = style.font_section_label(18)
     glyph = "✦"
     gb = draw.textbbox((0, 0), glyph, font=glyph_font)
-    # Re-paint a tiny patch of background behind the glyph so the rule
-    # appears to break at the ornament.
-    pad = 12
+    pad = 16
     gx = cx - (gb[2] - gb[0]) // 2 - gb[0]
-    gy = _HEADER_RULE_Y - 9
-    draw.rectangle((cx - pad, _HEADER_RULE_Y - 2, cx + pad, _HEADER_RULE_Y + 6), fill=style.bg)
+    gy = _HEADER_RULE_Y - 12
+    draw.rectangle((cx - pad, _HEADER_RULE_Y - 4, cx + pad, _HEADER_RULE_Y + 8), fill=style.bg)
     draw.text((gx, gy), glyph, font=glyph_font, fill=red)
 
     # Subtitle — small-caps Latin specimen name centred under the masthead.
     latin = _latin_name(season, modifier)
     sb = draw.textbbox((0, 0), latin, font=subtitle_font)
     sx = cx - (sb[2] - sb[0]) // 2 - sb[0]
-    draw.text((sx, _SUBTITLE_Y), latin, font=subtitle_font, fill=secondary)
+    draw.text((sx, _SUBTITLE_Y), latin, font=subtitle_font, fill=ink)
 
-    # Subtitle: weekday / day  — small caps, centred under the Latin name.
+    # Weekday + day under the Latin name.
     day_label = today.strftime("%A · %B %-d").upper()
-    db2 = draw.textbbox((0, 0), day_label, font=plate_label_font)
+    db2 = draw.textbbox((0, 0), day_label, font=day_font)
     dx = cx - (db2[2] - db2[0]) // 2 - db2[0]
-    draw.text((dx, _SUBTITLE_Y + 22), day_label, font=plate_label_font, fill=ink)
+    draw.text((dx, _SUBTITLE_Y + 32), day_label, font=day_font, fill=ink)
 
 
 # ---------------------------------------------------------------------------
 # Specimen — the procedural branch
 # ---------------------------------------------------------------------------
 
-# Anatomical feature points on the specimen — set by ``_draw_specimen`` via
-# the seed; callers use ``_feature_points()`` to query a stable mapping.
+# Anatomical feature points on the specimen — leader lines from the right-
+# column callouts end at these (x, y) anchors.  Tuned to land on the upper
+# canopy, mid trunk, a lower branch, and the root crown of the procedural
+# specimen for any season.
 _FEATURE_POINTS = {
-    "leaf_top": (315, _BODY_TOP + 70),
-    "node_mid": (290, _BODY_TOP + 160),
-    "branch_low": (220, _BODY_TOP + 230),
-    "root": (200, _BODY_TOP + 280),
+    "leaf_top": (315, _BODY_TOP + 50),
+    "node_mid": (290, _BODY_TOP + 130),
+    "branch_low": (220, _BODY_TOP + 195),
+    "root": (200, _BODY_TOP + 245),
 }
 
 
@@ -798,13 +799,18 @@ def _draw_callouts(
     feature_pts: dict[str, tuple[int, int]],
     style: ThemeStyle,
     ink,
-    secondary,
     red,
     mode: str,
 ) -> None:
-    """Four leader-line callouts pointing into the specimen frame."""
-    label_font = style.font_section_label(11)
-    value_font = style.font_regular(13)
+    """Four leader-line callouts pointing into the specimen frame.
+
+    Label, key, and value all render in solid ink at sizes that survive
+    Floyd-Steinberg quantization.  The thin between-row underline uses a
+    near-black tone (40) so it dithers to a near-solid line rather than a
+    mid-grey hash.
+    """
+    label_font = style.font_section_label(14)
+    value_font = style.font_semibold(16) if style.font_semibold else style.font_regular(16)
 
     rows: list[tuple[str, str, str, str]] = []
     # 1) FIG. I — Event of the day.
@@ -844,6 +850,7 @@ def _draw_callouts(
 
     # Vertical layout of the four callout rows inside the right column.
     row_h = (_BODY_BOTTOM - _BODY_TOP - 16) // 4
+    figure_gutter = 78  # space reserved for "FIG. I" before the KEY column
     for i, (figure, key, value, anchor) in enumerate(rows):
         row_y0 = _BODY_TOP + 8 + i * row_h
         row_cy = row_y0 + row_h // 2
@@ -855,30 +862,30 @@ def _draw_callouts(
         draw.line([(bend_x, row_cy), (_CALLOUT_X0 - 4, row_cy)], fill=red, width=1)
         # Anchor dot at the feature point.
         fx, fy = feature
-        draw.ellipse((fx - 2, fy - 2, fx + 2, fy + 2), fill=red)
+        draw.ellipse((fx - 3, fy - 3, fx + 3, fy + 3), fill=red)
         # Figure label (small caps, red).
         draw.text((_CALLOUT_X0, row_y0 + 2), figure, font=label_font, fill=red)
         # Key (small caps).
         draw.text(
-            (_CALLOUT_X0 + 56, row_y0 + 2),
+            (_CALLOUT_X0 + figure_gutter, row_y0 + 2),
             key,
             font=label_font,
             fill=ink,
         )
-        # Value (body Playfair).
+        # Value (body Playfair semibold for legibility).
         draw_text_truncated(
             draw,
-            (_CALLOUT_X0, row_y0 + 22),
+            (_CALLOUT_X0, row_y0 + 24),
             value,
             value_font,
             _CALLOUT_W,
             fill=ink,
         )
-        # Light thin underline under each row.
+        # Underline — near-black so it dithers to a near-solid line.
         rule_y = row_y0 + row_h - 4
         draw.line(
             [(_CALLOUT_X0, rule_y), (_CALLOUT_X0 + _CALLOUT_W, rule_y)],
-            fill=_grey(190, mode),
+            fill=_grey(40, mode),
             width=1,
         )
 
@@ -896,27 +903,26 @@ def _draw_footer(
     style: ThemeStyle,
     quote_refresh: str,
     ink,
-    secondary,
     red,
     mode: str,
 ) -> None:
-    # Triple rule.
+    # Heavy + thin double rule.
     draw.line(
         [(_PAD_X, _FOOTER_RULE_Y), (800 - _PAD_X, _FOOTER_RULE_Y)],
         fill=ink,
         width=2,
     )
     draw.line(
-        [(_PAD_X, _FOOTER_RULE_Y + 4), (800 - _PAD_X, _FOOTER_RULE_Y + 4)],
+        [(_PAD_X, _FOOTER_RULE_Y + 5), (800 - _PAD_X, _FOOTER_RULE_Y + 5)],
         fill=ink,
         width=1,
     )
 
-    # Quote in italic-feel Playfair regular.
+    # Quote in Playfair, larger so it carries the footer without crowding.
     quote = _quote_for_today(today, refresh=quote_refresh, now=now)
-    quote_font = style.font_quote(15) if style.font_quote else style.font_regular(15)
+    quote_font = style.font_quote(17) if style.font_quote else style.font_regular(17)
     author_font = (
-        style.font_quote_author(11) if style.font_quote_author else style.font_semibold(11)
+        style.font_quote_author(13) if style.font_quote_author else style.font_semibold(13)
     )
     quote_text = f"“{quote['text']}”"
     author_text = f"— {quote['author'].upper()}"
@@ -925,7 +931,7 @@ def _draw_footer(
     line_h = text_height(quote_font)
     line_spacing = 2
     block_h = line_h * len(lines) + line_spacing * max(0, len(lines) - 1)
-    qy = _QUOTE_Y
+    qy = _QUOTE_Y + 6
     draw_text_wrapped(
         draw,
         (_PAD_X, qy),
@@ -938,7 +944,7 @@ def _draw_footer(
     )
     ab = draw.textbbox((0, 0), author_text, font=author_font)
     ax = 800 - _PAD_X - (ab[2] - ab[0]) - ab[0]
-    ay = qy + block_h + 6
+    ay = qy + block_h + 4
     draw.text((ax, ay), author_text, font=author_font, fill=red)
 
 
