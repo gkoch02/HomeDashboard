@@ -162,6 +162,14 @@ class ThemeLayout:
     trends: ComponentRegion = field(
         default_factory=lambda: ComponentRegion(0, 0, 800, 480, visible=False)
     )
+    # Used by the ``postcard`` theme for a dithered procedural scene + postcard back.
+    postcard: ComponentRegion = field(
+        default_factory=lambda: ComponentRegion(0, 0, 800, 480, visible=False)
+    )
+    # Used by the ``naturalist`` theme for a Victorian botanical plate.
+    naturalist: ComponentRegion = field(
+        default_factory=lambda: ComponentRegion(0, 0, 800, 480, visible=False)
+    )
     draw_order: list[str] = field(
         default_factory=lambda: ["header", "week_view", "weather", "birthdays", "info"]
     )
