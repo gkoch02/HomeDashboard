@@ -226,11 +226,10 @@ def _draw_sky(image: Image.Image, hero_rect: tuple[int, int, int, int], *, day: 
     w = x1 - x0
     h = y1 - y0
     if day:
-        # Light, slightly darker at the top, brighter toward the horizon.
-        # Values in the 218–245 range give a sparse halftone that reads as
-        # near-white on eInk while still letting the sun and clouds register
-        # against it.
-        top, bottom = 218, 245
+        # Darker at the zenith, lighter toward the horizon. Values around
+        # 175–215 dither to a visible halftone pattern on eInk so the sun,
+        # clouds, and rays read as clearly brighter than the sky behind them.
+        top, bottom = 175, 215
     else:
         # Dark sky for night scenes — value 35 is denser than 60 so the top
         # reads as "darker zenith" and the bottom is the horizon glow.
@@ -504,10 +503,10 @@ def _draw_cloud(
         # Rain/storm clouds — heavy, brooding.
         top, bottom = 95, 55
     else:
-        # Fair-weather cumulus — bright at the top, soft halftone at the
+        # Fair-weather cumulus — bright at the top, denser halftone at the
         # underside. Keep values well above the sky tones so the cloud reads
         # as opaque against the dithered sky.
-        top, bottom = 255, 195
+        top, bottom = 255, 175
     # Build the vertical gradient as a 1-px-wide strip then NEAREST-resize to
     # full width — same pattern as ``_draw_sky``. Much faster than a per-pixel
     # nested loop, especially on a Pi.
