@@ -18,6 +18,7 @@ from src.render.components import (
     countdown_panel,
     diags_panel,
     fuzzyclock_panel,
+    halftone_panel,
     header,
     info_panel,
     light_cycle_panel,
@@ -30,6 +31,7 @@ from src.render.components import (
     tides_panel,
     timeline_panel,
     today_view,
+    trends_panel,
     weather_full,
     weather_panel,
     week_view,
@@ -355,6 +357,35 @@ def _constellation_map(ctx: RenderContext) -> None:
         ctx.today,
         ctx.now,
         region=ctx.layout.constellation_map,
+        style=ctx.style,
+        latitude=ctx.latitude,
+        longitude=ctx.longitude,
+    )
+
+
+@register_component("halftone")
+def _halftone(ctx: RenderContext) -> None:
+    halftone_panel.draw_halftone(
+        ctx.draw,
+        ctx.data,
+        ctx.today,
+        ctx.now,
+        image=ctx.image,
+        region=ctx.layout.halftone,
+        style=ctx.style,
+        quote_refresh=ctx.quote_refresh,
+    )
+
+
+@register_component("trends")
+def _trends(ctx: RenderContext) -> None:
+    trends_panel.draw_trends(
+        ctx.draw,
+        ctx.data,
+        ctx.today,
+        ctx.now,
+        image=ctx.image,
+        region=ctx.layout.trends,
         style=ctx.style,
         latitude=ctx.latitude,
         longitude=ctx.longitude,

@@ -19,6 +19,7 @@ from src.render.themes import diags as _diags  # noqa: F401
 from src.render.themes import fantasy as _fantasy  # noqa: F401
 from src.render.themes import fuzzyclock as _fuzzyclock  # noqa: F401
 from src.render.themes import fuzzyclock_invert as _fuzzyclock_invert  # noqa: F401
+from src.render.themes import halftone as _halftone  # noqa: F401
 from src.render.themes import light_cycle as _light_cycle  # noqa: F401
 from src.render.themes import message as _message  # noqa: F401
 from src.render.themes import minimalist as _minimalist  # noqa: F401
@@ -35,5 +36,6 @@ from src.render.themes import terminal as _terminal  # noqa: F401
 from src.render.themes import tides as _tides  # noqa: F401
 from src.render.themes import timeline as _timeline  # noqa: F401
 from src.render.themes import today as _today  # noqa: F401
+from src.render.themes import trends as _trends  # noqa: F401
 from src.render.themes import weather as _weather  # noqa: F401
 from src.render.themes import year_pulse as _year_pulse  # noqa: F401

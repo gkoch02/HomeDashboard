@@ -119,14 +119,14 @@ src/
     ├── moon.py                # Moon phase calculator
     ├── primitives.py          # Shared draw utilities (truncation, wrapping, colors, fmt_time,
     │                          #   events_for_day, deg_to_compass)
-    ├── themes/                # themes (29 — 28 concrete + `default` pseudo): standard week-view
+    ├── themes/                # themes (31 — 30 concrete + `default` pseudo): standard week-view
     │                          #   (default, agenda, terminal, minimalist, old_fashioned, today,
     │                          #   fantasy); full-screen focused (qotd, qotd_invert, fuzzyclock,
     │                          #   fuzzyclock_invert, weather, moonphase, moonphase_invert);
     │                          #   specialized views (timeline, year_pulse, monthly, sunrise,
     │                          #   light_cycle, air_quality, astronomy, constellation_map,
-    │                          #   almanac, scorecard, tides); photo overlay (photo);
-    │                          #   utility (countdown, message, diags)
+    │                          #   almanac, scorecard, tides, halftone, trends);
+    │                          #   photo overlay (photo); utility (countdown, message, diags)
     │   ├── registry.py        # v5 theme plugin registry (register_theme + per-theme
     │   │                      #   inky_palette pair); adding a theme is one new file plus a
     │   │                      #   register_theme(...) call at its bottom

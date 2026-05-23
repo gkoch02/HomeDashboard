@@ -62,6 +62,12 @@ _THEME_SPLIT_MODES: dict[str, str] = {
     "sunrise": "horizontal",
     "tides": "horizontal",
     "astronomy": "horizontal",
+    # Hero illustration top / typeset margin bottom — horizontal cut puts
+    # the Inky yellow sun accent above the typeset bottom strip.
+    "halftone": "horizontal",
+    # Stacked rows — horizontal cut keeps each row's chart intact and
+    # shows both the Waveshare 1-bit fill and the Inky blue/yellow story.
+    "trends": "horizontal",
 }
 
 
