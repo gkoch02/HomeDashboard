@@ -25,13 +25,7 @@ black so the engraving still reads as one.
 
 from __future__ import annotations
 
-from src.render.fonts import (
-    cinzel_semibold,
-    dm_bold,
-    dm_medium,
-    dm_semibold,
-    playfair_semibold,
-)
+from src.render.fonts import righteous
 from src.render.theme import (
     INKY_BLACK,
     INKY_YELLOW,
@@ -70,20 +64,20 @@ def halftone_theme() -> Theme:
             # L-mode light canvas invariant: black ink on near-white field.
             fg=0,
             bg=255,
-            # Body text switched from Playfair to DM Sans — sans-serif strokes
-            # survive Floyd-Steinberg dithering far better than Playfair's
-            # high-contrast thin serifs, which previously broke apart at small
-            # sizes. Playfair stays on the hero temperature numeral where its
-            # character still reads cleanly at 96 pt.
-            font_regular=dm_medium,
-            font_medium=dm_medium,
-            font_semibold=dm_semibold,
-            font_bold=dm_bold,
-            font_title=playfair_semibold,
-            font_section_label=cinzel_semibold,
-            font_quote=dm_medium,
-            font_quote_author=dm_bold,
-            label_font_size=13,
+            # Every typeset element uses Righteous (OFL) — a single-weight
+            # geometric display sans whose thick, even strokes survive
+            # Floyd-Steinberg dithering cleanly at every size. The unified
+            # face also lets the engraved plate read as one voice instead
+            # of mixing serif, small-caps, and sans body in the same band.
+            font_regular=righteous,
+            font_medium=righteous,
+            font_semibold=righteous,
+            font_bold=righteous,
+            font_title=righteous,
+            font_section_label=righteous,
+            font_quote=righteous,
+            font_quote_author=righteous,
+            label_font_size=15,
             label_font_weight="semibold",
             accent_primary=INKY_BLACK,
             accent_secondary=INKY_YELLOW,

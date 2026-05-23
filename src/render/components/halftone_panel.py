@@ -25,10 +25,17 @@ from PIL import Image, ImageDraw
 
 from src.data.models import CalendarEvent, DashboardData
 from src.render.components.info_panel import _quote_for_today
+from src.render.fonts import weather_icon
 from src.render.moon import is_waxing, moon_illumination
 from src.render.primitives import draw_text_truncated, draw_text_wrapped, text_height, wrap_lines
 from src.render.quantize import _BAYER_4X4, INKY_SPECTRA6_PALETTE
 from src.render.theme import INKY_YELLOW, ComponentRegion, ThemeStyle
+
+# Weather Icons font glyphs — Righteous itself has no ↑/↓ arrows, so the
+# sunrise/sunset row borrows these two glyphs from the bundled Weather
+# Icons font and centers them on the Righteous text midline.
+_SUNRISE_GLYPH = "\uf051"  # wi-sunrise
+_SUNSET_GLYPH = "\uf052"  # wi-sunset
 
 # ---------------------------------------------------------------------------
 # Region geometry
@@ -37,7 +44,7 @@ from src.render.theme import INKY_YELLOW, ComponentRegion, ThemeStyle
 HERO_H = 296
 RULE_H = 6
 MARGIN_PAD_X = 28
-TEMP_NUMERAL_SIZE = 96
+TEMP_NUMERAL_SIZE = 108
 
 # Centre of the hero region — sun/moon and most cloud assemblies position
 # themselves relative to this point.
@@ -714,18 +721,20 @@ def _draw_margin_band(
 
     weather = data.weather
 
-    # --- Temperature numeral, anchored to the top-left of the band
+    # --- Temperature numeral, nudged down a touch from the top of the band
+    # so its visual mass sits closer to the condition/stats baseline rather
+    # than crowding the Bayer rule.
     temp_font = style.font_title(TEMP_NUMERAL_SIZE)
     temp_text = _fmt_temp(weather.current_temp) if weather else "—"
     temp_bbox = draw.textbbox((0, 0), temp_text, font=temp_font)
     temp_x = x0 + MARGIN_PAD_X - temp_bbox[0]
-    temp_y = y0 + 4 - temp_bbox[1]
+    temp_y = y0 + 14 - temp_bbox[1]
     draw.text((temp_x, temp_y), temp_text, font=temp_font, fill=ink)
     temp_right = temp_x + (temp_bbox[2] - temp_bbox[0])
     text_col_x = temp_right + 22
 
     # --- Condition (small caps) to the right of the temperature numeral
-    condition_font = style.font_section_label(20)
+    condition_font = style.font_section_label(22)
     condition_text = (weather.current_description or "").upper() if weather else "AWAITING DATA"
     if condition_text:
         cb = draw.textbbox((0, 0), condition_text, font=condition_font)
@@ -738,7 +747,7 @@ def _draw_margin_band(
         )
 
     # --- Stats line under the condition
-    stats_font = style.font_semibold(17)
+    stats_font = style.font_semibold(19)
     parts: list[str] = []
     if weather is not None:
         parts.append(f"H {_fmt_temp(weather.high)}")
@@ -758,11 +767,11 @@ def _draw_margin_band(
     # --- Next event line — below stats
     next_line = _next_event_line(data.events, now)
     if next_line:
-        event_font = style.font_semibold(17)
+        event_font = style.font_semibold(19)
         eb = draw.textbbox((0, 0), next_line, font=event_font)
         ey = y0 + 82 - eb[1]
         # Limit to the available width before the right-column starts.
-        max_w = (x0 + w - MARGIN_PAD_X - 260) - text_col_x
+        max_w = (x0 + w - MARGIN_PAD_X - 230) - text_col_x
         if max_w > 80:
             draw_text_truncated(
                 draw,
@@ -774,7 +783,7 @@ def _draw_margin_band(
             )
 
     # --- Right-aligned location/date (small caps), anchored to the top-right
-    location_font = style.font_section_label(17)
+    location_font = style.font_section_label(19)
     location_text = (
         (weather.location_name or "").upper()
         if weather and weather.location_name
@@ -787,32 +796,54 @@ def _draw_margin_band(
 
     # When the OWM location is set, fall back to a date line below it.
     if weather and weather.location_name:
-        date_font = style.font_semibold(16)
+        date_font = style.font_semibold(17)
         date_text = today.strftime("%A · %B %-d · %Y").upper()
         db = draw.textbbox((0, 0), date_text, font=date_font)
         dx = x0 + w - MARGIN_PAD_X - (db[2] - db[0]) - db[0]
-        draw.text((dx, y0 + 42 - db[1]), date_text, font=date_font, fill=ink)
+        draw.text((dx, y0 + 44 - db[1]), date_text, font=date_font, fill=ink)
         sun_y = y0 + 70
     else:
-        sun_y = y0 + 46
+        sun_y = y0 + 48
 
-    # --- Sunrise / sunset line right-aligned
+    # --- Sunrise / sunset line right-aligned. Righteous itself has no
+    # ↑/↓ arrows, so the glyphs come from the bundled Weather Icons font
+    # (wi-sunrise / wi-sunset). Each chunk's ink-center is aligned to a
+    # shared midline derived from a Righteous "M" so the two fonts —
+    # which carry different baselines — read as one row.
     if weather and (weather.sunrise or weather.sunset):
-        rise = _format_event_time(weather.sunrise) if weather.sunrise else "—"
-        setp = _format_event_time(weather.sunset) if weather.sunset else "—"
-        sun_text = f"sun ↑ {rise}   sun ↓ {setp}"
-        sun_font = style.font_semibold(16)
-        sb = draw.textbbox((0, 0), sun_text, font=sun_font)
-        sx = x0 + w - MARGIN_PAD_X - (sb[2] - sb[0]) - sb[0]
-        sy = sun_y - sb[1]
-        draw.text((sx, sy), sun_text, font=sun_font, fill=ink)
+        rise_text = _format_event_time(weather.sunrise) if weather.sunrise else "—"
+        set_text = _format_event_time(weather.sunset) if weather.sunset else "—"
+        sun_font = style.font_semibold(17)
+        icon_font = weather_icon(24)
+        glyph_pad = 4
+        pair_gap = 14
+
+        chunks = [
+            (_SUNRISE_GLYPH, icon_font),
+            (rise_text, sun_font),
+            (_SUNSET_GLYPH, icon_font),
+            (set_text, sun_font),
+        ]
+        measured = [(s, f, draw.textbbox((0, 0), s, font=f)) for s, f in chunks]
+        # Pads applied after each chunk: [glyph→time] [time→glyph] [glyph→time] (final 0)
+        pads = (glyph_pad, pair_gap, glyph_pad, 0)
+        total_w = sum(bb[2] - bb[0] for _, _, bb in measured) + sum(pads)
+
+        ref_bb = draw.textbbox((0, 0), "M", font=sun_font)
+        row_mid = sun_y + (ref_bb[3] - ref_bb[1]) // 2
+
+        cursor = x0 + w - MARGIN_PAD_X - total_w
+        for (s, f, bb), pad in zip(measured, pads):
+            glyph_mid = (bb[1] + bb[3]) // 2
+            draw.text((cursor - bb[0], row_mid - glyph_mid), s, font=f, fill=ink)
+            cursor += (bb[2] - bb[0]) + pad
 
     # --- Daily quote at the bottom; wraps to two lines so the larger font
     # still has room to breathe. Author sits right-aligned beneath.
     quote = _quote_for_today(today, refresh=quote_refresh, now=now)
-    quote_font = style.font_quote(17) if style.font_quote else style.font_regular(17)
+    quote_font = style.font_quote(18) if style.font_quote else style.font_regular(18)
     author_font = (
-        style.font_quote_author(14) if style.font_quote_author else style.font_semibold(14)
+        style.font_quote_author(15) if style.font_quote_author else style.font_semibold(15)
     )
     quote_text = f"“{quote['text']}”"
     author_text = f"— {quote['author']}"
