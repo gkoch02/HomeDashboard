@@ -721,12 +721,14 @@ def _draw_margin_band(
 
     weather = data.weather
 
-    # --- Temperature numeral, anchored to the top-left of the band
+    # --- Temperature numeral, nudged down a touch from the top of the band
+    # so its visual mass sits closer to the condition/stats baseline rather
+    # than crowding the Bayer rule.
     temp_font = style.font_title(TEMP_NUMERAL_SIZE)
     temp_text = _fmt_temp(weather.current_temp) if weather else "—"
     temp_bbox = draw.textbbox((0, 0), temp_text, font=temp_font)
     temp_x = x0 + MARGIN_PAD_X - temp_bbox[0]
-    temp_y = y0 + 4 - temp_bbox[1]
+    temp_y = y0 + 14 - temp_bbox[1]
     draw.text((temp_x, temp_y), temp_text, font=temp_font, fill=ink)
     temp_right = temp_x + (temp_bbox[2] - temp_bbox[0])
     text_col_x = temp_right + 22
