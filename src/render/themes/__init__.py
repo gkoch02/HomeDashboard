@@ -26,8 +26,10 @@ from src.render.themes import minimalist as _minimalist  # noqa: F401
 from src.render.themes import monthly as _monthly  # noqa: F401
 from src.render.themes import moonphase as _moonphase  # noqa: F401
 from src.render.themes import moonphase_invert as _moonphase_invert  # noqa: F401
+from src.render.themes import naturalist as _naturalist  # noqa: F401
 from src.render.themes import old_fashioned as _old_fashioned  # noqa: F401
 from src.render.themes import photo as _photo  # noqa: F401
+from src.render.themes import postcard as _postcard  # noqa: F401
 from src.render.themes import qotd as _qotd  # noqa: F401
 from src.render.themes import qotd_invert as _qotd_invert  # noqa: F401
 from src.render.themes import scorecard as _scorecard  # noqa: F401
