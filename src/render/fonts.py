@@ -179,6 +179,14 @@ def tangerine_regular(size: int) -> ImageFont.FreeTypeFont:
     return get_font("Tangerine-Regular.ttf", size)
 
 
+# Manufacturing Consent — Fraktur blackletter modernised with contemporary
+# proportions (OFL, by Fredrick Brennan).  Used by the moonphase theme for the
+# phase-name headline; reads as mystical newspaper-incipit rather than the
+# heavier medieval feel of Astloch.
+def manufacturing_consent(size: int) -> ImageFont.FreeTypeFont:
+    return get_font("ManufacturingConsent-Regular.ttf", size)
+
+
 # Astloch — antique blackletter / fraktur display face (OFL).  Two weights;
 # perfect "character" font for editorial mastheads and 19th-century almanacs.
 def astloch(size: int) -> ImageFont.FreeTypeFont:

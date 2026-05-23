@@ -17,11 +17,11 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from src.render.fonts import (
-    astloch_bold,
     cinzel_bold,
     cormorant_italic,
     cormorant_medium,
     cormorant_regular,
+    manufacturing_consent,
     tangerine_regular,
     weather_icon,
 )
@@ -121,7 +121,7 @@ def _draw_phase_name(
     style: ThemeStyle,
 ) -> int:
     """Draw the phase name with decorative tildes, return y after."""
-    font = astloch_bold(34)
+    font = manufacturing_consent(36)
     name = moon_phase_name(today)
     text = f"~ {name} ~"
     tw = text_width(draw, text, font)

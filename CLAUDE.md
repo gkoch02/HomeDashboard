@@ -298,6 +298,7 @@ The cooldown is `display.min_refresh_interval_seconds` (config), defaulting to 6
 | `Cinzel.ttf` | `cinzel_regular/semibold/bold/black` | `fantasy`, `old_fashioned` section labels, `moonphase`, `almanac` (section labels + small caps) |
 | `CormorantGaramond.ttf` / `CormorantGaramond-Italic.ttf` (OFL, variable) | `cormorant_regular/medium/semibold/italic` | `moonphase` — date, illumination, celestial + weather strips, quote body (italic) |
 | `Tangerine-Regular.ttf` (OFL) | `tangerine_regular` | `moonphase` — calligraphic script quote attribution |
+| `ManufacturingConsent-Regular.ttf` (OFL) | `manufacturing_consent` | `moonphase` — Fraktur blackletter phase-name headline |
 | `SpaceGrotesk-Regular.ttf` | `sg_regular` | `air_quality`, `message` |
 | `SpaceGrotesk-Medium.ttf` | `sg_medium` | `air_quality`, `message` |
 | `SpaceGrotesk-Bold.ttf` | `sg_bold` | `air_quality`, `message` |
