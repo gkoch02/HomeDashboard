@@ -26,7 +26,7 @@ from PIL import Image, ImageDraw
 from src.data.models import CalendarEvent, DashboardData
 from src.render.components.info_panel import _quote_for_today
 from src.render.moon import moon_illumination, moon_phase_age
-from src.render.primitives import draw_text_truncated
+from src.render.primitives import draw_text_truncated, draw_text_wrapped, text_height, wrap_lines
 from src.render.quantize import _BAYER_4X4, INKY_SPECTRA6_PALETTE
 from src.render.theme import INKY_YELLOW, ComponentRegion, ThemeStyle
 
@@ -34,10 +34,10 @@ from src.render.theme import INKY_YELLOW, ComponentRegion, ThemeStyle
 # Region geometry
 # ---------------------------------------------------------------------------
 
-HERO_H = 308
+HERO_H = 296
 RULE_H = 6
 MARGIN_PAD_X = 28
-TEMP_NUMERAL_SIZE = 102
+TEMP_NUMERAL_SIZE = 96
 
 # Centre of the hero region — sun/moon and most cloud assemblies position
 # themselves relative to this point.
@@ -798,25 +798,36 @@ def _draw_margin_band(
         sy = sun_y - sb[1]
         draw.text((sx, sy), sun_text, font=stats_font, fill=secondary)
 
-    # --- Daily quote at the bottom, italic-looking serif, single line
+    # --- Daily quote at the bottom; wraps to two lines so the larger font
+    # still has room to breathe. Author sits right-aligned beneath.
     quote = _quote_for_today(today, refresh=quote_refresh, now=now)
-    quote_font = style.font_quote(16) if style.font_quote else style.font_regular(16)
+    quote_font = style.font_quote(15) if style.font_quote else style.font_regular(15)
     author_font = (
         style.font_quote_author(12) if style.font_quote_author else style.font_semibold(12)
     )
     quote_text = f"“{quote['text']}”"
     author_text = f"— {quote['author']}"
     quote_w = w - MARGIN_PAD_X * 2 - 12
-    qy = y0 + h - 38
-    draw_text_truncated(
+    line_h = text_height(quote_font)
+    lines = wrap_lines(quote_text, quote_font, quote_w)[:2]
+    line_spacing = 2
+    # Reserve space for author + bottom padding, then place the quote block
+    # directly above it.
+    author_bb = draw.textbbox((0, 0), author_text, font=author_font)
+    author_h = author_bb[3] - author_bb[1]
+    bottom_pad = 6
+    block_h = line_h * len(lines) + line_spacing * max(0, len(lines) - 1)
+    ay = y0 + h - bottom_pad - author_h - author_bb[1]
+    qy = y0 + h - bottom_pad - author_h - 4 - block_h
+    draw_text_wrapped(
         draw,
         (x0 + MARGIN_PAD_X, qy),
         quote_text,
         quote_font,
         quote_w,
+        max_lines=2,
+        line_spacing=line_spacing,
         fill=ink,
     )
-    ab = draw.textbbox((0, 0), author_text, font=author_font)
-    ax = x0 + w - MARGIN_PAD_X - (ab[2] - ab[0]) - ab[0]
-    ay = y0 + h - 18 - ab[1]
+    ax = x0 + w - MARGIN_PAD_X - (author_bb[2] - author_bb[0]) - author_bb[0]
     draw.text((ax, ay), author_text, font=author_font, fill=secondary)
