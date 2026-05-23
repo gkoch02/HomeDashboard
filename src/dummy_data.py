@@ -276,6 +276,7 @@ def generate_dummy_data(
         sunset=datetime.combine(today, datetime.min.time().replace(hour=19, minute=51)).replace(
             tzinfo=dummy_tz
         ),
+        units="imperial",
     )
 
     birthdays = [

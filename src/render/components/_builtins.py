@@ -25,6 +25,8 @@ from src.render.components import (
     message_panel,
     monthly_panel,
     moonphase_panel,
+    naturalist_panel,
+    postcard_panel,
     qotd_panel,
     scorecard_panel,
     sunrise_panel,
@@ -389,4 +391,32 @@ def _trends(ctx: RenderContext) -> None:
         style=ctx.style,
         latitude=ctx.latitude,
         longitude=ctx.longitude,
+    )
+
+
+@register_component("postcard")
+def _postcard(ctx: RenderContext) -> None:
+    postcard_panel.draw_postcard(
+        ctx.draw,
+        ctx.data,
+        ctx.today,
+        ctx.now,
+        image=ctx.image,
+        region=ctx.layout.postcard,
+        style=ctx.style,
+        quote_refresh=ctx.quote_refresh,
+    )
+
+
+@register_component("naturalist")
+def _naturalist(ctx: RenderContext) -> None:
+    naturalist_panel.draw_naturalist(
+        ctx.draw,
+        ctx.data,
+        ctx.today,
+        ctx.now,
+        image=ctx.image,
+        region=ctx.layout.naturalist,
+        style=ctx.style,
+        quote_refresh=ctx.quote_refresh,
     )

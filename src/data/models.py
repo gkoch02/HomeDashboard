@@ -57,6 +57,7 @@ class WeatherData:
     sunrise: Optional[datetime] = None
     sunset: Optional[datetime] = None
     location_name: Optional[str] = None  # City name from OWM (e.g. "New York")
+    units: Optional[str] = None  # OWM unit system: "imperial", "metric", or "standard"
 
 
 @dataclass

@@ -8,6 +8,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
+- **`postcard` theme** — vintage dithered postcard.  Left two-thirds is a
+  Floyd-Steinberg-dithered procedural "view" — sky gradient, layered
+  mountains, water with horizontal ripple lines, foreground shore, plus
+  a sun (with engraved rays), moon, clouds, rain streaks, snowflakes,
+  lightning bolt, or fog bands depending on the OWM icon and daypart.
+  Right third is the postcard back: cursive Playfair greeting, a
+  circular red postmark stamped with today's month + day, a perforated
+  postage stamp carrying the moon-phase glyph and phase name, four
+  ruled "address" lines listing today's events, and the daily quote as
+  the "wish you were here" signature.  Inky palette `(RED, BLACK)`.
+- **`naturalist` theme** — Victorian botanical plate.  Blackletter
+  Astloch masthead ("PLATE LXXIII — MMXXVI · MAY") above a Cinzel small-
+  caps Latin specimen name (e.g. `QUERCUS AESTIVALIS · sub fulmine`)
+  that shifts with season + weather.  The hero is a procedurally drawn
+  specimen branch — solid black trunk with engraved highlight strokes,
+  curving roots, six branches with mixed filled / outlined almond
+  leaves whose density and treatment vary by season (bare in winter,
+  buds + sparse leaves in spring, full canopy in summer, scattered
+  fallen leaves in autumn) and by weather (frost stipple when cold and
+  clear, rain streaks behind the foliage, snow caps on every branch,
+  fog bands across the plate).  Four leader-line callouts pin EVENT,
+  LUNA, SOL, and AER data to anatomical features on the specimen, the
+  way a botanical engraver would.  Triple-rule footer carries the daily
+  quote in Playfair regular with the author in red small caps.  Inky
+  palette `(RED, BLACK)`.
 - **`light_cycle` theme** — full-canvas 24-hour radial clock.  The rim
   carries hour ticks + 00 / 06 / 12 / 18 numerals; a twilight ring fills
   with progressively denser radial dashes (civil → nautical →
