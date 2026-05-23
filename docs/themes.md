@@ -191,6 +191,13 @@ Rules that reference weather or calendar data silently skip on the first boot (n
 | `scorecard` | big-number metrics | KPI tiles for weather, AQI, calendar, and system data |
 | `tides` | maximum information density | Alternating horizontal bands spanning many data sources |
 
+### Dithered art themes
+
+| Theme | Best for | Notes |
+|---|---|---|
+| `postcard` | nostalgic vista | Procedurally-drawn dithered postcard: left two-thirds is a scene (sky, mountains, water, foreground) keyed to the OWM icon + daypart; right third is the postcard back (cursive greeting, red postmark with month/day, postage stamp with moon glyph, ruled "address" lines listing today's events, daily quote as signature). Floyd-Steinberg quantization. |
+| `naturalist` | Victorian botanical plate | Astloch blackletter masthead with Roman-numeral plate / year / month; Cinzel small-caps Latin specimen name that shifts with season + weather; procedurally-drawn specimen branch with mixed filled/outlined leaves whose count and treatment vary by season (bare in winter, buds in spring, lush canopy in summer, fallen leaves in autumn) plus weather overlays (rain, snow, frost, fog). Four leader-line callouts pin event / moon / sun / weather data to anatomical features. Floyd-Steinberg quantization. |
+
 ### Utility themes
 
 | Theme | Best for | Notes |
@@ -378,6 +385,18 @@ Big-number tile dashboard for weather, AQI, calendar, and system metrics.
 Alternating horizontal bands with the densest multi-source layout in the theme set.
 
 [![Tides theme — Waveshare/Inky split](../assets/previews/theme_tides_split.png)](../assets/previews/theme_tides_split.png)
+
+#### postcard
+
+Procedurally-drawn dithered postcard composed in two parts. The left two-thirds is a "view" scene picked from the current OWM icon and daypart — sky gradient, two-layer mountain silhouettes, water with ripple lines, foreground shore and reeds, plus sun, moon, clouds, rain streaks, lightning, snowflakes, or fog bands as the weather warrants. The right third is the postcard back: a cursive greeting, a circular red postmark with the current month and day, a perforated postage stamp carrying the moon-phase glyph, four ruled "address" lines listing today's events, and the daily quote as the signature. A 3 px white gutter with a dashed shadow forms the centre crease. Floyd-Steinberg quantization turns the procedural greyscale gradients into engraving-style halftone. On Inky the postmark and the stamp frame render in red.
+
+[![Postcard theme — Waveshare/Inky split](../assets/previews/theme_postcard_split.png)](../assets/previews/theme_postcard_split.png)
+
+#### naturalist
+
+Victorian botanical plate. **Astloch** blackletter masthead — `PLATE [Roman]` left, `[YEAR-roman] · [MONTH]` right — sits above a triple rule, with a Cinzel small-caps Latin specimen name (`QUERCUS VERNALIS`, `AESTIVALIS`, `AUTUMNALIS`, `HIBERNALIS` keyed to the current season, plus weather suffixes `· sub pluvia / fulmine / nive / nebula / gelu` for rain, storm, snow, fog, and frost). The hero specimen is a procedurally-drawn branch with a solid black trunk, white engraving-style highlight strokes, curving roots, and mixed filled/outlined almond leaves whose count and treatment vary by season — bare in winter, buds in spring, lush canopy in summer, fallen leaves on the ground in autumn — plus weather overlays for rain, storm, snow, frost, and fog. Four leader-line callouts (`FIG. I EVENT`, `FIG. II LUNA`, `FIG. III SOL`, `FIG. IV AER`) pin today's first event, the moon's phase, sunrise/sunset, and the current weather to anatomical features on the specimen. A triple-rule footer carries the daily quote in Playfair with the author in red Cinzel small caps. The branch geometry is RNG-seeded from `(season, modifier, today)` so the same day always renders the same specimen. Floyd-Steinberg quantization. On Inky the masthead rules, callout lines, footer rules, and author small caps render in red.
+
+[![Naturalist theme — Waveshare/Inky split](../assets/previews/theme_naturalist_split.png)](../assets/previews/theme_naturalist_split.png)
 
 #### countdown
 

@@ -68,6 +68,12 @@ _THEME_SPLIT_MODES: dict[str, str] = {
     # Stacked rows — horizontal cut keeps each row's chart intact and
     # shows both the Waveshare 1-bit fill and the Inky blue/yellow story.
     "trends": "horizontal",
+    # Dithered art with strong horizontal banding (masthead / specimen /
+    # footer for naturalist; the postcard scene + back share a vertical
+    # gutter so a horizontal cut shows each render's color story across
+    # both halves of the composition).
+    "naturalist": "horizontal",
+    "postcard": "horizontal",
 }
 
 
