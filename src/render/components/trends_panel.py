@@ -35,13 +35,13 @@ from src.render.theme import ComponentRegion, ThemeStyle
 # Layout
 # ---------------------------------------------------------------------------
 
-MASTHEAD_H = 36
+MASTHEAD_H = 40
 ROW_COUNT = 5
-LABEL_W = 130
-ANNOTATION_W = 188
+LABEL_W = 138
+ANNOTATION_W = 210
 CHART_GAP = 14
 CHART_PAD_TOP = 10
-CHART_PAD_BOTTOM = 12
+CHART_PAD_BOTTOM = 14
 PAD_X = 14
 
 
@@ -132,15 +132,15 @@ def _draw_masthead(
     w: int,
     style: ThemeStyle,
 ) -> None:
-    title_font = style.font_bold(16)
-    meta_font = style.font_medium(12)
+    title_font = style.font_bold(20)
+    meta_font = style.font_medium(13)
     title = "TRENDS"
     bb = draw.textbbox((0, 0), title, font=title_font)
     draw.text((x0 + PAD_X - bb[0], y0 + 10 - bb[1]), title, font=title_font, fill=style.fg)
     meta = today.strftime("%A · %B %-d, %Y").upper() + "   ·   " + now.strftime("%-I:%M %p")
     mb = draw.textbbox((0, 0), meta, font=meta_font)
     mx = x0 + w - PAD_X - (mb[2] - mb[0]) - mb[0]
-    draw.text((mx, y0 + 12 - mb[1]), meta, font=meta_font, fill=style.fg)
+    draw.text((mx, y0 + 14 - mb[1]), meta, font=meta_font, fill=style.fg)
     # Thin bottom rule under the masthead.
     draw.line([(x0, y0 + MASTHEAD_H - 1), (x0 + w, y0 + MASTHEAD_H - 1)], fill=style.fg, width=1)
 
@@ -158,8 +158,8 @@ def _draw_row_chrome(
     draw_bottom_border: bool,
 ) -> None:
     """Render row label column and the bottom separator (skipped for last row)."""
-    title_font = style.font_section_label(12) if style.font_section_label else style.font_bold(12)
-    sub_font = style.font_medium(10)
+    title_font = style.font_section_label(14) if style.font_section_label else style.font_bold(14)
+    sub_font = style.font_medium(12)
     # Title line (e.g. "TEMP").
     tb = draw.textbbox((0, 0), title, font=title_font)
     draw.text(
@@ -171,7 +171,7 @@ def _draw_row_chrome(
     # Subtitle (e.g. "24h") in muted weight on the next line.
     sb = draw.textbbox((0, 0), sub, font=sub_font)
     draw.text(
-        (x0 + PAD_X - sb[0], y0 + 30 - sb[1]),
+        (x0 + PAD_X - sb[0], y0 + 34 - sb[1]),
         sub,
         font=sub_font,
         fill=style.fg,
@@ -401,8 +401,8 @@ def _draw_temp_row(
     )
     # Annotation: large temp, NOW / HIGH / LOW stacked beneath.
     _, annot_right = _annotation_x_range(x0, w)
-    big_font = cyber_mono(20)
-    label_font = style.font_medium(10)
+    big_font = cyber_mono(26)
+    label_font = style.font_medium(12)
     value = weather.current_temp
     txt = "—" if value is None else f"{int(round(value))}°"
     tw, th = _draw_text_right(
@@ -539,7 +539,7 @@ def _draw_aqi_row(
         ]
         _bayer_fill_polygon(image, poly, on_color=fill_color, threshold=threshold)
         # Zone label below the bar.
-        label_font = style.font_medium(9)
+        label_font = style.font_medium(11)
         lb = draw.textbbox((0, 0), label, font=label_font)
         mid_x = (x_start + x_end) // 2 - (lb[2] - lb[0]) // 2 - lb[0]
         draw.text((mid_x, bar_y1 + 4 - lb[1]), label, font=label_font, fill=style.fg)
@@ -562,9 +562,9 @@ def _draw_aqi_row(
 
     # Annotation: big AQI number, category, PM2.5 detail — right-aligned stack.
     _, annot_right = _annotation_x_range(x0, w)
-    big_font = cyber_mono(22)
-    cat_font = style.font_medium(11)
-    pm_font = style.font_medium(9)
+    big_font = cyber_mono(28)
+    cat_font = style.font_medium(13)
+    pm_font = style.font_medium(11)
     aqi_text = str(aq.aqi)
     _, big_h = _draw_text_right(
         draw, aqi_text, right=annot_right, top=y0 + 6, font=big_font, fill=style.fg
@@ -642,12 +642,12 @@ def _draw_daylight_row(
         hh = int(today_hours)
         mm = int(round((today_hours - hh) * 60))
         big_text = f"{hh}h {mm:02d}m"
-    big_font = cyber_mono(18)
+    big_font = cyber_mono(24)
     _, big_h = _draw_text_right(
         draw, big_text, right=annot_right, top=y0 + 8, font=big_font, fill=style.fg
     )
 
-    label_font = style.font_medium(10)
+    label_font = style.font_medium(12)
     delta = day_length_delta(today, latitude, longitude)
     if delta is None:
         delta_text = "delta —"
@@ -721,7 +721,7 @@ def _draw_events_row(
             draw.line([(bx0, top_y), (bx1, top_y)], fill=accent_now, width=2)
 
     # Day-of-week strip beneath the bars (Sun..Sat).
-    dow_font = style.font_medium(9)
+    dow_font = style.font_medium(11)
     for i in range(n):
         bx0 = start_x + i * (bar_w + gap)
         d = today + timedelta(days=i)
@@ -735,8 +735,8 @@ def _draw_events_row(
 
     # Annotation: today's count + week total.
     _, annot_right = _annotation_x_range(x0, w)
-    big_font = cyber_mono(20)
-    label_font = style.font_medium(10)
+    big_font = cyber_mono(26)
+    label_font = style.font_medium(12)
     today_count = counts[0]
     week_total = sum(counts[:7])
     big_text = f"{today_count} today"
@@ -799,10 +799,10 @@ def _draw_moon_row(
 
     # Annotation: percentage + days-to-next-full + phase glyph stamped at far right.
     annot_left, annot_right = _annotation_x_range(x0, w)
-    glyph_font = weather_icon(32)
+    glyph_font = weather_icon(40)
     glyph = moon_phase_glyph(today)
-    label_font = style.font_medium(10)
-    pct_font = cyber_mono(16)
+    label_font = style.font_medium(12)
+    pct_font = cyber_mono(22)
 
     # Glyph at the far-right of the annotation column.
     gb = draw.textbbox((0, 0), glyph, font=glyph_font)
@@ -851,7 +851,7 @@ def _row_fallback(
     cy0, cy1 = _chart_y_range(y0, h)
     midy = (cy0 + cy1) // 2
     draw.line([(cx0, midy), (cx1, midy)], fill=style.fg, width=1)
-    font = style.font_medium(11)
+    font = style.font_medium(13)
     bb = draw.textbbox((0, 0), message, font=font)
     mx = cx0 + (cx1 - cx0) // 2 - (bb[2] - bb[0]) // 2 - bb[0]
     my = midy - (bb[3] - bb[1]) // 2 - bb[1] - 14

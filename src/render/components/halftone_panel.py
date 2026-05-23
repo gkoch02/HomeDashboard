@@ -34,10 +34,10 @@ from src.render.theme import INKY_YELLOW, ComponentRegion, ThemeStyle
 # Region geometry
 # ---------------------------------------------------------------------------
 
-HERO_H = 318
+HERO_H = 308
 RULE_H = 6
 MARGIN_PAD_X = 28
-TEMP_NUMERAL_SIZE = 84
+TEMP_NUMERAL_SIZE = 102
 
 # Centre of the hero region — sun/moon and most cloud assemblies position
 # themselves relative to this point.
@@ -717,7 +717,7 @@ def _draw_margin_band(
     text_col_x = temp_right + 22
 
     # --- Condition (small caps) to the right of the temperature numeral
-    condition_font = style.font_section_label(15)
+    condition_font = style.font_section_label(18)
     condition_text = (weather.current_description or "").upper() if weather else "AWAITING DATA"
     if condition_text:
         cb = draw.textbbox((0, 0), condition_text, font=condition_font)
@@ -730,7 +730,7 @@ def _draw_margin_band(
         )
 
     # --- Stats line under the condition
-    stats_font = style.font_regular(13)
+    stats_font = style.font_regular(15)
     parts: list[str] = []
     if weather is not None:
         parts.append(f"H {_fmt_temp(weather.high)}")
@@ -741,7 +741,7 @@ def _draw_margin_band(
     if stats_text:
         sb = draw.textbbox((0, 0), stats_text, font=stats_font)
         draw.text(
-            (text_col_x - sb[0], y0 + 40 - sb[1]),
+            (text_col_x - sb[0], y0 + 46 - sb[1]),
             stats_text,
             font=stats_font,
             fill=secondary,
@@ -750,11 +750,11 @@ def _draw_margin_band(
     # --- Next event line — below stats
     next_line = _next_event_line(data.events, now)
     if next_line:
-        event_font = style.font_regular(13)
+        event_font = style.font_regular(15)
         eb = draw.textbbox((0, 0), next_line, font=event_font)
-        ey = y0 + 64 - eb[1]
+        ey = y0 + 74 - eb[1]
         # Limit to the available width before the right-column starts.
-        max_w = (x0 + w - MARGIN_PAD_X - 240) - text_col_x
+        max_w = (x0 + w - MARGIN_PAD_X - 260) - text_col_x
         if max_w > 80:
             draw_text_truncated(
                 draw,
@@ -766,7 +766,7 @@ def _draw_margin_band(
             )
 
     # --- Right-aligned location/date (small caps), anchored to the top-right
-    location_font = style.font_section_label(13)
+    location_font = style.font_section_label(15)
     location_text = (
         (weather.location_name or "").upper()
         if weather and weather.location_name
@@ -783,10 +783,10 @@ def _draw_margin_band(
         date_text = today.strftime("%A · %B %-d · %Y").upper()
         db = draw.textbbox((0, 0), date_text, font=date_font)
         dx = x0 + w - MARGIN_PAD_X - (db[2] - db[0]) - db[0]
-        draw.text((dx, y0 + 36 - db[1]), date_text, font=date_font, fill=secondary)
-        sun_y = y0 + 60
+        draw.text((dx, y0 + 40 - db[1]), date_text, font=date_font, fill=secondary)
+        sun_y = y0 + 66
     else:
-        sun_y = y0 + 38
+        sun_y = y0 + 42
 
     # --- Sunrise / sunset line right-aligned
     if weather and (weather.sunrise or weather.sunset):
@@ -800,9 +800,9 @@ def _draw_margin_band(
 
     # --- Daily quote at the bottom, italic-looking serif, single line
     quote = _quote_for_today(today, refresh=quote_refresh, now=now)
-    quote_font = style.font_quote(14) if style.font_quote else style.font_regular(14)
+    quote_font = style.font_quote(16) if style.font_quote else style.font_regular(16)
     author_font = (
-        style.font_quote_author(11) if style.font_quote_author else style.font_semibold(11)
+        style.font_quote_author(12) if style.font_quote_author else style.font_semibold(12)
     )
     quote_text = f"“{quote['text']}”"
     author_text = f"— {quote['author']}"
