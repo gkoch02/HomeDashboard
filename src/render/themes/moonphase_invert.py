@@ -7,10 +7,11 @@ and maximum eInk contrast.
 
 from src.render.fonts import (
     cinzel_bold,
-    playfair_medium,
-    playfair_regular,
-    regular,
-    semibold,
+    cormorant_italic,
+    cormorant_medium,
+    cormorant_regular,
+    cormorant_semibold,
+    tangerine_regular,
 )
 from src.render.theme import ComponentRegion, Theme, ThemeLayout, ThemeStyle
 from src.render.themes.moonphase import _draw_moonphase_overlay
@@ -47,14 +48,14 @@ def moonphase_invert_theme() -> Theme:
             invert_today_col=False,
             invert_allday_bars=False,
             show_borders=False,
-            font_regular=regular,
-            font_medium=playfair_medium,
-            font_semibold=semibold,
+            font_regular=cormorant_regular,
+            font_medium=cormorant_medium,
+            font_semibold=cormorant_semibold,
             font_bold=cinzel_bold,
             font_title=cinzel_bold,
             font_section_label=cinzel_bold,
-            font_quote=playfair_regular,
-            font_quote_author=playfair_regular,
+            font_quote=cormorant_italic,
+            font_quote_author=tangerine_regular,
             label_font_size=12,
             label_font_weight="bold",
         ),

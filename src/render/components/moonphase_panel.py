@@ -18,8 +18,10 @@ from typing import TYPE_CHECKING
 
 from src.render.fonts import (
     cinzel_bold,
-    playfair_medium,
-    playfair_regular,
+    cormorant_italic,
+    cormorant_medium,
+    cormorant_regular,
+    tangerine_regular,
     weather_icon,
 )
 from src.render.moon import (
@@ -99,7 +101,7 @@ def _draw_date_line(
     style: ThemeStyle,
 ) -> int:
     """Draw formatted date centered at cx, return y after the line."""
-    font = cinzel_bold(17)
+    font = cinzel_bold(19)
     day_name = today.strftime("%A")
     month = today.strftime("%B")
     day_num = today.day
@@ -118,7 +120,7 @@ def _draw_phase_name(
     style: ThemeStyle,
 ) -> int:
     """Draw the phase name with decorative tildes, return y after."""
-    font = cinzel_bold(22)
+    font = cinzel_bold(26)
     name = moon_phase_name(today).upper()
     text = f"~ {name} ~"
     tw = text_width(draw, text, font)
@@ -158,7 +160,7 @@ def _draw_moon_row(
         (3, 44, 294),
     ]
 
-    label_font = playfair_regular(16)
+    label_font = cormorant_regular(17)
 
     for delta, size, x_off in flanks:
         d = today + timedelta(days=delta)
@@ -189,7 +191,7 @@ def _draw_illumination(
     style: ThemeStyle,
 ) -> int:
     """Draw illumination percentage with star decorations."""
-    font = playfair_medium(22)
+    font = cormorant_medium(26)
     pct = moon_illumination(today)
     text = f"* {pct:.0f}% illuminated *"
     tw = text_width(draw, text, font)
@@ -206,7 +208,7 @@ def _draw_celestial_strip(
     style: ThemeStyle,
 ) -> int:
     """Draw sunrise/sunset times and moon age."""
-    font = playfair_regular(19)
+    font = cormorant_regular(22)
     age = moon_phase_age(today)
 
     parts = []
@@ -234,7 +236,7 @@ def _draw_weather_strip(
     if weather is None:
         return y
 
-    text_font = playfair_regular(19)
+    text_font = cormorant_regular(22)
     temp = f"{weather.current_temp:.0f}°"
     desc = weather.current_description.title()
     hilo = f"H:{weather.high:.0f}° L:{weather.low:.0f}°"
@@ -292,7 +294,7 @@ def _draw_quote(
     quote = _quote_for_panel(today, refresh=quote_refresh)
     text = f'"{quote["text"]}"'
 
-    quote_font = playfair_regular(18)
+    quote_font = cormorant_italic(21)
     lines_h = text_height(quote_font)
 
     # Wrap into lines, then draw each line centered
@@ -305,8 +307,8 @@ def _draw_quote(
         cur_y += lines_h + 4
 
     # Attribution
-    attr_font = playfair_regular(16)
-    attr = f"-- {quote['author']}"
+    attr_font = tangerine_regular(28)
+    attr = f"— {quote['author']}"
     attr_w = text_width(draw, attr, attr_font)
     attr_y = cur_y + 4
     if attr_y + lines_h < y + max_h:
@@ -350,9 +352,9 @@ def draw_moonphase(
     # Phase name
     y = _draw_phase_name(draw, today, cx, y, style)
 
-    # Hero moon + flanking moons (fixed 251px zone)
+    # Hero moon + flanking moons (fixed 232px zone)
     moon_row_y = y + 2
-    moon_row_h = 251
+    moon_row_h = 232
     _draw_moon_row(draw, today, cx, moon_row_y, moon_row_h, style)
     y = moon_row_y + moon_row_h + 4
 

@@ -294,8 +294,10 @@ The cooldown is `display.min_refresh_interval_seconds` (config), defaulting to 6
 | `UESC Display.otf` | `uesc_display` | `terminal` — month band, section labels, quote attribution |
 | `Synthetic Genesis.otf` | `synthetic_genesis` | `terminal` — large today date numeral |
 | `DMSans.ttf` | `dm_regular/medium/semibold/bold` | `minimalist`, `weather`, `fuzzyclock`, `diags` (section labels), `countdown`, `astronomy`, `agenda`, `light_cycle`, `constellation_map` (margin) |
-| `PlayfairDisplay-*.ttf` | `playfair_regular/medium/semibold/bold` | `old_fashioned`, `qotd`, `moonphase`, `almanac` (body + quote) |
+| `PlayfairDisplay-*.ttf` | `playfair_regular/medium/semibold/bold` | `old_fashioned`, `qotd`, `almanac` (body + quote) |
 | `Cinzel.ttf` | `cinzel_regular/semibold/bold/black` | `fantasy`, `old_fashioned` section labels, `moonphase`, `almanac` (section labels + small caps) |
+| `CormorantGaramond.ttf` / `CormorantGaramond-Italic.ttf` (OFL, variable) | `cormorant_regular/medium/semibold/italic` | `moonphase` — date, illumination, celestial + weather strips, quote body (italic) |
+| `Tangerine-Regular.ttf` (OFL) | `tangerine_regular` | `moonphase` — calligraphic script quote attribution |
 | `SpaceGrotesk-Regular.ttf` | `sg_regular` | `air_quality`, `message` |
 | `SpaceGrotesk-Medium.ttf` | `sg_medium` | `air_quality`, `message` |
 | `SpaceGrotesk-Bold.ttf` | `sg_bold` | `air_quality`, `message` |
