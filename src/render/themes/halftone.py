@@ -27,7 +27,9 @@ from __future__ import annotations
 
 from src.render.fonts import (
     cinzel_semibold,
-    playfair_regular,
+    dm_bold,
+    dm_medium,
+    dm_semibold,
     playfair_semibold,
 )
 from src.render.theme import (
@@ -68,15 +70,20 @@ def halftone_theme() -> Theme:
             # L-mode light canvas invariant: black ink on near-white field.
             fg=0,
             bg=255,
-            font_regular=playfair_regular,
-            font_medium=playfair_regular,
-            font_semibold=playfair_semibold,
-            font_bold=playfair_semibold,
+            # Body text switched from Playfair to DM Sans — sans-serif strokes
+            # survive Floyd-Steinberg dithering far better than Playfair's
+            # high-contrast thin serifs, which previously broke apart at small
+            # sizes. Playfair stays on the hero temperature numeral where its
+            # character still reads cleanly at 96 pt.
+            font_regular=dm_medium,
+            font_medium=dm_medium,
+            font_semibold=dm_semibold,
+            font_bold=dm_bold,
             font_title=playfair_semibold,
             font_section_label=cinzel_semibold,
-            font_quote=playfair_regular,
-            font_quote_author=cinzel_semibold,
-            label_font_size=11,
+            font_quote=dm_medium,
+            font_quote_author=dm_bold,
+            label_font_size=13,
             label_font_weight="semibold",
             accent_primary=INKY_BLACK,
             accent_secondary=INKY_YELLOW,

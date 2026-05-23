@@ -706,8 +706,11 @@ def _draw_margin_band(
         paper = paper.convert("RGB")
     image.paste(paper, (x0, y0))
 
+    # Every margin-band glyph is drawn in solid ink. Mid-grey fills get
+    # mangled by Floyd-Steinberg into a halftone pattern and become
+    # illegible — visual hierarchy here is carried by size and weight,
+    # not by colour.
     ink = _ink(mode)
-    secondary = _grey(85, mode)
 
     weather = data.weather
 
@@ -722,11 +725,11 @@ def _draw_margin_band(
     text_col_x = temp_right + 22
 
     # --- Condition (small caps) to the right of the temperature numeral
-    condition_font = style.font_section_label(18)
+    condition_font = style.font_section_label(20)
     condition_text = (weather.current_description or "").upper() if weather else "AWAITING DATA"
     if condition_text:
         cb = draw.textbbox((0, 0), condition_text, font=condition_font)
-        cy = y0 + 14 - cb[1]
+        cy = y0 + 12 - cb[1]
         draw.text(
             (text_col_x - cb[0], cy),
             condition_text,
@@ -735,7 +738,7 @@ def _draw_margin_band(
         )
 
     # --- Stats line under the condition
-    stats_font = style.font_regular(15)
+    stats_font = style.font_semibold(17)
     parts: list[str] = []
     if weather is not None:
         parts.append(f"H {_fmt_temp(weather.high)}")
@@ -746,18 +749,18 @@ def _draw_margin_band(
     if stats_text:
         sb = draw.textbbox((0, 0), stats_text, font=stats_font)
         draw.text(
-            (text_col_x - sb[0], y0 + 46 - sb[1]),
+            (text_col_x - sb[0], y0 + 50 - sb[1]),
             stats_text,
             font=stats_font,
-            fill=secondary,
+            fill=ink,
         )
 
     # --- Next event line — below stats
     next_line = _next_event_line(data.events, now)
     if next_line:
-        event_font = style.font_regular(15)
+        event_font = style.font_semibold(17)
         eb = draw.textbbox((0, 0), next_line, font=event_font)
-        ey = y0 + 74 - eb[1]
+        ey = y0 + 82 - eb[1]
         # Limit to the available width before the right-column starts.
         max_w = (x0 + w - MARGIN_PAD_X - 260) - text_col_x
         if max_w > 80:
@@ -771,7 +774,7 @@ def _draw_margin_band(
             )
 
     # --- Right-aligned location/date (small caps), anchored to the top-right
-    location_font = style.font_section_label(15)
+    location_font = style.font_section_label(17)
     location_text = (
         (weather.location_name or "").upper()
         if weather and weather.location_name
@@ -779,36 +782,37 @@ def _draw_margin_band(
     )
     lb = draw.textbbox((0, 0), location_text, font=location_font)
     loc_x = x0 + w - MARGIN_PAD_X - (lb[2] - lb[0]) - lb[0]
-    loc_y = y0 + 14 - lb[1]
+    loc_y = y0 + 12 - lb[1]
     draw.text((loc_x, loc_y), location_text, font=location_font, fill=ink)
 
     # When the OWM location is set, fall back to a date line below it.
     if weather and weather.location_name:
-        date_font = stats_font
+        date_font = style.font_semibold(16)
         date_text = today.strftime("%A · %B %-d · %Y").upper()
         db = draw.textbbox((0, 0), date_text, font=date_font)
         dx = x0 + w - MARGIN_PAD_X - (db[2] - db[0]) - db[0]
-        draw.text((dx, y0 + 40 - db[1]), date_text, font=date_font, fill=secondary)
-        sun_y = y0 + 66
+        draw.text((dx, y0 + 42 - db[1]), date_text, font=date_font, fill=ink)
+        sun_y = y0 + 70
     else:
-        sun_y = y0 + 42
+        sun_y = y0 + 46
 
     # --- Sunrise / sunset line right-aligned
     if weather and (weather.sunrise or weather.sunset):
         rise = _format_event_time(weather.sunrise) if weather.sunrise else "—"
         setp = _format_event_time(weather.sunset) if weather.sunset else "—"
         sun_text = f"sun ↑ {rise}   sun ↓ {setp}"
-        sb = draw.textbbox((0, 0), sun_text, font=stats_font)
+        sun_font = style.font_semibold(16)
+        sb = draw.textbbox((0, 0), sun_text, font=sun_font)
         sx = x0 + w - MARGIN_PAD_X - (sb[2] - sb[0]) - sb[0]
         sy = sun_y - sb[1]
-        draw.text((sx, sy), sun_text, font=stats_font, fill=secondary)
+        draw.text((sx, sy), sun_text, font=sun_font, fill=ink)
 
     # --- Daily quote at the bottom; wraps to two lines so the larger font
     # still has room to breathe. Author sits right-aligned beneath.
     quote = _quote_for_today(today, refresh=quote_refresh, now=now)
-    quote_font = style.font_quote(15) if style.font_quote else style.font_regular(15)
+    quote_font = style.font_quote(17) if style.font_quote else style.font_regular(17)
     author_font = (
-        style.font_quote_author(12) if style.font_quote_author else style.font_semibold(12)
+        style.font_quote_author(14) if style.font_quote_author else style.font_semibold(14)
     )
     quote_text = f"“{quote['text']}”"
     author_text = f"— {quote['author']}"
@@ -835,4 +839,4 @@ def _draw_margin_band(
         fill=ink,
     )
     ax = x0 + w - MARGIN_PAD_X - (author_bb[2] - author_bb[0]) - author_bb[0]
-    draw.text((ax, ay), author_text, font=author_font, fill=secondary)
+    draw.text((ax, ay), author_text, font=author_font, fill=ink)
