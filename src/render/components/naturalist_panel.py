@@ -475,14 +475,14 @@ def _draw_specimen(
         angle_deg = rng.uniform(-65, -25) if side == 1 else rng.uniform(-155, -115)
         end_x = int(bx + length * math.cos(math.radians(angle_deg)))
         end_y = int(by + length * math.sin(math.radians(angle_deg)))
-        _draw_branch(draw, (bx, by), (end_x, end_y), mode=mode)
+        _draw_branch(draw, (bx, by), (end_x, end_y), mode=mode, rng=rng)
         nodes.append((end_x, end_y))
-        if rng.random() < 0.5:
-            sub_len = rng.randint(20 * SS, 35 * SS)
-            sub_angle = math.radians(angle_deg + rng.uniform(-30, 30))
+        if rng.random() < 0.6:
+            sub_len = rng.randint(20 * SS, 38 * SS)
+            sub_angle = math.radians(angle_deg + rng.uniform(-32, 32))
             sx = int(end_x + sub_len * math.cos(sub_angle))
             sy = int(end_y + sub_len * math.sin(sub_angle))
-            _draw_branch(draw, (end_x, end_y), (sx, sy), mode=mode, thin=True)
+            _draw_branch(draw, (end_x, end_y), (sx, sy), mode=mode, thin=True, rng=rng)
             nodes.append((sx, sy))
 
     # Roots — three sweeping curves at the base.
@@ -518,39 +518,81 @@ def _draw_trunk(
     just enough to suggest engraved cross-hatching without compromising
     legibility.
     """
-    n_segs = 18
+    n_segs = 26
     fill = _ink(mode)
-    for i in range(n_segs):
-        t0 = i / n_segs
-        t1 = (i + 1) / n_segs
-        x0 = top[0] + (bot[0] - top[0]) * t0 + math.sin(t0 * math.pi * 1.5) * 4 * SS
-        y0 = top[1] + (bot[1] - top[1]) * t0
-        x1 = top[0] + (bot[0] - top[0]) * t1 + math.sin(t1 * math.pi * 1.5) * 4 * SS
-        y1 = top[1] + (bot[1] - top[1]) * t1
-        w0 = (5 + int(11 * t0)) * SS
-        w1 = (5 + int(11 * t1)) * SS
-        poly = [
-            (x0 - w0 / 2, y0),
-            (x0 + w0 / 2, y0),
-            (x1 + w1 / 2, y1),
-            (x1 - w1 / 2, y1),
-        ]
-        draw.polygon(poly, fill=fill)
-    # Right-hand highlight strokes — small white hatches that suggest a
-    # rounded trunk surface in classic engraving style.
-    highlight_fill = _grey(220, mode)
-    for i in range(22 * SS):
-        t = i / (22 * SS)
-        cx = top[0] + (bot[0] - top[0]) * t + math.sin(t * math.pi * 1.5) * 4 * SS
-        cy = top[1] + (bot[1] - top[1]) * t
-        w = (5 + int(11 * t)) * SS
-        sx = cx + (w / 2) - 2 * SS - rng.random() * 2 * SS
-        if rng.random() < 0.55:
-            draw.line(
-                [(sx - 2 * SS, cy - SS), (sx, cy + SS)],
-                fill=highlight_fill,
-                width=SS,
-            )
+    # Trunk centreline is a quadratic Bézier — control point pushed sideways
+    # so the trunk arcs gently rather than tracing a sine wiggle.
+    ctrl = (
+        (top[0] + bot[0]) * 0.5 + 8 * SS,
+        (top[1] + bot[1]) * 0.5,
+    )
+    centre = _quadratic_bezier(top, ctrl, bot, n=n_segs)
+    # Width tapers smoothly from top to bottom.
+    widths = [(5 + 12 * (i / n_segs)) * SS for i in range(n_segs + 1)]
+    # Build the silhouette as a single closed polygon walking down the right
+    # edge then up the left edge.  This is smoother than stacking trapezoids
+    # because the supersample LANCZOS sees a continuous outline.
+    right_edge: list[tuple[float, float]] = []
+    left_edge: list[tuple[float, float]] = []
+    for i, ((px, py), w) in enumerate(zip(centre, widths)):
+        # Tangent direction at this sample → perpendicular for the edge offset.
+        if i == 0:
+            nx_, ny_ = centre[1][0] - px, centre[1][1] - py
+        elif i == len(centre) - 1:
+            nx_, ny_ = px - centre[i - 1][0], py - centre[i - 1][1]
+        else:
+            nx_, ny_ = centre[i + 1][0] - centre[i - 1][0], centre[i + 1][1] - centre[i - 1][1]
+        L = math.hypot(nx_, ny_) or 1.0
+        perp = (-ny_ / L, nx_ / L)
+        right_edge.append((px + perp[0] * w / 2, py + perp[1] * w / 2))
+        left_edge.append((px - perp[0] * w / 2, py - perp[1] * w / 2))
+    poly = right_edge + list(reversed(left_edge))
+    draw.polygon(poly, fill=fill)
+
+    # Bark striations — sparse, long vertical engraved highlights on the
+    # right limb of the trunk.  Each stroke follows the trunk's centreline
+    # tangent so they read as etched grooves rather than random hash.  We
+    # use a small number of long strokes instead of many short ones —
+    # botanical engravings rely on rhythm, not density.
+    highlight = _grey(235, mode)
+    n_marks = 8
+    for i in range(n_marks):
+        t = (i + 0.5) / n_marks + rng.uniform(-0.02, 0.02)
+        idx = min(max(0, int(t * (len(centre) - 1))), len(centre) - 1)
+        px, py = centre[idx]
+        w = widths[idx]
+        # Tangent of the centreline at this sample → use as the stroke axis.
+        prev_idx = max(0, idx - 1)
+        next_idx = min(len(centre) - 1, idx + 1)
+        tx_ = centre[next_idx][0] - centre[prev_idx][0]
+        ty_ = centre[next_idx][1] - centre[prev_idx][1]
+        L = math.hypot(tx_, ty_) or 1.0
+        tang = (tx_ / L, ty_ / L)
+        # Offset toward the right limb of the trunk.
+        offset = rng.uniform(0.18, 0.40) * w
+        sx = px + (-tang[1]) * offset
+        sy = py + (tang[0]) * offset
+        seg_h = rng.randint(8 * SS, 14 * SS)
+        a = (sx - tang[0] * seg_h / 2, sy - tang[1] * seg_h / 2)
+        b = (sx + tang[0] * seg_h / 2, sy + tang[1] * seg_h / 2)
+        draw.line([a, b], fill=highlight, width=SS)
+
+
+def _quadratic_bezier(
+    p0: tuple[float, float],
+    p1: tuple[float, float],
+    p2: tuple[float, float],
+    n: int = 18,
+) -> list[tuple[float, float]]:
+    """Sample a quadratic Bézier curve at *n+1* points from p0 to p2 via control p1."""
+    out: list[tuple[float, float]] = []
+    for i in range(n + 1):
+        t = i / n
+        one_minus = 1.0 - t
+        x = one_minus * one_minus * p0[0] + 2 * one_minus * t * p1[0] + t * t * p2[0]
+        y = one_minus * one_minus * p0[1] + 2 * one_minus * t * p1[1] + t * t * p2[1]
+        out.append((x, y))
+    return out
 
 
 def _draw_branch(
@@ -560,21 +602,39 @@ def _draw_branch(
     *,
     mode: str,
     thin: bool = False,
+    rng: random.Random | None = None,
 ) -> None:
-    """Curved branch from *start* to *end* as a thinning polyline."""
-    n = 12
-    segs: list[tuple[int, int]] = []
-    for i in range(n + 1):
-        t = i / n
-        x = start[0] + (end[0] - start[0]) * t
-        y = start[1] + (end[1] - start[1]) * t
-        arc = -math.sin(t * math.pi) * 8 * SS * (1 - t * 0.4)
-        segs.append((int(x), int(y + arc)))
+    """Tapering branch from *start* to *end* drawn as a quadratic Bézier curve.
+
+    The control point is offset perpendicular to the start→end axis by a
+    fraction of the branch length, giving each branch a natural S-curve.
+    Width tapers smoothly from base to tip by drawing the polyline as a
+    sequence of thick segments whose width steps down across the curve.
+    """
+    if rng is None:
+        rng = random.Random((start[0], start[1], end[0], end[1]).__hash__())
+    # Perpendicular offset for the control point — sweeps the branch into
+    # a gentle curve toward "up and away" from the trunk.
+    dx = end[0] - start[0]
+    dy = end[1] - start[1]
+    length = math.hypot(dx, dy) or 1.0
+    perp_x = -dy / length
+    perp_y = dx / length
+    # Curl strength varies per branch so adjacent branches read differently.
+    curl = (0.18 + rng.random() * 0.18) * length
+    # Bias the curl so branches arc upward (negative y).
+    if perp_y > 0:
+        perp_x, perp_y = -perp_x, -perp_y
+    cx_ctrl = (start[0] + end[0]) * 0.5 + perp_x * curl
+    cy_ctrl = (start[1] + end[1]) * 0.5 + perp_y * curl
+    pts = _quadratic_bezier(start, (cx_ctrl, cy_ctrl), end, n=22)
+
     base_w = SS if thin else 3 * SS
-    for i in range(len(segs) - 1):
-        t = i / max(1, len(segs) - 2)
+    fill = _ink(mode)
+    for i in range(len(pts) - 1):
+        t = i / max(1, len(pts) - 2)
         w = max(SS, base_w - int(t * 2 * SS))
-        draw.line([segs[i], segs[i + 1]], fill=_ink(mode), width=w)
+        draw.line([pts[i], pts[i + 1]], fill=fill, width=w)
 
 
 def _draw_roots(
@@ -584,20 +644,48 @@ def _draw_roots(
     mode: str,
     rng: random.Random,
 ) -> None:
-    """Three curving roots spreading from the base."""
-    for i, side in enumerate((-1, 0, 1)):
-        angle = math.radians(90 + side * 60)
-        length = rng.randint(40 * SS, 70 * SS)
-        n = 10
-        prev = trunk_bot
-        for j in range(1, n + 1):
-            t = j / n
-            x = trunk_bot[0] + length * t * math.cos(angle)
-            y = trunk_bot[1] + length * t * math.sin(angle) + (1 - (1 - t) ** 2) * 8 * SS
-            now = (int(x), int(y))
-            w = max(SS, 3 * SS - int(t * 2 * SS))
-            draw.line([prev, now], fill=_ink(mode), width=w)
-            prev = now
+    """Curved root system: five primary roots with thin tendril offshoots.
+
+    Each root is a quadratic Bézier curve sweeping outward from the trunk
+    base.  Most primary roots spawn one or two thin tendrils mid-length
+    that branch off at shallow angles, mimicking the lateral root
+    structure botanical engravers exaggerate for visual depth.
+    """
+    fill = _ink(mode)
+    n_primary = 5
+    for i in range(n_primary):
+        # Spread roots across the lower 180° (90° ± 70°).
+        side_t = (i - (n_primary - 1) / 2) / ((n_primary - 1) / 2 or 1)
+        angle = math.radians(90 + side_t * 65 + rng.uniform(-6, 6))
+        length = rng.randint(45 * SS, 78 * SS)
+        end_x = trunk_bot[0] + length * math.cos(angle)
+        end_y = trunk_bot[1] + length * math.sin(angle)
+        # Control point pulls each root into a downward sweep.
+        ctrl_x = trunk_bot[0] + length * 0.55 * math.cos(angle - 0.25)
+        ctrl_y = trunk_bot[1] + length * 0.55 * math.sin(angle - 0.25) + rng.randint(2 * SS, 6 * SS)
+        pts = _quadratic_bezier(trunk_bot, (ctrl_x, ctrl_y), (end_x, end_y), n=20)
+        for j in range(len(pts) - 1):
+            t = j / max(1, len(pts) - 2)
+            w = max(SS, 4 * SS - int(t * 3 * SS))
+            draw.line([pts[j], pts[j + 1]], fill=fill, width=w)
+        # 0–2 tendril offshoots that branch from mid-root.
+        for _ in range(rng.choice((0, 1, 1, 2))):
+            t_branch = rng.uniform(0.4, 0.75)
+            branch_idx = int(len(pts) * t_branch)
+            origin = pts[branch_idx]
+            tendril_len = rng.randint(10 * SS, 22 * SS)
+            tendril_angle = angle + math.radians(rng.uniform(-30, 30))
+            tend_end = (
+                origin[0] + tendril_len * math.cos(tendril_angle),
+                origin[1] + tendril_len * math.sin(tendril_angle) + rng.randint(SS, 4 * SS),
+            )
+            tend_ctrl = (
+                (origin[0] + tend_end[0]) * 0.5,
+                (origin[1] + tend_end[1]) * 0.5 + rng.randint(SS, 3 * SS),
+            )
+            tpts = _quadratic_bezier(origin, tend_ctrl, tend_end, n=10)
+            for j in range(len(tpts) - 1):
+                draw.line([tpts[j], tpts[j + 1]], fill=fill, width=SS)
 
 
 def _draw_leaves(
@@ -639,16 +727,24 @@ def _draw_leaves(
                 _draw_leaf_filled(draw, nx + ox, ny + oy, size, ink, rng)
 
     if season == "spring":
+        # Drooping oak catkins: tapered chains of small dots hanging from
+        # the inner branch nodes.  Real Quercus flower in long catkins
+        # before the canopy fills in.
         for nx, ny in nodes:
-            for _ in range(3):
-                ox = rng.randint(-10 * SS, 10 * SS)
-                oy = rng.randint(-10 * SS, 10 * SS)
-                draw.ellipse(
-                    (nx + ox - 2 * SS, ny + oy - 2 * SS, nx + ox + 2 * SS, ny + oy + 2 * SS),
-                    fill=ink,
-                )
+            if rng.random() < 0.55:
+                _draw_catkin(draw, nx, ny, ink, rng)
+
+    if season == "summer":
+        # A couple of green acorn clusters tucked into the canopy.
+        for nx, ny in nodes[: max(2, len(nodes) // 3)]:
+            if rng.random() < 0.45:
+                _draw_acorn_cluster(draw, nx, ny, ink, rng)
 
     if season == "autumn":
+        # Mature brown acorns + scattered fallen leaves under the canopy.
+        for nx, ny in nodes:
+            if rng.random() < 0.35:
+                _draw_acorn_cluster(draw, nx, ny, ink, rng)
         for _ in range(10):
             fx = rng.randint(_SPEC_X0 + 20 * SS, _SPEC_X1 - 20 * SS)
             fy = rng.randint(_SPEC_Y1 - 60 * SS, _SPEC_Y1 - 14 * SS)
@@ -656,27 +752,171 @@ def _draw_leaves(
             _draw_leaf_outline(draw, fx, fy, size, ink, rng)
 
 
-def _leaf_polygon(
-    cx: int, cy: int, size: int, rng: random.Random
-) -> tuple[list[tuple[float, float]], tuple[float, float], tuple[float, float]]:
-    """Build a rotated almond-shaped leaf polygon plus its two vein endpoints."""
+def _draw_catkin(
+    draw: ImageDraw.ImageDraw,
+    nx: int,
+    ny: int,
+    ink,
+    rng: random.Random,
+) -> None:
+    """Drooping oak catkin — a chain of small dots tapering downward."""
+    n_beads = rng.randint(6, 10)
+    angle = math.radians(85 + rng.uniform(-8, 8))  # nearly straight down
+    sx, sy = nx + rng.randint(-6 * SS, 6 * SS), ny + rng.randint(-4 * SS, 4 * SS)
+    for i in range(n_beads):
+        t = (i + 1) / n_beads
+        bx = sx + math.cos(angle) * 3 * SS * (i + 1)
+        by = sy + math.sin(angle) * 3 * SS * (i + 1)
+        r = max(SS // 2, int((2 - t * 1.4) * SS))
+        draw.ellipse((bx - r, by - r, bx + r, by + r), fill=ink)
+
+
+def _draw_acorn_cluster(
+    draw: ImageDraw.ImageDraw,
+    nx: int,
+    ny: int,
+    ink,
+    rng: random.Random,
+) -> None:
+    """A small cluster of 1–3 acorns — cupule (cap) + smooth nut beneath.
+
+    Acorns hang BELOW the branch node (where light catches them in the
+    real plant) and are drawn larger than the surrounding leaves so they
+    stay distinct against the lobed canopy after Floyd-Steinberg dithers
+    everything together.
+    """
+    n_acorns = rng.choice((1, 1, 2, 2, 3))
+    # Hang the cluster down-and-out from the branch node so it's visible
+    # against the canopy rather than buried inside it.
+    base_x = nx + rng.randint(-4 * SS, 4 * SS)
+    base_y = ny + rng.randint(10 * SS, 16 * SS)
+    nut_w = 6 * SS
+    nut_h = 9 * SS
+    for i in range(n_acorns):
+        ax = base_x + i * (nut_w * 2 + SS) - (n_acorns - 1) * (nut_w * 2 + SS) // 2
+        ay = base_y
+        # Stem from the branch node curving to this acorn.
+        ctrl_x = (nx + ax) / 2 + rng.randint(-3 * SS, 3 * SS)
+        ctrl_y = (ny + ay) / 2 + 4 * SS
+        stem = _quadratic_bezier((nx, ny), (ctrl_x, ctrl_y), (ax, ay - nut_h - SS), n=8)
+        for j in range(len(stem) - 1):
+            draw.line([stem[j], stem[j + 1]], fill=ink, width=max(1, SS - 1))
+        # Cupule (cap) — half-ellipse at the top.
+        cap_w = nut_w + SS
+        cap_h = nut_h // 2 + SS
+        draw.pieslice(
+            (ax - cap_w, ay - nut_h, ax + cap_w, ay - nut_h + cap_h * 2),
+            start=180,
+            end=360,
+            fill=ink,
+        )
+        # Cap stippling — white dots to suggest the bumpy cupule scales.
+        highlight = 255 if isinstance(ink, int) else (255, 255, 255)
+        for dy_ in (-cap_h + 2 * SS, -cap_h // 2):
+            for dx_ in (-cap_w + 2 * SS, 0, cap_w - 2 * SS):
+                draw.ellipse(
+                    (
+                        ax + dx_ - SS // 2,
+                        ay - nut_h + cap_h + dy_ - SS // 2,
+                        ax + dx_ + SS // 2,
+                        ay - nut_h + cap_h + dy_ + SS // 2,
+                    ),
+                    fill=highlight,
+                )
+        # Nut — elongated almond shape below the cap.
+        draw.ellipse(
+            (ax - nut_w, ay - nut_h + cap_h, ax + nut_w, ay + nut_h - cap_h),
+            fill=ink,
+        )
+        # Highlight stroke down the nut's side for a 3D feel.
+        draw.line(
+            [(ax + nut_w // 3, ay - nut_h + cap_h + SS), (ax + nut_w // 3, ay - 2 * SS)],
+            fill=highlight,
+            width=max(1, SS - 1),
+        )
+
+
+def _oak_leaf_polygon(
+    cx: float,
+    cy: float,
+    size: int,
+    rng: random.Random,
+) -> tuple[
+    list[tuple[float, float]],
+    tuple[float, float],
+    tuple[float, float],
+    list[tuple[tuple[float, float], tuple[float, float]]],
+]:
+    """Build an oak-leaf-shaped polygon with 5–7 rounded lobes.
+
+    Returns ``(outline_points, base_point, tip_point, vein_segments)``.
+
+    The lobe profile is generated parametrically: walking from the leaf
+    base around the silhouette to the tip and back, at each step the
+    radius from the central midrib alternates between a wider "lobe"
+    radius and a narrower "sinus" radius, producing the characteristic
+    crenelated oak silhouette.  Vein segments connect the midrib to each
+    lobe tip, mimicking a real leaf's pinnate venation.
+    """
     rot = rng.uniform(0, math.pi)
-    n = 18
-    pts: list[tuple[float, float]] = []
-    rx = size
-    ry = max(2, size // 2)
-    for i in range(n):
-        a = i / n * 2 * math.pi
-        px = rx * math.cos(a)
-        py = ry * math.sin(a)
-        rxp = px * math.cos(rot) - py * math.sin(rot)
-        ryp = px * math.sin(rot) + py * math.cos(rot)
-        pts.append((cx + rxp, cy + ryp))
-    vx0 = cx - rx * math.cos(rot)
-    vy0 = cy - rx * math.sin(rot)
-    vx1 = cx + rx * math.cos(rot)
-    vy1 = cy + rx * math.sin(rot)
-    return pts, (vx0, vy0), (vx1, vy1)
+    n_lobes_per_side = rng.randint(2, 3)  # 4–6 lateral lobes + 1 terminal
+    n_samples = n_lobes_per_side * 4 + 4  # samples per side (alternating)
+    # Half-length along the midrib, in supersample px.
+    rx = float(size)
+    # Max lateral lobe radius from the midrib.
+    ry_max = max(2.0, size * 0.55)
+    ry_min = max(1.5, size * 0.22)
+
+    # Sample the upper edge (base→tip) then the lower edge (tip→base).
+    upper: list[tuple[float, float]] = []
+    lower: list[tuple[float, float]] = []
+    lobe_tips_upper: list[tuple[float, float]] = []
+    lobe_tips_lower: list[tuple[float, float]] = []
+
+    for i in range(n_samples + 1):
+        t = i / n_samples  # 0 = base, 1 = tip
+        # Position along the midrib axis.
+        u = -rx + 2 * rx * t
+        # Lobe profile: alternates wide / narrow. ``phase`` parameterises an
+        # underlying sinusoid that hits its maxima at lobe centres and its
+        # minima at sinus (notch) points.
+        phase = t * (n_lobes_per_side * 2) * math.pi
+        # Envelope tapers the leaf toward both ends.
+        envelope = math.sin(math.pi * t) ** 0.65
+        # Each "wide" sample is the lobe tip; each "narrow" sample is a sinus.
+        wave = (math.cos(phase) + 1.0) * 0.5  # 0..1
+        ry_here = (ry_min + (ry_max - ry_min) * wave) * envelope
+        upper.append((u, -ry_here))
+        lower.append((u, ry_here))
+        # Track lobe tips for vein endpoints (where wave is near 1).
+        if wave > 0.85 and 0.05 < t < 0.95:
+            lobe_tips_upper.append((u, -ry_here * 0.9))
+            lobe_tips_lower.append((u, ry_here * 0.9))
+
+    # Stitch into a closed polygon: upper edge (left→right) then lower edge
+    # (right→left).
+    raw_pts = upper + list(reversed(lower))
+    # Rotate and translate into canvas space.
+    cos_r, sin_r = math.cos(rot), math.sin(rot)
+    pts = [(cx + px * cos_r - py * sin_r, cy + px * sin_r + py * cos_r) for px, py in raw_pts]
+
+    # Base + tip points for the midrib.
+    base = (cx + (-rx) * cos_r, cy + (-rx) * sin_r)
+    tip = (cx + (rx) * cos_r, cy + (rx) * sin_r)
+
+    # Side veins — short segments from the midrib axis out to each lobe tip.
+    veins: list[tuple[tuple[float, float], tuple[float, float]]] = []
+    for lx, ly in lobe_tips_upper + lobe_tips_lower:
+        # Midrib anchor at the same u-coordinate.
+        ax = lx
+        ay = 0.0
+        ax_r = cx + ax * cos_r - ay * sin_r
+        ay_r = cy + ax * sin_r + ay * cos_r
+        lx_r = cx + lx * cos_r - ly * sin_r
+        ly_r = cy + lx * sin_r + ly * cos_r
+        veins.append(((ax_r, ay_r), (lx_r, ly_r)))
+
+    return pts, base, tip, veins
 
 
 def _draw_leaf_filled(
@@ -687,10 +927,17 @@ def _draw_leaf_filled(
     ink,
     rng: random.Random,
 ) -> None:
-    """Solid black almond leaf with a thin white vein down the long axis."""
-    pts, v0, v1 = _leaf_polygon(cx, cy, size, rng)
+    """Solid lobed oak leaf with a white midrib + side veins down the long axis."""
+    pts, base, tip, veins = _oak_leaf_polygon(cx, cy, size, rng)
     draw.polygon(pts, fill=ink)
-    draw.line([v0, v1], fill=(255 if isinstance(ink, int) else (255, 255, 255)), width=SS)
+    highlight = 255 if isinstance(ink, int) else (255, 255, 255)
+    draw.line([base, tip], fill=highlight, width=SS)
+    for a, b in veins:
+        draw.line([a, b], fill=highlight, width=SS)
+    # Tiny stem connecting the leaf base to the branch (the ``base`` point).
+    sx = base[0] + (base[0] - tip[0]) * 0.12
+    sy = base[1] + (base[1] - tip[1]) * 0.12
+    draw.line([base, (sx, sy)], fill=ink, width=max(SS, int(size * 0.08)))
 
 
 def _draw_leaf_outline(
@@ -701,10 +948,16 @@ def _draw_leaf_outline(
     ink,
     rng: random.Random,
 ) -> None:
-    """Outlined almond leaf with a central vein — reads as a paler 'background' leaf."""
-    pts, v0, v1 = _leaf_polygon(cx, cy, size, rng)
+    """Outline-only lobed oak leaf with midrib + side veins — reads as a paler leaf."""
+    pts, base, tip, veins = _oak_leaf_polygon(cx, cy, size, rng)
     draw.polygon(pts, outline=ink)
-    draw.line([v0, v1], fill=ink, width=SS)
+    draw.line([base, tip], fill=ink, width=SS)
+    for a, b in veins:
+        draw.line([a, b], fill=ink, width=max(1, SS - 1))
+    # Stem.
+    sx = base[0] + (base[0] - tip[0]) * 0.12
+    sy = base[1] + (base[1] - tip[1]) * 0.12
+    draw.line([base, (sx, sy)], fill=ink, width=SS)
 
 
 def _draw_rain_overlay(

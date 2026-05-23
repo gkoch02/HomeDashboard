@@ -187,10 +187,21 @@ def _draw_scene(
     _draw_water(image, rect, horizon_y, kind)
     _draw_foreground_shore(image, rect, horizon_y, today)
     if kind in ("clear", "partly") and not is_night:
-        _draw_sun(image, rect, horizon_y - 60, today)
+        sun_cy = horizon_y - 60 * SS
+        _draw_sun(image, rect, sun_cy, today)
+        # Bright sun → broken vertical shimmer on the water below.
+        source_cx = rect[0] + (rect[2] - rect[0]) // 3
+        _draw_water_reflection(
+            image, rect, horizon_y, source_cx=source_cx, source_cy=sun_cy, today=today
+        )
     elif kind in ("clear", "partly") and is_night:
         _draw_stars(image, rect, horizon_y, today)
-        _draw_moon(image, rect, horizon_y - 70, today)
+        moon_cy = horizon_y - 70 * SS
+        _draw_moon(image, rect, moon_cy, today)
+        source_cx = rect[0] + (rect[2] - rect[0]) // 3
+        _draw_water_reflection(
+            image, rect, horizon_y, source_cx=source_cx, source_cy=moon_cy, today=today
+        )
     if kind == "partly" or kind == "overcast":
         _draw_clouds(image, rect, kind, today)
     if kind == "rain" or kind == "storm":
@@ -203,6 +214,10 @@ def _draw_scene(
         _draw_snowflakes(image, rect, today)
     if kind in ("clear", "partly") and not is_night:
         _draw_birds(image, rect, today)
+    # Sailboat silhouette on calm water (clear or partly cloudy daytime
+    # only — rough water in storms / rain wouldn't carry a small craft).
+    if kind in ("clear", "partly") and not is_night:
+        _draw_sailboat(image, rect, horizon_y, today)
 
 
 # ---------------------------------------------------------------------------
@@ -291,15 +306,14 @@ def _draw_distant_mountains(
     draw = ImageDraw.Draw(image)
     rng = random.Random(today.toordinal() ^ 0x4D43)
 
-    # Far ridge — gentle grey silhouette.
-    far_tone = _grey(155, mode)
-    far_points: list[tuple[int, int]] = []
-    far_points.append((x0, horizon_y))
+    # Far ridge — gentle grey silhouette using small, frequent perturbations.
+    far_tone = _grey(165, mode)
+    far_points: list[tuple[int, int]] = [(x0, horizon_y)]
     span = x1 - x0
-    step = 20 * SS
+    step = 22 * SS
     x = x0
     while x <= x1:
-        amplitude = rng.randint(8 * SS, 26 * SS)
+        amplitude = rng.randint(10 * SS, 28 * SS)
         y = horizon_y - amplitude
         far_points.append((x, y))
         x += step + rng.randint(-4 * SS, 4 * SS)
@@ -308,21 +322,122 @@ def _draw_distant_mountains(
     far_points.append((x0, horizon_y + 2 * SS))
     draw.polygon(far_points, fill=far_tone)
 
-    # Near ridge — slightly taller, slightly darker.
-    near_tone = _grey(95, mode)
-    near_points = [(x0, horizon_y)]
+    # Near ridge — taller, darker, with discrete peaks + snow caps + a
+    # cross-hatched shadow side (right slope of each peak) for depth.
+    near_tone = _grey(60, mode)
     n_peaks = 4
     peak_width = span / n_peaks
+    peak_summits: list[tuple[int, int]] = []  # (peak_x, peak_y) for each peak
     for i in range(n_peaks):
-        bx = int(x0 + i * peak_width)
-        near_points.append((bx, horizon_y))
-        peak_h = rng.randint(28 * SS, 60 * SS)
-        peak_x = int(bx + peak_width * 0.5 + rng.randint(-12 * SS, 12 * SS))
-        near_points.append((peak_x, horizon_y - peak_h))
-    near_points.append((x1, horizon_y))
-    near_points.append((x1, horizon_y + 4 * SS))
-    near_points.append((x0, horizon_y + 4 * SS))
-    draw.polygon(near_points, fill=near_tone)
+        bx_left = int(x0 + i * peak_width)
+        bx_right = int(x0 + (i + 1) * peak_width)
+        peak_h = rng.randint(34 * SS, 64 * SS)
+        peak_x = int(bx_left + peak_width * 0.5 + rng.randint(-12 * SS, 12 * SS))
+        peak_y = horizon_y - peak_h
+        peak_summits.append((peak_x, peak_y))
+        # Solid silhouette triangle (overdraws with neighbours — fine, all
+        # the same tone).
+        draw.polygon(
+            [
+                (bx_left, horizon_y),
+                (peak_x, peak_y),
+                (bx_right, horizon_y),
+            ],
+            fill=near_tone,
+        )
+
+    # Cross-hatched shadow side — diagonal hatch lines on the right-hand
+    # slope of each peak.  The overlay is composited onto a triangular
+    # mask so the hatches only land on the slope (not the sky).
+    for peak_x, peak_y in peak_summits:
+        bx_right = int(min(x1, peak_x + peak_width * 0.5))
+        # Generate diagonal stripes from the summit down to the base.
+        slope_h = horizon_y - peak_y
+        slope_w = bx_right - peak_x
+        if slope_h <= 0 or slope_w <= 0:
+            continue
+        # Build a clipping mask matching the right slope triangle.
+        mask = Image.new("L", (slope_w + 2 * SS, slope_h + 2 * SS), 0)
+        mdraw = ImageDraw.Draw(mask)
+        mdraw.polygon(
+            [(0, 0), (slope_w, slope_h), (0, slope_h)],
+            fill=255,
+        )
+        # Hatch overlay — diagonal lines on a temp grey image.
+        overlay = Image.new("L", (slope_w + 2 * SS, slope_h + 2 * SS), 60)
+        odraw = ImageDraw.Draw(overlay)
+        n_lines = max(3, slope_w // (5 * SS))
+        for k in range(-n_lines, n_lines * 2):
+            ox = k * 5 * SS
+            odraw.line(
+                [(ox, 0), (ox + slope_h, slope_h)],
+                fill=170,
+                width=SS,
+            )
+        # Composite the hatched overlay through the mask.
+        composed = overlay.copy() if image.mode == "L" else overlay.convert("RGB")
+        image.paste(composed, (peak_x, peak_y), mask)
+
+    # Snow caps on the upper third of each peak — small white triangles
+    # whose ragged bottom edges hint at sun-melt patches.
+    snow_fill = _grey(248, mode)
+    for peak_x, peak_y in peak_summits:
+        cap_h = rng.randint(8 * SS, 14 * SS)
+        cap_w = rng.randint(14 * SS, 24 * SS)
+        cap_pts = [
+            (peak_x, peak_y - SS),
+            (peak_x + cap_w // 2, peak_y + cap_h),
+            (peak_x + cap_w // 4, peak_y + cap_h + rng.randint(-SS, SS)),
+            (peak_x + cap_w // 8, peak_y + cap_h - SS),
+            (peak_x - cap_w // 8, peak_y + cap_h + rng.randint(-SS, SS)),
+            (peak_x - cap_w // 4, peak_y + cap_h),
+            (peak_x - cap_w // 2, peak_y + cap_h),
+        ]
+        draw.polygon(cap_pts, fill=snow_fill, outline=_ink(mode))
+
+
+def _draw_water_reflection(
+    image: Image.Image,
+    rect: tuple[int, int, int, int],
+    horizon_y: int,
+    *,
+    source_cx: int,
+    source_cy: int,
+    today: date,
+) -> None:
+    """Broken vertical shimmer trail directly below a sun or moon source.
+
+    Drawn as a column of short horizontal hairlines whose width tapers from
+    near the horizon outward (perspective hint) and whose density falls off
+    away from the source's reflected centre.
+    """
+    x0, _y0, x1, y1 = rect
+    h = y1 - horizon_y
+    if h <= 0:
+        return
+    mode = image.mode
+    draw = ImageDraw.Draw(image)
+    rng = random.Random((today.toordinal() ^ 0xCAFE) ^ source_cx)
+    # Horizontal centre of the reflection column = source's x.
+    cx = source_cx
+    fill_bright = _grey(245, mode)
+    fill_mid = _grey(200, mode)
+    n_strokes = 36
+    for i in range(n_strokes):
+        t = (i + 0.5) / n_strokes  # 0 = horizon, 1 = foreground
+        y = horizon_y + int(t * (h - 24 * SS))
+        # Strokes broaden toward the viewer and become sparser.
+        if rng.random() > (1.0 - t * 0.4):
+            continue
+        max_half_w = int(SS * (3 + t * 12))
+        half_w = rng.randint(SS, max(SS + 1, max_half_w))
+        offset = rng.randint(-max_half_w, max_half_w)
+        sx0 = cx + offset - half_w
+        sx1 = cx + offset + half_w
+        if sx0 < x0 or sx1 > x1:
+            continue
+        fill = fill_bright if abs(offset) < max_half_w // 2 else fill_mid
+        draw.line([(sx0, y), (sx1, y)], fill=fill, width=SS)
 
 
 def _draw_water(
@@ -404,17 +519,104 @@ def _draw_foreground_shore(
     points.append((x0, y1))
     draw.polygon(points, fill=_grey(30, mode))
 
-    # Pebble + reed accents on the shore.
+    # Pebbles scattered along the shore.
     pebble_fill = _ink(mode)
     for _ in range(18):
         px = rng.randint(x0 + 10 * SS, x1 - 10 * SS)
         py = rng.randint(shore_top + 6 * SS, y1 - 6 * SS)
         r = rng.choice((SS, SS, 2 * SS))
         draw.ellipse((px - r, py - r, px + r, py + r), fill=pebble_fill)
-    for _ in range(7):
+    # A few tree silhouettes — mix of conifers and a deciduous tree —
+    # standing along the shore.  Trees punctuate the horizon and replace
+    # the previous undifferentiated reed strokes.
+    n_trees = 5
+    for i in range(n_trees):
+        tx = x0 + int((i + 0.5) * (x1 - x0) / n_trees) + rng.randint(-18 * SS, 18 * SS)
+        ty = shore_top + rng.randint(-2 * SS, 6 * SS)
+        # Mix tree kinds — conifers dominate.
+        kind = rng.choices(["conifer_tall", "conifer_short", "deciduous"], weights=[5, 4, 2], k=1)[
+            0
+        ]
+        if kind == "conifer_tall":
+            _draw_conifer(draw, tx, ty, height=rng.randint(34 * SS, 48 * SS), fill=pebble_fill)
+        elif kind == "conifer_short":
+            _draw_conifer(draw, tx, ty, height=rng.randint(20 * SS, 30 * SS), fill=pebble_fill)
+        else:
+            _draw_deciduous(draw, tx, ty, fill=pebble_fill, rng=rng)
+    # Sparse grass strokes filling the gaps between trees.
+    for _ in range(10):
         rx = rng.randint(x0 + 20 * SS, x1 - 20 * SS)
-        rh = rng.randint(14 * SS, 28 * SS)
+        rh = rng.randint(6 * SS, 14 * SS)
         draw.line([(rx, shore_top - rh), (rx, shore_top + 4 * SS)], fill=pebble_fill, width=SS)
+
+
+def _draw_conifer(
+    draw: ImageDraw.ImageDraw,
+    x: int,
+    base_y: int,
+    *,
+    height: int,
+    fill,
+) -> None:
+    """Stack of three triangular conifer tiers on a thin trunk.
+
+    Each tier overhangs the one below by ~10% of the trunk width, giving
+    the classic Christmas-tree silhouette.  Drawn purely as filled polygons
+    so the shape stays crisp after the LANCZOS downsample.
+    """
+    trunk_w = max(SS, height // 18)
+    trunk_h = max(2 * SS, height // 6)
+    # Trunk.
+    draw.rectangle(
+        (x - trunk_w // 2, base_y - trunk_h, x + trunk_w // 2, base_y),
+        fill=fill,
+    )
+    # Three triangular tiers, each smaller and higher than the previous.
+    tier_h = (height - trunk_h) // 3
+    bottom_w = height // 2
+    for i in range(3):
+        ty0 = base_y - trunk_h - i * (tier_h - SS)
+        tier_w = bottom_w - i * (bottom_w // 5)
+        # Each tier overhangs the previous one slightly.
+        draw.polygon(
+            [
+                (x - tier_w // 2, ty0),
+                (x, ty0 - tier_h),
+                (x + tier_w // 2, ty0),
+            ],
+            fill=fill,
+        )
+
+
+def _draw_deciduous(
+    draw: ImageDraw.ImageDraw,
+    x: int,
+    base_y: int,
+    *,
+    fill,
+    rng: random.Random,
+) -> None:
+    """Trunk + rounded canopy — a softer counterpoint to the conifers."""
+    trunk_w = 2 * SS
+    trunk_h = rng.randint(12 * SS, 18 * SS)
+    canopy_r = rng.randint(11 * SS, 16 * SS)
+    canopy_cy = base_y - trunk_h - canopy_r + 2 * SS
+    # Trunk rectangle.
+    draw.rectangle(
+        (x - trunk_w // 2, base_y - trunk_h, x + trunk_w // 2, base_y),
+        fill=fill,
+    )
+    # Canopy — three overlapping ellipses for a slightly irregular outline.
+    for dx_, dy_, rmod in (
+        (0, 0, 0),
+        (-canopy_r // 2, canopy_r // 4, -canopy_r // 5),
+        (canopy_r // 2, canopy_r // 5, -canopy_r // 6),
+    ):
+        r = canopy_r + rmod
+        draw.ellipse(
+            (x + dx_ - r, canopy_cy + dy_ - r, x + dx_ + r, canopy_cy + dy_ + r),
+            fill=fill,
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -701,6 +903,57 @@ def _draw_fog_bands(
         if image.mode == "RGB":
             band = band.convert("RGB")
         image.paste(band, (x0 - 30 * SS + rng.randint(-20 * SS, 20 * SS), y))
+
+
+def _draw_sailboat(
+    image: Image.Image,
+    rect: tuple[int, int, int, int],
+    horizon_y: int,
+    today: date,
+) -> None:
+    """A tiny sailboat silhouette out on the water — narrative anchor.
+
+    Drawn as a triangular mainsail + a crescent hull just below the
+    horizon, sized so it reads as something in the middle distance.  The
+    hull, mast, and sail are all the same solid ink so the silhouette
+    survives any dithering.
+    """
+    x0, _y0, x1, _y1 = rect
+    mode = image.mode
+    draw = ImageDraw.Draw(image)
+    rng = random.Random(today.toordinal() ^ 0x5A11)
+    # Position the boat in the middle third of the visible water, on the
+    # opposite side of the canvas from the sun/moon (which sits in the
+    # left third).
+    bx = rng.randint(x0 + (x1 - x0) * 3 // 5, x1 - 60 * SS)
+    by = horizon_y + rng.randint(20 * SS, 40 * SS)
+    ink = _ink(mode)
+    # Hull — shallow crescent.
+    hull_w = 22 * SS
+    hull_h = 5 * SS
+    draw.pieslice(
+        (bx - hull_w // 2, by - hull_h, bx + hull_w // 2, by + hull_h),
+        start=0,
+        end=180,
+        fill=ink,
+    )
+    # Mast.
+    mast_h = 26 * SS
+    draw.line([(bx, by - hull_h), (bx, by - hull_h - mast_h)], fill=ink, width=SS)
+    # Mainsail — right-triangle catching wind.
+    sail_pts = [
+        (bx, by - hull_h - mast_h),
+        (bx, by - hull_h - SS),
+        (bx + hull_w // 2 + 2 * SS, by - hull_h - SS),
+    ]
+    draw.polygon(sail_pts, fill=ink)
+    # Foresail — smaller triangle on the other side.
+    fore_pts = [
+        (bx, by - hull_h - mast_h + 6 * SS),
+        (bx, by - hull_h - SS),
+        (bx - hull_w // 2 - SS, by - hull_h - SS),
+    ]
+    draw.polygon(fore_pts, fill=ink)
 
 
 def _draw_birds(
