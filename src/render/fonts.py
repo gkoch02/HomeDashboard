@@ -145,6 +145,48 @@ def playfair_bold(size: int) -> ImageFont.FreeTypeFont:
     return get_font("PlayfairDisplay-Bold.ttf", size)
 
 
+# Cormorant Garamond — high-contrast Garamond-revival serif (OFL).  Variable
+# font with a wght axis (300–700); paired with Cinzel for moonphase's
+# mystical/celestial body text.
+@lru_cache(maxsize=32)
+def _get_cormorant(size: int, wght: int, italic: bool) -> ImageFont.FreeTypeFont:
+    name = "CormorantGaramond-Italic.ttf" if italic else "CormorantGaramond.ttf"
+    font = ImageFont.truetype(str(FONT_DIR / name), size)
+    font.set_variation_by_axes([wght])
+    return font
+
+
+def cormorant_regular(size: int) -> ImageFont.FreeTypeFont:
+    return _get_cormorant(size, 400, italic=False)
+
+
+def cormorant_medium(size: int) -> ImageFont.FreeTypeFont:
+    return _get_cormorant(size, 500, italic=False)
+
+
+def cormorant_semibold(size: int) -> ImageFont.FreeTypeFont:
+    return _get_cormorant(size, 600, italic=False)
+
+
+def cormorant_italic(size: int) -> ImageFont.FreeTypeFont:
+    return _get_cormorant(size, 400, italic=True)
+
+
+# Tangerine — calligraphic script display face (OFL).  Single-weight regular
+# (a bold variant also exists upstream; bring in if needed later).  Used by
+# the moonphase theme for the quote attribution to give a poetic, handwritten feel.
+def tangerine_regular(size: int) -> ImageFont.FreeTypeFont:
+    return get_font("Tangerine-Regular.ttf", size)
+
+
+# Manufacturing Consent — Fraktur blackletter modernised with contemporary
+# proportions (OFL, by Fredrick Brennan).  Used by the moonphase theme for the
+# phase-name headline; reads as mystical newspaper-incipit rather than the
+# heavier medieval feel of Astloch.
+def manufacturing_consent(size: int) -> ImageFont.FreeTypeFont:
+    return get_font("ManufacturingConsent-Regular.ttf", size)
+
+
 # Astloch — antique blackletter / fraktur display face (OFL).  Two weights;
 # perfect "character" font for editorial mastheads and 19th-century almanacs.
 def astloch(size: int) -> ImageFont.FreeTypeFont:
