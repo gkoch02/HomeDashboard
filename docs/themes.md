@@ -447,8 +447,11 @@ Bundled font families used by the current built-in themes:
 |---|---|
 | Plus Jakarta Sans | default and general fallback |
 | DM Sans | `minimalist`, `weather`, `fuzzyclock`, `timeline`, `diags`, `monthly`, `countdown`, `astronomy`, `light_cycle`, `constellation_map` (margin), `trends` |
-| Playfair Display | `old_fashioned`, `qotd`, `moonphase`, `almanac`, `halftone` |
-| Cinzel | `fantasy`, `old_fashioned`, `moonphase` accents, `almanac` (section labels + small caps), `halftone` (small-caps labels) |
+| Playfair Display | `old_fashioned`, `qotd`, `almanac`, `halftone` |
+| Cinzel | `fantasy`, `old_fashioned`, `almanac` (section labels + small caps), `halftone` (small-caps labels) |
+| Cormorant Garamond | `moonphase` (body, illumination, strips, quote) |
+| Tangerine | `moonphase` (script quote attribution) |
+| Manufacturing Consent | `moonphase` (Fraktur phase-name headline) |
 | Righteous | `light_cycle` (centre date numeral) |
 | Audiowide | `constellation_map` (cardinal letters, star + constellation labels) |
 | Astloch | `almanac` (masthead + dateline character font) |
