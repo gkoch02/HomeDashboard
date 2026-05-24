@@ -774,15 +774,25 @@ def _draw_margin_band(
         cap_y = temp_y + temp_bbox[1] + temp_visible_h + 8 - fb[1]
         draw.text((cap_x, cap_y), feels_caption, font=feels_font, fill=ink)
 
-    # --- Row anchors — two content bands separated by a hairline rule,
-    # spread out so each row gets ~36 px of vertical real estate. The band
-    # is 154 px tall; we distribute four anchors at 12 / 60 / 88 / 134 so
-    # the rule lands cleanly between NOW and TODAY and NEXT sits flush
-    # against the bottom margin without crowding the date.
-    now_row_top = y0 + 12
-    rule_y = y0 + 64
-    today_row_top = y0 + 80
-    next_row_top = y0 + 128
+    # --- Three zones for the right-column text, each carrying one row:
+    # NOW (above the rule), TODAY (sun times + date), NEXT (calendar).
+    # The hairline rule splits NOW from the lower pair; the lower pair
+    # is split evenly between TODAY and NEXT. Each row's text is
+    # vertically centred within its zone so the band reads as three
+    # deliberately-spaced rows rather than top-aligned text with
+    # arbitrary gaps.
+    rule_y = y0 + h // 3
+    below_top = rule_y + 1
+    below_split = below_top + (y0 + h - below_top) // 2
+    now_zone = (y0, rule_y)
+    today_zone = (below_top, below_split)
+    next_zone = (below_split, y0 + h)
+
+    def _centre_y(bbox: tuple[int, int, int, int], zone: tuple[int, int]) -> int:
+        """Return the y to draw at so *bbox*'s visible ink centres in *zone*."""
+        bb_h = bbox[3] - bbox[1]
+        zone_mid = (zone[0] + zone[1]) // 2
+        return zone_mid - bb_h // 2 - bbox[1]
 
     # --- NOW row: condition + H / L on one line. ``feels NN°`` lives
     # under the temperature numeral so this row can breathe at a larger
@@ -803,19 +813,18 @@ def _draw_margin_band(
     max_now_w = text_col_right - text_col_x
     draw_text_truncated(
         draw,
-        (text_col_x, now_row_top - nb[1]),
+        (text_col_x, _centre_y(nb, now_zone)),
         now_text,
         now_font,
         max_now_w,
         fill=ink,
     )
 
-    # --- Hairline rule under the NOW row — same Bayer halftone motif as
-    # the hero separator, scaled down to a single dotted row so it reads
-    # as a delicate engraved rule rather than a solid bar.
+    # --- Hairline rule between the NOW zone and the lower pair.
     _draw_text_band_rule(image, text_col_x, rule_y, text_col_right - text_col_x, mode)
 
-    # --- TODAY row: sunrise + sunset on the left, date on the right.
+    # --- TODAY row: sunrise + sunset on the left, date on the right,
+    # both vertically centred in the TODAY zone.
     today_font = style.font_semibold(22)
     if weather and (weather.sunrise or weather.sunset):
         rise_text = _format_event_time(weather.sunrise) if weather.sunrise else "—"
@@ -833,8 +842,10 @@ def _draw_margin_band(
         measured = [(s, f, draw.textbbox((0, 0), s, font=f)) for s, f in chunks]
         pads = (glyph_pad, pair_gap, glyph_pad, 0)
 
-        ref_bb = draw.textbbox((0, 0), "M", font=today_font)
-        row_mid = today_row_top + (ref_bb[3] - ref_bb[1]) // 2
+        # All chunks share the same vertical midline — derived from the
+        # TODAY zone's mid Y so the row sits centred regardless of which
+        # chunk (icon vs text) happens to be tallest.
+        row_mid = (today_zone[0] + today_zone[1]) // 2
 
         cursor = text_col_x
         for (s, f, bb), pad in zip(measured, pads):
@@ -846,9 +857,9 @@ def _draw_margin_band(
     date_text = today.strftime("%a · %b %-d · %Y").upper()
     db = draw.textbbox((0, 0), date_text, font=date_font)
     date_x = text_col_right - (db[2] - db[0]) - db[0]
-    draw.text((date_x, today_row_top - db[1]), date_text, font=date_font, fill=ink)
+    draw.text((date_x, _centre_y(db, today_zone)), date_text, font=date_font, fill=ink)
 
-    # --- NEXT event on its own row directly below the TODAY line.
+    # --- NEXT event, centred in the NEXT zone.
     next_line = _next_event_line(data.events, now)
     if next_line:
         event_font = style.font_semibold(24)
@@ -856,7 +867,7 @@ def _draw_margin_band(
         max_w = text_col_right - text_col_x
         draw_text_truncated(
             draw,
-            (text_col_x, next_row_top - eb[1]),
+            (text_col_x, _centre_y(eb, next_zone)),
             next_line,
             event_font,
             max_w,
