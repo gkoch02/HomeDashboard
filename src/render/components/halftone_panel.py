@@ -49,6 +49,10 @@ TEMP_NUMERAL_SIZE = 128
 # overlapping the right-side text column, so the right column's available
 # width doesn't shrink as the temp digit count grows.
 TEMP_COL_W = 280
+# Bottom-of-band strip reserved for the small "updated HH:MM" caption.
+# The row math above subtracts this from the band height so the existing
+# zones (NOW / TODAY / NEXT) never overlap the footer.
+FOOTER_H = 16
 
 # Centre of the hero region — sun/moon and most cloud assemblies position
 # themselves relative to this point.
@@ -731,6 +735,11 @@ def _draw_margin_band(
 
     weather = data.weather
 
+    # All row + centring math runs against an "inner" band height so the
+    # bottom FOOTER_H pixels stay reserved for the "updated" caption and
+    # the primary content never overlaps it.
+    inner_h = h - FOOTER_H
+
     # --- Temperature numeral, vertically centred in the full band. A
     # smaller "feels NN°" caption sits directly under it so the headline
     # weather summary on the right can stay tight without losing that
@@ -758,7 +767,7 @@ def _draw_margin_band(
     # Vertically centre the temp + caption stack together so they read as
     # one block.
     stack_h = temp_visible_h + feels_h
-    temp_y = y0 + (h - stack_h) // 2 - temp_bbox[1]
+    temp_y = y0 + (inner_h - stack_h) // 2 - temp_bbox[1]
     draw.text((temp_x, temp_y), temp_text, font=temp_font, fill=ink)
     temp_w = temp_bbox[2] - temp_bbox[0]
     text_col_x = x0 + TEMP_COL_W
@@ -781,18 +790,19 @@ def _draw_margin_band(
     # no NEXT event the rule moves to the vertical centre so NOW and
     # TODAY breathe equally rather than leaving a jarring blank row.
     next_line = _next_event_line(data.events, now)
+    inner_bottom = y0 + inner_h
     if next_line:
-        rule_y = y0 + h // 3
+        rule_y = y0 + inner_h // 3
         below_top = rule_y + 1
-        below_split = below_top + (y0 + h - below_top) // 2
+        below_split = below_top + (inner_bottom - below_top) // 2
         now_zone = (y0, rule_y)
         today_zone = (below_top, below_split)
-        next_zone: tuple[int, int] | None = (below_split, y0 + h)
+        next_zone: tuple[int, int] | None = (below_split, inner_bottom)
     else:
-        rule_y = y0 + h // 2
+        rule_y = y0 + inner_h // 2
         below_top = rule_y + 1
         now_zone = (y0, rule_y)
-        today_zone = (below_top, y0 + h)
+        today_zone = (below_top, inner_bottom)
         next_zone = None
 
     def _centre_y(bbox: tuple[int, int, int, int], zone: tuple[int, int]) -> int:
@@ -880,6 +890,16 @@ def _draw_margin_band(
             max_w,
             fill=ink,
         )
+
+    # --- "updated HH:MM am" footer, right-aligned at the very bottom of
+    # the margin band. Lowercase + regular weight reads as a quiet caption
+    # against the uppercase semibold section labels above.
+    footer_font = style.font_regular(12)
+    footer_text = f"updated {_format_event_time(now).lower()}"
+    fb = draw.textbbox((0, 0), footer_text, font=footer_font)
+    footer_x = text_col_right - (fb[2] - fb[0]) - fb[0]
+    footer_y = inner_bottom + (FOOTER_H - (fb[3] - fb[1])) // 2 - fb[1]
+    draw.text((footer_x, footer_y), footer_text, font=footer_font, fill=ink)
 
 
 def _draw_text_band_rule(image: Image.Image, x0: int, y: int, w: int, mode: str) -> None:
