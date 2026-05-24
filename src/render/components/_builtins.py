@@ -375,7 +375,6 @@ def _halftone(ctx: RenderContext) -> None:
         image=ctx.image,
         region=ctx.layout.halftone,
         style=ctx.style,
-        quote_refresh=ctx.quote_refresh,
     )
 
 
