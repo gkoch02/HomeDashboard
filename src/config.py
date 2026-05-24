@@ -85,8 +85,11 @@ class ThemeRuleCondition:
     # When True, matches only if at least one weather alert is present.
     # When False, matches only when no alerts are present.  None = no constraint.
     weather_alert_present: bool | None = None
-    # "dawn" (sunrise ±90min), "morning", "afternoon", "dusk" (sunset ±60min),
-    # "night", "day".  Accepts a single value or a list.
+    # "dawn"  (sunrise ±90min),
+    # "day"   (after dawn until sunset−60min),
+    # "dusk"  (sunset−60min through sunset),
+    # "night" (after sunset until the next dawn).
+    # Accepts a single value or a list.
     daypart: str | list[str] | None = None
     # "spring" / "summer" / "fall" / "winter" (N-hemisphere by month).
     season: str | list[str] | None = None
@@ -854,7 +857,7 @@ def validate_config(
         )
 
     # --- Theme rules ---
-    _VALID_DAYPARTS = {"dawn", "morning", "afternoon", "dusk", "night", "day"}
+    _VALID_DAYPARTS = {"dawn", "day", "dusk", "night"}
     _VALID_SEASONS = {"spring", "summer", "fall", "autumn", "winter"}
     _VALID_WEEKDAYS = {
         "weekend",

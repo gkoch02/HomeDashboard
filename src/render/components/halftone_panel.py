@@ -44,7 +44,7 @@ _SUNSET_GLYPH = "\uf052"  # wi-sunset
 HERO_H = 296
 RULE_H = 6
 MARGIN_PAD_X = 28
-TEMP_NUMERAL_SIZE = 108
+TEMP_NUMERAL_SIZE = 128
 
 # Centre of the hero region — sun/moon and most cloud assemblies position
 # themselves relative to this point.
@@ -730,33 +730,60 @@ def _draw_margin_band(
 
     weather = data.weather
 
-    # --- Temperature numeral, nudged down a touch from the top of the band
-    # so its visual mass sits closer to the condition/stats baseline rather
-    # than crowding the Bayer rule.
+    # --- Compute the quote/author block size first so we know how much
+    # vertical space the data region above it can use. This is the same
+    # math used below to actually place the quote, factored out so the
+    # temperature numeral can be centered in the remaining space.
+    quote_font = style.font_quote(21) if style.font_quote else style.font_regular(21)
+    author_font = (
+        style.font_quote_author(18) if style.font_quote_author else style.font_semibold(18)
+    )
+    bottom_pad = 6
+    quote_line_h = text_height(quote_font)
+    quote_line_spacing = 2
+    quote_block_h = quote_line_h * 2 + quote_line_spacing
+    author_bb_ref = draw.textbbox((0, 0), "Mg", font=author_font)
+    author_h_ref = author_bb_ref[3] - author_bb_ref[1]
+    quote_area_h = bottom_pad + author_h_ref + 4 + quote_block_h
+    data_area_h = h - quote_area_h
+
+    # --- Temperature numeral, vertically centred within the data region
+    # (everything above the daily quote). Using the actual bounding-box
+    # height of the rendered glyphs avoids "magic offset" placement and
+    # keeps the numeral feeling visually anchored to the band rather than
+    # crowding the Bayer rule above it.
     temp_font = style.font_title(TEMP_NUMERAL_SIZE)
     temp_text = _fmt_temp(weather.current_temp) if weather else "—"
     temp_bbox = draw.textbbox((0, 0), temp_text, font=temp_font)
+    temp_visible_h = temp_bbox[3] - temp_bbox[1]
     temp_x = x0 + MARGIN_PAD_X - temp_bbox[0]
-    temp_y = y0 + 14 - temp_bbox[1]
+    temp_y = y0 + (data_area_h - temp_visible_h) // 2 - temp_bbox[1]
     draw.text((temp_x, temp_y), temp_text, font=temp_font, fill=ink)
     temp_right = temp_x + (temp_bbox[2] - temp_bbox[0])
     text_col_x = temp_right + 22
 
+    # --- Right column row anchors. Three rows of typography sit to the
+    # right of the temperature numeral; their tops are evenly placed inside
+    # the data region so the column reads as a balanced stack with the
+    # large temp regardless of overall band height.
+    row1_top = y0 + 10
+    row2_top = y0 + 44
+    row3_top = y0 + 78
+
     # --- Condition (small caps) to the right of the temperature numeral
-    condition_font = style.font_section_label(22)
+    condition_font = style.font_section_label(26)
     condition_text = (weather.current_description or "").upper() if weather else "AWAITING DATA"
     if condition_text:
         cb = draw.textbbox((0, 0), condition_text, font=condition_font)
-        cy = y0 + 12 - cb[1]
         draw.text(
-            (text_col_x - cb[0], cy),
+            (text_col_x - cb[0], row1_top - cb[1]),
             condition_text,
             font=condition_font,
             fill=ink,
         )
 
     # --- Stats line under the condition
-    stats_font = style.font_semibold(19)
+    stats_font = style.font_semibold(22)
     parts: list[str] = []
     if weather is not None:
         parts.append(f"H {_fmt_temp(weather.high)}")
@@ -767,7 +794,7 @@ def _draw_margin_band(
     if stats_text:
         sb = draw.textbbox((0, 0), stats_text, font=stats_font)
         draw.text(
-            (text_col_x - sb[0], y0 + 50 - sb[1]),
+            (text_col_x - sb[0], row2_top - sb[1]),
             stats_text,
             font=stats_font,
             fill=ink,
@@ -776,15 +803,14 @@ def _draw_margin_band(
     # --- Next event line — below stats
     next_line = _next_event_line(data.events, now)
     if next_line:
-        event_font = style.font_semibold(19)
+        event_font = style.font_semibold(22)
         eb = draw.textbbox((0, 0), next_line, font=event_font)
-        ey = y0 + 82 - eb[1]
         # Limit to the available width before the right-column starts.
-        max_w = (x0 + w - MARGIN_PAD_X - 230) - text_col_x
+        max_w = (x0 + w - MARGIN_PAD_X - 240) - text_col_x
         if max_w > 80:
             draw_text_truncated(
                 draw,
-                (text_col_x, ey),
+                (text_col_x, row3_top - eb[1]),
                 next_line,
                 event_font,
                 max_w,
@@ -792,7 +818,7 @@ def _draw_margin_band(
             )
 
     # --- Right-aligned location/date (small caps), anchored to the top-right
-    location_font = style.font_section_label(19)
+    location_font = style.font_section_label(22)
     location_text = (
         (weather.location_name or "").upper()
         if weather and weather.location_name
@@ -800,19 +826,18 @@ def _draw_margin_band(
     )
     lb = draw.textbbox((0, 0), location_text, font=location_font)
     loc_x = x0 + w - MARGIN_PAD_X - (lb[2] - lb[0]) - lb[0]
-    loc_y = y0 + 12 - lb[1]
-    draw.text((loc_x, loc_y), location_text, font=location_font, fill=ink)
+    draw.text((loc_x, row1_top - lb[1]), location_text, font=location_font, fill=ink)
 
     # When the OWM location is set, fall back to a date line below it.
     if weather and weather.location_name:
-        date_font = style.font_semibold(17)
+        date_font = style.font_semibold(20)
         date_text = today.strftime("%A · %B %-d · %Y").upper()
         db = draw.textbbox((0, 0), date_text, font=date_font)
         dx = x0 + w - MARGIN_PAD_X - (db[2] - db[0]) - db[0]
-        draw.text((dx, y0 + 44 - db[1]), date_text, font=date_font, fill=ink)
-        sun_y = y0 + 70
+        draw.text((dx, row2_top - db[1]), date_text, font=date_font, fill=ink)
+        sun_y = row3_top
     else:
-        sun_y = y0 + 48
+        sun_y = row2_top
 
     # --- Sunrise / sunset line right-aligned. Righteous itself has no
     # ↑/↓ arrows, so the glyphs come from the bundled Weather Icons font
@@ -822,10 +847,10 @@ def _draw_margin_band(
     if weather and (weather.sunrise or weather.sunset):
         rise_text = _format_event_time(weather.sunrise) if weather.sunrise else "—"
         set_text = _format_event_time(weather.sunset) if weather.sunset else "—"
-        sun_font = style.font_semibold(17)
-        icon_font = weather_icon(24)
-        glyph_pad = 4
-        pair_gap = 14
+        sun_font = style.font_semibold(20)
+        icon_font = weather_icon(28)
+        glyph_pad = 5
+        pair_gap = 16
 
         chunks = [
             (_SUNRISE_GLYPH, icon_font),
@@ -848,24 +873,18 @@ def _draw_margin_band(
             cursor += (bb[2] - bb[0]) + pad
 
     # --- Daily quote at the bottom; wraps to two lines so the larger font
-    # still has room to breathe. Author sits right-aligned beneath.
+    # still has room to breathe. Author sits right-aligned beneath. The
+    # quote / author fonts and the quote-area height are computed at the
+    # top of this routine so the temperature numeral can be centered above
+    # them; here we only need to actually place the text.
     quote = _quote_for_today(today, refresh=quote_refresh, now=now)
-    quote_font = style.font_quote(18) if style.font_quote else style.font_regular(18)
-    author_font = (
-        style.font_quote_author(15) if style.font_quote_author else style.font_semibold(15)
-    )
     quote_text = f"“{quote['text']}”"
     author_text = f"— {quote['author']}"
     quote_w = w - MARGIN_PAD_X * 2 - 12
-    line_h = text_height(quote_font)
     lines = wrap_lines(quote_text, quote_font, quote_w)[:2]
-    line_spacing = 2
-    # Reserve space for author + bottom padding, then place the quote block
-    # directly above it.
+    block_h = quote_line_h * len(lines) + quote_line_spacing * max(0, len(lines) - 1)
     author_bb = draw.textbbox((0, 0), author_text, font=author_font)
     author_h = author_bb[3] - author_bb[1]
-    bottom_pad = 6
-    block_h = line_h * len(lines) + line_spacing * max(0, len(lines) - 1)
     ay = y0 + h - bottom_pad - author_h - author_bb[1]
     qy = y0 + h - bottom_pad - author_h - 4 - block_h
     draw_text_wrapped(
@@ -875,7 +894,7 @@ def _draw_margin_band(
         quote_font,
         quote_w,
         max_lines=2,
-        line_spacing=line_spacing,
+        line_spacing=quote_line_spacing,
         fill=ink,
     )
     ax = x0 + w - MARGIN_PAD_X - (author_bb[2] - author_bb[0]) - author_bb[0]

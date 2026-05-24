@@ -169,12 +169,11 @@ logging:
 #   weather: OWM current description substring (scalar or list) — "rain", "snow",
 #            "clear", "clouds", "thunderstorm", "fog", ...
 #   weather_alert_present: true/false — match when any weather alert is active
-#   daypart: "dawn", "morning", "afternoon", "dusk", "night" (scalar or list).
-#            "day" is a convenience alias for morning ∪ afternoon.
-#            With weather data:  dawn = sunrise ±90min, dusk = sunset ±60min,
-#            morning = after dawn before local noon, afternoon = after noon
-#            before dusk, night = otherwise.  Without weather data, fixed clock
-#            ranges are used.
+#   daypart: "dawn", "day", "dusk", "night" (scalar or list).
+#            With weather data:  dawn = sunrise ±90min, dusk = sunset−60min
+#            through sunset, day = after dawn until dusk begins,
+#            night = after sunset until the next dawn.  Without weather data,
+#            fixed clock ranges anchored on a 06:30/18:30 sun cycle are used.
 #   season:  "spring", "summer", "fall", "winter" (scalar or list)
 #   weekday: "weekend", "weekday", or a day name (scalar or list)
 #   calendar: state of today's events (scalar or list).  Values:

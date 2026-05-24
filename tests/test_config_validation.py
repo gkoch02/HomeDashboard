@@ -414,14 +414,23 @@ class TestThemeRulesValidation:
         assert any("theme_rules[0].when.daypart" in w.field for w in warnings)
 
     def test_valid_daypart_no_warning(self):
-        cfg = self._cfg_with_rule("agenda", daypart="morning")
+        cfg = self._cfg_with_rule("agenda", daypart="day")
         _, warnings = validate_config(cfg)
         assert not any("daypart" in w.field for w in warnings)
 
     def test_daypart_list_with_one_bad_value_warns(self):
-        cfg = self._cfg_with_rule("agenda", daypart=["morning", "noon"])
+        cfg = self._cfg_with_rule("agenda", daypart=["day", "noon"])
         _, warnings = validate_config(cfg)
         assert any("daypart" in w.field for w in warnings)
+
+    def test_legacy_dayparts_now_warn(self):
+        # ``morning`` and ``afternoon`` were removed when the daypart buckets
+        # were simplified to dawn / day / dusk / night; configs still carrying
+        # them should warn.
+        for legacy in ("morning", "afternoon"):
+            cfg = self._cfg_with_rule("agenda", daypart=legacy)
+            _, warnings = validate_config(cfg)
+            assert any("daypart" in w.field for w in warnings), legacy
 
     def test_invalid_season_warns(self):
         cfg = self._cfg_with_rule("agenda", season="monsoon")
@@ -459,7 +468,7 @@ class TestThemeRulesValidation:
         cfg = Config()
         cfg.theme_rules = ThemeRulesConfig(
             rules=[
-                ThemeRule(when=ThemeRuleCondition(daypart="morning"), theme="agenda"),
+                ThemeRule(when=ThemeRuleCondition(daypart="day"), theme="agenda"),
                 ThemeRule(when=ThemeRuleCondition(season="monsoon"), theme="agenda"),
             ]
         )

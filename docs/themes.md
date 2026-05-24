@@ -124,7 +124,7 @@ Supported conditions:
 |---|---|---|
 | `weather` | OWM description substring (scalar or list) | `"rain"`, `"snow"`, `"clear"`, `"clouds"`, `"thunderstorm"`, `"fog"`, ... Matches against the current weather description — any listed token hitting as a substring counts as a match. |
 | `weather_alert_present` | `true` / `false` | Fires when any OWM alert is active (or explicitly when no alert is active). |
-| `daypart` | `"dawn"`, `"morning"`, `"afternoon"`, `"dusk"`, `"night"`, or `"day"` (scalar or list) | With weather data: `dawn` = sunrise ±90min, `dusk` = sunset ±60min, `morning` = after dawn before local noon, `afternoon` = after noon before dusk, `night` = otherwise. `day` is a convenience alias for morning ∪ afternoon. Without weather data, fixed clock ranges are used. |
+| `daypart` | `"dawn"`, `"day"`, `"dusk"`, `"night"` (scalar or list) | With weather data: `dawn` = sunrise ±90min, `day` = after dawn until sunset−60min, `dusk` = sunset−60min through sunset, `night` = after sunset until the next dawn. Without weather data, fixed clock ranges anchored on a 06:30 / 18:30 sun cycle are used. |
 | `season` | `"spring"`, `"summer"`, `"fall"`/`"autumn"`, `"winter"` (scalar or list) | N-hemisphere meteorological buckets by month. |
 | `weekday` | `"weekend"`, `"weekday"`, or a day name (scalar or list) | E.g. `"monday"`. |
 | `calendar` | `"empty"`, `"done"`, `"active"`, `"upcoming_soon"`, `"busy"`, `"birthday_today"` (scalar or list) | Today's calendar state — see below. States can overlap; a rule listing any matching state fires. |
