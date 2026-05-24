@@ -24,10 +24,9 @@ from functools import lru_cache
 from PIL import Image, ImageDraw
 
 from src.data.models import CalendarEvent, DashboardData
-from src.render.components.info_panel import _quote_for_today
 from src.render.fonts import weather_icon
 from src.render.moon import is_waxing, moon_illumination
-from src.render.primitives import draw_text_truncated, draw_text_wrapped, text_height, wrap_lines
+from src.render.primitives import draw_text_truncated
 from src.render.quantize import _BAYER_4X4, INKY_SPECTRA6_PALETTE
 from src.render.theme import INKY_YELLOW, ComponentRegion, ThemeStyle
 
@@ -92,7 +91,6 @@ def draw_halftone(
     image: Image.Image | None = None,
     region: ComponentRegion | None = None,
     style: ThemeStyle | None = None,
-    quote_refresh: str = "daily",
 ) -> None:
     """Draw the full ``halftone`` plate into *region* of *image*."""
     if region is None:
@@ -126,7 +124,6 @@ def draw_halftone(
         w=w,
         h=h - HERO_H - RULE_H,
         style=style,
-        quote_refresh=quote_refresh,
     )
 
 
@@ -699,21 +696,19 @@ def _draw_margin_band(
     w: int,
     h: int,
     style: ThemeStyle,
-    quote_refresh: str,
 ) -> None:
     """Paint the typeset data band below the hero illustration.
 
-    Two-column layout anchored to the top, with the daily quote (wrapped to
-    two lines) and right-aligned author stamped at the bottom:
+    Two-column layout: the temperature numeral on the left and four rows
+    of weather + calendar data on the right, spread across the full
+    band height so each line reads as its own row.
 
-        ┌─────────────────────────────────────────────────────────────┐
-        │ 42°    PARTLY CLOUDY              MONDAY · APRIL 6 · 2026   │
-        │        H 48° · L 35° · feels 38°    sun ↑ 6:24   sun ↓ 7:51 │
-        │        Next  9:00 AM Farmers Market                         │
-        │                                                             │
-        │ "It's not what you look at that matters, it's what          │
-        │  you see."                          — Henry David Thoreau   │
-        └─────────────────────────────────────────────────────────────┘
+        ┌──────────────────────────────────────────────────────────────┐
+        │        PARTLY CLOUDY                MONDAY · APRIL 6 · 2026  │
+        │ 42°    H 48° · L 35° · feels 38°                             │
+        │                                       ☀ 6:24 AM   ☼ 7:51 PM │
+        │        NEXT — 9:00 AM Farmers Market                         │
+        └──────────────────────────────────────────────────────────────┘
     """
     mode = image.mode
     # Paint a clean paper background so the dithered hero never bleeds in.
@@ -730,45 +725,23 @@ def _draw_margin_band(
 
     weather = data.weather
 
-    # --- Compute the quote/author block size first so we know how much
-    # vertical space the data region above it can use. This is the same
-    # math used below to actually place the quote, factored out so the
-    # temperature numeral can be centered in the remaining space.
-    quote_font = style.font_quote(21) if style.font_quote else style.font_regular(21)
-    author_font = (
-        style.font_quote_author(18) if style.font_quote_author else style.font_semibold(18)
-    )
-    bottom_pad = 6
-    quote_line_h = text_height(quote_font)
-    quote_line_spacing = 2
-    quote_block_h = quote_line_h * 2 + quote_line_spacing
-    author_bb_ref = draw.textbbox((0, 0), "Mg", font=author_font)
-    author_h_ref = author_bb_ref[3] - author_bb_ref[1]
-    quote_area_h = bottom_pad + author_h_ref + 4 + quote_block_h
-    data_area_h = h - quote_area_h
-
-    # --- Temperature numeral, vertically centred within the data region
-    # (everything above the daily quote). Using the actual bounding-box
-    # height of the rendered glyphs avoids "magic offset" placement and
-    # keeps the numeral feeling visually anchored to the band rather than
-    # crowding the Bayer rule above it.
+    # --- Temperature numeral, vertically centred in the full band.
     temp_font = style.font_title(TEMP_NUMERAL_SIZE)
     temp_text = _fmt_temp(weather.current_temp) if weather else "—"
     temp_bbox = draw.textbbox((0, 0), temp_text, font=temp_font)
     temp_visible_h = temp_bbox[3] - temp_bbox[1]
     temp_x = x0 + MARGIN_PAD_X - temp_bbox[0]
-    temp_y = y0 + (data_area_h - temp_visible_h) // 2 - temp_bbox[1]
+    temp_y = y0 + (h - temp_visible_h) // 2 - temp_bbox[1]
     draw.text((temp_x, temp_y), temp_text, font=temp_font, fill=ink)
     temp_right = temp_x + (temp_bbox[2] - temp_bbox[0])
     text_col_x = temp_right + 22
 
-    # --- Right column row anchors. Three rows of typography sit to the
-    # right of the temperature numeral; their tops are evenly placed inside
-    # the data region so the column reads as a balanced stack with the
-    # large temp regardless of overall band height.
+    # --- Row anchors — four rows distributed across the band so each
+    # data line reads as its own row instead of crowding the top half.
     row1_top = y0 + 10
-    row2_top = y0 + 44
-    row3_top = y0 + 78
+    row2_top = y0 + 52
+    row3_top = y0 + 94
+    row4_top = y0 + 136
 
     # --- Condition (small caps) to the right of the temperature numeral
     condition_font = style.font_section_label(26)
@@ -782,7 +755,7 @@ def _draw_margin_band(
             fill=ink,
         )
 
-    # --- Stats line under the condition
+    # --- Stats line under the condition (H / L / feels-like)
     stats_font = style.font_semibold(22)
     parts: list[str] = []
     if weather is not None:
@@ -800,24 +773,7 @@ def _draw_margin_band(
             fill=ink,
         )
 
-    # --- Next event line — below stats
-    next_line = _next_event_line(data.events, now)
-    if next_line:
-        event_font = style.font_semibold(22)
-        eb = draw.textbbox((0, 0), next_line, font=event_font)
-        # Limit to the available width before the right-column starts.
-        max_w = (x0 + w - MARGIN_PAD_X - 240) - text_col_x
-        if max_w > 80:
-            draw_text_truncated(
-                draw,
-                (text_col_x, row3_top - eb[1]),
-                next_line,
-                event_font,
-                max_w,
-                fill=ink,
-            )
-
-    # --- Right-aligned location/date (small caps), anchored to the top-right
+    # --- Right-aligned location/date (small caps), anchored to row 1 right
     location_font = style.font_section_label(22)
     location_text = (
         (weather.location_name or "").upper()
@@ -828,21 +784,18 @@ def _draw_margin_band(
     loc_x = x0 + w - MARGIN_PAD_X - (lb[2] - lb[0]) - lb[0]
     draw.text((loc_x, row1_top - lb[1]), location_text, font=location_font, fill=ink)
 
-    # When the OWM location is set, fall back to a date line below it.
+    # When the OWM location is set, the date drops below it on row 2 right.
     if weather and weather.location_name:
         date_font = style.font_semibold(20)
         date_text = today.strftime("%A · %B %-d · %Y").upper()
         db = draw.textbbox((0, 0), date_text, font=date_font)
         dx = x0 + w - MARGIN_PAD_X - (db[2] - db[0]) - db[0]
         draw.text((dx, row2_top - db[1]), date_text, font=date_font, fill=ink)
-        sun_y = row3_top
-    else:
-        sun_y = row2_top
 
-    # --- Sunrise / sunset line right-aligned. Righteous itself has no
-    # ↑/↓ arrows, so the glyphs come from the bundled Weather Icons font
-    # (wi-sunrise / wi-sunset). Each chunk's ink-center is aligned to a
-    # shared midline derived from a Righteous "M" so the two fonts —
+    # --- Sunrise / sunset line right-aligned on row 3. Righteous itself
+    # has no ↑/↓ arrows, so the glyphs come from the bundled Weather Icons
+    # font (wi-sunrise / wi-sunset). Each chunk's ink-center is aligned to
+    # a shared midline derived from a Righteous "M" so the two fonts —
     # which carry different baselines — read as one row.
     if weather and (weather.sunrise or weather.sunset):
         rise_text = _format_event_time(weather.sunrise) if weather.sunrise else "—"
@@ -864,7 +817,7 @@ def _draw_margin_band(
         total_w = sum(bb[2] - bb[0] for _, _, bb in measured) + sum(pads)
 
         ref_bb = draw.textbbox((0, 0), "M", font=sun_font)
-        row_mid = sun_y + (ref_bb[3] - ref_bb[1]) // 2
+        row_mid = row3_top + (ref_bb[3] - ref_bb[1]) // 2
 
         cursor = x0 + w - MARGIN_PAD_X - total_w
         for (s, f, bb), pad in zip(measured, pads):
@@ -872,30 +825,19 @@ def _draw_margin_band(
             draw.text((cursor - bb[0], row_mid - glyph_mid), s, font=f, fill=ink)
             cursor += (bb[2] - bb[0]) + pad
 
-    # --- Daily quote at the bottom; wraps to two lines so the larger font
-    # still has room to breathe. Author sits right-aligned beneath. The
-    # quote / author fonts and the quote-area height are computed at the
-    # top of this routine so the temperature numeral can be centered above
-    # them; here we only need to actually place the text.
-    quote = _quote_for_today(today, refresh=quote_refresh, now=now)
-    quote_text = f"“{quote['text']}”"
-    author_text = f"— {quote['author']}"
-    quote_w = w - MARGIN_PAD_X * 2 - 12
-    lines = wrap_lines(quote_text, quote_font, quote_w)[:2]
-    block_h = quote_line_h * len(lines) + quote_line_spacing * max(0, len(lines) - 1)
-    author_bb = draw.textbbox((0, 0), author_text, font=author_font)
-    author_h = author_bb[3] - author_bb[1]
-    ay = y0 + h - bottom_pad - author_h - author_bb[1]
-    qy = y0 + h - bottom_pad - author_h - 4 - block_h
-    draw_text_wrapped(
-        draw,
-        (x0 + MARGIN_PAD_X, qy),
-        quote_text,
-        quote_font,
-        quote_w,
-        max_lines=2,
-        line_spacing=quote_line_spacing,
-        fill=ink,
-    )
-    ax = x0 + w - MARGIN_PAD_X - (author_bb[2] - author_bb[0]) - author_bb[0]
-    draw.text((ax, ay), author_text, font=author_font, fill=ink)
+    # --- Next event on its own row 4 with the full width to the right of
+    # the temperature numeral, so the event title no longer gets clipped
+    # by the sunrise/sunset cluster.
+    next_line = _next_event_line(data.events, now)
+    if next_line:
+        event_font = style.font_semibold(22)
+        eb = draw.textbbox((0, 0), next_line, font=event_font)
+        max_w = (x0 + w - MARGIN_PAD_X) - text_col_x
+        draw_text_truncated(
+            draw,
+            (text_col_x, row4_top - eb[1]),
+            next_line,
+            event_font,
+            max_w,
+            fill=ink,
+        )
