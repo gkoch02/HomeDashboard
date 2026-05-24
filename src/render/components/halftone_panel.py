@@ -613,7 +613,10 @@ def _draw_missing(image: Image.Image, hero_rect: tuple[int, int, int, int]) -> N
     draw = ImageDraw.Draw(image)
     cx = (hero_rect[0] + hero_rect[2]) // 2
     cy = (hero_rect[1] + hero_rect[3]) // 2
-    for r, tone in ((140, 200), (110, 180), (80, 160), (50, 140), (24, 120)):
+    # Arc tones must all sit clearly below the 160 backdrop so each ring
+    # stays distinguishable; the original (200, 180, 160, 140, 120) set was
+    # tuned for a 240 paper backdrop and collapsed against mid-grey.
+    for r, tone in ((140, 120), (110, 100), (80, 80), (50, 60), (24, 40)):
         draw.ellipse(
             (cx - r, cy - r, cx + r, cy + r),
             outline=_grey(tone, mode),
