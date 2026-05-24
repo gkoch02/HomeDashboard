@@ -135,11 +135,15 @@ class TestCurrentWeekday:
 
 class TestCurrentDaypart:
     def test_fixed_ranges_without_weather(self):
+        # Fallback ranges (no sunrise/sunset data) anchor on a nominal
+        # 06:30 sunrise / 18:30 sunset, so 5-8 = dawn, 8-17:30 = day,
+        # 17:30-18:30 = dusk, everything else = night.
         assert _current_daypart(_now(hour=6), None) == "dawn"
-        assert _current_daypart(_now(hour=9), None) == "morning"
-        assert _current_daypart(_now(hour=14), None) == "afternoon"
+        assert _current_daypart(_now(hour=9), None) == "day"
+        assert _current_daypart(_now(hour=14), None) == "day"
         assert _current_daypart(_now(hour=18), None) == "dusk"
         assert _current_daypart(_now(hour=23), None) == "night"
+        assert _current_daypart(_now(hour=3), None) == "night"
 
     def test_sunrise_defines_dawn_bucket(self):
         w = _wx(
@@ -149,49 +153,58 @@ class TestCurrentDaypart:
         # 6:30 AM is within 90 minutes of 6:05 AM sunrise → dawn
         assert _current_daypart(_now(hour=6, minute=30), w) == "dawn"
 
-    def test_sunset_defines_dusk_bucket(self):
+    def test_dusk_runs_from_sunset_minus_60_through_sunset(self):
         w = _wx(
             sunrise=datetime(2026, 4, 23, 6, 5),
             sunset=datetime(2026, 4, 23, 19, 43),
         )
-        # 7:50 PM is within 60 minutes of 7:43 PM sunset → dusk
-        assert _current_daypart(_now(hour=19, minute=50), w) == "dusk"
+        # 18:50 is 53 minutes before 19:43 sunset → dusk
+        assert _current_daypart(_now(hour=18, minute=50), w) == "dusk"
+        # 19:43 is the sunset boundary → still dusk (inclusive)
+        assert _current_daypart(_now(hour=19, minute=43), w) == "dusk"
+        # Past sunset is night (new spec — was previously dusk for +60min)
+        assert _current_daypart(_now(hour=19, minute=50), w) == "night"
 
-    def test_morning_after_dawn_before_noon(self):
-        """With weather data, the morning bucket is still reachable (pre-review fix)."""
+    def test_day_runs_from_dawn_end_to_dusk_start(self):
         w = _wx(
             sunrise=datetime(2026, 4, 23, 6, 5),
             sunset=datetime(2026, 4, 23, 19, 43),
         )
-        # 10 AM is past the dawn window (90 min from sunrise) and before local noon.
-        assert _current_daypart(_now(hour=10), w) == "morning"
-
-    def test_afternoon_after_noon_before_dusk(self):
-        """With weather data, the afternoon bucket is still reachable (pre-review fix)."""
-        w = _wx(
-            sunrise=datetime(2026, 4, 23, 6, 5),
-            sunset=datetime(2026, 4, 23, 19, 43),
-        )
-        # 3 PM is past local noon and before the dusk window.
-        assert _current_daypart(_now(hour=15), w) == "afternoon"
+        # 10 AM is past the dawn window (sunrise+90 = 7:35) and well before dusk.
+        assert _current_daypart(_now(hour=10), w) == "day"
+        # 3 PM is also in the day window.
+        assert _current_daypart(_now(hour=15), w) == "day"
+        # 18:30 is still before dusk start (sunset-60 = 18:43).
+        assert _current_daypart(_now(hour=18, minute=30), w) == "day"
 
     def test_before_sunrise_is_night(self):
         w = _wx(
             sunrise=datetime(2026, 4, 23, 6, 5),
             sunset=datetime(2026, 4, 23, 19, 43),
         )
+        # 3 AM is before the dawn window (sunrise-90 = 4:35) → night
         assert _current_daypart(_now(hour=3), w) == "night"
 
-    def test_rule_daypart_day_matches_morning_and_afternoon(self):
-        """``daypart: day`` is a convenience alias for morning ∪ afternoon."""
+    def test_night_extends_after_sunset(self):
+        w = _wx(
+            sunrise=datetime(2026, 4, 23, 6, 5),
+            sunset=datetime(2026, 4, 23, 19, 43),
+        )
+        # After sunset the bucket flips straight to night (no dusk+60 window).
+        assert _current_daypart(_now(hour=21), w) == "night"
+        assert _current_daypart(_now(hour=23), w) == "night"
+
+    def test_rule_daypart_day_matches_only_day_bucket(self):
+        """``daypart: day`` matches the new dedicated ``day`` bucket."""
         rule = ThemeRule(when=ThemeRuleCondition(daypart="day"), theme="today")
         w = _wx(
             sunrise=datetime(2026, 4, 23, 6, 5),
             sunset=datetime(2026, 4, 23, 19, 43),
         )
-        assert _rule_matches(rule, _now(hour=10), _data(w)) is True  # morning
-        assert _rule_matches(rule, _now(hour=15), _data(w)) is True  # afternoon
+        assert _rule_matches(rule, _now(hour=10), _data(w)) is True  # day
+        assert _rule_matches(rule, _now(hour=15), _data(w)) is True  # day
         assert _rule_matches(rule, _now(hour=23), _data(w)) is False  # night
+        assert _rule_matches(rule, _now(hour=6, minute=30), _data(w)) is False  # dawn
 
 
 # ---------------------------------------------------------------------------

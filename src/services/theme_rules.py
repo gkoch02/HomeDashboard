@@ -37,15 +37,13 @@ def _current_daypart(now: datetime, weather) -> str:
 
     When sunrise/sunset are known:
     - ``dawn``:  [sunrise-90min, sunrise+90min]
-    - ``dusk``:  [sunset-60min, sunset+60min]
-    - ``morning``:   after dawn, before local noon
-    - ``afternoon``: after local noon, before dusk
-    - ``night``: before dawn or after dusk
+    - ``day``:   after dawn until sunset-60min
+    - ``dusk``:  [sunset-60min, sunset]
+    - ``night``: after sunset until the next dawn
 
-    Otherwise fixed clock ranges are used.  Rules always match against the
-    more specific ``morning``/``afternoon`` values; callers that configure
-    ``daypart: day`` get a broader match (day = morning ∪ afternoon) handled
-    at the rule level.
+    Otherwise fixed clock ranges anchored on a nominal sunrise/sunset of
+    06:30 / 18:30 are used.  Returns one of ``dawn`` / ``day`` / ``dusk`` /
+    ``night``.
     """
     hour = now.hour + now.minute / 60
     now_min = hour * 60
@@ -55,23 +53,21 @@ def _current_daypart(now: datetime, weather) -> str:
         ss = weather.sunset.replace(tzinfo=None) if weather.sunset.tzinfo else weather.sunset
         sr_min = (sr - midnight).total_seconds() / 60
         ss_min = (ss - midnight).total_seconds() / 60
-        if abs(now_min - sr_min) <= 90:
+        if sr_min - 90 <= now_min <= sr_min + 90:
             return "dawn"
-        if abs(now_min - ss_min) <= 60:
+        if ss_min - 60 <= now_min <= ss_min:
             return "dusk"
-        if sr_min <= now_min <= ss_min:
-            # Split day at local noon so ``morning``/``afternoon`` buckets work
-            # even when sunrise/sunset data is available.
-            return "morning" if now_min < 12 * 60 else "afternoon"
+        if sr_min + 90 < now_min < ss_min - 60:
+            return "day"
         return "night"
-    # Fallback: fixed clock ranges (no sunrise/sunset data available)
-    if 5 <= hour < 7:
+    # Fallback: fixed clock ranges (no sunrise/sunset data available),
+    # anchored to a nominal 06:30 sunrise / 18:30 sunset so the same
+    # ±90 / ±60 windows apply as in the data-driven branch.
+    if 5 <= hour < 8:
         return "dawn"
-    if 7 <= hour < 12:
-        return "morning"
-    if 12 <= hour < 17:
-        return "afternoon"
-    if 17 <= hour < 20:
+    if 8 <= hour < 17.5:
+        return "day"
+    if 17.5 <= hour < 18.5:
         return "dusk"
     return "night"
 
@@ -190,12 +186,7 @@ def _rule_matches(rule, now: datetime, data: DashboardData | None) -> bool:
     # Daypart
     if when.daypart is not None:
         dp = _current_daypart(now, weather)
-        want = _listify(when.daypart)
-        # ``day`` is an alias for morning ∪ afternoon so users can configure
-        # a simple "daytime" rule without enumerating both halves.
-        if "day" in want and dp in ("morning", "afternoon"):
-            pass
-        elif dp not in want:
+        if dp not in _listify(when.daypart):
             return False
 
     # Season
