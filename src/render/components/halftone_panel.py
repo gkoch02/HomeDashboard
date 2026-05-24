@@ -226,10 +226,12 @@ def _draw_sky(image: Image.Image, hero_rect: tuple[int, int, int, int], *, day: 
     w = x1 - x0
     h = y1 - y0
     if day:
-        # Darker at the zenith, lighter toward the horizon. Values around
-        # 175–215 dither to a visible halftone pattern on eInk so the sun,
-        # clouds, and rays read as clearly brighter than the sky behind them.
-        top, bottom = 175, 215
+        # Darker at the zenith, lighter toward the horizon. Floyd-Steinberg
+        # only registers as a visible halftone once the underlying value
+        # drops well below mid-grey; 100–145 produces a dense engraving-style
+        # texture that makes the sun rays (252) and cloud highlights (255)
+        # pop as crisp white shapes against an unmistakably "shaded" sky.
+        top, bottom = 100, 145
     else:
         # Dark sky for night scenes — value 35 is denser than 60 so the top
         # reads as "darker zenith" and the bottom is the horizon glow.
@@ -252,8 +254,10 @@ def _draw_sky_stormy(image: Image.Image, hero_rect: tuple[int, int, int, int]) -
     strip = Image.new("L", (1, h))
     for i in range(h):
         t = i / max(1, h - 1)
-        # 140 at top → 180 toward the horizon: a heavy, charged sky.
-        v = int(140 + (180 - 140) * t)
+        # 90 at top → 135 toward the horizon: a heavy, charged sky that
+        # dithers to a dense halftone so the dark storm cloud + bolt still
+        # read as the darkest elements on the plate.
+        v = int(90 + (135 - 90) * t)
         strip.putpixel((0, i), v)
     full = strip.resize((w, h), Image.Resampling.NEAREST)
     if image.mode == "RGB":
@@ -267,13 +271,15 @@ def _draw_fog(image: Image.Image, hero_rect: tuple[int, int, int, int], today: d
     w = x1 - x0
     h = y1 - y0
     rng = random.Random(today.toordinal() ^ 0xF06)
-    # Start from a neutral mid-grey sky tone, alternate denser/lighter bands.
-    base_tones = [190, 215, 175, 220, 200, 230, 185, 210]
+    # Start from a denser mid-grey sky tone, alternate denser/lighter bands.
+    # Values pulled down to 135–190 so fog dithers to a visible textured
+    # halftone rather than nearly-white on eInk.
+    base_tones = [150, 175, 135, 180, 160, 190, 145, 170]
     band_count = 8
     band_h = h // band_count
     for i in range(band_count):
         tone = base_tones[i % len(base_tones)] + rng.randint(-8, 8)
-        tone = max(140, min(240, tone))
+        tone = max(110, min(200, tone))
         # Jitter the band horizontally so seams between bands waver.
         offset = rng.randint(-30, 30)
         band = Image.new("L", (w + 60, band_h + 2), tone)
@@ -283,7 +289,7 @@ def _draw_fog(image: Image.Image, hero_rect: tuple[int, int, int, int], today: d
     # Final fill for any leftover pixels at the bottom.
     tail_h = h - band_count * band_h
     if tail_h > 0:
-        tail = Image.new("L", (w, tail_h), 205)
+        tail = Image.new("L", (w, tail_h), 165)
         if image.mode == "RGB":
             tail = tail.convert("RGB")
         image.paste(tail, (x0, y0 + band_count * band_h))
@@ -598,8 +604,9 @@ def _draw_lightning(
 def _draw_missing(image: Image.Image, hero_rect: tuple[int, int, int, int]) -> None:
     """Concentric arcs + 'NO SIGNAL' message when we have no weather data."""
     mode = image.mode
-    # Light paper backdrop.
-    backdrop = Image.new("L", (hero_rect[2] - hero_rect[0], hero_rect[3] - hero_rect[1]), 240)
+    # Mid-grey backdrop so the no-signal panel reads at the same density as
+    # the populated weather plates.
+    backdrop = Image.new("L", (hero_rect[2] - hero_rect[0], hero_rect[3] - hero_rect[1]), 160)
     if mode == "RGB":
         backdrop = backdrop.convert("RGB")
     image.paste(backdrop, (hero_rect[0], hero_rect[1]))
