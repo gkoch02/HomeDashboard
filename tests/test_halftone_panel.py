@@ -300,8 +300,7 @@ class TestNoNextEventLayout:
         x_lo, x_hi = 320, 770
         y_lo, y_hi = 302, 480  # margin band (after HERO_H + RULE_H = 302)
         return [
-            sum(1 for x in range(x_lo, x_hi) if not img.getpixel((x, y)))
-            for y in range(y_lo, y_hi)
+            sum(1 for x in range(x_lo, x_hi) if not img.getpixel((x, y))) for y in range(y_lo, y_hi)
         ]
 
     def test_no_next_event_centres_rule(self):
