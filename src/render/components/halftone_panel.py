@@ -44,6 +44,11 @@ HERO_H = 296
 RULE_H = 6
 MARGIN_PAD_X = 28
 TEMP_NUMERAL_SIZE = 128
+# Fixed left-column reservation for the temperature numeral + caption.
+# Sized to hold a 3-digit temp ("108°") at TEMP_NUMERAL_SIZE without
+# overlapping the right-side text column, so the right column's available
+# width doesn't shrink as the temp digit count grows.
+TEMP_COL_W = 280
 
 # Centre of the hero region — sun/moon and most cloud assemblies position
 # themselves relative to this point.
@@ -699,15 +704,16 @@ def _draw_margin_band(
 ) -> None:
     """Paint the typeset data band below the hero illustration.
 
-    Two-column layout: the temperature numeral on the left and four rows
-    of weather + calendar data on the right, spread across the full
-    band height so each line reads as its own row.
+    Two-band almanac layout: the temperature numeral anchors the left
+    third; the right side stacks a "NOW" line (condition + H/L/feels)
+    above a thin hairline rule, then a "TODAY" pair of lines
+    (sunrise/sunset + date, then the next event).
 
         ┌──────────────────────────────────────────────────────────────┐
-        │        PARTLY CLOUDY                MONDAY · APRIL 6 · 2026  │
-        │ 42°    H 48° · L 35° · feels 38°                             │
-        │                                       ☀ 6:24 AM   ☼ 7:51 PM │
-        │        NEXT — 9:00 AM Farmers Market                         │
+        │         │ PARTLY CLOUDY · H 48° · L 35° · FEELS 38°          │
+        │   42°   │ ─────────────────────────────────────────────────  │
+        │         │ ☀ 6:24 AM   ☼ 7:51 PM        MON · APR 6 · 2026    │
+        │         │ NEXT — 9:00 AM  ·  Farmers Market                  │
         └──────────────────────────────────────────────────────────────┘
     """
     mode = image.mode
@@ -725,119 +731,159 @@ def _draw_margin_band(
 
     weather = data.weather
 
-    # --- Temperature numeral, vertically centred in the full band.
+    # --- Temperature numeral, vertically centred in the full band. A
+    # smaller "feels NN°" caption sits directly under it so the headline
+    # weather summary on the right can stay tight without losing that
+    # secondary reading.
+    feels_caption = (
+        f"feels {_fmt_temp(weather.feels_like)}"
+        if weather and weather.feels_like is not None
+        else ""
+    )
+    feels_font = style.font_semibold(20) if feels_caption else None
+    feels_h = 0
+    if feels_caption and feels_font is not None:
+        fb = draw.textbbox((0, 0), feels_caption, font=feels_font)
+        feels_h = (fb[3] - fb[1]) + 8  # 8 px gap above the caption
+
+    # The temp numeral lives inside a fixed-width left column so the
+    # right-side text column width is stable across 1-, 2-, and 3-digit
+    # temperatures. Within that column the temp is left-aligned to the
+    # outer margin.
     temp_font = style.font_title(TEMP_NUMERAL_SIZE)
     temp_text = _fmt_temp(weather.current_temp) if weather else "—"
     temp_bbox = draw.textbbox((0, 0), temp_text, font=temp_font)
     temp_visible_h = temp_bbox[3] - temp_bbox[1]
     temp_x = x0 + MARGIN_PAD_X - temp_bbox[0]
-    temp_y = y0 + (h - temp_visible_h) // 2 - temp_bbox[1]
+    # Vertically centre the temp + caption stack together so they read as
+    # one block.
+    stack_h = temp_visible_h + feels_h
+    temp_y = y0 + (h - stack_h) // 2 - temp_bbox[1]
     draw.text((temp_x, temp_y), temp_text, font=temp_font, fill=ink)
-    temp_right = temp_x + (temp_bbox[2] - temp_bbox[0])
-    text_col_x = temp_right + 22
+    temp_w = temp_bbox[2] - temp_bbox[0]
+    text_col_x = x0 + TEMP_COL_W
+    text_col_right = x0 + w - MARGIN_PAD_X
 
-    # --- Row anchors — four rows distributed across the band so each
-    # data line reads as its own row instead of crowding the top half.
-    row1_top = y0 + 10
-    row2_top = y0 + 52
-    row3_top = y0 + 94
-    row4_top = y0 + 136
+    # Centre the feels-like caption horizontally under the temperature
+    # numeral so it reads as a footnote to the headline number.
+    if feels_caption and feels_font is not None:
+        fb = draw.textbbox((0, 0), feels_caption, font=feels_font)
+        cap_w = fb[2] - fb[0]
+        temp_w = temp_bbox[2] - temp_bbox[0]
+        cap_x = temp_x + (temp_w - cap_w) // 2 - fb[0]
+        cap_y = temp_y + temp_bbox[1] + temp_visible_h + 8 - fb[1]
+        draw.text((cap_x, cap_y), feels_caption, font=feels_font, fill=ink)
 
-    # --- Condition (small caps) to the right of the temperature numeral
-    condition_font = style.font_section_label(26)
-    condition_text = (weather.current_description or "").upper() if weather else "AWAITING DATA"
-    if condition_text:
-        cb = draw.textbbox((0, 0), condition_text, font=condition_font)
-        draw.text(
-            (text_col_x - cb[0], row1_top - cb[1]),
-            condition_text,
-            font=condition_font,
-            fill=ink,
-        )
+    # --- Three zones for the right-column text, each carrying one row:
+    # NOW (above the rule), TODAY (sun times + date), NEXT (calendar).
+    # The hairline rule splits NOW from the lower pair; the lower pair
+    # is split evenly between TODAY and NEXT. Each row's text is
+    # vertically centred within its zone so the band reads as three
+    # deliberately-spaced rows rather than top-aligned text with
+    # arbitrary gaps.
+    rule_y = y0 + h // 3
+    below_top = rule_y + 1
+    below_split = below_top + (y0 + h - below_top) // 2
+    now_zone = (y0, rule_y)
+    today_zone = (below_top, below_split)
+    next_zone = (below_split, y0 + h)
 
-    # --- Stats line under the condition (H / L / feels-like)
-    stats_font = style.font_semibold(22)
-    parts: list[str] = []
+    def _centre_y(bbox: tuple[int, int, int, int], zone: tuple[int, int]) -> int:
+        """Return the y to draw at so *bbox*'s visible ink centres in *zone*."""
+        bb_h = bbox[3] - bbox[1]
+        zone_mid = (zone[0] + zone[1]) // 2
+        return zone_mid - bb_h // 2 - bbox[1]
+
+    # --- NOW row: condition + H / L on one line. ``feels NN°`` lives
+    # under the temperature numeral so this row can breathe at a larger
+    # display size without overflowing on long condition strings (the
+    # widest OWM phrase ``HEAVY INTENSITY RAIN`` plus triple-digit temps
+    # still fits inside the 492 px right column at 25 pt).
+    now_font = style.font_section_label(25)
+    now_parts: list[str] = []
     if weather is not None:
-        parts.append(f"H {_fmt_temp(weather.high)}")
-        parts.append(f"L {_fmt_temp(weather.low)}")
-        if weather.feels_like is not None:
-            parts.append(f"feels {_fmt_temp(weather.feels_like)}")
-    stats_text = "  ·  ".join(parts) if parts else ""
-    if stats_text:
-        sb = draw.textbbox((0, 0), stats_text, font=stats_font)
-        draw.text(
-            (text_col_x - sb[0], row2_top - sb[1]),
-            stats_text,
-            font=stats_font,
-            fill=ink,
-        )
-
-    # --- Right-aligned location/date (small caps), anchored to row 1 right
-    location_font = style.font_section_label(22)
-    location_text = (
-        (weather.location_name or "").upper()
-        if weather and weather.location_name
-        else today.strftime("%A · %B %-d · %Y").upper()
+        if weather.current_description:
+            now_parts.append(weather.current_description.upper())
+        now_parts.append(f"H {_fmt_temp(weather.high)}")
+        now_parts.append(f"L {_fmt_temp(weather.low)}")
+    else:
+        now_parts.append("AWAITING DATA")
+    now_text = "  ·  ".join(now_parts)
+    nb = draw.textbbox((0, 0), now_text, font=now_font)
+    max_now_w = text_col_right - text_col_x
+    draw_text_truncated(
+        draw,
+        (text_col_x, _centre_y(nb, now_zone)),
+        now_text,
+        now_font,
+        max_now_w,
+        fill=ink,
     )
-    lb = draw.textbbox((0, 0), location_text, font=location_font)
-    loc_x = x0 + w - MARGIN_PAD_X - (lb[2] - lb[0]) - lb[0]
-    draw.text((loc_x, row1_top - lb[1]), location_text, font=location_font, fill=ink)
 
-    # When the OWM location is set, the date drops below it on row 2 right.
-    if weather and weather.location_name:
-        date_font = style.font_semibold(20)
-        date_text = today.strftime("%A · %B %-d · %Y").upper()
-        db = draw.textbbox((0, 0), date_text, font=date_font)
-        dx = x0 + w - MARGIN_PAD_X - (db[2] - db[0]) - db[0]
-        draw.text((dx, row2_top - db[1]), date_text, font=date_font, fill=ink)
+    # --- Hairline rule between the NOW zone and the lower pair.
+    _draw_text_band_rule(image, text_col_x, rule_y, text_col_right - text_col_x, mode)
 
-    # --- Sunrise / sunset line right-aligned on row 3. Righteous itself
-    # has no ↑/↓ arrows, so the glyphs come from the bundled Weather Icons
-    # font (wi-sunrise / wi-sunset). Each chunk's ink-center is aligned to
-    # a shared midline derived from a Righteous "M" so the two fonts —
-    # which carry different baselines — read as one row.
+    # --- TODAY row: sunrise + sunset on the left, date on the right,
+    # both vertically centred in the TODAY zone.
+    today_font = style.font_semibold(22)
     if weather and (weather.sunrise or weather.sunset):
         rise_text = _format_event_time(weather.sunrise) if weather.sunrise else "—"
         set_text = _format_event_time(weather.sunset) if weather.sunset else "—"
-        sun_font = style.font_semibold(20)
         icon_font = weather_icon(28)
         glyph_pad = 5
-        pair_gap = 16
+        pair_gap = 20
 
         chunks = [
             (_SUNRISE_GLYPH, icon_font),
-            (rise_text, sun_font),
+            (rise_text, today_font),
             (_SUNSET_GLYPH, icon_font),
-            (set_text, sun_font),
+            (set_text, today_font),
         ]
         measured = [(s, f, draw.textbbox((0, 0), s, font=f)) for s, f in chunks]
-        # Pads applied after each chunk: [glyph→time] [time→glyph] [glyph→time] (final 0)
         pads = (glyph_pad, pair_gap, glyph_pad, 0)
-        total_w = sum(bb[2] - bb[0] for _, _, bb in measured) + sum(pads)
 
-        ref_bb = draw.textbbox((0, 0), "M", font=sun_font)
-        row_mid = row3_top + (ref_bb[3] - ref_bb[1]) // 2
+        # All chunks share the same vertical midline — derived from the
+        # TODAY zone's mid Y so the row sits centred regardless of which
+        # chunk (icon vs text) happens to be tallest.
+        row_mid = (today_zone[0] + today_zone[1]) // 2
 
-        cursor = x0 + w - MARGIN_PAD_X - total_w
+        cursor = text_col_x
         for (s, f, bb), pad in zip(measured, pads):
             glyph_mid = (bb[1] + bb[3]) // 2
             draw.text((cursor - bb[0], row_mid - glyph_mid), s, font=f, fill=ink)
             cursor += (bb[2] - bb[0]) + pad
 
-    # --- Next event on its own row 4 with the full width to the right of
-    # the temperature numeral, so the event title no longer gets clipped
-    # by the sunrise/sunset cluster.
+    date_font = style.font_section_label(22)
+    date_text = today.strftime("%a · %b %-d · %Y").upper()
+    db = draw.textbbox((0, 0), date_text, font=date_font)
+    date_x = text_col_right - (db[2] - db[0]) - db[0]
+    draw.text((date_x, _centre_y(db, today_zone)), date_text, font=date_font, fill=ink)
+
+    # --- NEXT event, centred in the NEXT zone.
     next_line = _next_event_line(data.events, now)
     if next_line:
-        event_font = style.font_semibold(22)
+        event_font = style.font_semibold(24)
         eb = draw.textbbox((0, 0), next_line, font=event_font)
-        max_w = (x0 + w - MARGIN_PAD_X) - text_col_x
+        max_w = text_col_right - text_col_x
         draw_text_truncated(
             draw,
-            (text_col_x, row4_top - eb[1]),
+            (text_col_x, _centre_y(eb, next_zone)),
             next_line,
             event_font,
             max_w,
             fill=ink,
         )
+
+
+def _draw_text_band_rule(image: Image.Image, x0: int, y: int, w: int, mode: str) -> None:
+    """Single-pixel dotted hairline matching the hero's Bayer rule motif.
+
+    Pixels are drawn at the darker Bayer cells of the 4×4 matrix on a
+    single row, giving a delicate halftone rule that pairs with the
+    6-px engraved separator above.
+    """
+    on = _ink(mode)
+    px = image.load()
+    for xx in range(w):
+        if _BAYER_4X4[0][xx & 3] < 128:
+            px[x0 + xx, y] = on
