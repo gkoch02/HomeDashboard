@@ -744,11 +744,17 @@ def _draw_margin_band(
     quote_block_h = quote_line_h * 2 + quote_line_spacing
     author_bb_ref = draw.textbbox((0, 0), "Mg", font=author_font)
     author_h_ref = author_bb_ref[3] - author_bb_ref[1]
-    quote_area_h = bottom_pad + author_h_ref + 4 + quote_block_h
+    # The quote's draw origin sits a few pixels above the actual ink
+    # because of the font's ascender padding; subtract that off so the
+    # temperature is centred against the visible negative space (band
+    # top → ink top of the quote) rather than against the padded draw
+    # boundary, which would bias the numeral upward.
+    quote_top_pad = draw.textbbox((0, 0), "“Mg", font=quote_font)[1]
+    quote_area_h = bottom_pad + author_h_ref + 4 + quote_block_h - quote_top_pad
     data_area_h = h - quote_area_h
 
-    # --- Temperature numeral, vertically centred within the data region
-    # (everything above the daily quote). Using the actual bounding-box
+    # --- Temperature numeral, vertically centred within the visible
+    # negative space above the quote. Using the actual bounding-box
     # height of the rendered glyphs avoids "magic offset" placement and
     # keeps the numeral feeling visually anchored to the band rather than
     # crowding the Bayer rule above it.
