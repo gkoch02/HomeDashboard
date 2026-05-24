@@ -774,19 +774,26 @@ def _draw_margin_band(
         cap_y = temp_y + temp_bbox[1] + temp_visible_h + 8 - fb[1]
         draw.text((cap_x, cap_y), feels_caption, font=feels_font, fill=ink)
 
-    # --- Three zones for the right-column text, each carrying one row:
-    # NOW (above the rule), TODAY (sun times + date), NEXT (calendar).
-    # The hairline rule splits NOW from the lower pair; the lower pair
-    # is split evenly between TODAY and NEXT. Each row's text is
-    # vertically centred within its zone so the band reads as three
-    # deliberately-spaced rows rather than top-aligned text with
-    # arbitrary gaps.
-    rule_y = y0 + h // 3
-    below_top = rule_y + 1
-    below_split = below_top + (y0 + h - below_top) // 2
-    now_zone = (y0, rule_y)
-    today_zone = (below_top, below_split)
-    next_zone = (below_split, y0 + h)
+    # --- Zones for the right-column text. With a NEXT event the band
+    # is split into three rows: NOW (above the rule), TODAY (sun times
+    # + date), NEXT (calendar). The hairline rule sits one-third down
+    # and the lower pair is split evenly between TODAY and NEXT. With
+    # no NEXT event the rule moves to the vertical centre so NOW and
+    # TODAY breathe equally rather than leaving a jarring blank row.
+    next_line = _next_event_line(data.events, now)
+    if next_line:
+        rule_y = y0 + h // 3
+        below_top = rule_y + 1
+        below_split = below_top + (y0 + h - below_top) // 2
+        now_zone = (y0, rule_y)
+        today_zone = (below_top, below_split)
+        next_zone: tuple[int, int] | None = (below_split, y0 + h)
+    else:
+        rule_y = y0 + h // 2
+        below_top = rule_y + 1
+        now_zone = (y0, rule_y)
+        today_zone = (below_top, y0 + h)
+        next_zone = None
 
     def _centre_y(bbox: tuple[int, int, int, int], zone: tuple[int, int]) -> int:
         """Return the y to draw at so *bbox*'s visible ink centres in *zone*."""
@@ -859,9 +866,9 @@ def _draw_margin_band(
     date_x = text_col_right - (db[2] - db[0]) - db[0]
     draw.text((date_x, _centre_y(db, today_zone)), date_text, font=date_font, fill=ink)
 
-    # --- NEXT event, centred in the NEXT zone.
-    next_line = _next_event_line(data.events, now)
-    if next_line:
+    # --- NEXT event, centred in the NEXT zone (only when present —
+    # otherwise the layout above already absorbed the freed space).
+    if next_line and next_zone is not None:
         event_font = style.font_semibold(24)
         eb = draw.textbbox((0, 0), next_line, font=event_font)
         max_w = text_col_right - text_col_x

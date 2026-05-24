@@ -281,6 +281,70 @@ class TestNoWeatherFallback:
         assert img.size == (800, 480)
 
 
+class TestNoNextEventLayout:
+    """The margin band collapses from 3 rows to 2 (rule re-centred) when
+    there is no upcoming non-all-day event to show."""
+
+    def _render_with_events(self, events: list[CalendarEvent]):
+        data = generate_dummy_data(now=FIXED_NOW)
+        data.events = events
+        theme = load_theme("halftone")
+        return render_dashboard(data, DisplayConfig(), theme=theme)
+
+    def _band_ink_by_row(self, img):
+        """Sum dark pixels in each y-row across the right-text column.
+
+        Returns a list of ink counts indexed by y, restricted to the
+        margin band's right-column horizontal range (post-temperature).
+        """
+        x_lo, x_hi = 320, 770
+        y_lo, y_hi = 302, 480  # margin band (after HERO_H + RULE_H = 302)
+        return [
+            sum(1 for x in range(x_lo, x_hi) if not img.getpixel((x, y)))
+            for y in range(y_lo, y_hi)
+        ]
+
+    def test_no_next_event_centres_rule(self):
+        """With no upcoming event the hairline rule sits near the band's
+        vertical centre, splitting NOW and TODAY into two equal zones."""
+        img = self._render_with_events([])
+        rows = self._band_ink_by_row(img)
+        # Margin band starts at y=302, height ≈ 178. Vertical centre ≈ 391.
+        # The rule is the brightest single row in the right-column band
+        # (its dotted hairline lights up many pixels). Pick the densest
+        # row in a ±25 px window around the expected centre.
+        band_top = 302
+        centre = 391
+        window = range(centre - 25 - band_top, centre + 25 - band_top)
+        densest_idx = max(window, key=lambda i: rows[i])
+        densest_y = band_top + densest_idx
+        assert abs(densest_y - centre) <= 12, (
+            f"expected rule near y={centre}, found densest row at y={densest_y}"
+        )
+
+    def test_with_next_event_rule_is_one_third(self):
+        """With an upcoming event the rule sits ~1/3 down the band so
+        the lower two zones (TODAY + NEXT) split the remaining height."""
+        future = CalendarEvent(
+            summary="Standup",
+            start=FIXED_NOW + timedelta(hours=2),
+            end=FIXED_NOW + timedelta(hours=3),
+            is_all_day=False,
+            calendar_name="work",
+        )
+        img = self._render_with_events([future])
+        rows = self._band_ink_by_row(img)
+        # Margin band y=302..480, height=178. One-third ≈ y=361.
+        band_top = 302
+        centre = 361
+        window = range(centre - 25 - band_top, centre + 25 - band_top)
+        densest_idx = max(window, key=lambda i: rows[i])
+        densest_y = band_top + densest_idx
+        assert abs(densest_y - centre) <= 12, (
+            f"expected rule near y={centre}, found densest row at y={densest_y}"
+        )
+
+
 def _hero_ink_count(img, *, x_range=(0, 800), y_range=(0, 280)) -> int:
     """Count black-ink pixels in the given hero-region rectangle of a 1-bit image."""
     x0, x1 = x_range
