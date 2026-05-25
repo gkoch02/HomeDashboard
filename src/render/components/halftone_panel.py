@@ -52,7 +52,7 @@ TEMP_COL_W = 280
 # Bottom-of-band strip reserved for the small "updated HH:MM" caption.
 # The row math above subtracts this from the band height so the existing
 # zones (NOW / TODAY / NEXT) never overlap the footer.
-FOOTER_H = 18
+FOOTER_H = 22
 
 # Centre of the hero region — sun/moon and most cloud assemblies position
 # themselves relative to this point.
@@ -894,7 +894,7 @@ def _draw_margin_band(
     # --- "updated HH:MM am" footer, right-aligned at the very bottom of
     # the margin band. Lowercase + regular weight reads as a quiet caption
     # against the uppercase semibold section labels above.
-    footer_font = style.font_regular(14)
+    footer_font = style.font_regular(17)
     footer_text = f"updated {_format_event_time(now).lower()}"
     fb = draw.textbbox((0, 0), footer_text, font=footer_font)
     footer_x = text_col_right - (fb[2] - fb[0]) - fb[0]
