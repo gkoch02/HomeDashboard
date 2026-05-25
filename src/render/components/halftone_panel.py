@@ -52,7 +52,7 @@ TEMP_COL_W = 280
 # Bottom-of-band strip reserved for the small "updated HH:MM" caption.
 # The row math above subtracts this from the band height so the existing
 # zones (NOW / TODAY / NEXT) never overlap the footer.
-FOOTER_H = 16
+FOOTER_H = 22
 
 # Centre of the hero region — sun/moon and most cloud assemblies position
 # themselves relative to this point.
@@ -764,10 +764,12 @@ def _draw_margin_band(
     temp_bbox = draw.textbbox((0, 0), temp_text, font=temp_font)
     temp_visible_h = temp_bbox[3] - temp_bbox[1]
     temp_x = x0 + MARGIN_PAD_X - temp_bbox[0]
-    # Vertically centre the temp + caption stack together so they read as
-    # one block.
+    # Vertically centre the temp + caption stack in the FULL band height —
+    # the footer caption is right-aligned so it never collides with this
+    # left-column stack, and centring against `inner_h` would otherwise
+    # bias the headline numeral upward as the footer grows.
     stack_h = temp_visible_h + feels_h
-    temp_y = y0 + (inner_h - stack_h) // 2 - temp_bbox[1]
+    temp_y = y0 + (h - stack_h) // 2 - temp_bbox[1]
     draw.text((temp_x, temp_y), temp_text, font=temp_font, fill=ink)
     temp_w = temp_bbox[2] - temp_bbox[0]
     text_col_x = x0 + TEMP_COL_W
@@ -894,7 +896,7 @@ def _draw_margin_band(
     # --- "updated HH:MM am" footer, right-aligned at the very bottom of
     # the margin band. Lowercase + regular weight reads as a quiet caption
     # against the uppercase semibold section labels above.
-    footer_font = style.font_regular(12)
+    footer_font = style.font_regular(17)
     footer_text = f"updated {_format_event_time(now).lower()}"
     fb = draw.textbbox((0, 0), footer_text, font=footer_font)
     footer_x = text_col_right - (fb[2] - fb[0]) - fb[0]
