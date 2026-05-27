@@ -145,6 +145,7 @@ class DashboardApp:
             countdown_events=list(self.cfg.countdown.events),
             latitude=lat if coords_set else None,
             longitude=lon if coords_set else None,
+            state_dir=self.cfg.state_dir,
         )
         self.output.publish(
             image,

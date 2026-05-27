@@ -169,6 +169,7 @@ def render_dashboard(
     countdown_events: list | None = None,
     latitude: float | None = None,
     longitude: float | None = None,
+    state_dir: str | None = None,
 ) -> Image.Image:
     """Compose all components onto a 1-bit image at the configured display resolution.
 
@@ -214,6 +215,7 @@ def render_dashboard(
         countdown_events=countdown_events,
         latitude=latitude,
         longitude=longitude,
+        state_dir=state_dir,
         image=image,
     )
 
