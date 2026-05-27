@@ -757,13 +757,15 @@ def _draw_margin_band(
 
     # The temp numeral lives inside a fixed-width left column so the
     # right-side text column width is stable across 1-, 2-, and 3-digit
-    # temperatures. Within that column the temp is left-aligned to the
-    # outer margin.
+    # temperatures. Within that column the temp is horizontally centred
+    # so 1- and 2-digit values don't look left-biased against the wide
+    # blank reservation that 3-digit values would fill.
     temp_font = style.font_title(TEMP_NUMERAL_SIZE)
     temp_text = _fmt_temp(weather.current_temp) if weather else "—"
     temp_bbox = draw.textbbox((0, 0), temp_text, font=temp_font)
     temp_visible_h = temp_bbox[3] - temp_bbox[1]
-    temp_x = x0 + MARGIN_PAD_X - temp_bbox[0]
+    temp_w = temp_bbox[2] - temp_bbox[0]
+    temp_x = x0 + (TEMP_COL_W - temp_w) // 2 - temp_bbox[0]
     # Vertically centre the temp + caption stack in the FULL band height —
     # the footer caption is right-aligned so it never collides with this
     # left-column stack, and centring against `inner_h` would otherwise
@@ -771,7 +773,6 @@ def _draw_margin_band(
     stack_h = temp_visible_h + feels_h
     temp_y = y0 + (h - stack_h) // 2 - temp_bbox[1]
     draw.text((temp_x, temp_y), temp_text, font=temp_font, fill=ink)
-    temp_w = temp_bbox[2] - temp_bbox[0]
     text_col_x = x0 + TEMP_COL_W
     text_col_right = x0 + w - MARGIN_PAD_X
 
@@ -780,7 +781,6 @@ def _draw_margin_band(
     if feels_caption and feels_font is not None:
         fb = draw.textbbox((0, 0), feels_caption, font=feels_font)
         cap_w = fb[2] - fb[0]
-        temp_w = temp_bbox[2] - temp_bbox[0]
         cap_x = temp_x + (temp_w - cap_w) // 2 - fb[0]
         cap_y = temp_y + temp_bbox[1] + temp_visible_h + 8 - fb[1]
         draw.text((cap_x, cap_y), feels_caption, font=feels_font, fill=ink)
