@@ -40,7 +40,7 @@ from PIL import Image, ImageDraw
 from src.astronomy import sun_times
 from src.data.models import AirQualityData, DashboardData, WeatherAlert, WeatherData
 from src.render.moon import is_waxing, moon_illumination, moon_phase_name
-from src.render.primitives import deg_to_compass, draw_text_truncated, text_height, text_width
+from src.render.primitives import draw_text_truncated, text_height, text_width
 from src.render.quantize import INKY_SPECTRA6_PALETTE
 from src.render.theme import (
     INKY_BLUE,
@@ -335,33 +335,18 @@ def draw_weatherglass(
 
 
 def _draw_background(image: Image.Image, mode: str, style: ThemeStyle) -> None:
-    """Fill canvas with parchment and stipple light wood-grain striations."""
+    """Pure white field + a single clean outer frame line.
+
+    Greyscale stripes / hairline shadows dither into noise on the 1-bit
+    Waveshare backend, so we keep the field pristine and rely on negative
+    space to define the instrument bench.
+    """
     draw = ImageDraw.Draw(image)
-    # Base fill — slightly warm parchment for the wood-frame feel.
-    draw.rectangle((0, 0, _W, _H), fill=_grey(244, mode))
-    # Faint horizontal grain across the full canvas.  Hairline rules,
-    # near-paper tone so Floyd-Steinberg dithers them into a soft texture.
-    grain = _grey(228, mode)
-    for y in range(8 * SS, _H, 18 * SS):
-        draw.line([(0, y), (_W, y)], fill=grain, width=SS)
-    # A heavier stripe at the masthead/instrument bench boundary.
-    draw.line(
-        [(0, _HERO_Y1 + 6 * SS), (_W, _HERO_Y1 + 6 * SS)],
-        fill=_grey(180, mode),
-        width=SS,
-    )
-    # Solid outer frame line — 6px in from each edge.
+    draw.rectangle((0, 0, _W, _H), fill=_grey(255, mode))
     inset = 6 * SS
     draw.rectangle(
         (inset, inset, _W - inset, _H - inset),
         outline=_ink(mode),
-        width=SS,
-    )
-    # Inner hairline frame — engraved feel.
-    inset2 = 10 * SS
-    draw.rectangle(
-        (inset2, inset2, _W - inset2, _H - inset2),
-        outline=_grey(120, mode),
         width=SS,
     )
 
@@ -382,11 +367,11 @@ def _draw_masthead(
     brass = _brass(mode)
 
     pad_x = 28 * SS
-    title_font = style.font_title(28 * SS) if style.font_title else style.font_bold(28 * SS)
+    title_font = style.font_title(32 * SS) if style.font_title else style.font_bold(32 * SS)
     label_font = (
-        style.font_section_label(11 * SS)
+        style.font_section_label(13 * SS)
         if style.font_section_label
-        else style.font_semibold(11 * SS)
+        else style.font_semibold(13 * SS)
     )
 
     # Title centred.
@@ -500,22 +485,14 @@ def _draw_instrument_backplate(
     mode: str,
     radius: int = 6,
 ) -> None:
-    """Backplate for boxed instruments: parchment fill + ink outline + corner ticks."""
+    """Single clean rounded rectangle — no inner hairline (it dithered noisily)."""
     x0, y0, x1, y1 = rect
     draw.rounded_rectangle(
         (x0, y0, x1, y1),
         radius=radius * SS,
-        fill=_grey(250, mode),
+        fill=_grey(255, mode),
         outline=_ink(mode),
-        width=SS,
-    )
-    # Subtle inner hairline.
-    pad = 4 * SS
-    draw.rounded_rectangle(
-        (x0 + pad, y0 + pad, x1 - pad, y1 - pad),
-        radius=max(0, (radius - 2) * SS),
-        outline=_grey(160, mode),
-        width=SS,
+        width=2 * SS,
     )
 
 
@@ -527,51 +504,38 @@ def _draw_dial_rim(
     r_inner: int,
     mode: str,
     *,
-    hatch_step_deg: int = 6,
+    hatch_step_deg: int = 6,  # kept for backwards compat; unused
 ) -> None:
-    """Draw a brass-style rim: outer ring + inner ring + radial hairlines."""
-    brass = _brass(mode)
+    """Draw a clean instrument rim.
+
+    On Inky the annulus between the outer and inner radii is filled with
+    solid brass (Spectra-6 yellow) and bounded by black ink rings.  On L
+    mode the annulus stays white (greys dither into noise) and we rely on
+    two thick black rings to define the rim.
+    """
+    del hatch_step_deg  # legacy parameter
     ink = _ink(mode)
-    # Outer rim outline.
+    if mode == "RGB":
+        # Brass-filled annulus between outer and inner radii.
+        draw.ellipse(
+            (cx - r_outer, cy - r_outer, cx + r_outer, cy + r_outer),
+            fill=_brass(mode),
+        )
+        draw.ellipse(
+            (cx - r_inner, cy - r_inner, cx + r_inner, cy + r_inner),
+            fill=_grey(255, mode),
+        )
+    # Outer + inner black rings (drawn last so they sit on top of the fill).
     draw.ellipse(
         (cx - r_outer, cy - r_outer, cx + r_outer, cy + r_outer),
         outline=ink,
-        width=SS,
+        width=2 * SS,
     )
-    # Annulus fill — on RGB this is brass yellow, on L it's a mid-grey so
-    # the dithered rim reads as engraved metal.
-    if mode == "RGB":
-        # Paint the full disc then carve out the inner face.
-        draw.ellipse(
-            (cx - r_outer + SS, cy - r_outer + SS, cx + r_outer - SS, cy + r_outer - SS),
-            fill=brass,
-        )
-        draw.ellipse(
-            (cx - r_inner, cy - r_inner, cx + r_inner, cy + r_inner),
-            fill=_grey(250, mode),
-            outline=ink,
-            width=SS,
-        )
-    else:
-        # L mode: paint the inner face white then overlay a hatched annulus.
-        draw.ellipse(
-            (cx - r_outer + SS, cy - r_outer + SS, cx + r_outer - SS, cy + r_outer - SS),
-            fill=_grey(150, mode),
-        )
-        draw.ellipse(
-            (cx - r_inner, cy - r_inner, cx + r_inner, cy + r_inner),
-            fill=_grey(250, mode),
-            outline=ink,
-            width=SS,
-        )
-    # Radial hairlines.
-    for deg in range(0, 360, hatch_step_deg):
-        a = math.radians(deg)
-        x0 = cx + math.cos(a) * r_inner
-        y0 = cy + math.sin(a) * r_inner
-        x1 = cx + math.cos(a) * r_outer
-        y1 = cy + math.sin(a) * r_outer
-        draw.line([(x0, y0), (x1, y1)], fill=ink, width=SS)
+    draw.ellipse(
+        (cx - r_inner, cy - r_inner, cx + r_inner, cy + r_inner),
+        outline=ink,
+        width=2 * SS,
+    )
 
 
 def _rotate_text_paste(
@@ -643,7 +607,7 @@ def _draw_thermometer(
     stem_x0 = stem_cx - stem_w // 2
     stem_x1 = stem_cx + stem_w // 2
     stem_top = y0 + 20 * SS
-    stem_bot = y0 + 215 * SS
+    stem_bot = y0 + 190 * SS
     bulb_r = 14 * SS
     bulb_cy = stem_bot + bulb_r + 2 * SS
 
@@ -686,7 +650,7 @@ def _draw_thermometer(
 
     # Tick marks + numerals on the LEFT side of the stem.
     tick_font = (
-        style.font_section_label(7 * SS) if style.font_section_label else style.font_regular(7 * SS)
+        style.font_section_label(9 * SS) if style.font_section_label else style.font_regular(9 * SS)
     )
     for t in major_ticks:
         ty = _temp_to_y(t, lo, hi, stem_top, stem_bot)
@@ -774,22 +738,22 @@ def _draw_thermometer(
     # Feels-like text below the hero numeral.
     if weather is not None and weather.feels_like is not None:
         small_font = (
-            style.font_section_label(8 * SS)
+            style.font_section_label(10 * SS)
             if style.font_section_label
-            else style.font_regular(8 * SS)
+            else style.font_regular(10 * SS)
         )
         flike_text = f"FEELS  {int(round(weather.feels_like))}°"
         fb = draw.textbbox((0, 0), flike_text, font=small_font)
         right_col_cx = (band_x1 + x1) // 2 + 6 * SS
         fx = right_col_cx - (fb[2] - fb[0]) // 2 - fb[0]
-        fy = bulb_cy + bulb_r + 12 * SS
-        draw.text((fx, fy), flike_text, font=small_font, fill=_grey(80, mode))
+        fy = bulb_cy + bulb_r + 14 * SS
+        draw.text((fx, fy), flike_text, font=small_font, fill=ink)
 
     # Label across the bottom of the card.
     label_font = (
-        style.font_section_label(9 * SS)
+        style.font_section_label(11 * SS)
         if style.font_section_label
-        else style.font_semibold(9 * SS)
+        else style.font_semibold(11 * SS)
     )
     label = f"THERMOMETER · {sym}"
     lb = draw.textbbox((0, 0), label, font=label_font)
@@ -811,19 +775,18 @@ def _temp_to_y(t: float, lo: float, hi: float, y_top: int, y_bot: int) -> int:
 def _fill_zone(
     draw: ImageDraw.ImageDraw, rect: tuple[int, int, int, int], colour, mode: str
 ) -> None:
-    """Fill a zone band with stippling on L mode, solid fill on RGB."""
+    """Fill a zone band — solid colour on RGB, skipped on L mode.
+
+    Greyscale stippling for the temperature/UV zones dithered into noise
+    on the 1-bit Waveshare backend, so on L mode we leave the band blank
+    and let the mercury column / pointer carry the reading.  Inky gets
+    the saturated palette colour.
+    """
     x0, y0, x1, y1 = rect
     if x1 <= x0 or y1 <= y0:
         return
     if mode == "RGB":
         draw.rectangle((x0, y0, x1, y1), fill=colour)
-        return
-    # L mode: stipple at the colour's tone for an engraved feel.
-    tone = colour if isinstance(colour, int) else 0
-    step = 3 * SS
-    for y in range(int(y0), int(y1), step):
-        for x in range(int(x0) + ((y // step) % 2) * (step // 2), int(x1), step):
-            draw.point((x, y), fill=tone)
 
 
 # ---------------------------------------------------------------------------
@@ -862,15 +825,16 @@ def _draw_barometer(
 
     _draw_dial_rim(draw, cx, cy, r_outer, r_inner, mode)
 
-    # Tick marks: 60 around the full circle, longer/heavier every 5th.
-    for i in range(60):
-        deg = i * 6
+    # Tick marks: 36 around the full circle (every 10°), heavier every 3rd
+    # (every 30°).  Drawn THICK so they stay legible after dithering.
+    for i in range(36):
+        deg = i * 10
         a = math.radians(deg)
-        if i % 5 == 0:
-            tlen = 9 * SS
-            w = SS
+        if i % 3 == 0:
+            tlen = 12 * SS
+            w = 2 * SS
         else:
-            tlen = 4 * SS
+            tlen = 6 * SS
             w = SS
         x0t = cx + math.cos(a) * (r_inner - tlen)
         y0t = cy + math.sin(a) * (r_inner - tlen)
@@ -880,14 +844,14 @@ def _draw_barometer(
 
     # Engraved zone labels around the upper half.
     label_font = (
-        style.font_section_label(11 * SS)
+        style.font_section_label(13 * SS)
         if style.font_section_label
-        else style.font_semibold(11 * SS)
+        else style.font_semibold(13 * SS)
     )
     # The angles use canvas coords where 180° = left, 90° = top, 0° = right.
     # Pillow ellipse arcs start at 3 o'clock and go clockwise — we mirror our
     # math here so labels appear at the conventional positions.
-    label_radius = r_inner - 24 * SS
+    label_radius = r_inner - 38 * SS
     zones = [
         (180.0, "STORMY"),
         (135.0, "RAIN"),
@@ -916,13 +880,13 @@ def _draw_barometer(
             fill=ink,
         )
 
-    # Numeric scale labels every 20 hPa from 960..1040.
+    # Numeric scale labels every 20 hPa from 960..1040 — sit just inside
+    # the tick marks; the engraved zone labels live deeper toward centre.
     num_font = (
-        style.font_section_label(7 * SS) if style.font_section_label else style.font_regular(7 * SS)
+        style.font_section_label(8 * SS) if style.font_section_label else style.font_regular(8 * SS)
     )
-    num_radius = r_inner - 10 * SS
+    num_radius = r_inner - 18 * SS
     for p in (960, 980, 1000, 1020, 1040):
-        # Pressure → math-angle: 180° = STORMY (low), 0° = VERY DRY (high).
         frac = (p - _BARO_PRESSURE_LO) / (_BARO_PRESSURE_HI - _BARO_PRESSURE_LO)
         deg = 180.0 * (1.0 - frac)
         a = math.radians(deg)
@@ -936,7 +900,7 @@ def _draw_barometer(
             (nx - tw // 2 - tb[0], ny - th // 2 - tb[1]),
             text,
             font=num_font,
-            fill=_grey(80, mode),
+            fill=ink,
         )
 
     # Trend needle (secondary, hollow) — drawn first so the main needle
@@ -984,7 +948,7 @@ def _draw_barometer(
 
     # Centre cartouche — pressure value beneath the pivot.
     val_font = (
-        style.font_date_number(11 * SS) if style.font_date_number else style.font_bold(11 * SS)
+        style.font_date_number(15 * SS) if style.font_date_number else style.font_bold(15 * SS)
     )
     if weather is not None and weather.pressure is not None:
         val_text = f"{int(round(weather.pressure))} hPa"
@@ -992,15 +956,15 @@ def _draw_barometer(
         val_text = "—"
     vb = draw.textbbox((0, 0), val_text, font=val_font)
     vx = cx - (vb[2] - vb[0]) // 2 - vb[0]
-    vy = cy + pivot_r + 14 * SS
+    vy = cy + pivot_r + 18 * SS
     draw.text((vx, vy), val_text, font=val_font, fill=ink)
 
     # "BAROMETER" word OUTSIDE the rim, in the space between the dial and
     # the bottom edge of the card.
     bot_font = (
-        style.font_section_label(10 * SS)
+        style.font_section_label(13 * SS)
         if style.font_section_label
-        else style.font_semibold(10 * SS)
+        else style.font_semibold(13 * SS)
     )
     bot_text = "BAROMETER"
     bb = draw.textbbox((0, 0), bot_text, font=bot_font)
@@ -1112,51 +1076,47 @@ def _draw_hygrometer(
                 y = cy - math.sin(a) * rd
                 draw.point((x, y), fill=_warm_good(mode))
 
-    # Arc outline + diameter line.
+    # Arc outline + diameter line — heavy for legibility.
     draw.arc(
         (cx - r, cy - r, cx + r, cy + r),
         start=180,
         end=360,
         fill=ink,
-        width=SS,
+        width=2 * SS,
     )
-    draw.line([(cx - r, cy), (cx + r, cy)], fill=ink, width=SS)
+    draw.line([(cx - r, cy), (cx + r, cy)], fill=ink, width=2 * SS)
 
-    # Tick marks every 10%.
+    # Tick marks every 20%, heavier than before.
     tick_font = (
-        style.font_section_label(7 * SS) if style.font_section_label else style.font_regular(7 * SS)
+        style.font_section_label(9 * SS) if style.font_section_label else style.font_regular(9 * SS)
     )
-    for pct in range(0, 101, 10):
-        # Humidity → angle: 0% = 180° (left), 100% = 0° (right).
+    for pct in range(0, 101, 20):
         deg = 180 - pct * 1.8
         a = math.radians(deg)
-        major = pct % 25 == 0
-        tlen = 8 * SS if major else 4 * SS
+        tlen = 10 * SS
         x0t = cx + math.cos(a) * (r - tlen)
         y0t = cy - math.sin(a) * (r - tlen)
         x1t = cx + math.cos(a) * r
         y1t = cy - math.sin(a) * r
-        draw.line([(x0t, y0t), (x1t, y1t)], fill=ink, width=SS)
-        if major:
-            lx = cx + math.cos(a) * (r + 8 * SS)
-            ly = cy - math.sin(a) * (r + 8 * SS)
-            text = f"{pct}"
-            tb = draw.textbbox((0, 0), text, font=tick_font)
-            draw.text(
-                (lx - (tb[2] - tb[0]) // 2 - tb[0], ly - (tb[3] - tb[1]) // 2 - tb[1]),
-                text,
-                font=tick_font,
-                fill=ink,
-            )
+        draw.line([(x0t, y0t), (x1t, y1t)], fill=ink, width=2 * SS)
+        lx = cx + math.cos(a) * (r + 10 * SS)
+        ly = cy - math.sin(a) * (r + 10 * SS)
+        text = f"{pct}"
+        tb = draw.textbbox((0, 0), text, font=tick_font)
+        draw.text(
+            (lx - (tb[2] - tb[0]) // 2 - tb[0], ly - (tb[3] - tb[1]) // 2 - tb[1]),
+            text,
+            font=tick_font,
+            fill=ink,
+        )
 
-    # Needle.
+    # Needle — thicker tapered triangle for visibility.
     if weather is not None and weather.humidity is not None:
         deg = 180 - weather.humidity * 1.8
         a = math.radians(deg)
-        tip_x = cx + math.cos(a) * (r - 14 * SS)
-        tip_y = cy - math.sin(a) * (r - 14 * SS)
-        # Tapered triangle from pivot at (cx, cy) to the tip.
-        perp_len = 2 * SS
+        tip_x = cx + math.cos(a) * (r - 18 * SS)
+        tip_y = cy - math.sin(a) * (r - 18 * SS)
+        perp_len = 3 * SS
         perp = (-math.sin(a) * perp_len, -math.cos(a) * perp_len)
         poly = [
             (tip_x, tip_y),
@@ -1165,23 +1125,23 @@ def _draw_hygrometer(
         ]
         draw.polygon(poly, fill=ink)
         # Pivot.
-        pr = 3 * SS
+        pr = 4 * SS
         draw.ellipse(
             (cx - pr, cy - pr, cx + pr, cy + pr),
             fill=_brass(mode),
             outline=ink,
-            width=SS,
+            width=2 * SS,
         )
 
     # Label + numeric readout below the arc.  The "HYGROMETER" label sits
     # close to the bottom of the card; the value floats just under the arc.
     label_font = (
-        style.font_section_label(9 * SS)
+        style.font_section_label(11 * SS)
         if style.font_section_label
-        else style.font_semibold(9 * SS)
+        else style.font_semibold(11 * SS)
     )
     val_font = (
-        style.font_date_number(15 * SS) if style.font_date_number else style.font_bold(15 * SS)
+        style.font_date_number(18 * SS) if style.font_date_number else style.font_bold(18 * SS)
     )
     if weather is not None and weather.humidity is not None:
         val_text = f"{int(weather.humidity)}%"
@@ -1215,50 +1175,52 @@ def _draw_uv_bar(
     _draw_instrument_backplate(draw, rect, mode)
     x0, y0, x1, y1 = rect
     ink = _ink(mode)
-    bar_x0 = x0 + 10 * SS
-    bar_x1 = x1 - 10 * SS
-    bar_y0 = y0 + 18 * SS
-    bar_y1 = bar_y0 + 14 * SS
+    bar_x0 = x0 + 14 * SS
+    bar_x1 = x1 - 14 * SS
+    bar_y0 = y0 + 22 * SS
+    bar_y1 = bar_y0 + 18 * SS
     n_cells = 12
     cell_w = (bar_x1 - bar_x0) / n_cells
 
-    # Zone colours per cell index (0..11).  Each cell gets a fill keyed to
-    # the EPA UV index categories.
+    # Zone colours per EPA UV category — RGB only.  L mode just outlines the
+    # cells and fills the ACTIVE cell solid black so reading + category are
+    # both clear without dithering.
     def _cell_colour(i: int):
         if i <= 2:
-            return _warm_good(mode)
+            return _warm_good(mode)  # green: low (0–2)
         if i <= 5:
-            return _grey(150, mode)
+            return _brass(mode)  # yellow: moderate (3–5)
         if i <= 7:
-            return _brass(mode)
-        if i <= 10:
-            return _mercury(mode)
-        return _ink(mode)
+            return _mercury(mode)  # red: high (6–7)
+        return _ink(mode)  # black: very high / extreme (8+)
+
+    active_idx = -1
+    if weather is not None and weather.uv_index is not None:
+        active_idx = max(0, min(n_cells - 1, int(weather.uv_index)))
 
     for i in range(n_cells):
         cx0 = bar_x0 + i * cell_w
         cx1 = bar_x0 + (i + 1) * cell_w
-        col = _cell_colour(i)
         if mode == "RGB":
-            draw.rectangle((cx0, bar_y0, cx1, bar_y1), fill=col, outline=ink)
+            col = _cell_colour(i)
+            draw.rectangle((cx0, bar_y0, cx1, bar_y1), fill=col, outline=ink, width=SS)
         else:
-            # Stipple fill so cells differentiate after FS dither.
-            _fill_zone(draw, (cx0 + SS, bar_y0 + SS, cx1 - SS, bar_y1 - SS), col, mode)
-            draw.rectangle((cx0, bar_y0, cx1, bar_y1), outline=ink, width=SS)
+            # Solid black for the active cell; empty otherwise.
+            fill = ink if i == active_idx else None
+            draw.rectangle((cx0, bar_y0, cx1, bar_y1), fill=fill, outline=ink, width=SS)
 
     # Pointer triangle above the active cell.
-    if weather is not None and weather.uv_index is not None:
-        idx = max(0, min(n_cells - 1, int(weather.uv_index)))
-        px = bar_x0 + (idx + 0.5) * cell_w
-        py = bar_y0 - 3 * SS
+    if active_idx >= 0:
+        px = bar_x0 + (active_idx + 0.5) * cell_w
+        py = bar_y0 - 4 * SS
         draw.polygon(
-            [(px, py), (px - 4 * SS, py - 7 * SS), (px + 4 * SS, py - 7 * SS)],
+            [(px, py), (px - 6 * SS, py - 9 * SS), (px + 6 * SS, py - 9 * SS)],
             fill=ink,
         )
 
-    # Tick marks for major levels (0, 3, 6, 8, 11) below the bar.
+    # Numeric labels at the boundaries between EPA zones.
     tick_font = (
-        style.font_section_label(7 * SS) if style.font_section_label else style.font_regular(7 * SS)
+        style.font_section_label(9 * SS) if style.font_section_label else style.font_regular(9 * SS)
     )
     for v in (0, 3, 6, 8, 11):
         tx = bar_x0 + (v + 0.5) * cell_w
@@ -1275,12 +1237,12 @@ def _draw_uv_bar(
     # Label + numeric value below — label first (anchored to card bottom),
     # value above it.
     label_font = (
-        style.font_section_label(9 * SS)
+        style.font_section_label(11 * SS)
         if style.font_section_label
-        else style.font_semibold(9 * SS)
+        else style.font_semibold(11 * SS)
     )
     val_font = (
-        style.font_date_number(11 * SS) if style.font_date_number else style.font_bold(11 * SS)
+        style.font_date_number(14 * SS) if style.font_date_number else style.font_bold(14 * SS)
     )
     if weather is not None and weather.uv_index is not None:
         val_text = f"{weather.uv_index:.1f}"
@@ -1329,9 +1291,9 @@ def _draw_wind_compass(
 
     # Cardinal letters (N/E/S/W) and intermediate ticks.
     card_font = (
-        style.font_section_label(8 * SS)
+        style.font_section_label(10 * SS)
         if style.font_section_label
-        else style.font_semibold(8 * SS)
+        else style.font_semibold(10 * SS)
     )
     # Maths angles: N=top=90°, E=right=0°, S=bottom=270°, W=left=180°.
     cardinals = [("N", 90, True), ("E", 0, False), ("S", 270, False), ("W", 180, False)]
@@ -1402,13 +1364,14 @@ def _draw_wind_compass(
             width=SS,
         )
 
-    # Centre numeric readout.
+    # Wind speed rendered INSIDE the dial, below the centre so the needle
+    # has the upper half clear.  A small units label sits beneath.
     units_label = _wind_unit_label(weather.units if weather else None)
     val_font = (
-        style.font_date_number(11 * SS) if style.font_date_number else style.font_bold(11 * SS)
+        style.font_date_number(13 * SS) if style.font_date_number else style.font_bold(13 * SS)
     )
     small_font = (
-        style.font_section_label(7 * SS) if style.font_section_label else style.font_regular(7 * SS)
+        style.font_section_label(8 * SS) if style.font_section_label else style.font_regular(8 * SS)
     )
     if weather is None or weather.wind_speed is None or weather.wind_speed <= 0:
         val_text = "CALM"
@@ -1416,9 +1379,8 @@ def _draw_wind_compass(
     else:
         val_text = f"{int(round(weather.wind_speed))}"
         unit_text = units_label
-    # Place readout BELOW the centre so the needle has space.
     vb = draw.textbbox((0, 0), val_text, font=val_font)
-    val_y = cy + 8 * SS
+    val_y = cy + 6 * SS
     draw.text(
         (cx - (vb[2] - vb[0]) // 2 - vb[0], val_y),
         val_text,
@@ -1432,16 +1394,6 @@ def _draw_wind_compass(
             unit_text,
             font=small_font,
             fill=ink,
-        )
-    # Compass abbreviation top — small.
-    if weather is not None and weather.wind_deg is not None and weather.wind_speed:
-        comp_text = deg_to_compass(weather.wind_deg)
-        cb = draw.textbbox((0, 0), comp_text, font=small_font)
-        draw.text(
-            (cx - (cb[2] - cb[0]) // 2 - cb[0], cy - r_inner + 2 * SS),
-            comp_text,
-            font=small_font,
-            fill=_grey(80, mode),
         )
 
 
@@ -1521,46 +1473,39 @@ def _draw_sun_arc(
             return None
         return int(arc_x0 + frac * arc_w)
 
-    # Twilight bands (only when lat/lon set).
-    if sun_info is not None:
-        # Build a list of (start_dt, end_dt, tone) bands for the lower strip.
-        # Tones progressively lighter from astronomical dawn outward to day.
-        bands: list[tuple[datetime | None, datetime | None, int]] = [
-            (sun_info.astronomical_dawn, sun_info.nautical_dawn, 40),
-            (sun_info.nautical_dawn, sun_info.civil_dawn, 90),
-            (sun_info.civil_dawn, sun_info.sunrise, 160),
-            (sun_info.sunrise, sun_info.sunset, 230),
-            (sun_info.sunset, sun_info.civil_dusk, 160),
-            (sun_info.civil_dusk, sun_info.nautical_dusk, 90),
-            (sun_info.nautical_dusk, sun_info.astronomical_dusk, 40),
-        ]
-        strip_y0 = arc_cy + 2 * SS
-        strip_y1 = strip_y0 + 8 * SS
-        # Background "night" tone.
-        draw.rectangle((arc_x0, strip_y0, arc_x1, strip_y1), fill=_grey(20, mode))
-        for s, e, tone in bands:
+    # Day/night strip — drawn cleanly with pure black night, white day, and
+    # (on RGB only) blue twilight bands.  On L mode we collapse twilight to
+    # the same colour as either night or day so we never emit mid-greys that
+    # dither into noise.
+    strip_y0 = arc_cy + 4 * SS
+    strip_y1 = strip_y0 + 10 * SS
+    # Night background (pure ink).
+    draw.rectangle((arc_x0, strip_y0, arc_x1, strip_y1), fill=ink)
+    if sun_info is not None and mode == "RGB":
+        # Blue twilight bands between night and day on RGB.
+        twilight_colour = _cold(mode)
+        for s, e in (
+            (sun_info.astronomical_dawn, sun_info.sunrise),
+            (sun_info.sunset, sun_info.astronomical_dusk),
+        ):
             sx = _x_for(s)
             ex = _x_for(e)
             if sx is None or ex is None or ex <= sx:
                 continue
-            draw.rectangle((sx, strip_y0, ex, strip_y1), fill=_grey(tone, mode))
-    elif sr_dt is not None and ss_dt is not None:
-        # Single flat day/night band.
-        strip_y0 = arc_cy + 2 * SS
-        strip_y1 = strip_y0 + 8 * SS
-        draw.rectangle((arc_x0, strip_y0, arc_x1, strip_y1), fill=_grey(20, mode))
-        sx = _x_for(sr_dt)
-        ex = _x_for(ss_dt)
-        if sx is not None and ex is not None and ex > sx:
-            draw.rectangle((sx, strip_y0, ex, strip_y1), fill=_grey(230, mode))
+            draw.rectangle((sx, strip_y0, ex, strip_y1), fill=twilight_colour)
+    # Day band — pure white between sunrise and sunset.
+    sx_day = _x_for(sr_dt)
+    ex_day = _x_for(ss_dt)
+    if sx_day is not None and ex_day is not None and ex_day > sx_day:
+        draw.rectangle((sx_day, strip_y0, ex_day, strip_y1), fill=_grey(255, mode))
 
-    # Arc curve — half-ellipse from west horizon to east horizon.
+    # Arc curve — half-ellipse from east horizon to west horizon, thick.
     draw.arc(
         (arc_cx - arc_r_x, arc_cy - arc_r_y, arc_cx + arc_r_x, arc_cy + arc_r_y),
         start=180,
         end=360,
-        fill=_grey(100, mode),
-        width=SS,
+        fill=ink,
+        width=2 * SS,
     )
 
     # Sun/moon glyph at the current time position.
@@ -1581,32 +1526,32 @@ def _draw_sun_arc(
         now_frac = _time_frac(now)
         if sr_frac is not None and ss_frac is not None and now_frac is not None:
             is_day = sr_frac <= now_frac <= ss_frac
-    glyph_r = 9 * SS
+    glyph_r = 11 * SS
     if is_day:
+        # Solid brass sun disc (collapses to ink on L mode).
         draw.ellipse(
             (nx - glyph_r, ny - glyph_r, nx + glyph_r, ny + glyph_r),
             fill=_brass(mode),
             outline=ink,
-            width=SS,
+            width=2 * SS,
         )
-        # Tiny rays.
+        # Heavy rays.
         for deg in range(0, 360, 45):
             a = math.radians(deg)
-            x0r = nx + math.cos(a) * (glyph_r + 2 * SS)
-            y0r = ny + math.sin(a) * (glyph_r + 2 * SS)
-            x1r = nx + math.cos(a) * (glyph_r + 5 * SS)
-            y1r = ny + math.sin(a) * (glyph_r + 5 * SS)
-            draw.line([(x0r, y0r), (x1r, y1r)], fill=_brass(mode), width=SS)
+            x0r = nx + math.cos(a) * (glyph_r + 3 * SS)
+            y0r = ny + math.sin(a) * (glyph_r + 3 * SS)
+            x1r = nx + math.cos(a) * (glyph_r + 7 * SS)
+            y1r = ny + math.sin(a) * (glyph_r + 7 * SS)
+            draw.line([(x0r, y0r), (x1r, y1r)], fill=_brass(mode), width=2 * SS)
     else:
-        # Night glyph — crescent: white disc with a slightly offset dark
-        # disc cut out.  Position the cut based on waxing/waning.
+        # Night glyph — pure white disc with a black crescent cut out.
         draw.ellipse(
             (nx - glyph_r, ny - glyph_r, nx + glyph_r, ny + glyph_r),
-            fill=_grey(245, mode),
+            fill=_grey(255, mode),
             outline=ink,
-            width=SS,
+            width=2 * SS,
         )
-        cut_offset = 4 * SS if is_waxing(today) else -4 * SS
+        cut_offset = 5 * SS if is_waxing(today) else -5 * SS
         draw.ellipse(
             (
                 nx - glyph_r + cut_offset,
@@ -1614,18 +1559,19 @@ def _draw_sun_arc(
                 nx + glyph_r + cut_offset,
                 ny + glyph_r,
             ),
-            fill=_grey(40, mode),
+            fill=ink,
         )
 
     # Sunrise / sunset numeric labels at the horizons.
     label_font = (
-        style.font_section_label(8 * SS) if style.font_section_label else style.font_regular(8 * SS)
+        style.font_section_label(10 * SS)
+        if style.font_section_label
+        else style.font_regular(10 * SS)
     )
     if sr_dt is not None:
         sr_text = _fmt_clock(sr_dt, local_tz)
-        sb = draw.textbbox((0, 0), sr_text, font=label_font)
         draw.text(
-            (arc_x0 + 2 * SS, arc_cy + 14 * SS),
+            (arc_x0 + 2 * SS, strip_y1 + 6 * SS),
             sr_text,
             font=label_font,
             fill=ink,
@@ -1635,21 +1581,21 @@ def _draw_sun_arc(
         sb = draw.textbbox((0, 0), ss_text, font=label_font)
         sw = sb[2] - sb[0]
         draw.text(
-            (arc_x1 - 2 * SS - sw - sb[0], arc_cy + 14 * SS),
+            (arc_x1 - 2 * SS - sw - sb[0], strip_y1 + 6 * SS),
             ss_text,
             font=label_font,
             fill=ink,
         )
-    # "SUN" centre label.
+    # Centre label below the strip.
     centre_label_font = (
-        style.font_section_label(9 * SS)
+        style.font_section_label(11 * SS)
         if style.font_section_label
-        else style.font_semibold(9 * SS)
+        else style.font_semibold(11 * SS)
     )
     sun_text = "SOL · ARC"
     cb = draw.textbbox((0, 0), sun_text, font=centre_label_font)
     draw.text(
-        (arc_cx - (cb[2] - cb[0]) // 2 - cb[0], arc_cy + 14 * SS),
+        (arc_cx - (cb[2] - cb[0]) // 2 - cb[0], strip_y1 + 6 * SS),
         sun_text,
         font=centre_label_font,
         fill=ink,
@@ -1692,9 +1638,9 @@ def _draw_moon_porthole(
     illum = moon_illumination(today)  # 0..100
     waxing = is_waxing(today)
 
-    # Bright disc.
-    bright = _grey(248, mode)
-    dark = _grey(40, mode)
+    # Bright disc — pure white; dark side — pure ink (collapses cleanly on L).
+    bright = _grey(255, mode)
+    dark = _ink(mode)
     disc_bbox = (cx - r_inner + SS, cy - r_inner + SS, cx + r_inner - SS, cy + r_inner - SS)
     draw.ellipse(disc_bbox, fill=bright)
 
@@ -1730,11 +1676,13 @@ def _draw_moon_porthole(
 
     # Labels below the disc.
     name_font = (
-        style.font_section_label(7 * SS)
+        style.font_section_label(9 * SS)
         if style.font_section_label
-        else style.font_semibold(7 * SS)
+        else style.font_semibold(9 * SS)
     )
-    val_font = style.font_date_number(9 * SS) if style.font_date_number else style.font_bold(9 * SS)
+    val_font = (
+        style.font_date_number(11 * SS) if style.font_date_number else style.font_bold(11 * SS)
+    )
     name_text = moon_phase_name(today).upper()
     val_text = f"{int(round(illum))}%"
     nb = draw.textbbox((0, 0), name_text, font=name_font)
@@ -1743,7 +1691,7 @@ def _draw_moon_porthole(
     draw.text((nx, name_y), name_text, font=name_font, fill=ink)
     vb = draw.textbbox((0, 0), val_text, font=val_font)
     vx = cx - (vb[2] - vb[0]) // 2 - vb[0]
-    draw.text((vx, name_y + (nb[3] - nb[1]) + 2 * SS), val_text, font=val_font, fill=ink)
+    draw.text((vx, name_y + (nb[3] - nb[1]) + 4 * SS), val_text, font=val_font, fill=ink)
 
 
 # ---------------------------------------------------------------------------
@@ -1791,40 +1739,26 @@ def _draw_aqi_badge(
 
     _draw_dial_rim(draw, cx, cy, r_outer, r_inner, mode, hatch_step_deg=15)
 
-    # AQI coloured inner ring (annulus inside r_inner).
+    # AQI category ring inside the brass rim — solid colour on RGB,
+    # skipped entirely on L (the category appears as text below).
     ring_outer = r_inner - SS
     ring_inner = r_inner - 7 * SS
-    colour = _aqi_ring_colour(aq.aqi, mode)
     if mode == "RGB":
+        colour = _aqi_ring_colour(aq.aqi, mode)
         draw.ellipse(
             (cx - ring_outer, cy - ring_outer, cx + ring_outer, cy + ring_outer),
             fill=colour,
         )
         draw.ellipse(
             (cx - ring_inner, cy - ring_inner, cx + ring_inner, cy + ring_inner),
-            fill=_grey(248, mode),
+            fill=_grey(255, mode),
             outline=ink,
-            width=SS,
-        )
-    else:
-        # Stippled ring on L mode.
-        for deg in range(0, 360, 4):
-            a = math.radians(deg)
-            for rd in range(ring_inner, ring_outer, 2 * SS):
-                draw.point(
-                    (cx + math.cos(a) * rd, cy + math.sin(a) * rd),
-                    fill=colour,
-                )
-        draw.ellipse(
-            (cx - ring_inner, cy - ring_inner, cx + ring_inner, cy + ring_inner),
-            fill=_grey(248, mode),
-            outline=ink,
-            width=SS,
+            width=2 * SS,
         )
 
-    # Centre numeral.
+    # Centre numeral — bigger and bolder.
     val_font = (
-        style.font_date_number(11 * SS) if style.font_date_number else style.font_bold(11 * SS)
+        style.font_date_number(14 * SS) if style.font_date_number else style.font_bold(14 * SS)
     )
     val_text = str(int(aq.aqi))
     vb = draw.textbbox((0, 0), val_text, font=val_font)
@@ -1834,9 +1768,9 @@ def _draw_aqi_badge(
 
     # Labels below.
     label_font = (
-        style.font_section_label(8 * SS)
+        style.font_section_label(10 * SS)
         if style.font_section_label
-        else style.font_semibold(8 * SS)
+        else style.font_semibold(10 * SS)
     )
     aqi_label = "AIR · AQI"
     cat = aq.category.upper() if aq.category else ""
@@ -1891,15 +1825,17 @@ def _draw_nameplate(
             radius=8 * SS,
             fill=brass,
             outline=ink,
-            width=SS,
+            width=2 * SS,
         )
     else:
+        # On L mode, pure white plate with a thick black outline — no mid
+        # grey fill that would dither into noise.
         draw.rounded_rectangle(
             (px0, py0, px1, py1),
             radius=8 * SS,
-            fill=_grey(180, mode),
+            fill=_grey(255, mode),
             outline=ink,
-            width=SS,
+            width=2 * SS,
         )
     # Engraved inner outline.
     pad = 3 * SS
@@ -1910,14 +1846,14 @@ def _draw_nameplate(
         width=SS,
     )
 
-    # Roman-numeral year + month.
+    # Title + year.
     label_font = (
-        style.font_section_label(8 * SS)
+        style.font_section_label(10 * SS)
         if style.font_section_label
-        else style.font_semibold(8 * SS)
+        else style.font_semibold(10 * SS)
     )
     body_font = (
-        style.font_section_label(10 * SS) if style.font_section_label else style.font_bold(10 * SS)
+        style.font_section_label(13 * SS) if style.font_section_label else style.font_bold(13 * SS)
     )
     title_text = "WEATHERGLASS"
     year_text = today.strftime("%Y")
@@ -1955,24 +1891,24 @@ def _draw_alert_cartouche(
     ink = _ink(mode)
     mercury = _mercury(mode)
     body_font = (
-        style.font_section_label(10 * SS) if style.font_section_label else style.font_bold(10 * SS)
+        style.font_section_label(12 * SS) if style.font_section_label else style.font_bold(12 * SS)
     )
 
     # Compute width: fit the widest line + generous padding for the notches.
     text_lines = [t.upper() for t in text_events]
     widths = [text_width(draw, t, body_font) for t in text_lines]
-    inner_w = max(widths) + 48 * SS
-    band_h = 14 * SS * len(text_lines) + 14 * SS
+    inner_w = max(widths) + 56 * SS
+    band_h = 18 * SS * len(text_lines) + 14 * SS
     max_w = _W - 80 * SS
     inner_w = min(inner_w, max_w)
     cx = _W // 2
-    y0 = _MAST_Y1 + 8 * SS
+    y0 = _MAST_Y1 + 10 * SS
     y1 = y0 + band_h
     x0 = cx - inner_w // 2
     x1 = cx + inner_w // 2
 
     # Ribbon polygon with notched ends.
-    notch = 10 * SS
+    notch = 12 * SS
     poly = [
         (x0 + notch, y0),
         (x1 - notch, y0),
@@ -1981,8 +1917,8 @@ def _draw_alert_cartouche(
         (x0 + notch, y1),
         (x0, (y0 + y1) // 2),
     ]
-    # Fill (parchment) + mercury outline.
-    draw.polygon(poly, fill=_grey(248, mode), outline=mercury)
+    # Fill pure white + mercury outline (thick so it survives on L mode).
+    draw.polygon(poly, fill=_grey(255, mode), outline=mercury)
     # Repeat the outline at slight thickness so it shows in L mode dither.
     for i in range(len(poly)):
         a_pt = poly[i]
@@ -1990,9 +1926,9 @@ def _draw_alert_cartouche(
         draw.line([a_pt, b_pt], fill=mercury, width=2 * SS)
 
     # Text lines.
-    line_h = 14 * SS
+    line_h = 18 * SS
     base_y = y0 + (band_h - len(text_lines) * line_h) // 2
-    max_text_w = inner_w - 36 * SS
+    max_text_w = inner_w - 40 * SS
     for i, text in enumerate(text_lines):
         tb = draw.textbbox((0, 0), text, font=body_font)
         tw = tb[2] - tb[0]
