@@ -1430,7 +1430,7 @@ def _draw_sun_arc(
     arc_x0 = x0 + pad
     arc_x1 = x1 - pad
     arc_w = arc_x1 - arc_x0
-    arc_h = (y1 - y0) - 30 * SS  # leave room for labels below
+    arc_h = (y1 - y0) - 46 * SS  # leave room for the day/night strip + labels
     arc_cy = y0 + arc_h
     arc_cx = (arc_x0 + arc_x1) // 2
     arc_r_x = arc_w // 2

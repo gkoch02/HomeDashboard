@@ -45,11 +45,14 @@ def weatherglass_theme() -> Theme:
         layout=ThemeLayout(
             # 2× supersampled canvas — LANCZOS downsample to 800×480 acts as
             # a free anti-alias pass over every dial rim, tick mark, needle,
-            # and engraved label before the final Floyd-Steinberg quantize.
+            # and engraved label. The final 1-bit step uses threshold (not
+            # Floyd-Steinberg) so the antialiased edges snap to crisp solid
+            # black instead of dithering into speckle — every shaded zone is
+            # already hand-stippled, so no fill relies on the dither pass.
             canvas_w=1600,
             canvas_h=960,
             canvas_mode="L",
-            preferred_quantization_mode="floyd_steinberg",
+            preferred_quantization_mode="threshold",
             prefer_color_on_inky=True,
             weatherglass=ComponentRegion(0, 0, 1600, 960),
             # Hide all standard regions — this theme owns the full canvas.
