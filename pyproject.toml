@@ -122,6 +122,7 @@ module = [
     "src.render.components.trends_panel",
     "src.render.components.weather_full",
     "src.render.components.weather_panel",
+    "src.render.components.weatherglass_panel",
     "src.render.components.week_view",
     "src.render.components.year_pulse_panel",
 ]
