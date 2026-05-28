@@ -369,9 +369,9 @@ def _draw_masthead(
     pad_x = 28 * SS
     title_font = style.font_title(32 * SS) if style.font_title else style.font_bold(32 * SS)
     label_font = (
-        style.font_section_label(13 * SS)
+        style.font_section_label(14 * SS)
         if style.font_section_label
-        else style.font_semibold(13 * SS)
+        else style.font_semibold(14 * SS)
     )
 
     # Title centred.
@@ -650,7 +650,9 @@ def _draw_thermometer(
 
     # Tick marks + numerals on the LEFT side of the stem.
     tick_font = (
-        style.font_section_label(9 * SS) if style.font_section_label else style.font_regular(9 * SS)
+        style.font_section_label(10 * SS)
+        if style.font_section_label
+        else style.font_regular(10 * SS)
     )
     for t in major_ticks:
         ty = _temp_to_y(t, lo, hi, stem_top, stem_bot)
@@ -738,9 +740,9 @@ def _draw_thermometer(
     # Feels-like text below the hero numeral.
     if weather is not None and weather.feels_like is not None:
         small_font = (
-            style.font_section_label(10 * SS)
+            style.font_section_label(11 * SS)
             if style.font_section_label
-            else style.font_regular(10 * SS)
+            else style.font_regular(11 * SS)
         )
         flike_text = f"FEELS  {int(round(weather.feels_like))}°"
         fb = draw.textbbox((0, 0), flike_text, font=small_font)
@@ -751,9 +753,9 @@ def _draw_thermometer(
 
     # Label across the bottom of the card.
     label_font = (
-        style.font_section_label(11 * SS)
+        style.font_section_label(12 * SS)
         if style.font_section_label
-        else style.font_semibold(11 * SS)
+        else style.font_semibold(12 * SS)
     )
     label = f"THERMOMETER · {sym}"
     lb = draw.textbbox((0, 0), label, font=label_font)
@@ -842,7 +844,8 @@ def _draw_barometer(
         y1t = cy + math.sin(a) * (r_inner - SS)
         draw.line([(x0t, y0t), (x1t, y1t)], fill=ink, width=w)
 
-    # Engraved zone labels around the upper half.
+    # Engraved zone labels around the upper half.  Kept at 13pt: at 14pt the
+    # widest label ("VERY DRY") collides with the inner tick ring.
     label_font = (
         style.font_section_label(13 * SS)
         if style.font_section_label
@@ -883,7 +886,7 @@ def _draw_barometer(
     # Numeric scale labels every 20 hPa from 960..1040 — sit just inside
     # the tick marks; the engraved zone labels live deeper toward centre.
     num_font = (
-        style.font_section_label(8 * SS) if style.font_section_label else style.font_regular(8 * SS)
+        style.font_section_label(9 * SS) if style.font_section_label else style.font_regular(9 * SS)
     )
     num_radius = r_inner - 18 * SS
     for p in (960, 980, 1000, 1020, 1040):
@@ -948,7 +951,7 @@ def _draw_barometer(
 
     # Centre cartouche — pressure value beneath the pivot.
     val_font = (
-        style.font_date_number(15 * SS) if style.font_date_number else style.font_bold(15 * SS)
+        style.font_date_number(17 * SS) if style.font_date_number else style.font_bold(17 * SS)
     )
     if weather is not None and weather.pressure is not None:
         val_text = f"{int(round(weather.pressure))} hPa"
@@ -962,9 +965,9 @@ def _draw_barometer(
     # "BAROMETER" word OUTSIDE the rim, in the space between the dial and
     # the bottom edge of the card.
     bot_font = (
-        style.font_section_label(13 * SS)
+        style.font_section_label(14 * SS)
         if style.font_section_label
-        else style.font_semibold(13 * SS)
+        else style.font_semibold(14 * SS)
     )
     bot_text = "BAROMETER"
     bb = draw.textbbox((0, 0), bot_text, font=bot_font)
@@ -1088,7 +1091,9 @@ def _draw_hygrometer(
 
     # Tick marks every 20%, heavier than before.
     tick_font = (
-        style.font_section_label(9 * SS) if style.font_section_label else style.font_regular(9 * SS)
+        style.font_section_label(10 * SS)
+        if style.font_section_label
+        else style.font_regular(10 * SS)
     )
     for pct in range(0, 101, 20):
         deg = 180 - pct * 1.8
@@ -1136,12 +1141,12 @@ def _draw_hygrometer(
     # Label + numeric readout below the arc.  The "HYGROMETER" label sits
     # close to the bottom of the card; the value floats just under the arc.
     label_font = (
-        style.font_section_label(11 * SS)
+        style.font_section_label(12 * SS)
         if style.font_section_label
-        else style.font_semibold(11 * SS)
+        else style.font_semibold(12 * SS)
     )
     val_font = (
-        style.font_date_number(18 * SS) if style.font_date_number else style.font_bold(18 * SS)
+        style.font_date_number(20 * SS) if style.font_date_number else style.font_bold(20 * SS)
     )
     if weather is not None and weather.humidity is not None:
         val_text = f"{int(weather.humidity)}%"
@@ -1220,7 +1225,9 @@ def _draw_uv_bar(
 
     # Numeric labels at the boundaries between EPA zones.
     tick_font = (
-        style.font_section_label(9 * SS) if style.font_section_label else style.font_regular(9 * SS)
+        style.font_section_label(10 * SS)
+        if style.font_section_label
+        else style.font_regular(10 * SS)
     )
     for v in (0, 3, 6, 8, 11):
         tx = bar_x0 + (v + 0.5) * cell_w
@@ -1237,12 +1244,12 @@ def _draw_uv_bar(
     # Label + numeric value below — label first (anchored to card bottom),
     # value above it.
     label_font = (
-        style.font_section_label(11 * SS)
+        style.font_section_label(12 * SS)
         if style.font_section_label
-        else style.font_semibold(11 * SS)
+        else style.font_semibold(12 * SS)
     )
     val_font = (
-        style.font_date_number(14 * SS) if style.font_date_number else style.font_bold(14 * SS)
+        style.font_date_number(16 * SS) if style.font_date_number else style.font_bold(16 * SS)
     )
     if weather is not None and weather.uv_index is not None:
         val_text = f"{weather.uv_index:.1f}"
@@ -1291,9 +1298,9 @@ def _draw_wind_compass(
 
     # Cardinal letters (N/E/S/W) and intermediate ticks.
     card_font = (
-        style.font_section_label(10 * SS)
+        style.font_section_label(11 * SS)
         if style.font_section_label
-        else style.font_semibold(10 * SS)
+        else style.font_semibold(11 * SS)
     )
     # Maths angles: N=top=90°, E=right=0°, S=bottom=270°, W=left=180°.
     cardinals = [("N", 90, True), ("E", 0, False), ("S", 270, False), ("W", 180, False)]
@@ -1368,10 +1375,10 @@ def _draw_wind_compass(
     # has the upper half clear.  A small units label sits beneath.
     units_label = _wind_unit_label(weather.units if weather else None)
     val_font = (
-        style.font_date_number(13 * SS) if style.font_date_number else style.font_bold(13 * SS)
+        style.font_date_number(14 * SS) if style.font_date_number else style.font_bold(14 * SS)
     )
     small_font = (
-        style.font_section_label(8 * SS) if style.font_section_label else style.font_regular(8 * SS)
+        style.font_section_label(9 * SS) if style.font_section_label else style.font_regular(9 * SS)
     )
     if weather is None or weather.wind_speed is None or weather.wind_speed <= 0:
         val_text = "CALM"
@@ -1389,8 +1396,10 @@ def _draw_wind_compass(
     )
     if unit_text:
         ub = draw.textbbox((0, 0), unit_text, font=small_font)
+        # Anchor beneath the value's drawn ink bottom (val_y + vb[3]), not its
+        # height — otherwise a font with top bearing makes the two collide.
         draw.text(
-            (cx - (ub[2] - ub[0]) // 2 - ub[0], val_y + (vb[3] - vb[1]) + SS),
+            (cx - (ub[2] - ub[0]) // 2 - ub[0], val_y + vb[3] + 2 * SS - ub[1]),
             unit_text,
             font=small_font,
             fill=ink,
@@ -1564,9 +1573,9 @@ def _draw_sun_arc(
 
     # Sunrise / sunset numeric labels at the horizons.
     label_font = (
-        style.font_section_label(10 * SS)
+        style.font_section_label(11 * SS)
         if style.font_section_label
-        else style.font_regular(10 * SS)
+        else style.font_regular(11 * SS)
     )
     if sr_dt is not None:
         sr_text = _fmt_clock(sr_dt, local_tz)
@@ -1588,9 +1597,9 @@ def _draw_sun_arc(
         )
     # Centre label below the strip.
     centre_label_font = (
-        style.font_section_label(11 * SS)
+        style.font_section_label(12 * SS)
         if style.font_section_label
-        else style.font_semibold(11 * SS)
+        else style.font_semibold(12 * SS)
     )
     sun_text = "SOL · ARC"
     cb = draw.textbbox((0, 0), sun_text, font=centre_label_font)
@@ -1676,12 +1685,12 @@ def _draw_moon_porthole(
 
     # Labels below the disc.
     name_font = (
-        style.font_section_label(9 * SS)
+        style.font_section_label(10 * SS)
         if style.font_section_label
-        else style.font_semibold(9 * SS)
+        else style.font_semibold(10 * SS)
     )
     val_font = (
-        style.font_date_number(11 * SS) if style.font_date_number else style.font_bold(11 * SS)
+        style.font_date_number(12 * SS) if style.font_date_number else style.font_bold(12 * SS)
     )
     name_text = moon_phase_name(today).upper()
     val_text = f"{int(round(illum))}%"
@@ -1758,7 +1767,7 @@ def _draw_aqi_badge(
 
     # Centre numeral — bigger and bolder.
     val_font = (
-        style.font_date_number(14 * SS) if style.font_date_number else style.font_bold(14 * SS)
+        style.font_date_number(16 * SS) if style.font_date_number else style.font_bold(16 * SS)
     )
     val_text = str(int(aq.aqi))
     vb = draw.textbbox((0, 0), val_text, font=val_font)
@@ -1768,9 +1777,9 @@ def _draw_aqi_badge(
 
     # Labels below.
     label_font = (
-        style.font_section_label(10 * SS)
+        style.font_section_label(11 * SS)
         if style.font_section_label
-        else style.font_semibold(10 * SS)
+        else style.font_semibold(11 * SS)
     )
     aqi_label = "AIR · AQI"
     cat = aq.category.upper() if aq.category else ""
@@ -1891,7 +1900,7 @@ def _draw_alert_cartouche(
     ink = _ink(mode)
     mercury = _mercury(mode)
     body_font = (
-        style.font_section_label(12 * SS) if style.font_section_label else style.font_bold(12 * SS)
+        style.font_section_label(13 * SS) if style.font_section_label else style.font_bold(13 * SS)
     )
 
     # Compute width: fit the widest line + generous padding for the notches.
