@@ -1288,11 +1288,15 @@ def _draw_wind_compass(
     style: ThemeStyle,
 ) -> None:
     x0, y0, x1, y1 = rect
-    cx = (x0 + x1) // 2
-    cy = (y0 + y1) // 2
-    r_outer = min((x1 - x0) // 2, (y1 - y0) // 2) - 4 * SS
-    r_inner = r_outer - 8 * SS
     ink = _ink(mode)
+    # Reserve a caption band at the bottom for the wind-speed readout so the
+    # direction needle owns the dial and never crosses the numerals.
+    caption_h = 20 * SS
+    dial_y1 = y1 - caption_h
+    cx = (x0 + x1) // 2
+    cy = (y0 + dial_y1) // 2
+    r_outer = min((x1 - x0) // 2, (dial_y1 - y0) // 2) - 4 * SS
+    r_inner = r_outer - 8 * SS
 
     _draw_dial_rim(draw, cx, cy, r_outer, r_inner, mode, hatch_step_deg=15)
 
@@ -1357,7 +1361,7 @@ def _draw_wind_compass(
             cx,
             cy,
             math_deg,
-            r_inner - 12 * SS,
+            r_inner - 6 * SS,
             _mercury(mode),
             mode,
             hollow=False,
@@ -1371,36 +1375,42 @@ def _draw_wind_compass(
             width=SS,
         )
 
-    # Wind speed rendered INSIDE the dial, below the centre so the needle
-    # has the upper half clear.  A small units label sits beneath.
+    # Wind-speed caption centred in the band beneath the dial: big value +
+    # small unit on one baseline.  Keeping it out of the dial lets the needle
+    # point any bearing without crossing the numerals or the cardinal letters.
     units_label = _wind_unit_label(weather.units if weather else None)
     val_font = (
-        style.font_date_number(14 * SS) if style.font_date_number else style.font_bold(14 * SS)
+        style.font_date_number(13 * SS) if style.font_date_number else style.font_bold(13 * SS)
     )
     small_font = (
         style.font_section_label(9 * SS) if style.font_section_label else style.font_regular(9 * SS)
     )
+    cap_cy = (dial_y1 + y1) // 2
     if weather is None or weather.wind_speed is None or weather.wind_speed <= 0:
-        val_text = "CALM"
-        unit_text = ""
+        cb = draw.textbbox((0, 0), "CALM", font=val_font)
+        draw.text(
+            (cx - (cb[2] - cb[0]) // 2 - cb[0], cap_cy - (cb[1] + cb[3]) // 2),
+            "CALM",
+            font=val_font,
+            fill=ink,
+        )
     else:
         val_text = f"{int(round(weather.wind_speed))}"
-        unit_text = units_label
-    vb = draw.textbbox((0, 0), val_text, font=val_font)
-    val_y = cy + 6 * SS
-    draw.text(
-        (cx - (vb[2] - vb[0]) // 2 - vb[0], val_y),
-        val_text,
-        font=val_font,
-        fill=ink,
-    )
-    if unit_text:
-        ub = draw.textbbox((0, 0), unit_text, font=small_font)
-        # Anchor beneath the value's drawn ink bottom (val_y + vb[3]), not its
-        # height — otherwise a font with top bearing makes the two collide.
+        vb = draw.textbbox((0, 0), val_text, font=val_font)
+        ub = draw.textbbox((0, 0), units_label, font=small_font)
+        gap = 4 * SS
+        total_w = (vb[2] - vb[0]) + gap + (ub[2] - ub[0])
+        vx = cx - total_w // 2
         draw.text(
-            (cx - (ub[2] - ub[0]) // 2 - ub[0], val_y + vb[3] + 2 * SS - ub[1]),
-            unit_text,
+            (vx - vb[0], cap_cy - (vb[1] + vb[3]) // 2),
+            val_text,
+            font=val_font,
+            fill=ink,
+        )
+        ux = vx + (vb[2] - vb[0]) + gap
+        draw.text(
+            (ux - ub[0], cap_cy - (ub[1] + ub[3]) // 2),
+            units_label,
             font=small_font,
             fill=ink,
         )
