@@ -723,7 +723,7 @@ def _draw_thermometer(
     # bulb.  Uses font_date_number (Cinzel Black at this theme).
     if weather is not None and weather.current_temp is not None:
         val_font = (
-            style.font_date_number(26 * SS) if style.font_date_number else style.font_bold(26 * SS)
+            style.font_date_number(38 * SS) if style.font_date_number else style.font_bold(38 * SS)
         )
         val_text = f"{int(round(weather.current_temp))}°"
         vb = draw.textbbox((0, 0), val_text, font=val_font)
