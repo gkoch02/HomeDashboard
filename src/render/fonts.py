@@ -212,6 +212,13 @@ def audiowide(size: int) -> ImageFont.FreeTypeFont:
     return get_font("Audiowide-Regular.ttf", size)
 
 
+# Rye — single-weight Western-saloon display serif (OFL).  Heavy slab serifs
+# with an inline highlight; reads as an antique sign-painted masthead.
+# Used by the weatherglass theme for the WEATHERGLASS wordmark.
+def rye(size: int) -> ImageFont.FreeTypeFont:
+    return get_font("Rye-Regular.ttf", size)
+
+
 # NuCore — high-contrast display font for scorecard/sunrise/tides themes.
 def nucore(size: int) -> ImageFont.FreeTypeFont:
     return get_font("NuCore.otf", size)

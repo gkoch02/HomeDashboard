@@ -22,11 +22,11 @@ and the comfort band + rising-pressure trend needle pick up green.
 from __future__ import annotations
 
 from src.render.fonts import (
-    astloch_bold,
     cinzel_black,
     cinzel_semibold,
     playfair_regular,
     playfair_semibold,
+    rye,
 )
 from src.render.theme import (
     INKY_RED,
@@ -68,11 +68,11 @@ def weatherglass_theme() -> Theme:
             font_medium=playfair_regular,
             font_semibold=playfair_semibold,
             font_bold=playfair_semibold,
-            # Astloch blackletter masthead; Cinzel for engraved dial labels
+            # Rye Western-saloon masthead; Cinzel for engraved dial labels
             # and high-contrast instrument numerals (Cinzel Black has the
             # full glyph coverage we need — NuCore's metrics are degenerate
             # for pure-digit strings and degree-sign rendering).
-            font_title=astloch_bold,
+            font_title=rye,
             font_section_label=cinzel_semibold,
             font_date_number=cinzel_black,
             font_month_title=cinzel_black,
