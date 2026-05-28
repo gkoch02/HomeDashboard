@@ -36,6 +36,7 @@ from src.render.components import (
     trends_panel,
     weather_full,
     weather_panel,
+    weatherglass_panel,
     week_view,
     year_pulse_panel,
 )
@@ -418,4 +419,20 @@ def _naturalist(ctx: RenderContext) -> None:
         region=ctx.layout.naturalist,
         style=ctx.style,
         quote_refresh=ctx.quote_refresh,
+    )
+
+
+@register_component("weatherglass")
+def _weatherglass(ctx: RenderContext) -> None:
+    weatherglass_panel.draw_weatherglass(
+        ctx.draw,
+        ctx.data,
+        ctx.today,
+        ctx.now,
+        image=ctx.image,
+        region=ctx.layout.weatherglass,
+        style=ctx.style,
+        latitude=ctx.latitude,
+        longitude=ctx.longitude,
+        state_dir=ctx.state_dir,
     )

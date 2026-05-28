@@ -135,6 +135,10 @@ class DashboardApp:
         lat = self.cfg.weather.latitude
         lon = self.cfg.weather.longitude
         coords_set = not (lat == 0.0 and lon == 0.0)
+        # Preview/dummy runs must not persist state (e.g. the weatherglass
+        # pressure history): dummy pressure or a backdated --date sample would
+        # corrupt the next real run's barometer trend.
+        render_state_dir = None if (self.args.dry_run or self.args.dummy) else self.cfg.state_dir
         image = render_dashboard(
             data,
             self.cfg.display,
@@ -145,6 +149,7 @@ class DashboardApp:
             countdown_events=list(self.cfg.countdown.events),
             latitude=lat if coords_set else None,
             longitude=lon if coords_set else None,
+            state_dir=render_state_dir,
         )
         self.output.publish(
             image,

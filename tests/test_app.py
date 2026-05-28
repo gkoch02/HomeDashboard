@@ -770,6 +770,46 @@ class TestRun:
         assert captured["theme"].name == "photo"
         assert captured["theme"].style.photo_path == "/fixtures/family.jpg"
 
+    def _captured_state_dir(self, tmp_path, **arg_overrides):
+        """Run the app and return the state_dir kwarg render_dashboard received."""
+        app = self._make_full_app(tmp_path, **arg_overrides)
+        fake_data = MagicMock()
+        fake_data.events = []
+        from PIL import Image
+
+        fake_image = Image.new("1", (800, 480), 1)
+        captured = {}
+
+        def _capture(_data, _display, **kwargs):
+            captured["state_dir"] = kwargs.get("state_dir")
+            return fake_image
+
+        with (
+            patch("src.app.should_skip_refresh", return_value=False),
+            patch("src.app.should_force_full_refresh", return_value=False),
+            patch("src.app.generate_dummy_data", return_value=fake_data),
+            patch.object(app, "_load_data", return_value=fake_data),
+            patch("src.app.render_dashboard", side_effect=_capture),
+            patch.object(app.output, "publish"),
+            patch.object(app.output, "write_health_marker"),
+        ):
+            app.run()
+        return app, captured["state_dir"]
+
+    def test_dummy_run_does_not_persist_state_dir(self, tmp_path):
+        """Dummy pressure must never reach the real pressure-history file."""
+        _app, state_dir = self._captured_state_dir(tmp_path, dummy=True, dry_run=False)
+        assert state_dir is None
+
+    def test_dry_run_does_not_persist_state_dir(self, tmp_path):
+        """A backdated --date preview must not corrupt the next real trend."""
+        _app, state_dir = self._captured_state_dir(tmp_path, dummy=False, dry_run=True)
+        assert state_dir is None
+
+    def test_live_run_passes_real_state_dir(self, tmp_path):
+        app, state_dir = self._captured_state_dir(tmp_path, dummy=False, dry_run=False)
+        assert state_dir == app.cfg.state_dir
+
 
 # ---------------------------------------------------------------------------
 # Integration: end-to-end DashboardApp.run() with real collaborators where

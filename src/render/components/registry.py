@@ -51,6 +51,10 @@ class RenderContext:
     countdown_events: list | None = None
     latitude: float | None = None
     longitude: float | None = None
+    # State directory for components that need to persist tiny rolling state
+    # files (e.g. weatherglass pressure history for the barometer trend needle).
+    # ``None`` means the component should degrade gracefully without persistence.
+    state_dir: str | None = None
     # Raw PIL Image backing ``draw``. Components that need pixel-level access
     # (radial gradients, paste of L-mode sub-images) use this; the rest can
     # ignore it.
