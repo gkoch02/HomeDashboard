@@ -851,10 +851,13 @@ def _draw_barometer(
         if style.font_section_label
         else style.font_semibold(13 * SS)
     )
+    # The two horizontal labels ("STORMY" at 180°, "VERY DRY" at 0°) are the
+    # widest and sweep outward toward the rim, so the fan radius is set so even
+    # their outer ends clear the numeric scale ring and the tick marks.
     # The angles use canvas coords where 180° = left, 90° = top, 0° = right.
     # Pillow ellipse arcs start at 3 o'clock and go clockwise — we mirror our
     # math here so labels appear at the conventional positions.
-    label_radius = r_inner - 38 * SS
+    label_radius = r_inner - 50 * SS
     zones = [
         (180.0, "STORMY"),
         (135.0, "RAIN"),
