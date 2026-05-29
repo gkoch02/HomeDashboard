@@ -88,8 +88,8 @@ Example full batch for all concrete themes:
 
 ```bash
 for theme in agenda air_quality almanac astronomy constellation_map countdown default diags fantasy fuzzyclock fuzzyclock_invert \
-             light_cycle message minimalist monthly moonphase moonphase_invert old_fashioned photo qotd \
-             qotd_invert scorecard sunrise terminal tides timeline today weather year_pulse; do
+             halftone light_cycle message minimalist monthly moonphase moonphase_invert naturalist old_fashioned photo postcard qotd \
+             qotd_invert scorecard sunrise terminal tides timeline today trends weather weatherglass year_pulse; do
   if [ "$theme" = "message" ]; then
     python3 -m src.main --config /path/to/inky-config.yaml --dry-run --dummy \
       --theme "$theme" --message "Preview Message"

@@ -74,6 +74,10 @@ _THEME_SPLIT_MODES: dict[str, str] = {
     # both halves of the composition).
     "naturalist": "horizontal",
     "postcard": "horizontal",
+    # Banded instrument deck (masthead / hero gauges / secondary row) — a
+    # horizontal cut bisects the brass barometer ring so the Waveshare 1-bit
+    # rim and the Inky yellow/red treatment sit one above the other.
+    "weatherglass": "horizontal",
 }
 
 

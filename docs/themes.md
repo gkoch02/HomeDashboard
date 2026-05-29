@@ -191,6 +191,7 @@ Rules that reference weather or calendar data silently skip on the first boot (n
 | `light_cycle` | whole-day-at-a-glance | 24-hour radial clock with twilight bands on the rim, today's events as ticks inside the ring, needle and sun/moon glyph at the current moment, date and weather in the central disc. Uses `weather.latitude` / `weather.longitude` for full astronomical / nautical / civil twilight bands (falls back to OWM sunrise/sunset without them). Pure-Python — no API calls. |
 | `scorecard` | big-number metrics | KPI tiles for weather, AQI, calendar, and system data |
 | `tides` | maximum information density | Alternating horizontal bands spanning many data sources |
+| `weatherglass` | decorative weather station | Victorian brass-and-mahogany instrument deck: hero thermometer, round barometer dial with a pressure-trend needle, hygrometer + UV-index gauges, and a secondary row of wind compass, sun arc, moon porthole, and an optional AQI badge. Rye-masthead, fully procedural gauges, no new fetcher. |
 
 ### Dithered art themes
 
@@ -386,6 +387,12 @@ Big-number tile dashboard for weather, AQI, calendar, and system metrics.
 Alternating horizontal bands with the densest multi-source layout in the theme set.
 
 [![Tides theme — Waveshare/Inky split](../assets/previews/theme_tides_split.png)](../assets/previews/theme_tides_split.png)
+
+#### weatherglass
+
+Victorian weather-station instrument deck — a full-canvas brass-and-mahogany panel of procedural analog gauges. A **Rye** Western-saloon masthead carries the date and location across the top; below it three hero instruments sit side by side: a hero thermometer with a mercury column scaled to the current temperature (cold scale in blue, comfort band in green on Inky) and a large numeral with a feels-like caption, a round barometer dial whose needle points to the current pressure with a second trend needle showing the change since the last reading (rising in green, falling in blue), and a stacked hygrometer arc + UV-index bar. A secondary row of four smaller instruments follows: a wind compass rose, a sun arc with twilight bands and sunrise/sunset times, a moon porthole with a procedural terminator and phase name, and an optional AQI badge. When a weather alert is active an alert cartouche overlays the masthead. The L-mode canvas is supersampled 2× (1600×960) so the LANCZOS downsample anti-aliases every dial rim, tick mark, and engraved label; the final 1-bit step uses `threshold` (not Floyd-Steinberg) so the antialiased edges snap to crisp solid black rather than dithering into speckle. The barometer keeps a tiny rolling pressure history in `state/weatherglass_pressure_history.json` to drive the trend needle (not persisted on dry-run / dummy previews). Pure-Python — no new fetcher. On Inky the brass rims render in yellow and the mercury column + alert text render in red.
+
+[![Weatherglass theme — Waveshare/Inky split](../assets/previews/theme_weatherglass_split.png)](../assets/previews/theme_weatherglass_split.png)
 
 #### postcard
 
