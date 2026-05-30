@@ -204,9 +204,12 @@ def moonphase_theme() -> Theme:
             moonphase_full=ComponentRegion(0, 0, 800, 480),
             draw_order=["moonphase_full"],
             overlay_fn=_draw_moonphase_overlay,
+            canvas_mode="L",
+            preferred_quantization_mode="floyd_steinberg",
+            prefer_color_on_inky=True,
         ),
         style=ThemeStyle(
-            fg=1,  # white on black — night sky
+            fg=255,  # white on black — night sky (L mode)
             bg=0,
             invert_header=False,
             invert_today_col=False,

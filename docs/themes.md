@@ -170,8 +170,8 @@ Rules that reference weather or calendar data silently skip on the first boot (n
 | `weather` | weather station view | Current conditions, forecast, alerts, optional AQI |
 | `fuzzyclock` | glanceable clock | Natural-language time plus weather strip |
 | `fuzzyclock_invert` | dark clock display | Inverted variant of `fuzzyclock` |
-| `moonphase` | moon and sky display | Moon progression, illumination, weather, quote |
-| `moonphase_invert` | bright moon display | Inverted variant of `moonphase` |
+| `moonphase` | moon and sky display | Procedurally-rendered lunar disc (true terminator, maria, craters, earthshine), 7-day progression, illumination, moonrise/moonset, sunrise/sunset, next full/new moon countdown, supermoon badge, weather, quote |
+| `moonphase_invert` | bright moon display | Parchment-engraving variant of `moonphase` |
 | `photo` | custom photo background | Full-canvas image with a bottom header bar; requires `photo.path` |
 
 ### Specialized themes
@@ -311,13 +311,22 @@ Inverted version of `fuzzyclock`.
 
 #### moonphase
 
-Full-screen moon display with phase progression, sunrise/sunset, compact weather, and quote.
+Full-screen moon display built around a **procedurally-rendered lunar disc** —
+a true phase terminator, maria, craters, and earthshine on the unlit limb,
+rather than a flat font glyph. Flanked by a seven-day phase filmstrip and a
+lunar-data block: illumination, moon age, moonrise/moonset (when
+`weather.latitude`/`longitude` are set), sunrise/sunset, a compact weather
+summary, and a countdown to the next full or new moon. A **supermoon badge**
+appears when the full moon falls near perigee. Renders as smooth greyscale on
+Waveshare and a warm-yellow moon with cool earthshine on Inky. Moon position
+and phase are pure math (no API) via `src/render/moon.py` and `src/astronomy.py`.
 
 [![Moonphase theme — Waveshare/Inky split](../assets/previews/theme_moonphase_split.png)](../assets/previews/theme_moonphase_split.png)
 
 #### moonphase_invert
 
-Inverted version of `moonphase`.
+Parchment-engraving variant of `moonphase` — black ink on a light canvas, with
+the same procedural moon and lunar-data block.
 
 [![Moonphase Invert theme — Waveshare/Inky split](../assets/previews/theme_moonphase_invert_split.png)](../assets/previews/theme_moonphase_invert_split.png)
 

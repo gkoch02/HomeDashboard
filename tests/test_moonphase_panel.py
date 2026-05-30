@@ -1,7 +1,7 @@
 """Tests for src/render/components/moonphase_panel.py."""
 
 import json
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from pathlib import Path
 from unittest.mock import patch
 
@@ -290,3 +290,92 @@ class TestMoonphaseThemeIntegration:
         pool = eligible_themes(include=[], exclude=[])
         assert "moonphase" in pool
         assert "moonphase_invert" in pool
+
+
+# ---------------------------------------------------------------------------
+# Procedural moon + lunar-data paths (L / RGB canvases, coordinates)
+# ---------------------------------------------------------------------------
+
+
+class TestDrawMoonphaseProcedural:
+    def _l_canvas(self, w=800, h=480):
+        img = Image.new("L", (w, h), 0)
+        return img, ImageDraw.Draw(img)
+
+    def _rgb_canvas(self, w=800, h=480):
+        img = Image.new("RGB", (w, h), (0, 0, 0))
+        return img, ImageDraw.Draw(img)
+
+    def test_renders_on_l_canvas_with_coords(self):
+        img, draw = self._l_canvas()
+        now = datetime(2026, 5, 30, 21, 0, tzinfo=timezone.utc)
+        draw_moonphase(
+            draw,
+            _make_data(),
+            date(2026, 5, 30),
+            image=img,
+            latitude=37.77,
+            longitude=-122.42,
+            now=now,
+        )
+        assert img.getbbox() is not None
+
+    def test_renders_on_rgb_canvas(self):
+        img, draw = self._rgb_canvas()
+        now = datetime(2026, 5, 30, 21, 0, tzinfo=timezone.utc)
+        draw_moonphase(
+            draw,
+            _make_data(),
+            date(2026, 5, 30),
+            image=img,
+            latitude=37.77,
+            longitude=-122.42,
+            now=now,
+        )
+        assert img.getbbox() is not None
+
+    def test_supermoon_badge_renders(self):
+        """A near-perigee full moon exercises the supermoon branch."""
+        img, draw = self._l_canvas()
+        draw_moonphase(draw, _make_data(), date(2025, 11, 5), image=img)
+        assert img.getbbox() is not None
+
+    def test_zero_coords_treated_as_unset(self):
+        img, draw = self._l_canvas()
+        # 0,0 should skip moonrise/moonset and fall back to age only — no crash.
+        draw_moonphase(draw, _make_data(), TODAY, image=img, latitude=0.0, longitude=0.0)
+        assert img.getbbox() is not None
+
+    def test_no_coords_renders(self):
+        img, draw = self._l_canvas()
+        draw_moonphase(draw, _make_data(), TODAY, image=img)
+        assert img.getbbox() is not None
+
+
+class TestMoonphaseHelpers:
+    def test_luminance_modes(self):
+        from src.render.components.moonphase_panel import _luminance
+
+        assert _luminance(0) == 0.0
+        assert _luminance(1) == 1.0  # "1" mode white
+        assert _luminance(255) == 1.0
+        assert _luminance((255, 255, 255)) == 1.0
+        assert _luminance((0, 0, 0)) == 0.0
+
+    def test_coords_set(self):
+        from src.render.components.moonphase_panel import _coords_set
+
+        assert _coords_set(37.0, -122.0) is True
+        assert _coords_set(0.0, 0.0) is False
+        assert _coords_set(None, -122.0) is False
+        assert _coords_set(37.0, None) is False
+
+    def test_moon_tones_modes(self):
+        from src.render.components.moonphase_panel import _moon_tones
+        from src.render.theme import ThemeStyle
+
+        style = ThemeStyle()
+        for mode in ("L", "RGB", "1"):
+            for dark in (True, False):
+                tones = _moon_tones(style, mode, dark)
+                assert tones.lit is not None and tones.dark is not None

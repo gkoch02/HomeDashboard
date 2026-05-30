@@ -16,7 +16,9 @@ from src.astronomy import (
     equatorial_to_horizontal,
     gmst_degrees,
     local_sidereal_time,
+    moon_distance_earth_radii,
     moon_equatorial,
+    moon_times,
     next_meteor_shower,
     sun_times,
 )
@@ -24,6 +26,8 @@ from src.astronomy import (
 # NYC reference coordinates
 NYC_LAT = 40.7128
 NYC_LON = -74.0060
+SF_LAT = 37.7749
+SF_LON = -122.4194
 
 
 class TestJulianDay:
@@ -295,3 +299,50 @@ class TestMoonEquatorial:
         assert 0.0 <= az < 360.0
         # Ensure no NaN sneaks in
         assert not math.isnan(alt) and not math.isnan(az)
+
+
+class TestMoonDistance:
+    def test_within_physical_range(self):
+        # Perigee ~56 ER, apogee ~63.8 ER — sample a full month.
+        for day in range(1, 29):
+            dist = moon_distance_earth_radii(datetime(2026, 5, day, 12, tzinfo=timezone.utc))
+            assert 55.0 <= dist <= 64.5
+
+    def test_varies_over_a_month(self):
+        dists = [
+            moon_distance_earth_radii(datetime(2026, 5, day, 12, tzinfo=timezone.utc))
+            for day in range(1, 29)
+        ]
+        assert max(dists) - min(dists) > 4.0  # perigee↔apogee swing
+
+
+class TestMoonTimes:
+    def test_returns_utc_datetimes(self):
+        times = moon_times(date(2026, 5, 30), SF_LAT, SF_LON)
+        for dt in (times.rise, times.set):
+            if dt is not None:
+                assert dt.tzinfo is not None
+                assert dt.utcoffset() == timedelta(0)
+
+    def test_rise_and_set_fall_within_local_day(self):
+        tz = timezone(timedelta(hours=-7))
+        d = date(2026, 5, 30)
+        times = moon_times(d, SF_LAT, SF_LON, tz=tz)
+        for dt in (times.rise, times.set):
+            if dt is not None:
+                assert dt.astimezone(tz).date() == d
+
+    def test_full_moon_rises_near_sunset(self):
+        # A near-full moon rises around sunset; just assert a rise exists in the
+        # evening for a known near-full date in SF.
+        tz = timezone(timedelta(hours=-7))
+        times = moon_times(date(2026, 5, 30), SF_LAT, SF_LON, tz=tz)
+        assert times.rise is not None
+        assert 17 <= times.rise.astimezone(tz).hour <= 23
+
+    def test_high_latitude_may_lack_event(self):
+        # Far north in summer the moon can stay up or down all day — function
+        # must return None rather than raise.
+        times = moon_times(date(2026, 6, 21), 78.0, 15.0)
+        assert times.rise is None or times.rise.tzinfo is not None
+        assert times.set is None or times.set.tzinfo is not None

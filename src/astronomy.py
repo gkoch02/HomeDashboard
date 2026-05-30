@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from datetime import date, datetime, time, timedelta, timezone
+from datetime import date, datetime, time, timedelta, timezone, tzinfo
 
 # Standard solar altitudes used for key events (all negative; sun below horizon).
 # -0.833° accounts for atmospheric refraction and the sun's apparent radius.
@@ -39,6 +39,26 @@ class SunTimes:
     astronomical_dawn: datetime | None
     astronomical_dusk: datetime | None
     solar_noon: datetime | None
+
+
+@dataclass
+class MoonTimes:
+    """Moonrise / moonset for a single local date at a single location.
+
+    Both fields are ``datetime | None`` (UTC).  ``None`` means the event does
+    not occur on that local date — the moon rises ~50 minutes later each day,
+    so roughly once a month a given calendar day has no moonrise or no moonset.
+    """
+
+    rise: datetime | None
+    set: datetime | None
+
+
+# Apparent altitude of the moon's centre at rise/set.  The moon's large
+# horizontal parallax (~0.95°) and angular radius (~0.25°) very nearly cancel
+# against atmospheric refraction (~0.57°), leaving the centre a touch above the
+# geometric horizon at the moment the upper limb crosses it.
+MOON_RISE_ALTITUDE = 0.125
 
 
 @dataclass
@@ -319,6 +339,23 @@ def moon_equatorial(dt: datetime) -> tuple[float, float]:
     pixel for a sky-disc that subtends 90° per ~200 px.  Adequate for a
     visual sky chart; not accurate enough for ephemeris-grade work.
     """
+    ra_hours, dec_deg, _ = _moon_geocentric(dt)
+    return ra_hours, dec_deg
+
+
+def moon_distance_earth_radii(dt: datetime) -> float:
+    """Return the moon's geocentric distance at *dt* in Earth radii.
+
+    Mean distance is ~60.27 Earth radii; perigee ~56.0, apogee ~63.8.  Same
+    simplified Schlyter model as :func:`moon_equatorial`, so accuracy is only
+    good to a few hundredths of an Earth radius — enough to flag a supermoon
+    (full moon near perigee) but not for ephemeris work.
+    """
+    return _moon_geocentric(dt)[2]
+
+
+def _moon_geocentric(dt: datetime) -> tuple[float, float, float]:
+    """Return the moon's (RA hours, Dec deg, distance in Earth radii) at *dt*."""
     jd = _julian_day_full(dt)
     d = jd - 2451543.5  # Schlyter's "day-number" epoch (2000-01-01 00:00 UT)
 
@@ -361,7 +398,67 @@ def moon_equatorial(dt: datetime) -> tuple[float, float]:
 
     ra_deg = math.degrees(math.atan2(ye, xe)) % 360.0
     dec_deg = math.degrees(math.atan2(ze, math.hypot(xe, ye)))
-    return ra_deg / 15.0, dec_deg
+    dist = math.sqrt(xe * xe + ye * ye + ze * ze)
+    return ra_deg / 15.0, dec_deg, dist
+
+
+def _moon_altitude(dt: datetime, latitude: float, longitude: float) -> float:
+    """Apparent altitude (deg) of the moon's centre at *dt* (UTC) for a site."""
+    ra_hours, dec_deg = moon_equatorial(dt)
+    lst = local_sidereal_time(dt, longitude)
+    alt, _ = equatorial_to_horizontal(ra_hours, dec_deg, lst, latitude)
+    return alt
+
+
+def moon_times(
+    d: date,
+    latitude: float,
+    longitude: float,
+    tz: tzinfo | None = None,
+) -> MoonTimes:
+    """Compute moonrise / moonset for local date *d* at the given site.
+
+    Scans the 24-hour local day in 10-minute steps for the moon's altitude
+    crossing :data:`MOON_RISE_ALTITUDE`, then bisects each crossing to ~30 s.
+    Returned datetimes are in UTC (convert to the display timezone for
+    rendering, same convention as :func:`sun_times`).  A field is ``None`` when
+    that event does not happen on the local date.
+    """
+    tz = tz or timezone.utc
+    day_start = datetime(d.year, d.month, d.day, 0, 0, 0, tzinfo=tz)
+    step = timedelta(minutes=10)
+    steps = 24 * 6  # 10-minute samples across the day
+
+    rise: datetime | None = None
+    mset: datetime | None = None
+
+    def alt(dt: datetime) -> float:
+        return _moon_altitude(dt.astimezone(timezone.utc), latitude, longitude)
+
+    prev_t = day_start
+    prev_a = alt(prev_t) - MOON_RISE_ALTITUDE
+    for i in range(1, steps + 1):
+        cur_t = day_start + step * i
+        cur_a = alt(cur_t) - MOON_RISE_ALTITUDE
+        if prev_a == 0.0 or (prev_a < 0.0 < cur_a) or (prev_a > 0.0 > cur_a):
+            # Bisect between prev_t and cur_t for the exact crossing.
+            lo, hi = prev_t, cur_t
+            lo_a = prev_a
+            for _ in range(12):  # 10 min / 2^12 ≈ 0.15 s resolution
+                mid = lo + (hi - lo) / 2
+                mid_a = alt(mid) - MOON_RISE_ALTITUDE
+                if (lo_a < 0.0) == (mid_a < 0.0):
+                    lo, lo_a = mid, mid_a
+                else:
+                    hi = mid
+            crossing = (lo + (hi - lo) / 2).astimezone(timezone.utc)
+            if cur_a > prev_a and rise is None:
+                rise = crossing
+            elif cur_a < prev_a and mset is None:
+                mset = crossing
+        prev_t, prev_a = cur_t, cur_a
+
+    return MoonTimes(rise=rise, set=mset)
 
 
 def dark_sky_window(times: SunTimes) -> tuple[datetime, datetime] | None:

@@ -11,6 +11,8 @@ from src.render.moon import (
     moon_phase_age,
     moon_phase_glyph,
     moon_phase_name,
+    next_full_moon,
+    next_new_moon,
 )
 
 
@@ -154,3 +156,38 @@ class TestMoonPhaseGlyph:
         """Known lunar dates should not crash and return valid glyphs."""
         glyph = moon_phase_glyph(d)
         assert glyph in _MOON_GLYPHS
+
+
+class TestNextPhase:
+    def test_next_full_moon_is_future_and_full(self):
+        d = date(2026, 5, 30)
+        when, days = next_full_moon(d)
+        assert when == d + timedelta(days=days)
+        assert days >= 1
+        # The returned date should land very close to a true full moon.
+        assert moon_illumination_close_to(when, 100.0)
+
+    def test_next_new_moon_is_future_and_new(self):
+        d = date(2026, 5, 30)
+        when, days = next_new_moon(d)
+        assert when == d + timedelta(days=days)
+        assert days >= 1
+        assert moon_illumination_close_to(when, 0.0)
+
+    def test_counts_within_one_synodic_month(self):
+        for offset in range(0, 30, 3):
+            d = date(2026, 1, 1) + timedelta(days=offset)
+            assert 1 <= next_full_moon(d)[1] <= 31
+            assert 1 <= next_new_moon(d)[1] <= 31
+
+    def test_known_full_moon_predicted(self):
+        # 2026-05-31 is a full moon; from a few days before, next_full_moon
+        # should point at it.
+        when, _ = next_full_moon(date(2026, 5, 27))
+        assert abs((when - date(2026, 5, 31)).days) <= 1
+
+
+def moon_illumination_close_to(d: date, target: float, tol: float = 6.0) -> bool:
+    from src.render.moon import moon_illumination
+
+    return abs(moon_illumination(d) - target) <= tol
