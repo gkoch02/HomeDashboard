@@ -379,3 +379,16 @@ class TestMoonphaseHelpers:
             for dark in (True, False):
                 tones = _moon_tones(style, mode, dark)
                 assert tones.lit is not None and tones.dark is not None
+
+    def test_bilevel_disc_centered_at_requested_point(self):
+        """The "1"/fallback path must honour cx, cy (regression for PR #183)."""
+        from PIL import Image, ImageDraw
+
+        from src.render.moon_render import MoonTones, render_moon_disc
+
+        img = Image.new("1", (400, 200), 0)
+        draw = ImageDraw.Draw(img)
+        render_moon_disc(img, draw, 200, 100, 40, 14.7, MoonTones(lit=1, dark=0, edge=1))
+        x0, y0, x1, y1 = img.getbbox()
+        assert abs((x0 + x1) // 2 - 200) <= 2
+        assert abs((y0 + y1) // 2 - 100) <= 2

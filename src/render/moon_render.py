@@ -45,15 +45,20 @@ def _draw_moon_core(
     tones: MoonTones,
     scale: int,
     show_edge: bool,
+    center: tuple[int, int] | None = None,
 ) -> None:
-    """Draw the moon centred at (r, r) with radius *r* into draw *d*.
+    """Draw the moon with radius *r* into draw *d*, centred at *center*.
+
+    *center* defaults to ``(r, r)`` (the supersample sub-image case); the
+    bilevel fallback passes the real destination centre so the disc lands in
+    the moon row rather than the top-left corner.
 
     *scale* is the supersample factor, used to size strokes so they stay
     proportional after downsampling.  When *show_edge* is true a limb ring
     outlines the full disc (so partial phases still read as a sphere); when
     false only the lit shape is drawn (bare crescent on the background).
     """
-    cx = cy = r
+    cx, cy = center if center is not None else (r, r)
     w = max(1, scale)
 
     # 1. Day side: fill the whole disc with the sunlit tone.  The night side is
@@ -117,7 +122,9 @@ def render_moon_disc(
     mode = image.mode if image is not None else "L"
 
     if image is None or mode == "1" or radius < 4:
-        _draw_moon_core(draw, radius, age, synodic, tones, scale=1, show_edge=show_edge)
+        _draw_moon_core(
+            draw, radius, age, synodic, tones, scale=1, show_edge=show_edge, center=(cx, cy)
+        )
         return
 
     scale = 4
