@@ -33,14 +33,13 @@ class MoonTones:
 
     Each value is an ``int`` for ``"L"``/``"1"`` canvases or an ``(r, g, b)``
     tuple for ``"RGB"``.  ``lit`` is the sunlit limb, ``dark`` the earthshine
-    on the unlit side, ``maria`` the dark seas, ``crater`` crater detail, and
+    on the unlit side, ``maria`` the dark seas (and crater dimples), and
     ``edge`` the limb ring that outlines the whole disc.
     """
 
     lit: int | tuple[int, int, int]
     dark: int | tuple[int, int, int]
     maria: int | tuple[int, int, int]
-    crater: int | tuple[int, int, int]
     edge: int | tuple[int, int, int]
 
 
@@ -59,14 +58,13 @@ _MARIA: tuple[tuple[float, float, float, float], ...] = (
     (-0.16, 0.30, 0.14, 0.16),  # Mare Nubium
 )
 
-# Craters as (cx, cy, r) in unit-disc coordinates — bright rims with darker
-# floors.  Tycho sits low-centre (the ray system origin); Copernicus mid-left.
+# Craters as (cx, cy, r) in unit-disc coordinates, drawn as soft shallow
+# dimples (a bright rim ring read as "targets" once dithered).  Tycho sits
+# low-centre; Copernicus mid-left.  A handful is plenty for surface texture.
 _CRATERS: tuple[tuple[float, float, float], ...] = (
-    (-0.02, 0.62, 0.07),  # Tycho
-    (-0.28, 0.10, 0.05),  # Copernicus
-    (-0.46, -0.30, 0.04),  # Plato
-    (0.40, 0.42, 0.04),  # Stevinus-ish
-    (0.30, -0.44, 0.035),
+    (-0.02, 0.60, 0.055),  # Tycho
+    (-0.30, 0.08, 0.045),  # Copernicus
+    (-0.47, -0.32, 0.035),  # Plato
 )
 
 
@@ -115,12 +113,18 @@ def _draw_moon_core(
             fill=sea_soft,
         )
 
-    floor = _blend(tones.crater, tones.maria, 0.30)
+    # Soft shallow dimples — a gentle darkening toward the maria tone, with a
+    # slightly darker core, and no bright rim (the rim read as a "target").
+    dimple = _blend(tones.lit, tones.maria, 0.32)
+    dimple_core = _blend(tones.lit, tones.maria, 0.5)
     for kx, ky, kr in _CRATERS:
         ex, ey = cx + kx * r, cy + ky * r
         er = max(1.0, kr * r)
-        d.ellipse([ex - er, ey - er, ex + er, ey + er], fill=floor)
-        d.ellipse([ex - er, ey - er, ex + er, ey + er], outline=tones.crater, width=w)
+        d.ellipse([ex - er, ey - er, ex + er, ey + er], fill=dimple)
+        d.ellipse(
+            [ex - er * 0.55, ey - er * 0.55, ex + er * 0.55, ey + er * 0.55],
+            fill=dimple_core,
+        )
 
     # 2. Terminator geometry. phase 0 = new, 0.5 = full.  c = cos(phase angle);
     #    the terminator x is xt = xlim * c.  Waxing lights the right limb
@@ -166,6 +170,12 @@ def render_moon_disc(
     and LANCZOS-downsampled for a clean anti-aliased limb, then pasted through
     a circular mask so nothing outside the disc is touched.  On ``"1"`` canvases
     (or when no backing image is available) it is drawn flat at 1×.
+
+    On ``"L"`` canvases the downsampled disc is Floyd-Steinberg-dithered to
+    bilevel *here* so the surrounding theme can quantize with ``threshold``
+    (keeping anti-aliased text crisp) while the moon still carries its smooth
+    maria / earthshine gradients as stipple.  ``"RGB"`` (Inky) keeps full tone
+    and defers to the panel's palette mapping.
     """
     image = image if image is not None else getattr(draw, "_image", None)
     mode = image.mode if image is not None else "L"
@@ -181,6 +191,9 @@ def render_moon_disc(
     sub_draw = ImageDraw.Draw(sub)
     _draw_moon_core(sub_draw, big, age, synodic, tones, scale=scale)
     sub = sub.resize((radius * 2, radius * 2), Image.LANCZOS)
+    if mode == "L":
+        # Pre-stipple the disc so a threshold global quantization preserves it.
+        sub = sub.convert("1").convert("L")
 
     mask = Image.new("L", (size, size), 0)
     ImageDraw.Draw(mask).ellipse([0, 0, size - 1, size - 1], fill=255)

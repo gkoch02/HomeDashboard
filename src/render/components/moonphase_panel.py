@@ -119,24 +119,22 @@ def _moon_tones(style: ThemeStyle, mode: str, dark_canvas: bool) -> MoonTones:
                 lit=(244, 224, 120),
                 dark=(46, 58, 104),
                 maria=(170, 150, 96),
-                crater=(232, 224, 180),
                 edge=(150, 150, 180),
             )
         return MoonTones(
             lit=(250, 238, 150),
             dark=(70, 84, 128),
             maria=(206, 176, 96),
-            crater=(120, 110, 70),
             edge=(40, 40, 55),
         )
     if mode == "1":
         fg = 1 if dark_canvas else 0
         bg = 0 if dark_canvas else 1
-        return MoonTones(lit=fg, dark=bg, maria=fg, crater=fg, edge=fg)
+        return MoonTones(lit=fg, dark=bg, maria=fg, edge=fg)
     # "L" greyscale.
     if dark_canvas:
-        return MoonTones(lit=232, dark=58, maria=150, crater=210, edge=120)
-    return MoonTones(lit=236, dark=72, maria=176, crater=120, edge=44)
+        return MoonTones(lit=232, dark=58, maria=150, edge=120)
+    return MoonTones(lit=236, dark=72, maria=176, edge=44)
 
 
 def _coords_set(latitude: float | None, longitude: float | None) -> bool:

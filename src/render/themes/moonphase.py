@@ -205,7 +205,7 @@ def moonphase_theme() -> Theme:
             draw_order=["moonphase_full"],
             overlay_fn=_draw_moonphase_overlay,
             canvas_mode="L",
-            preferred_quantization_mode="floyd_steinberg",
+            preferred_quantization_mode="threshold",
             prefer_color_on_inky=True,
         ),
         style=ThemeStyle(
