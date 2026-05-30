@@ -202,6 +202,10 @@ def _moonphase_full(ctx: RenderContext) -> None:
         region=ctx.layout.moonphase_full,
         style=ctx.style,
         quote_refresh=ctx.quote_refresh,
+        image=ctx.image,
+        latitude=ctx.latitude,
+        longitude=ctx.longitude,
+        now=ctx.now,
     )
 
 

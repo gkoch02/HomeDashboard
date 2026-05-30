@@ -5,7 +5,7 @@ Uses a simplified algorithm based on the known new-moon reference date
 """
 
 import math
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 
 # Mean synodic month in days (new moon to new moon)
 _SYNODIC_MONTH = 29.53059
@@ -96,3 +96,32 @@ def moon_phase_glyph(d: date) -> str:
     fraction = age / _SYNODIC_MONTH
     idx = int(fraction * 28 + 0.5) % 28
     return _MOON_GLYPHS[idx]
+
+
+def _days_until_age(d: date, target_age: float) -> float:
+    """Days from *d* (at noon) until the moon next reaches *target_age*."""
+    age = moon_phase_age(d)
+    delta = (target_age - age) % _SYNODIC_MONTH
+    # When we're essentially at the target already, roll forward a full cycle so
+    # "next" always means a future occurrence rather than today.
+    if delta < 0.5:
+        delta += _SYNODIC_MONTH
+    return delta
+
+
+def next_full_moon(d: date) -> tuple[date, int]:
+    """Return the date of the next full moon and the whole-day count until it.
+
+    Full moon corresponds to age ``_SYNODIC_MONTH / 2``.  The day count is the
+    rounded number of days from *d* to that date.
+    """
+    delta = _days_until_age(d, _SYNODIC_MONTH / 2.0)
+    days = int(round(delta))
+    return d + timedelta(days=days), days
+
+
+def next_new_moon(d: date) -> tuple[date, int]:
+    """Return the date of the next new moon and the whole-day count until it."""
+    delta = _days_until_age(d, 0.0)
+    days = int(round(delta))
+    return d + timedelta(days=days), days

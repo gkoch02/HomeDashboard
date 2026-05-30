@@ -40,10 +40,13 @@ def moonphase_invert_theme() -> Theme:
             moonphase_full=ComponentRegion(0, 0, 800, 480),
             draw_order=["moonphase_full"],
             overlay_fn=_draw_moonphase_overlay,
+            canvas_mode="L",
+            preferred_quantization_mode="threshold",
+            prefer_color_on_inky=True,
         ),
         style=ThemeStyle(
-            fg=0,  # black on white — parchment / fairy-tale book
-            bg=1,
+            fg=0,  # black on white — parchment / fairy-tale book (L mode)
+            bg=255,
             invert_header=False,
             invert_today_col=False,
             invert_allday_bars=False,
