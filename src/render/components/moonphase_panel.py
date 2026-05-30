@@ -63,6 +63,15 @@ QUOTES_FILE = Path(__file__).parent.parent.parent.parent / "config" / "quotes.js
 # definition closely enough for a celebratory badge.
 _SUPERMOON_DISTANCE_ER = 57.4
 
+# Hero lunar-disc radius (px); the flanking filmstrip moons are smaller.
+_HERO_R = 95
+
+# Bottom-block typography (kept as constants so the layout pass can measure the
+# block height before drawing and distribute the spacing down to the border).
+_DATA_FONT_PT = 26
+_QUOTE_FONT_PT = 23
+_ATTR_FONT_PT = 32
+
 _DEFAULT_QUOTES = [
     {"text": "Not all those who wander are lost.", "author": "J.R.R. Tolkien"},
     {"text": "The moon is a friend for the lonesome to talk to.", "author": "Carl Sandburg"},
@@ -231,7 +240,7 @@ def _draw_moon_row(
 ) -> None:
     """Draw the hero moon and 3 flanking moons per side, with day labels."""
     cy = y_top + row_h // 2
-    hero_r = 95
+    hero_r = _HERO_R
     render_moon_disc(image, draw, cx, cy, hero_r, moon_phase_age(today), tones)
 
     # Flanking moons: (day delta, radius, x offset from centre).
@@ -285,9 +294,10 @@ def _draw_lunar_line(
     latitude: float | None,
     longitude: float | None,
     tz: tzinfo | None,
+    gap: int = 6,
 ) -> int:
     """Draw moonrise/moonset (when located) + moon age."""
-    font = cormorant_regular(26)
+    font = cormorant_regular(_DATA_FONT_PT)
     parts: list[str] = []
     if _coords_set(latitude, longitude):
         times = moon_times(today, latitude, longitude, tz=tz)
@@ -298,7 +308,7 @@ def _draw_lunar_line(
         if mset is not None:
             parts.append(f"moonset {fmt_time(mset)}")
     parts.append(f"age {moon_phase_age(today):.1f}d")
-    return _draw_centered(draw, "  ~  ".join(parts), cx, y, font, style.fg, gap=6)
+    return _draw_centered(draw, "  ~  ".join(parts), cx, y, font, style.fg, gap=gap)
 
 
 def _draw_sun_weather_line(
@@ -307,11 +317,12 @@ def _draw_sun_weather_line(
     cx: int,
     y: int,
     style: ThemeStyle,
+    gap: int = 6,
 ) -> int:
     """Draw sunrise/sunset and a compact current-weather summary."""
     if weather is None:
         return y
-    font = cormorant_regular(26)
+    font = cormorant_regular(_DATA_FONT_PT)
     parts: list[str] = []
     if weather.sunrise:
         parts.append(f"sunrise {fmt_time(weather.sunrise)}")
@@ -321,7 +332,7 @@ def _draw_sun_weather_line(
         parts.append(f"{weather.current_temp:.0f}° {weather.current_description.title()}")
     if not parts:
         return y
-    return _draw_centered(draw, "  ~  ".join(parts), cx, y, font, style.fg, gap=6)
+    return _draw_centered(draw, "  ~  ".join(parts), cx, y, font, style.fg, gap=gap)
 
 
 def _draw_next_phase_line(
@@ -330,6 +341,7 @@ def _draw_next_phase_line(
     cx: int,
     y: int,
     style: ThemeStyle,
+    gap: int = 10,
 ) -> int:
     """Draw the countdown to whichever principal phase comes first."""
     full_date, full_days = next_full_moon(today)
@@ -342,7 +354,7 @@ def _draw_next_phase_line(
     when_str = f"{when.strftime('%b')} {when.day}"
     text = f"Next {label} in {days} {day_word}  ~  {when_str}"
     return _draw_centered(
-        draw, text, cx, y, cormorant_medium(26), style.secondary_accent_fill(), gap=10
+        draw, text, cx, y, cormorant_medium(_DATA_FONT_PT), style.secondary_accent_fill(), gap=gap
     )
 
 
@@ -355,11 +367,15 @@ def _draw_quote(
     max_h: int,
     style: ThemeStyle,
     quote_refresh: str,
+    gap: int = 2,
 ) -> None:
-    """Draw a small wrapped quote at the bottom, centered."""
+    """Draw a small wrapped quote at the bottom, centered.
+
+    *gap* is the vertical space between the quote body and its attribution.
+    """
     quote = _quote_for_panel(today, refresh=quote_refresh)
     text = f'"{quote["text"]}"'
-    quote_font = cormorant_italic(23)
+    quote_font = cormorant_italic(_QUOTE_FONT_PT)
     lines_h = text_height(quote_font)
     lines = wrap_lines(text, quote_font, max_w)[:2]
 
@@ -369,12 +385,20 @@ def _draw_quote(
         draw.text((cx - lw // 2, cur_y), line, font=quote_font, fill=style.fg)
         cur_y += lines_h + 4
 
-    attr_font = tangerine_regular(32)
+    attr_font = tangerine_regular(_ATTR_FONT_PT)
     attr = f"— {quote['author']}"
     attr_w = text_width(draw, attr, attr_font)
-    attr_y = cur_y + 2
+    attr_y = cur_y + gap
     if attr_y + text_height(attr_font) <= y + max_h:
         draw.text((cx - attr_w // 2, attr_y), attr, font=attr_font, fill=style.fg)
+
+
+def _quote_body_height(today: date, max_w: int, quote_refresh: str) -> int:
+    """Measure the wrapped quote body height (no attribution) for layout."""
+    quote = _quote_for_panel(today, refresh=quote_refresh)
+    quote_font = cormorant_italic(_QUOTE_FONT_PT)
+    n_lines = len(wrap_lines(f'"{quote["text"]}"', quote_font, max_w)[:2])
+    return n_lines * text_height(quote_font) + max(0, n_lines - 1) * 4
 
 
 # ---------------------------------------------------------------------------
@@ -424,17 +448,35 @@ def draw_moonphase(
     y = _draw_date_line(draw, today, cx, y0 + 10, style)
     y = _draw_phase_name(draw, today, cx, y, style, supermoon)
 
-    # Hero + flanking filmstrip.
+    # Hero + flanking filmstrip.  The row is tall enough to hold the hero disc
+    # (diameter 2*_HERO_R) with a little vertical breathing room.
     moon_row_y = y
-    moon_row_h = 182
+    moon_row_h = 2 * _HERO_R + 8
     _draw_moon_row(draw, image, today, cx, moon_row_y, moon_row_h, tones, style)
-    y = moon_row_y + moon_row_h + 2
 
-    # Separator + lunar data block.
-    y = _draw_separator(draw, cx, y, w, style)
-    y = _draw_lunar_line(draw, today, cx, y, style, latitude, longitude, tz)
-    y = _draw_sun_weather_line(draw, weather, cx, y, style)
-    y = _draw_next_phase_line(draw, today, cx, y, style)
+    # Separator sits just below the hero moon's actual bottom edge (not the row
+    # box) so it can never clip into the disc.
+    moon_cy = moon_row_y + moon_row_h // 2
+    y = _draw_separator(draw, cx, moon_cy + _HERO_R + 8, w, style)
 
-    # Quote anchored to the remaining space.
-    _draw_quote(draw, today, cx, y, w - 60, region.y + region.h - y, style, quote_refresh)
+    # Distribute the data lines + quote evenly across the remaining height so the
+    # block reaches down to the bottom border instead of clustering up top.
+    quote_w = w - 60
+    data_line_h = text_height(cormorant_regular(_DATA_FONT_PT))
+    quote_body_h = _quote_body_height(today, quote_w, quote_refresh)
+    attr_h = text_height(tangerine_regular(_ATTR_FONT_PT))
+
+    sun_draws = weather is not None and (
+        bool(weather.sunrise) or bool(weather.sunset) or weather.current_temp is not None
+    )
+    n_data = 2 + (1 if sun_draws else 0)  # lunar + next-phase always draw
+    n_gaps = n_data + 1  # gaps between data lines, then quote→attribution
+
+    bottom_limit = region.y + region.h - 16
+    fixed_h = n_data * data_line_h + quote_body_h + attr_h
+    gap = max(4, min(26, (bottom_limit - y - fixed_h) // n_gaps))
+
+    y = _draw_lunar_line(draw, today, cx, y, style, latitude, longitude, tz, gap=gap)
+    y = _draw_sun_weather_line(draw, weather, cx, y, style, gap=gap)
+    y = _draw_next_phase_line(draw, today, cx, y, style, gap=gap)
+    _draw_quote(draw, today, cx, y, quote_w, region.y + region.h - y, style, quote_refresh, gap=gap)
