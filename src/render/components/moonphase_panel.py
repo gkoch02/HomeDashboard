@@ -287,7 +287,7 @@ def _draw_lunar_line(
     tz: tzinfo | None,
 ) -> int:
     """Draw moonrise/moonset (when located) + moon age."""
-    font = cormorant_regular(22)
+    font = cormorant_regular(26)
     parts: list[str] = []
     if _coords_set(latitude, longitude):
         times = moon_times(today, latitude, longitude, tz=tz)
@@ -311,7 +311,7 @@ def _draw_sun_weather_line(
     """Draw sunrise/sunset and a compact current-weather summary."""
     if weather is None:
         return y
-    font = cormorant_regular(22)
+    font = cormorant_regular(26)
     parts: list[str] = []
     if weather.sunrise:
         parts.append(f"sunrise {fmt_time(weather.sunrise)}")
@@ -342,7 +342,7 @@ def _draw_next_phase_line(
     when_str = f"{when.strftime('%b')} {when.day}"
     text = f"Next {label} in {days} {day_word}  ~  {when_str}"
     return _draw_centered(
-        draw, text, cx, y, cormorant_medium(22), style.secondary_accent_fill(), gap=8
+        draw, text, cx, y, cormorant_medium(26), style.secondary_accent_fill(), gap=10
     )
 
 
@@ -359,7 +359,7 @@ def _draw_quote(
     """Draw a small wrapped quote at the bottom, centered."""
     quote = _quote_for_panel(today, refresh=quote_refresh)
     text = f'"{quote["text"]}"'
-    quote_font = cormorant_italic(21)
+    quote_font = cormorant_italic(23)
     lines_h = text_height(quote_font)
     lines = wrap_lines(text, quote_font, max_w)[:2]
 
@@ -369,11 +369,11 @@ def _draw_quote(
         draw.text((cx - lw // 2, cur_y), line, font=quote_font, fill=style.fg)
         cur_y += lines_h + 4
 
-    attr_font = tangerine_regular(28)
+    attr_font = tangerine_regular(32)
     attr = f"— {quote['author']}"
     attr_w = text_width(draw, attr, attr_font)
     attr_y = cur_y + 2
-    if attr_y + lines_h < y + max_h:
+    if attr_y + text_height(attr_font) <= y + max_h:
         draw.text((cx - attr_w // 2, attr_y), attr, font=attr_font, fill=style.fg)
 
 
@@ -426,7 +426,7 @@ def draw_moonphase(
 
     # Hero + flanking filmstrip.
     moon_row_y = y
-    moon_row_h = 196
+    moon_row_h = 182
     _draw_moon_row(draw, image, today, cx, moon_row_y, moon_row_h, tones, style)
     y = moon_row_y + moon_row_h + 2
 
