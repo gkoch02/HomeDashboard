@@ -1,15 +1,17 @@
 """Moonphase panel — full-canvas moon phase display.
 
 Renders the current moon phase as a large, procedurally-drawn lunar disc
-(true terminator, maria, craters, earthshine) flanked by 3 days on each side
-showing the lunar progression.  Below the filmstrip sits a lunar data block:
-illumination, moon age, moonrise/moonset, sunrise/sunset, weather, and the
-countdown to the next full / new moon — with a supermoon badge when the full
-moon falls near perigee.  A daily quote anchors the bottom.
+(solid high-contrast lit shape, true terminator, faint earthshine) flanked by
+3 days on each side showing the lunar progression.  Below the filmstrip sits a
+lunar data block: illumination, moon age, moonrise/moonset, sunrise/sunset,
+weather, and the countdown to the next full / new moon — with a supermoon
+badge when the full moon falls near perigee.  A daily quote anchors the bottom.
 
 The hero and flanking discs are rendered by :mod:`src.render.moon_render`,
-which adapts to the canvas mode: smooth greyscale on Waveshare ("L"), a warm
-yellow / cool earthshine on Inky ("RGB"), and a flat bilevel fallback on "1".
+which adapts to the canvas mode: solid white-on-black on Waveshare ("L"), a
+warm yellow lit limb / cool earthshine on Inky ("RGB"), and a flat bilevel
+fallback on "1".  The hero keeps a full-disc outline ring; the flanking moons
+are drawn bare (lit shape only).
 
 Used by the ``moonphase`` and ``moonphase_invert`` themes.
 """
@@ -118,23 +120,23 @@ def _moon_tones(style: ThemeStyle, mode: str, dark_canvas: bool) -> MoonTones:
             return MoonTones(
                 lit=(244, 224, 120),
                 dark=(46, 58, 104),
-                maria=(170, 150, 96),
                 edge=(150, 150, 180),
             )
         return MoonTones(
             lit=(250, 238, 150),
             dark=(70, 84, 128),
-            maria=(206, 176, 96),
             edge=(40, 40, 55),
         )
     if mode == "1":
         fg = 1 if dark_canvas else 0
         bg = 0 if dark_canvas else 1
-        return MoonTones(lit=fg, dark=bg, maria=fg, edge=fg)
-    # "L" greyscale.
+        return MoonTones(lit=fg, dark=bg, edge=fg)
+    # "L" greyscale — solid high-contrast moon: pure-white lit side, the unlit
+    # side drops to the background, and a solid full-disc ring keeps the sphere
+    # readable on partial phases.
     if dark_canvas:
-        return MoonTones(lit=232, dark=58, maria=150, edge=120)
-    return MoonTones(lit=236, dark=72, maria=176, edge=44)
+        return MoonTones(lit=255, dark=0, edge=255)
+    return MoonTones(lit=0, dark=255, edge=0)
 
 
 def _coords_set(latitude: float | None, longitude: float | None) -> bool:
@@ -245,7 +247,7 @@ def _draw_moon_row(
     for delta, r, x_off in flanks:
         d = today + timedelta(days=delta)
         gx = cx + x_off
-        render_moon_disc(image, draw, gx, cy, r, moon_phase_age(d), tones)
+        render_moon_disc(image, draw, gx, cy, r, moon_phase_age(d), tones, show_edge=False)
         label = d.strftime("%a")
         lw = text_width(draw, label, label_font)
         draw.text((gx - lw // 2, cy + r + 5), label, font=label_font, fill=style.fg)

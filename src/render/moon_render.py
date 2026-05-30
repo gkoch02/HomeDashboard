@@ -1,8 +1,8 @@
 """Procedural moon-disc renderer for the moonphase theme.
 
-Draws a believable lunar disc — a true phase terminator, maria (dark seas),
-a scatter of craters, a soft limb, and earthshine on the unlit side — rather
-than the flat Weather-Icons font glyph the theme used before.
+Draws a clean lunar disc — a true phase terminator, a soft limb, and
+earthshine on the unlit side — rather than the flat Weather-Icons font glyph
+the theme used before.
 
 The renderer is mode-aware:
 
@@ -19,12 +19,8 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
 
 from PIL import Image, ImageDraw
-
-if TYPE_CHECKING:
-    pass
 
 
 @dataclass(frozen=True)
@@ -33,52 +29,12 @@ class MoonTones:
 
     Each value is an ``int`` for ``"L"``/``"1"`` canvases or an ``(r, g, b)``
     tuple for ``"RGB"``.  ``lit`` is the sunlit limb, ``dark`` the earthshine
-    on the unlit side, ``maria`` the dark seas (and crater dimples), and
-    ``edge`` the limb ring that outlines the whole disc.
+    on the unlit side, and ``edge`` the limb ring that outlines the whole disc.
     """
 
     lit: int | tuple[int, int, int]
     dark: int | tuple[int, int, int]
-    maria: int | tuple[int, int, int]
     edge: int | tuple[int, int, int]
-
-
-# Maria (dark lunar seas) as ellipses in unit-disc coordinates: (cx, cy, rx, ry)
-# with the disc spanning -1..1, +x right, +y down.  Loosely matches the
-# near-side layout (Imbrium upper-left, Serenitatis/Tranquillitatis centre,
-# Crisium right, Procellarum down the left limb) so the moon reads as *the*
-# Moon rather than a generic blotch.  Hand-placed, not survey-accurate.
-_MARIA: tuple[tuple[float, float, float, float], ...] = (
-    (-0.34, -0.40, 0.30, 0.24),  # Mare Imbrium
-    (0.04, -0.16, 0.20, 0.20),  # Mare Serenitatis
-    (0.22, 0.10, 0.20, 0.22),  # Mare Tranquillitatis
-    (0.52, -0.06, 0.16, 0.20),  # Mare Crisium
-    (-0.56, 0.04, 0.18, 0.34),  # Oceanus Procellarum
-    (0.10, 0.40, 0.16, 0.16),  # Mare Nectaris / Fecunditatis
-    (-0.16, 0.30, 0.14, 0.16),  # Mare Nubium
-)
-
-# Craters as (cx, cy, r) in unit-disc coordinates, drawn as soft shallow
-# dimples (a bright rim ring read as "targets" once dithered).  Tycho sits
-# low-centre; Copernicus mid-left.  A handful is plenty for surface texture.
-_CRATERS: tuple[tuple[float, float, float], ...] = (
-    (-0.02, 0.60, 0.055),  # Tycho
-    (-0.30, 0.08, 0.045),  # Copernicus
-    (-0.47, -0.32, 0.035),  # Plato
-)
-
-
-def _blend(
-    a: int | tuple[int, int, int],
-    b: int | tuple[int, int, int],
-    t: float,
-) -> int | tuple[int, int, int]:
-    """Linear blend ``a→b`` by ``t`` in [0,1], preserving int / tuple form."""
-    if isinstance(a, tuple):
-        b_t = b if isinstance(b, tuple) else (b, b, b)
-        return tuple(int(round(a[i] + (b_t[i] - a[i]) * t)) for i in range(3))  # type: ignore[return-value]
-    b_i = b if isinstance(b, int) else int(sum(b) / 3)
-    return int(round(a + (b_i - a) * t))
 
 
 def _draw_moon_core(
@@ -88,43 +44,21 @@ def _draw_moon_core(
     synodic: float,
     tones: MoonTones,
     scale: int,
+    show_edge: bool,
 ) -> None:
     """Draw the moon centred at (r, r) with radius *r* into draw *d*.
 
     *scale* is the supersample factor, used to size strokes so they stay
-    proportional after downsampling.
+    proportional after downsampling.  When *show_edge* is true a limb ring
+    outlines the full disc (so partial phases still read as a sphere); when
+    false only the lit shape is drawn (bare crescent on the background).
     """
     cx = cy = r
     w = max(1, scale)
 
-    # 1. Day side: fill the whole disc with the sunlit tone, then lay in the
-    #    surface texture (maria + craters) as if it were full.  We carve the
-    #    night side back out in step 3, so detail only ever shows where lit.
+    # 1. Day side: fill the whole disc with the sunlit tone.  The night side is
+    #    carved back out in step 3.
     d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=tones.lit)
-
-    sea = tones.maria
-    sea_soft = _blend(tones.maria, tones.lit, 0.45)
-    for mx, my, rx, ry in _MARIA:
-        ex, ey = cx + mx * r, cy + my * r
-        erx, ery = rx * r, ry * r
-        d.ellipse([ex - erx, ey - ery, ex + erx, ey + ery], fill=sea)
-        d.ellipse(
-            [ex - erx * 0.62, ey - ery * 0.62, ex + erx * 0.62, ey + ery * 0.62],
-            fill=sea_soft,
-        )
-
-    # Soft shallow dimples — a gentle darkening toward the maria tone, with a
-    # slightly darker core, and no bright rim (the rim read as a "target").
-    dimple = _blend(tones.lit, tones.maria, 0.32)
-    dimple_core = _blend(tones.lit, tones.maria, 0.5)
-    for kx, ky, kr in _CRATERS:
-        ex, ey = cx + kx * r, cy + ky * r
-        er = max(1.0, kr * r)
-        d.ellipse([ex - er, ey - er, ex + er, ey + er], fill=dimple)
-        d.ellipse(
-            [ex - er * 0.55, ey - er * 0.55, ex + er * 0.55, ey + er * 0.55],
-            fill=dimple_core,
-        )
 
     # 2. Terminator geometry. phase 0 = new, 0.5 = full.  c = cos(phase angle);
     #    the terminator x is xt = xlim * c.  Waxing lights the right limb
@@ -134,7 +68,7 @@ def _draw_moon_core(
     waxing = phase < 0.5
 
     # 3. Night side: paint the unlit region flat with earthshine so the dark
-    #    limb stays faintly visible against the sky but carries no bright seas.
+    #    limb stays faintly visible against the sky.
     for yy in range(-r, r + 1):
         xlim = math.sqrt(max(0.0, r * r - yy * yy))
         xt = xlim * c
@@ -150,7 +84,8 @@ def _draw_moon_core(
             )
 
     # 4. Limb ring — outlines the disc so it reads on any background.
-    d.ellipse([cx - r, cy - r, cx + r, cy + r], outline=tones.edge, width=w)
+    if show_edge:
+        d.ellipse([cx - r, cy - r, cx + r, cy + r], outline=tones.edge, width=w)
 
 
 def render_moon_disc(
@@ -163,6 +98,7 @@ def render_moon_disc(
     tones: MoonTones,
     *,
     synodic: float = 29.53059,
+    show_edge: bool = True,
 ) -> None:
     """Paint a moon disc of *radius* centred at (cx, cy).
 
@@ -174,14 +110,14 @@ def render_moon_disc(
     On ``"L"`` canvases the downsampled disc is Floyd-Steinberg-dithered to
     bilevel *here* so the surrounding theme can quantize with ``threshold``
     (keeping anti-aliased text crisp) while the moon still carries its smooth
-    maria / earthshine gradients as stipple.  ``"RGB"`` (Inky) keeps full tone
-    and defers to the panel's palette mapping.
+    lit / earthshine gradient as stipple.  ``"RGB"`` (Inky) keeps full tone and
+    defers to the panel's palette mapping.
     """
     image = image if image is not None else getattr(draw, "_image", None)
     mode = image.mode if image is not None else "L"
 
     if image is None or mode == "1" or radius < 4:
-        _draw_moon_core(draw, radius, age, synodic, tones, scale=1)
+        _draw_moon_core(draw, radius, age, synodic, tones, scale=1, show_edge=show_edge)
         return
 
     scale = 4
@@ -189,7 +125,7 @@ def render_moon_disc(
     size = big * 2
     sub = Image.new(mode, (size, size), tones.dark)
     sub_draw = ImageDraw.Draw(sub)
-    _draw_moon_core(sub_draw, big, age, synodic, tones, scale=scale)
+    _draw_moon_core(sub_draw, big, age, synodic, tones, scale=scale, show_edge=show_edge)
     sub = sub.resize((radius * 2, radius * 2), Image.LANCZOS)
     if mode == "L":
         # Pre-stipple the disc so a threshold global quantization preserves it.
