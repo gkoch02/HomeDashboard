@@ -133,13 +133,13 @@ def render_moon_disc(
     sub = Image.new(mode, (size, size), tones.dark)
     sub_draw = ImageDraw.Draw(sub)
     _draw_moon_core(sub_draw, big, age, synodic, tones, scale=scale, show_edge=show_edge)
-    sub = sub.resize((radius * 2, radius * 2), Image.LANCZOS)
+    sub = sub.resize((radius * 2, radius * 2), Image.Resampling.LANCZOS)
     if mode == "L":
         # Pre-stipple the disc so a threshold global quantization preserves it.
         sub = sub.convert("1").convert("L")
 
     mask = Image.new("L", (size, size), 0)
     ImageDraw.Draw(mask).ellipse([0, 0, size - 1, size - 1], fill=255)
-    mask = mask.resize((radius * 2, radius * 2), Image.LANCZOS)
+    mask = mask.resize((radius * 2, radius * 2), Image.Resampling.LANCZOS)
 
     image.paste(sub, (cx - radius, cy - radius), mask)
