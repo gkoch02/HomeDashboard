@@ -520,7 +520,7 @@ class TestLoadLastRefreshDefensive:
 class TestSaveLastRefreshDefensive:
     def test_save_failure_logs_warning_and_does_not_raise(self, tmp_path, caplog):
         with caplog.at_level(logging.WARNING, logger="src.services.output"):
-            with patch("pathlib.Path.write_text", side_effect=OSError("disk full")):
+            with patch("src.services.output.atomic_write_json", side_effect=OSError("disk full")):
                 _save_last_refresh(str(tmp_path), datetime(2026, 4, 8, 12, 0))
 
         assert "refresh throttle" in caplog.text

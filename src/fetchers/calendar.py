@@ -73,8 +73,12 @@ def _build_people_service(cfg: GoogleConfig):
     Workspace Admin, and ``cfg.contacts_email`` must be set to the email of
     the user whose contacts should be read.
     """
+    import httplib2
     from google.oauth2 import service_account
+    from google_auth_httplib2 import AuthorizedHttp
     from googleapiclient.discovery import build
+
+    from src.fetchers.calendar_google import _HTTP_TIMEOUT_SECONDS
 
     key = f"{cfg.service_account_path}:{cfg.contacts_email}"
     if key not in _people_service_cache:
@@ -89,7 +93,10 @@ def _build_people_service(cfg: GoogleConfig):
             ) from exc
         if cfg.contacts_email:
             creds = creds.with_subject(cfg.contacts_email)
-        _people_service_cache[key] = build("people", "v1", credentials=creds, cache_discovery=False)
+        # Use an explicit per-request HTTP timeout (matching the Calendar path) so a
+        # stalled contacts request can't waste the full 120s DataPipeline slot.
+        http = AuthorizedHttp(creds, http=httplib2.Http(timeout=_HTTP_TIMEOUT_SECONDS))
+        _people_service_cache[key] = build("people", "v1", http=http, cache_discovery=False)
     return _people_service_cache[key]
 
 

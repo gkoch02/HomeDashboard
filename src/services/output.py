@@ -17,6 +17,7 @@ import logging
 from datetime import datetime
 from pathlib import Path
 
+from src._io import atomic_write_json
 from src._time import now_local
 from src.display.driver import DryRunDisplay, build_display_driver, image_changed
 
@@ -92,7 +93,9 @@ def _save_last_refresh(state_dir: str, when: datetime) -> None:
     path = _refresh_state_path(state_dir)
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps({"last_refresh_at": when.isoformat()}) + "\n")
+        # Atomic write so a kill mid-write can't truncate the state file (matches
+        # the invariant used by every other JSON state file — see src/_io.py).
+        atomic_write_json(str(path), {"last_refresh_at": when.isoformat()})
     except OSError as exc:
         logger.warning("Could not write refresh throttle state: %s", exc)
 

@@ -65,6 +65,10 @@ def _quote_for_panel(today: date, refresh: str = "daily", now: datetime | None =
             quotes = _DEFAULT_QUOTES
     else:
         quotes = _DEFAULT_QUOTES
+    # A valid-but-empty quotes file (``[]``) decodes fine but would make the
+    # modulo below divide by zero — fall back to the bundled defaults.
+    if not quotes:
+        quotes = _DEFAULT_QUOTES
     day_hash = int(hashlib.md5(key.encode()).hexdigest(), 16)
     return quotes[day_hash % len(quotes)]
 

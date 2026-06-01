@@ -338,7 +338,7 @@ class TestRecordMorningRefresh:
         import logging
         from unittest.mock import patch
 
-        with patch("pathlib.Path.write_text", side_effect=OSError("disk full")):
+        with patch("src.services.run_policy.atomic_write_json", side_effect=OSError("disk full")):
             with caplog.at_level(logging.WARNING, logger="src.services.run_policy"):
                 record_morning_refresh(self._dt(6, 5), str(tmp_path))
         assert "Failed to write morning refresh state" in caplog.text

@@ -363,12 +363,22 @@ class DataPipeline:
             return futures
 
         max_workers = max(1, len(runnable))
-        with ThreadPoolExecutor(max_workers=max_workers) as pool:
+        # NOTE: deliberately *not* using ``with ThreadPoolExecutor(...) as pool``.
+        # The context-manager exit calls ``shutdown(wait=True)`` with no timeout,
+        # which would block until every fetch finishes before this method even
+        # returns — defeating the per-source ``future.result(timeout=120)`` bound
+        # applied in ``_resolve_source``. By shutting down with ``wait=False`` we
+        # let the caller resolve each future under its own 120s ceiling, so a
+        # single hung source can't stall the whole run indefinitely.
+        pool = ThreadPoolExecutor(max_workers=max_workers)
+        try:
             for f in runnable:
                 label = f.name.replace("_", " ").title().replace(" ", "")
                 futures[f.name] = pool.submit(
                     retry_fetch, label, lambda fetcher=f: fetcher.fetch(ctx)
                 )
+        finally:
+            pool.shutdown(wait=False)
         return futures
 
     def _resolve_source(self, source: str, future: Future | None, current, success_log_fn=None):
