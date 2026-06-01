@@ -111,13 +111,22 @@ def test_create_app_uses_secret_key_from_web_config(tmp_path):
     assert app.secret_key == "super-secret-string"
 
 
-def test_create_app_falls_back_to_dev_secret_when_unset(tmp_path):
+def test_create_app_generates_random_secret_when_unset(tmp_path):
+    """With no configured secret_key, the app must NOT fall back to a shared,
+    publicly-known constant (which would let anyone forge a signed session
+    cookie). It should generate a random per-process key instead."""
     web_yaml = tmp_path / "web.yaml"
     web_yaml.write_text("")
     cfg_yaml = tmp_path / "config.yaml"
     cfg_yaml.write_text("")
-    app = create_app(web_config_path=str(web_yaml), app_config_path=str(cfg_yaml))
-    assert app.secret_key == "dashboard-web-dev-secret"
+    app1 = create_app(web_config_path=str(web_yaml), app_config_path=str(cfg_yaml))
+    app2 = create_app(web_config_path=str(web_yaml), app_config_path=str(cfg_yaml))
+    # A real, non-trivial key that differs between instances (i.e. random).
+    assert app1.secret_key and app1.secret_key != "dashboard-web-dev-secret"
+    assert app1.secret_key != app2.secret_key
+    # Cookies hardened against cross-site leakage.
+    assert app1.config["SESSION_COOKIE_SAMESITE"] == "Strict"
+    assert app1.config["SESSION_COOKIE_HTTPONLY"] is True
 
 
 def test_create_app_derives_source_ttl_map(tmp_path):

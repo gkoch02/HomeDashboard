@@ -87,6 +87,10 @@ def fetch_host_data() -> Optional[HostData]:
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         try:
+            # UDP connect normally returns instantly, but a host with no default
+            # route can block; this fetch runs synchronously outside the pipeline's
+            # 120s executor ceiling, so cap it defensively.
+            s.settimeout(0.5)
             s.connect(("8.8.8.8", 80))
             host.ip_address = s.getsockname()[0]
             any_success = True

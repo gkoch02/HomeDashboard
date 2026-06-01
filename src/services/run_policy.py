@@ -6,6 +6,8 @@ from datetime import date as _date
 from datetime import datetime
 from pathlib import Path
 
+from src._io import atomic_write_json
+
 logger = logging.getLogger(__name__)
 
 _MORNING_REFRESH_STATE_FILENAME = "morning_refresh_state.json"
@@ -58,7 +60,9 @@ def record_morning_refresh(now: datetime, state_dir: str) -> None:
     path = _morning_state_path(state_dir)
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps({"last_refresh_date": now.date().isoformat()}))
+        # Atomic write so a kill mid-write can't truncate the marker (matches the
+        # invariant used by every other JSON state file — see src/_io.py).
+        atomic_write_json(path, {"last_refresh_date": now.date().isoformat()})
     except OSError as exc:
         logger.warning("Failed to write morning refresh state to %s: %s", path, exc)
 

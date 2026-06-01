@@ -130,9 +130,12 @@ def _hour_angle(latitude: float, declination: float, altitude: float) -> float |
     lat_rad = math.radians(latitude)
     dec_rad = math.radians(declination)
     alt_rad = math.radians(altitude)
-    cos_h = (math.sin(alt_rad) - math.sin(lat_rad) * math.sin(dec_rad)) / (
-        math.cos(lat_rad) * math.cos(dec_rad)
-    )
+    denom = math.cos(lat_rad) * math.cos(dec_rad)
+    # At the geographic poles (cos(lat) == 0) the denominator vanishes before the
+    # out-of-range guard below can fire — treat it as polar day/night (no event).
+    if abs(denom) < 1e-12:
+        return None
+    cos_h = (math.sin(alt_rad) - math.sin(lat_rad) * math.sin(dec_rad)) / denom
     if cos_h > 1 or cos_h < -1:
         return None
     return math.degrees(math.acos(cos_h))

@@ -58,7 +58,23 @@ def create_app(
 
     # --- Load configs ---
     web_cfg = _load_web_config(web_config_path)
-    app.secret_key = web_cfg.get("secret_key") or "dashboard-web-dev-secret"
+    secret_key = web_cfg.get("secret_key")
+    if not secret_key:
+        # No configured key: generate a random per-process key instead of falling
+        # back to a shared, publicly-known constant (which would let anyone forge a
+        # signed session cookie and defeat CSRF protection on mutating endpoints).
+        # Sessions won't survive a restart, which is fine for this admin UI.
+        import secrets
+
+        secret_key = secrets.token_hex(32)
+        logger.warning(
+            "No 'secret_key' set in web config; generated a random ephemeral key. "
+            "Set 'secret_key' in web.yaml to keep sessions stable across restarts."
+        )
+    app.secret_key = secret_key
+    # Harden session cookies: never send over plain navigation cross-site, and keep
+    # them out of JavaScript.
+    app.config.update(SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE="Strict")
     dash_cfg = None
     if app_config_path and Path(app_config_path).exists():
         try:
@@ -88,6 +104,17 @@ def create_app(
         "air_quality": dash_cfg.cache.air_quality_ttl_minutes,
     }
 
+    # --- Auth ---
+    # Register auth FIRST so unauthenticated mutating requests are rejected with 401
+    # before any CSRF/session logic runs (before_request callbacks fire in
+    # registration order).
+    auth_section = web_cfg.get("auth", {})
+    auth_fn = make_auth_middleware(
+        username=auth_section.get("username"),
+        password_hash=auth_section.get("password_hash"),
+    )
+    app.before_request(auth_fn)
+
     # --- CSRF + template globals ---
     from src.web.csrf import csrf_protect, get_csrf_token
 
@@ -99,14 +126,6 @@ def create_app(
             csrf_protect()
 
     app.jinja_env.globals["csrf_token"] = get_csrf_token
-
-    # --- Auth ---
-    auth_section = web_cfg.get("auth", {})
-    auth_fn = make_auth_middleware(
-        username=auth_section.get("username"),
-        password_hash=auth_section.get("password_hash"),
-    )
-    app.before_request(auth_fn)
 
     # --- Register P1 blueprints ---
     from src.web.routes.image import image_bp
