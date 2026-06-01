@@ -62,7 +62,7 @@ def record_morning_refresh(now: datetime, state_dir: str) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         # Atomic write so a kill mid-write can't truncate the marker (matches the
         # invariant used by every other JSON state file — see src/_io.py).
-        atomic_write_json(str(path), {"last_refresh_date": now.date().isoformat()})
+        atomic_write_json(path, {"last_refresh_date": now.date().isoformat()})
     except OSError as exc:
         logger.warning("Failed to write morning refresh state to %s: %s", path, exc)
 

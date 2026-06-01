@@ -95,7 +95,7 @@ def _save_last_refresh(state_dir: str, when: datetime) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         # Atomic write so a kill mid-write can't truncate the state file (matches
         # the invariant used by every other JSON state file — see src/_io.py).
-        atomic_write_json(str(path), {"last_refresh_at": when.isoformat()})
+        atomic_write_json(path, {"last_refresh_at": when.isoformat()})
     except OSError as exc:
         logger.warning("Could not write refresh throttle state: %s", exc)
 
