@@ -121,6 +121,8 @@ src/
     │                          #   craters, earthshine); mode-aware (L/RGB/1) — used by moonphase
     ├── primitives.py          # Shared draw utilities (truncation, wrapping, colors, fmt_time,
     │                          #   events_for_day, deg_to_compass)
+    ├── star_catalog.py        # Curated J2000 bright-star + constellation-outline catalogue
+    │                          #   (~45 named stars); backs the constellation_map theme
     ├── themes/                # themes (34 — 33 concrete + `default` pseudo): standard week-view
     │                          #   (default, agenda, terminal, minimalist, old_fashioned, today,
     │                          #   fantasy); full-screen focused (qotd, qotd_invert, fuzzyclock,
@@ -134,12 +136,13 @@ src/
     │   │                      #   inky_palette pair); adding a theme is one new file plus a
     │   │                      #   register_theme(...) call at its bottom
     │   └── __init__.py        # Side-effect imports of every theme module populate the registry
-    └── components/            # One file per UI region: header, week_view, weather_panel,
+    └── components/            # One file per UI region (29): header, week_view, weather_panel,
         │                      #   weather_full, birthday_bar, today_view, info_panel, qotd_panel,
         │                      #   fuzzyclock_panel, diags_panel, air_quality_panel,
-        │                      #   astronomy_panel, moonphase_panel, message_panel,
-        │                      #   timeline_panel, year_pulse_panel, monthly_panel,
-        │                      #   sunrise_panel, scorecard_panel, tides_panel, countdown_panel,
+        │                      #   astronomy_panel, constellation_map_panel, moonphase_panel,
+        │                      #   message_panel, timeline_panel, year_pulse_panel, monthly_panel,
+        │                      #   sunrise_panel, light_cycle_panel, scorecard_panel, tides_panel,
+        │                      #   countdown_panel, almanac_panel, halftone_panel, trends_panel,
         │                      #   postcard_panel, naturalist_panel, weatherglass_panel
         ├── registry.py        # v5 component plugin registry (RenderContext + @register_component)
         ├── _builtins.py       # Adapter registrations for the built-in components
@@ -183,6 +186,7 @@ docs/
 └── upgrading-from-v4.md       # Migration guide from v4 → v5
 
 tests/                         # test files, extensive mocking
+tools/                         # check_naive_datetime.py — AST guard enforcing aware-datetime discipline
 fonts/                         # Bundled TTF fonts
 deploy/                        # Systemd service + timer + configure.sh + logrotate
 scripts/                       # Build/dev helpers: build_split_previews.py, check_docs.py, build_banner.py
@@ -192,6 +196,7 @@ output/                        # Generated PNGs + logs + health marker (git-igno
 credentials/                   # Google service account JSON (git-ignored)
 pyproject.toml                 # Project metadata, dependencies, tool config (ruff, pytest, mypy)
 requirements.txt               # Core Python dependencies (kept for Pi deployment compat)
+requirements-web.txt           # Optional web-UI deps (Flask 3 + Waitress); mirrors the ".[web]" extra
 requirements-pi.txt            # Raspberry Pi-specific deps (gpiozero, lgpio, inky; Waveshare lib installed by Makefile)
 ```
 
