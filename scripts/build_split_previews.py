@@ -47,6 +47,7 @@ _THEME_SPLIT_MODES: dict[str, str] = {
     "qotd_invert": "vertical",
     "moonphase": "vertical",
     "moonphase_invert": "vertical",
+    "moonphase_photo": "vertical",
     "countdown": "vertical",
     "message": "vertical",
     "today": "vertical",

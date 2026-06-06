@@ -283,6 +283,7 @@ class TestMoonphaseThemeIntegration:
 
         assert "moonphase" in AVAILABLE_THEMES
         assert "moonphase_invert" in AVAILABLE_THEMES
+        assert "moonphase_photo" in AVAILABLE_THEMES
 
     def test_moonphase_in_random_pool(self):
         from src.render.random_theme import eligible_themes
@@ -290,6 +291,26 @@ class TestMoonphaseThemeIntegration:
         pool = eligible_themes(include=[], exclude=[])
         assert "moonphase" in pool
         assert "moonphase_invert" in pool
+
+    def test_moonphase_photo_theme_renders(self):
+        from PIL import Image as PILImage
+
+        from src.config import DisplayConfig
+        from src.render.canvas import render_dashboard
+        from src.render.theme import load_theme
+
+        data = _make_data()
+        result = render_dashboard(data, DisplayConfig(), theme=load_theme("moonphase_photo"))
+        assert isinstance(result, PILImage.Image)
+        assert result.size == (800, 480)
+
+    def test_photo_flag_only_set_on_photo_theme(self):
+        """moonphase stays solid-disk (use_moon_photo False); the photo theme opts in."""
+        from src.render.theme import load_theme
+
+        assert load_theme("moonphase").style.use_moon_photo is False
+        assert load_theme("moonphase_invert").style.use_moon_photo is False
+        assert load_theme("moonphase_photo").style.use_moon_photo is True
 
 
 # ---------------------------------------------------------------------------

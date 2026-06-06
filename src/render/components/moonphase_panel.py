@@ -242,11 +242,23 @@ def _draw_moon_row(
     row_h: int,
     tones: MoonTones,
     style: ThemeStyle,
+    use_photo: bool,
+    dark_canvas: bool,
 ) -> None:
     """Draw the hero moon and 3 flanking moons per side, with day labels."""
     cy = y_top + row_h // 2
     hero_r = _HERO_R
-    render_moon_disc(image, draw, cx, cy, hero_r, moon_phase_age(today), tones)
+    render_moon_disc(
+        image,
+        draw,
+        cx,
+        cy,
+        hero_r,
+        moon_phase_age(today),
+        tones,
+        use_photo=use_photo,
+        dark_canvas=dark_canvas,
+    )
 
     # Flanking moons: (day delta, radius, x offset from centre).
     flanks = [
@@ -261,7 +273,18 @@ def _draw_moon_row(
     for delta, r, x_off in flanks:
         d = today + timedelta(days=delta)
         gx = cx + x_off
-        render_moon_disc(image, draw, gx, cy, r, moon_phase_age(d), tones, show_edge=False)
+        render_moon_disc(
+            image,
+            draw,
+            gx,
+            cy,
+            r,
+            moon_phase_age(d),
+            tones,
+            show_edge=False,
+            use_photo=use_photo,
+            dark_canvas=dark_canvas,
+        )
         label = d.strftime("%a")
         lw = text_width(draw, label, label_font)
         draw.text((gx - lw // 2, cy + r + 5), label, font=label_font, fill=style.fg)
@@ -457,7 +480,18 @@ def draw_moonphase(
     # (diameter 2*_HERO_R) with a little vertical breathing room.
     moon_row_y = y
     moon_row_h = 2 * _HERO_R + 8
-    _draw_moon_row(draw, image, today, cx, moon_row_y, moon_row_h, tones, style)
+    _draw_moon_row(
+        draw,
+        image,
+        today,
+        cx,
+        moon_row_y,
+        moon_row_h,
+        tones,
+        style,
+        style.use_moon_photo,
+        dark_canvas,
+    )
 
     # Separator sits just below the hero moon's actual bottom edge (not the row
     # box) so it can never clip into the disc.

@@ -260,6 +260,12 @@ class ThemeStyle:
     # Ignored by all other themes (defaults to empty string).
     photo_path: str = ""
 
+    # When True, the moonphase panel occludes a real moon photograph
+    # (``assets/moon_full.png``) by the phase terminator instead of drawing the
+    # procedural disc.  Opt-in per theme — only the ``moonphase_photo`` theme
+    # sets it, so the default ``moonphase`` keeps the solid-disk look.
+    use_moon_photo: bool = False
+
     # Inky Spectra-6 (primary, secondary) palette index pair used to fill
     # ``accent_primary`` / ``accent_secondary`` when the inky backend is
     # active and the theme didn't supply explicit accent values. ``None``
