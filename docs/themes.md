@@ -26,7 +26,7 @@ theme: terminal
 Valid values:
 
 - **Week-view**: `default`, `agenda`, `terminal`, `minimalist`, `old_fashioned`, `today`, `fantasy`
-- **Full-screen focused**: `qotd`, `qotd_invert`, `weather`, `fuzzyclock`, `fuzzyclock_invert`, `moonphase`, `moonphase_invert`, `photo`
+- **Full-screen focused**: `qotd`, `qotd_invert`, `weather`, `fuzzyclock`, `fuzzyclock_invert`, `moonphase`, `moonphase_invert`, `moonphase_photo`, `photo`
 - **Specialized**: `air_quality`, `almanac`, `astronomy`, `constellation_map`, `halftone`, `timeline`, `trends`, `year_pulse`, `monthly`, `sunrise`, `light_cycle`, `scorecard`, `tides`
 - **Dithered art**: `postcard`, `naturalist`
 - **Utility**: `countdown`, `message`, `diags`
@@ -172,6 +172,7 @@ Rules that reference weather or calendar data silently skip on the first boot (n
 | `fuzzyclock_invert` | dark clock display | Inverted variant of `fuzzyclock` |
 | `moonphase` | moon and sky display | Procedurally-rendered lunar disc (true terminator, maria, craters, earthshine), 7-day progression, illumination, moonrise/moonset, sunrise/sunset, next full/new moon countdown, supermoon badge, weather, quote |
 | `moonphase_invert` | bright moon display | Parchment-engraving variant of `moonphase` |
+| `moonphase_photo` | photographic moon display | Same layout as `moonphase`, but the hero and filmstrip discs are a real moon photograph (`assets/moon_full.png`) occluded by the phase terminator. Replace the bundled photo with your own centred full-moon image to re-skin every disc; falls back to the procedural disc when the asset is absent. |
 | `photo` | custom photo background | Full-canvas image with a bottom header bar; requires `photo.path` |
 
 ### Specialized themes
@@ -329,6 +330,20 @@ Parchment-engraving variant of `moonphase` — black ink on a light canvas, with
 the same procedural moon and lunar-data block.
 
 [![Moonphase Invert theme — Waveshare/Inky split](../assets/previews/theme_moonphase_invert_split.png)](../assets/previews/theme_moonphase_invert_split.png)
+
+#### moonphase_photo
+
+Same layout, data block, and celestial border as `moonphase`, but the hero and
+seven-day filmstrip discs are a **real moon photograph** (`assets/moon_full.png`)
+occluded by the phase terminator instead of the procedural disc — the sunlit
+region shows the photo while the shadowed side keeps a faint earthshine copy of
+the same texture. Renders as a dithered photo on Waveshare and realistic
+greyscale on Inky. Drop your own centred full-moon image in at
+`assets/moon_full.png` to re-skin every disc (then regenerate the previews and
+the pixel-snapshot baseline); it falls back to the procedural disc when the
+asset is absent.
+
+[![Moonphase Photo theme — Waveshare/Inky split](../assets/previews/theme_moonphase_photo_split.png)](../assets/previews/theme_moonphase_photo_split.png)
 
 #### photo
 
