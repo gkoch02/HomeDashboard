@@ -25,6 +25,7 @@ from src.render.components.trends_panel import (
     _format_day_length_hours,
     _interpolate,
 )
+from src.render.quantize import flatten_pixels
 from src.render.theme import AVAILABLE_THEMES, load_theme
 
 FIXED_NOW = datetime(2026, 4, 6, 10, 30)
@@ -213,7 +214,7 @@ class TestBayerFillPolygon:
         triangle = [(0, 0), (40, 0), (40, 40)]
         _bayer_fill_polygon(img, triangle, on_color=0, threshold=128)
         # Some pixels should be black.
-        black = sum(1 for p in img.getdata() if p == 0)
+        black = sum(1 for p in flatten_pixels(img) if p == 0)
         # 4×4 Bayer threshold < 128 covers ~50% of cells: 8 out of 16 (0,32,48,
         # 64, 96, 112, 16, 80). Triangle covers half the image. So ~25% of
         # 1600 pixels = ~400 black.
@@ -222,7 +223,7 @@ class TestBayerFillPolygon:
     def test_no_op_for_degenerate_polygon(self):
         img = Image.new("L", (10, 10), 255)
         _bayer_fill_polygon(img, [(0, 0), (1, 1)], on_color=0)
-        black = sum(1 for p in img.getdata() if p == 0)
+        black = sum(1 for p in flatten_pixels(img) if p == 0)
         assert black == 0
 
 
@@ -242,7 +243,7 @@ class TestSparklineHelper:
             accent_now=128,
         )
         # Some ink should be present along the line.
-        black = sum(1 for p in img.getdata() if p < 200)
+        black = sum(1 for p in flatten_pixels(img) if p < 200)
         assert black > 50
 
     def test_handles_all_none_series(self):
@@ -260,7 +261,7 @@ class TestSparklineHelper:
             accent_now=128,
         )
         # Just the placeholder midline should be drawn.
-        black = sum(1 for p in img.getdata() if p < 200)
+        black = sum(1 for p in flatten_pixels(img) if p < 200)
         assert 20 < black < 500
 
     def test_now_marker_drawn(self):
@@ -370,6 +371,6 @@ class TestRenderWithDummyData:
     def test_pixel_count_non_trivial(self):
         img = _render()
         assert img.size == (800, 480)
-        ones = sum(1 for p in img.getdata() if not p)
+        ones = sum(1 for p in flatten_pixels(img) if not p)
         # Sparkline charts + Bayer fills should produce thousands of ink pixels.
         assert ones > 5_000

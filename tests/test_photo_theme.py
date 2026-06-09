@@ -27,7 +27,7 @@ from src.config import DisplayConfig
 from src.dummy_data import generate_dummy_data
 from src.render.canvas import render_dashboard
 from src.render.primitives import load_and_dither_image
-from src.render.quantize import blend_inky_palette
+from src.render.quantize import blend_inky_palette, flatten_pixels
 from src.render.theme import AVAILABLE_THEMES, ThemeLayout, ThemeStyle, load_theme
 from src.render.themes.photo import _draw_photo_background, photo_theme
 
@@ -174,7 +174,7 @@ class TestDrawPhotoBackground:
         style = self._make_style(path=str(grey_png))
 
         # Produce an image that deliberately has a pixel outside the blended palette,
-        # so the "set(fs_result.getdata()) <= blended_set" check fails.
+        # so the "set(flatten_pixels(fs_result)) <= blended_set" check fails.
         bad_fs = Image.new("RGB", (800, 480), (42, 42, 42))
 
         with patch.object(
@@ -187,7 +187,7 @@ class TestDrawPhotoBackground:
 
         # After the fallback, the canvas pixels must all be blended palette colours.
         palette_set = set(blend_inky_palette(0.25))
-        assert set(canvas.getdata()) <= palette_set
+        assert set(flatten_pixels(canvas)) <= palette_set
 
     def test_exception_during_load_is_logged_and_swallowed(self, caplog, grey_png: Path):
         """An unexpected exception inside the dither path should log and not propagate."""
@@ -211,14 +211,14 @@ class TestDrawPhotoBackground:
         (matching Pimoroni's InkyE673._palette_blend(saturation=0.5) approach) rather than
         the raw SATURATED palette, so we check against the blended colors.
         """
-        from src.render.quantize import blend_inky_palette
+        from src.render.quantize import blend_inky_palette, flatten_pixels
 
         canvas = self._make_canvas(mode="RGB")
         layout = self._make_layout()
         style = self._make_style(path=str(grey_png))
         _draw_photo_background(canvas, layout, style)
         palette_set = set(blend_inky_palette(0.25))
-        pixels = set(canvas.getdata())
+        pixels = set(flatten_pixels(canvas))
         assert pixels <= palette_set
 
 
@@ -308,7 +308,7 @@ class TestPhotoThemeRendering:
         InkyDisplay.show() maps these back to the correct hardware indices via Euclidean
         nearest-color against device.SATURATED_PALETTE.
         """
-        from src.render.quantize import blend_inky_palette
+        from src.render.quantize import blend_inky_palette, flatten_pixels
 
         data = self._dummy_data()
         theme = load_theme("photo")
@@ -318,5 +318,5 @@ class TestPhotoThemeRendering:
         assert img.mode == "RGB"
         palette_set = set(blend_inky_palette(0.25))
         # All pixels in the photo region (above the header bar) must be blended palette colors
-        pixels = set(img.crop((0, 0, img.width, img.height - 50)).getdata())
+        pixels = set(flatten_pixels(img.crop((0, 0, img.width, img.height - 50))))
         assert pixels <= palette_set

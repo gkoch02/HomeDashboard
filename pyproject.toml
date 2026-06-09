@@ -39,6 +39,11 @@ web = [
 testpaths = ["tests"]
 pythonpath = ["."]
 addopts = "--cov=src --cov-report=term-missing"
+filterwarnings = [
+    # Fail fast on Pillow API deprecations (e.g. getdata, removed in Pillow 14)
+    # instead of letting hundreds of silent warnings accumulate.
+    "error:.*deprecated and will be removed in Pillow.*:DeprecationWarning",
+]
 
 [tool.coverage.run]
 source = ["src"]

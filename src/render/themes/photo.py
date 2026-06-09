@@ -72,6 +72,7 @@ def _draw_photo_background(
             from src.render.quantize import (
                 blend_inky_palette,
                 build_palette_image,
+                flatten_pixels,
                 quantize_to_palette_ordered,
             )
 
@@ -86,7 +87,7 @@ def _draw_photo_background(
                 palette=palette_img, dither=_Image.Dither.FLOYDSTEINBERG
             ).convert("RGB")
 
-            if set(fs_result.getdata()) <= blended_set:
+            if set(flatten_pixels(fs_result)) <= blended_set:
                 # PIL produced correct colours — use the FS result.
                 img = fs_result
             else:

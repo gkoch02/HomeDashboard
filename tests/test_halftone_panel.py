@@ -21,6 +21,7 @@ from src.render.components.halftone_panel import (
     _next_event_line,
     _radial_gradient_disc,
 )
+from src.render.quantize import flatten_pixels
 from src.render.theme import AVAILABLE_THEMES, load_theme
 
 FIXED_NOW = datetime(2026, 4, 6, 10, 30)
@@ -247,7 +248,7 @@ class TestRenderEachIcon:
         assert img.mode == "1"
         assert img.size == (800, 480)
         # Some ink must be present (no fully-white render).
-        ones = sum(1 for p in img.getdata() if not p)
+        ones = sum(1 for p in flatten_pixels(img) if not p)
         assert ones > 1000, f"icon {icon!r} produced an empty render"
 
 
@@ -403,5 +404,5 @@ class TestRenderWithDummyData:
         assert img.size == (800, 480)
         # Floyd-Steinberg of a procedural greyscale plate should produce
         # tens of thousands of ink pixels.
-        ones = sum(1 for p in img.getdata() if not p)
+        ones = sum(1 for p in flatten_pixels(img) if not p)
         assert ones > 10_000

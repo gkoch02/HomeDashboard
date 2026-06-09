@@ -11,6 +11,7 @@ from src.render.quantize import (
     INKY_SPECTRA6_PALETTE,
     _redmean_sq,
     blend_inky_palette,
+    flatten_pixels,
     quantize_for_display,
     quantize_to_palette_fs,
     quantize_to_palette_ordered,
@@ -72,32 +73,32 @@ class TestReturnContract:
 class TestThresholdMode:
     def test_pure_black_stays_black(self):
         result = quantize_for_display(_solid_L(0), mode="threshold")
-        pixels = list(result.getdata())
+        pixels = list(flatten_pixels(result))
         assert all(p == 0 for p in pixels)
 
     def test_pure_white_stays_white(self):
         result = quantize_for_display(_solid_L(255), mode="threshold")
-        pixels = list(result.getdata())
+        pixels = list(flatten_pixels(result))
         assert all(p != 0 for p in pixels)
 
     def test_below_midpoint_maps_to_black(self):
         """Values ≤ 128 should produce black pixels under NONE dithering."""
         result = quantize_for_display(_solid_L(127), mode="threshold")
-        pixels = list(result.getdata())
+        pixels = list(flatten_pixels(result))
         assert all(p == 0 for p in pixels)
 
     def test_above_midpoint_maps_to_white(self):
         """Values > 128 should produce white pixels."""
         result = quantize_for_display(_solid_L(129), mode="threshold")
-        pixels = list(result.getdata())
+        pixels = list(flatten_pixels(result))
         assert all(p != 0 for p in pixels)
 
     def test_gradient_produces_both_values(self):
         """A greyscale ramp must contain both black and white pixels after threshold."""
         result = quantize_for_display(_gradient_L(w=256, h=1), mode="threshold")
-        pixels = set(result.getdata())
+        pixels = set(flatten_pixels(result))
         assert 0 in pixels
-        assert any(p != 0 for p in result.getdata())
+        assert any(p != 0 for p in flatten_pixels(result))
 
 
 # ---------------------------------------------------------------------------
@@ -108,17 +109,17 @@ class TestThresholdMode:
 class TestFloydSteinbergMode:
     def test_pure_black_stays_black(self):
         result = quantize_for_display(_solid_L(0), mode="floyd_steinberg")
-        pixels = list(result.getdata())
+        pixels = list(flatten_pixels(result))
         assert all(p == 0 for p in pixels)
 
     def test_pure_white_stays_white(self):
         result = quantize_for_display(_solid_L(255), mode="floyd_steinberg")
-        pixels = list(result.getdata())
+        pixels = list(flatten_pixels(result))
         assert all(p != 0 for p in pixels)
 
     def test_gradient_produces_both_values(self):
         result = quantize_for_display(_gradient_L(w=256, h=4), mode="floyd_steinberg")
-        pixels = list(result.getdata())
+        pixels = list(flatten_pixels(result))
         assert 0 in pixels
         assert any(p != 0 for p in pixels)
 
@@ -131,24 +132,24 @@ class TestFloydSteinbergMode:
 class TestOrderedMode:
     def test_pure_black_stays_black(self):
         result = quantize_for_display(_solid_L(0), mode="ordered")
-        pixels = list(result.getdata())
+        pixels = list(flatten_pixels(result))
         assert all(p == 0 for p in pixels)
 
     def test_pure_white_stays_white(self):
         result = quantize_for_display(_solid_L(255), mode="ordered")
-        pixels = list(result.getdata())
+        pixels = list(flatten_pixels(result))
         assert all(p != 0 for p in pixels)
 
     def test_midgrey_produces_mixed_pattern(self):
         """Mid-grey should produce a mix of black and white under Bayer dithering."""
         result = quantize_for_display(_solid_L(128), mode="ordered")
-        pixels = list(result.getdata())
+        pixels = list(flatten_pixels(result))
         assert 0 in pixels
         assert any(p != 0 for p in pixels)
 
     def test_gradient_produces_both_values(self):
         result = quantize_for_display(_gradient_L(w=256, h=4), mode="ordered")
-        pixels = list(result.getdata())
+        pixels = list(flatten_pixels(result))
         assert 0 in pixels
         assert any(p != 0 for p in pixels)
 
@@ -156,7 +157,7 @@ class TestOrderedMode:
         """Solid mid-grey: the 4×4 Bayer pattern repeats exactly across tiles."""
         img = _solid_L(128, w=8, h=8)
         result = quantize_for_display(img, mode="ordered")
-        pixels = list(result.getdata())
+        pixels = list(flatten_pixels(result))
         # Row 0 and row 4 must be identical (4×4 tile repeats vertically)
         row0 = pixels[0:8]
         row4 = pixels[32:40]
@@ -224,24 +225,24 @@ class TestQuantizeToPaletteOrdered:
         img.putdata(pixels)
         result = quantize_to_palette_ordered(img, _SMALL_PALETTE)
         palette_set = set(_SMALL_PALETTE)
-        assert set(result.getdata()) <= palette_set
+        assert set(flatten_pixels(result)) <= palette_set
 
     def test_pure_red_maps_to_red(self):
         """A fully saturated red image should map entirely to the red palette entry."""
         img = self._solid_rgb(255, 0, 0)
         result = quantize_to_palette_ordered(img, _SMALL_PALETTE, bayer_strength=0)
-        assert set(result.getdata()) == {(255, 0, 0)}
+        assert set(flatten_pixels(result)) == {(255, 0, 0)}
 
     def test_pure_black_maps_to_black(self):
         img = self._solid_rgb(0, 0, 0)
         result = quantize_to_palette_ordered(img, _SMALL_PALETTE, bayer_strength=0)
-        assert set(result.getdata()) == {(0, 0, 0)}
+        assert set(flatten_pixels(result)) == {(0, 0, 0)}
 
     def test_bayer_strength_zero_is_nearest_neighbor(self):
         """With bayer_strength=0 every pixel maps to its nearest palette colour."""
         img = self._solid_rgb(200, 50, 50)  # clearly closest to red
         result = quantize_to_palette_ordered(img, _SMALL_PALETTE, bayer_strength=0)
-        pixels = set(result.getdata())
+        pixels = set(flatten_pixels(result))
         assert pixels == {(255, 0, 0)}
 
     def test_inky_palette_all_pixels_valid(self):
@@ -251,7 +252,7 @@ class TestQuantizeToPaletteOrdered:
         img.putdata(pixels)
         result = quantize_to_palette_ordered(img, INKY_SPECTRA6_PALETTE)
         palette_set = set(INKY_SPECTRA6_PALETTE)
-        assert set(result.getdata()) <= palette_set
+        assert set(flatten_pixels(result)) <= palette_set
 
 
 # ---------------------------------------------------------------------------
@@ -341,16 +342,16 @@ class TestQuantizeToPaletteFs:
         img.putdata(pixels)
         result = quantize_to_palette_fs(img, _SMALL_PALETTE_FS)
         palette_set = set(map(tuple, _SMALL_PALETTE_FS))
-        assert set(result.getdata()) <= palette_set
+        assert set(flatten_pixels(result)) <= palette_set
 
     def test_pure_red_maps_to_red(self):
         """A solid pure-red image should quantize to all red — zero error to diffuse."""
         result = quantize_to_palette_fs(self._solid_rgb(255, 0, 0), _SMALL_PALETTE_FS)
-        assert set(result.getdata()) == {(255, 0, 0)}
+        assert set(flatten_pixels(result)) == {(255, 0, 0)}
 
     def test_pure_black_maps_to_black(self):
         result = quantize_to_palette_fs(self._solid_rgb(0, 0, 0), _SMALL_PALETTE_FS)
-        assert set(result.getdata()) == {(0, 0, 0)}
+        assert set(flatten_pixels(result)) == {(0, 0, 0)}
 
     def test_inky_palette_all_pixels_valid(self):
         """Using the real Inky Spectra 6 palette, all output pixels must be palette members."""
@@ -359,7 +360,7 @@ class TestQuantizeToPaletteFs:
         img.putdata(pixels)
         result = quantize_to_palette_fs(img, INKY_SPECTRA6_PALETTE)
         palette_set = set(INKY_SPECTRA6_PALETTE)
-        assert set(result.getdata()) <= palette_set
+        assert set(flatten_pixels(result)) <= palette_set
 
     def test_medium_blue_maps_to_blue_with_blended_palette(self):
         """Sky-blue (70,130,200) should map to blue with the blended palette, not white.
@@ -374,7 +375,7 @@ class TestQuantizeToPaletteFs:
         result = quantize_to_palette_fs(img, blended)
         # Dominant color must be the blended blue (at least 50% of pixels)
         pixel_counts: dict = {}
-        for p in result.getdata():
+        for p in flatten_pixels(result):
             pixel_counts[p] = pixel_counts.get(p, 0) + 1
         dominant = max(pixel_counts, key=lambda k: pixel_counts[k])
         assert dominant == blended_blue, (
@@ -421,7 +422,7 @@ class TestPythonFallbacks:
         assert result.size == (4, 4)
         # Every output pixel must be drawn from the palette.
         palette_set = set(palette)
-        assert set(result.getdata()) <= palette_set
+        assert set(flatten_pixels(result)) <= palette_set
 
     def test_fs_palette_falls_back_to_python_without_numpy(self, monkeypatch):
         self._force_no_numpy(monkeypatch)
@@ -444,7 +445,7 @@ class TestPythonFallbacks:
         result = quantize_to_palette_fs(img, palette)
         assert result.mode == "RGB"
         assert result.size == (3, 3)
-        assert set(result.getdata()) <= set(palette)
+        assert set(flatten_pixels(result)) <= set(palette)
 
     def test_ordered_python_fallback_respects_bayer_threshold(self, monkeypatch):
         """A mid-grey pixel with bayer_strength>0 should produce a mix of black and
@@ -453,7 +454,7 @@ class TestPythonFallbacks:
         palette = [(0, 0, 0), (255, 255, 255)]
         img = self._solid_rgb(128, 128, 128, w=4, h=4)
         result = quantize_to_palette_ordered(img, palette, bayer_strength=240)
-        data = set(result.getdata())
+        data = set(flatten_pixels(result))
         # With the 4×4 Bayer pattern spanning the full matrix, we should see both
         # black and white pixels.
         assert (0, 0, 0) in data
@@ -465,7 +466,7 @@ class TestPythonFallbacks:
         palette = [(0, 0, 0), (255, 255, 255)]
         img = self._solid_rgb(10, 10, 10, w=1, h=1)
         result = quantize_to_palette_fs(img, palette)
-        assert list(result.getdata()) == [(0, 0, 0)]
+        assert list(flatten_pixels(result)) == [(0, 0, 0)]
 
     def test_ordered_python_fallback_clips_overflow_high(self, monkeypatch):
         """A near-white pixel + max bayer offset overflows past 255 → clipped to 255.
@@ -479,8 +480,8 @@ class TestPythonFallbacks:
         img = self._solid_rgb(254, 254, 254, w=4, h=4)
         result = quantize_to_palette_ordered(img, palette, bayer_strength=240)
         # All output pixels should still be in the palette and skewed white.
-        assert set(result.getdata()) <= set(palette)
-        assert (255, 255, 255) in set(result.getdata())
+        assert set(flatten_pixels(result)) <= set(palette)
+        assert (255, 255, 255) in set(flatten_pixels(result))
 
     def test_ordered_python_fallback_clips_underflow_low(self, monkeypatch):
         """A near-black pixel + min bayer offset underflows past 0 → clipped to 0.
@@ -492,8 +493,8 @@ class TestPythonFallbacks:
         palette = [(0, 0, 0), (255, 255, 255)]
         img = self._solid_rgb(1, 1, 1, w=4, h=4)
         result = quantize_to_palette_ordered(img, palette, bayer_strength=240)
-        assert set(result.getdata()) <= set(palette)
-        assert (0, 0, 0) in set(result.getdata())
+        assert set(flatten_pixels(result)) <= set(palette)
+        assert (0, 0, 0) in set(flatten_pixels(result))
 
 
 # ---------------------------------------------------------------------------
@@ -518,7 +519,7 @@ class TestQuantizeToPalette:
         palette = [(0, 0, 0), (255, 0, 0), (0, 0, 255), (255, 255, 255)]
         img = Image.new("RGB", (4, 4), (200, 50, 50))
         result = quantize_to_palette(img, palette)
-        assert set(result.getdata()) <= set(palette)
+        assert set(flatten_pixels(result)) <= set(palette)
 
 
 def test_build_palette_image_pads_to_768_entries():
