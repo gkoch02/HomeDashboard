@@ -418,7 +418,7 @@ def _draw_masthead(
     )
 
 
-def _draw_compass_star(draw: ImageDraw.ImageDraw, cx: int, cy: int, r: int, fill) -> None:
+def _draw_compass_star(draw: ImageDraw.ImageDraw, cx: float, cy: int, r: int, fill) -> None:
     """Four-pointed compass-star ornament centred at (cx, cy)."""
     pts = [(cx, cy - r), (cx + r // 3, cy), (cx, cy + r), (cx - r // 3, cy)]
     draw.polygon(pts, fill=fill)
@@ -560,7 +560,7 @@ def _rotate_text_paste(
     strip = Image.new("L", (tw + 2 * pad, th + 2 * pad), 0)
     sd = ImageDraw.Draw(strip)
     sd.text((pad - bbox[0], pad - bbox[1]), text, font=font, fill=255)
-    rotated = strip.rotate(-angle_deg, resample=Image.BICUBIC, expand=True)
+    rotated = strip.rotate(-angle_deg, resample=Image.Resampling.BICUBIC, expand=True)
     rw, rh = rotated.size
     cx, cy = centre
     a = math.radians(angle_deg)
@@ -830,7 +830,7 @@ def _draw_barometer(
     # Tick marks: 36 around the full circle (every 10°), heavier every 3rd
     # (every 30°).  Drawn THICK so they stay legible after dithering.
     for i in range(36):
-        deg = i * 10
+        deg: float = i * 10
         a = math.radians(deg)
         if i % 3 == 0:
             tlen = 12 * SS
@@ -1477,7 +1477,7 @@ def _draw_sun_arc(
     elif now.tzinfo is not None:
         local_tz = now.tzinfo
 
-    def _time_frac(dt: datetime) -> float | None:
+    def _time_frac(dt: datetime | None) -> float | None:
         """Map a datetime to a fraction along the arc baseline (0..1 = midnight..midnight)."""
         if dt is None:
             return None

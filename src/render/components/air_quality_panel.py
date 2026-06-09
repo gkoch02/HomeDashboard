@@ -43,6 +43,7 @@ from src.data.models import AirQualityData, DashboardData, WeatherData
 from src.render.fonts import weather_icon as weather_icon_font
 from src.render.icons import FALLBACK_ICON, OWM_ICON_MAP
 from src.render.primitives import (
+    Fill,
     draw_text_truncated,
     filled_rect,
     hline,
@@ -70,7 +71,7 @@ _AQI_ZONES: list[tuple[int, str]] = [
 _AQI_MAX = 500
 
 
-def _aqi_accent(style: ThemeStyle, aqi: int) -> int:
+def _aqi_accent(style: ThemeStyle, aqi: int) -> Fill:
     if aqi <= 50:
         return style.accent_good if style.accent_good is not None else style.fg
     if aqi <= 150:

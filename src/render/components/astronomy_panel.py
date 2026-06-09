@@ -171,6 +171,7 @@ def draw_astronomy(
     # sunrise/sunset (twilight section will display '—').
     has_coords = latitude is not None and longitude is not None
     if has_coords:
+        assert latitude is not None and longitude is not None
         t_today = sun_times(today, latitude, longitude)
         t_tomorrow = sun_times(today + timedelta(days=1), latitude, longitude)
         sunrise = t_today.sunrise

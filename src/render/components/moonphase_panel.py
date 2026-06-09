@@ -328,6 +328,7 @@ def _draw_lunar_line(
     font = cormorant_regular(_DATA_FONT_PT)
     parts: list[str] = []
     if _coords_set(latitude, longitude):
+        assert latitude is not None and longitude is not None
         times = moon_times(today, latitude, longitude, tz=tz)
         rise = _local(times.rise, tz)
         mset = _local(times.set, tz)

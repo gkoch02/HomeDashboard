@@ -222,11 +222,13 @@ class ThemeStyle:
     invert_allday_bars: bool = True
 
     # Font callables — each takes a size (int) and returns a FreeTypeFont.
-    # None triggers automatic default-font assignment in __post_init__.
-    font_regular: FontCallable | None = None
-    font_medium: FontCallable | None = None
-    font_semibold: FontCallable | None = None
-    font_bold: FontCallable | None = None
+    # Declared non-Optional because __post_init__ always fills in the bundled
+    # defaults; the None sentinel only exists between construction and
+    # __post_init__, hence the targeted ignores.
+    font_regular: FontCallable = None  # type: ignore[assignment]
+    font_medium: FontCallable = None  # type: ignore[assignment]
+    font_semibold: FontCallable = None  # type: ignore[assignment]
+    font_bold: FontCallable = None  # type: ignore[assignment]
     # Optional overrides for specific large display elements in the week view.
     # Falls back to font_bold when None.
     font_date_number: FontCallable | None = None  # large today date numeral
@@ -294,13 +296,13 @@ class ThemeStyle:
     def label_font(self) -> ImageFont.FreeTypeFont:
         """Return the appropriate font for section labels based on label_font_weight."""
         if self.font_section_label is not None:
-            return self.font_section_label(self.label_font_size)  # type: ignore[misc]
+            return self.font_section_label(self.label_font_size)
         fn = {
             "bold": self.font_bold,
             "semibold": self.font_semibold,
             "regular": self.font_regular,
         }.get(self.label_font_weight, self.font_bold)
-        return fn(self.label_font_size)  # type: ignore[misc]
+        return fn(self.label_font_size)
 
     def primary_accent_fill(self) -> int | tuple[int, int, int]:
         """Return the general-purpose primary accent fill for the current backend."""

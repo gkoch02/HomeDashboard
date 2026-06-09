@@ -151,7 +151,7 @@ def draw_scorecard(
     draw.text((x0 + _PAD, y0 + 10), spaced_title, font=title_font, fill=bg)
 
     date_str = now.strftime("%a  %b %-d   %-I:%M%p").upper()
-    date_font = (style.font_medium or style.font_bold)(12)
+    date_font = style.font_medium(12)
     dw = text_width(draw, date_str, date_font)
     draw.text((x0 + w - dw - _PAD, y0 + 13), date_str, font=date_font, fill=bg)
 
@@ -420,7 +420,7 @@ def draw_scorecard(
     qx = x0 + moon_w + _PAD
     qy = row3_y + 14
     q_font = (style.font_regular)(13)
-    q_attr_font = (style.font_medium or style.font_regular)(11)
+    q_attr_font = style.font_medium(11)
     q_text = f"\u201c{quote['text']}\u201d"
     q_max_w = quote_w - _PAD * 2
 

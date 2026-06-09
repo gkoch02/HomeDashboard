@@ -32,10 +32,10 @@ FALLBACK_ICON = "\uf07b"  # N/A
 
 def draw_weather_icon(
     draw: ImageDraw.ImageDraw,
-    xy: tuple[int, int],
+    xy: tuple[float, float],
     owm_icon_code: str,
     size: int = 48,
-    fill: int = 0,
+    fill: int | tuple[int, int, int] = 0,
 ):
     font = weather_icon(size)
     glyph = OWM_ICON_MAP.get(owm_icon_code, FALLBACK_ICON)

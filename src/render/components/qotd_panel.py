@@ -293,7 +293,13 @@ def draw_qotd_weather(
             block_fc_h = fc_icon_size + 3 + row_lh + 3 + row_lh
             fc_y = center_y - block_fc_h // 2
 
-            draw_weather_icon(draw, (cx, fc_y), fc.icon, size=fc_icon_size, fill=style.fg)
+            draw_weather_icon(
+                draw,
+                (cx, fc_y),
+                fc.icon,
+                size=fc_icon_size,
+                fill=style.fg,
+            )
             # Use measured glyph width (not font size) to avoid overlap
             tx = cx + _icon_width(draw, fc.icon, fc_icon_size) + 4
             draw.text((tx, fc_y), fc.date.strftime("%a"), font=day_font, fill=style.fg)

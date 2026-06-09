@@ -339,6 +339,7 @@ def _draw_masthead(
     """Plate header: PLATE no. + dateline above a triple rule, Latin specimen
     name + weekday/date beneath.  All text is solid ink at sizes chosen to
     stay legible after the final Floyd-Steinberg quantization step."""
+    assert style.font_section_label is not None
     plate_label_font = style.font_section_label(16 * SS)
     dateline_font = style.font_section_label(16 * SS)
     subtitle_font = style.font_section_label(20 * SS)
@@ -1095,10 +1096,9 @@ def _draw_callouts(
     near-black tone (40) so it dithers to a near-solid line rather than a
     mid-grey hash.
     """
+    assert style.font_section_label is not None
     label_font = style.font_section_label(14 * SS)
-    value_font = (
-        style.font_semibold(16 * SS) if style.font_semibold else style.font_regular(16 * SS)
-    )
+    value_font = style.font_semibold(16 * SS)
 
     rows: list[tuple[str, str, str, str]] = []
     # 1) FIG. I — Event of the day.
