@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [5.1.0] - 2026-06-09
+
 ### Added
 
 - **`postcard` theme** — vintage dithered postcard.  Left two-thirds is a
@@ -116,7 +120,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   the same vertical band as the sun's lower-left rays.  Dropped the
   label to `y0 + 116` so it clears the glyph.
 
-## [5.0.0] — Pluggable & Polished
+## [5.0.0] - 2026-05-01 — Pluggable & Polished
 
 The v5 release is a structural refactor that pays down v4's hard-coded
 dispatch sites and ships the long-pending CalDAV calendar source on top of
@@ -224,10 +228,9 @@ files migrate transparently on first read. See
 
 ### (Patch version bump for minor fixes)
 
-## [4.2] - Unreleased
+## [4.2] - 2026-04-04
 
-### Added
-- 
+### (Version bump only — released alongside 4.2.1)
 
 ## [4.1.3] - 2026-04-04
 

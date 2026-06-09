@@ -17,7 +17,7 @@ make previews       # Generate all theme preview PNGs → assets/previews/theme_
 make previews-split # Combine Waveshare + Inky previews into assets/previews/theme_<name>_split.png
 make check          # Validate config/config.yaml
 make docs-check     # Run scripts/check_docs.py (markdown link / heading sanity)
-make version        # Print current version (e.g. main.py 4.6)
+make version        # Print current version (e.g. main.py 5.1.0)
 make deploy         # Rsync to Pi (configurable: PI_USER, PI_HOST, PI_DIR)
 make install        # Install systemd timer on remote Pi (via ssh/scp)
 make pi-install     # Full Pi setup: apt deps, venv, Inky + Waveshare drivers (run ON Pi)
@@ -276,7 +276,7 @@ The cooldown is `display.min_refresh_interval_seconds` (config), defaulting to 6
 --force-full-refresh   Force full eInk refresh and bypass fetch intervals
 --ignore-breakers      Ignore OPEN circuit breakers for this run
 --check-config         Validate config and exit
---version              Print version and exit (e.g. "main.py 4.6")
+--version              Print version and exit (e.g. "main.py 5.1.0")
 ```
 
 ## Adding New Features
