@@ -31,7 +31,7 @@ sized small (S, < 1 h), medium (M, an afternoon), or large (L, multi-day).
 
 ## P0 — Forward-compatibility and identity debt
 
-### P0-1. Cut the v5.0 release identity (S)
+### P0-1. Cut the v5.0 release identity (S) — ✅ done (v5.1.0)
 
 The codebase *is* v5 (CLAUDE.md says "Dashboard v5"; CHANGELOG has a
 `[5.0.0] — Pluggable & Polished` section) but the package identity still
@@ -48,7 +48,7 @@ date the 5.0.0 entry, roll the Unreleased block into a dated 5.1.0 entry,
 and tag the release. Also fix the stray `## [4.2] - Unreleased` heading in
 the changelog history.
 
-### P0-2. Remove deprecated Pillow `getdata()` (M)
+### P0-2. Remove deprecated Pillow `getdata()` (M) — ✅ done
 
 `Image.getdata()` is deprecated and **will be removed in Pillow 14
 (2027-10-15)**. Running the suite with `-W error::DeprecationWarning`
@@ -68,7 +68,7 @@ conftest. Then add `filterwarnings = ["error::DeprecationWarning"]` to
 `[tool.pytest.ini_options]` so the next upstream deprecation fails CI
 immediately instead of accumulating 100+ silent warnings.
 
-### P0-3. Retire the Python 3.9 floor (S–M)
+### P0-3. Retire the Python 3.9 floor (S–M) — ✅ done (3.10+)
 
 Python 3.9 reached end-of-life in October 2025. Today:
 
@@ -103,7 +103,7 @@ fallbacks in `__post_init__` into non-Optional fields. Then remove
 modules from the override list a few per PR until the list is empty.
 This also de-risks every future theme PR, which is where most churn happens.
 
-### P1-2. True up the coverage story (S)
+### P1-2. True up the coverage story (S) — ✅ done (gate 94%)
 
 Actual coverage is **95.7 %**; CLAUDE.md claims "currently ~99 %" and the
 gate is 90 %. The biggest gaps are the newest art panels
