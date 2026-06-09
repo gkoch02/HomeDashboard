@@ -24,6 +24,8 @@ from functools import lru_cache
 from PIL import Image, ImageDraw
 
 from src.data.models import CalendarEvent, DashboardData
+from src.render.artkit import grey as _grey
+from src.render.artkit import ink as _ink
 from src.render.fonts import weather_icon
 from src.render.moon import is_waxing, moon_illumination
 from src.render.primitives import draw_text_truncated
@@ -65,11 +67,6 @@ _HERO_CY = 156
 # ---------------------------------------------------------------------------
 
 
-def _grey(v: int, mode: str) -> int | tuple[int, int, int]:
-    """Return *v* (0..255) as either an L-mode int or an RGB greyscale triple."""
-    return v if mode == "L" else (v, v, v)
-
-
 def _accent_yellow(mode: str) -> int | tuple[int, int, int]:
     """Warm-light accent for sun/moon highlights.
 
@@ -79,11 +76,6 @@ def _accent_yellow(mode: str) -> int | tuple[int, int, int]:
     if mode == "RGB":
         return INKY_SPECTRA6_PALETTE[INKY_YELLOW]
     return 210
-
-
-def _ink(mode: str) -> int | tuple[int, int, int]:
-    """Solid foreground ink (black)."""
-    return 0 if mode == "L" else (0, 0, 0)
 
 
 # ---------------------------------------------------------------------------

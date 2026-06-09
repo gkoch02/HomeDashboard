@@ -78,6 +78,8 @@ src/
 ├── config_schema.py           # v5 declarative schema (FieldSpec/SectionSpec) — source of truth
 │                              #   for editable / secret / enum metadata; powers the web editor
 ├── config_migrations.py       # Schema-versioned migration runner; v4_to_v5 step + backup helper
+├── config_validation.py       # validate_config / ConfigError / ConfigWarning (split from
+│                              #   config.py; every name re-exported from src.config)
 ├── dummy_data.py              # Realistic dummy data for --dummy / dev previews
 ├── filters.py                 # Event filtering (calendar, keyword, all-day)
 ├── data/models.py             # Pure dataclasses: CalendarEvent, WeatherData, AirQualityData,
@@ -104,6 +106,9 @@ src/
 │   ├── circuit_breaker.py     # Per-source circuit breaker
 │   └── quota_tracker.py       # Daily API call counter
 └── render/
+    ├── artkit.py              # Shared art-theme helpers: mode-aware colours (grey/ink/
+    │                          #   accent_red) + meteorological season; used by weatherglass,
+    │                          #   postcard, naturalist, halftone, almanac
     ├── canvas.py              # Top-level render orchestrator; iterates the component registry
     │                          #   and delegates resize+finalize to display.backend
     ├── theme.py               # Theme system (ComponentRegion, ThemeLayout, ThemeStyle);

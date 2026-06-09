@@ -46,6 +46,10 @@ from datetime import date, datetime
 from PIL import Image, ImageDraw
 
 from src.data.models import CalendarEvent, DashboardData
+from src.render.artkit import accent_red as _accent_red
+from src.render.artkit import grey as _grey
+from src.render.artkit import ink as _ink
+from src.render.artkit import season as _season
 from src.render.components.info_panel import _quote_for_today
 from src.render.moon import moon_illumination, moon_phase_name
 from src.render.primitives import (
@@ -55,8 +59,7 @@ from src.render.primitives import (
     text_height,
     wrap_lines,
 )
-from src.render.quantize import INKY_SPECTRA6_PALETTE
-from src.render.theme import INKY_RED, ComponentRegion, ThemeStyle
+from src.render.theme import ComponentRegion, ThemeStyle
 
 # ---------------------------------------------------------------------------
 # Page layout
@@ -97,22 +100,6 @@ _CALLOUT_W = 800 * SS - _PAD_X - _CALLOUT_X0
 # ---------------------------------------------------------------------------
 
 
-def _grey(v: int, mode: str) -> int | tuple[int, int, int]:
-    return v if mode == "L" else (v, v, v)
-
-
-def _ink(mode: str) -> int | tuple[int, int, int]:
-    return 0 if mode == "L" else (0, 0, 0)
-
-
-def _accent_red(mode: str) -> int | tuple[int, int, int]:
-    """Plate accent — red on Inky, solid black on L mode so it stays crisp
-    after Floyd-Steinberg quantization (mid-grey would dither into hash)."""
-    if mode == "RGB":
-        return INKY_SPECTRA6_PALETTE[INKY_RED]
-    return 0
-
-
 # ---------------------------------------------------------------------------
 # Deterministic RNG seed — Python ``str.__hash__`` is randomized per process,
 # so we need a stable hash to keep the specimen reproducible across runs and
@@ -141,18 +128,6 @@ def _stable_seed(season: str, modifier: str, today: date) -> int:
 # ---------------------------------------------------------------------------
 # Season + weather classification
 # ---------------------------------------------------------------------------
-
-
-def _season(today: date) -> str:
-    """Meteorological season for the northern hemisphere."""
-    m = today.month
-    if 3 <= m <= 5:
-        return "spring"
-    if 6 <= m <= 8:
-        return "summer"
-    if 9 <= m <= 11:
-        return "autumn"
-    return "winter"
 
 
 # Freezing-point threshold per OWM unit system.  ``WeatherData.current_temp``

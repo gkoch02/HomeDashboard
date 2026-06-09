@@ -37,6 +37,9 @@ from functools import lru_cache
 from PIL import Image, ImageDraw
 
 from src.data.models import CalendarEvent, DashboardData
+from src.render.artkit import accent_red as _accent_red
+from src.render.artkit import grey as _grey
+from src.render.artkit import ink as _ink
 from src.render.components.info_panel import _quote_for_today
 from src.render.moon import is_waxing, moon_illumination
 from src.render.primitives import (
@@ -46,8 +49,7 @@ from src.render.primitives import (
     text_height,
     wrap_lines,
 )
-from src.render.quantize import INKY_SPECTRA6_PALETTE
-from src.render.theme import INKY_RED, ComponentRegion, ThemeStyle
+from src.render.theme import ComponentRegion, ThemeStyle
 
 # ---------------------------------------------------------------------------
 # Geometry — postcard is split at SCENE_W; everything left of it is the
@@ -76,26 +78,6 @@ _HORIZON_Y_FRAC = 0.62
 # ---------------------------------------------------------------------------
 # Mode-aware colour helpers (mirrors halftone_panel)
 # ---------------------------------------------------------------------------
-
-
-def _grey(v: int, mode: str) -> int | tuple[int, int, int]:
-    return v if mode == "L" else (v, v, v)
-
-
-def _ink(mode: str) -> int | tuple[int, int, int]:
-    return 0 if mode == "L" else (0, 0, 0)
-
-
-def _accent_red(mode: str) -> int | tuple[int, int, int]:
-    """Postmark / stamp-border accent.  Red on Inky, solid black on L mode.
-
-    L mode collapses the accent to solid ink because mid-grey would dither
-    into a noisy half-tone pattern after Floyd-Steinberg — fine for
-    procedural illustration but illegible for small text and thin rules.
-    """
-    if mode == "RGB":
-        return INKY_SPECTRA6_PALETTE[INKY_RED]
-    return 0
 
 
 # ---------------------------------------------------------------------------

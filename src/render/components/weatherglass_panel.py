@@ -39,6 +39,8 @@ from PIL import Image, ImageDraw
 
 from src.astronomy import sun_times
 from src.data.models import AirQualityData, DashboardData, WeatherAlert, WeatherData
+from src.render.artkit import grey as _grey
+from src.render.artkit import ink as _ink
 from src.render.moon import is_waxing, moon_illumination, moon_phase_name
 from src.render.primitives import draw_text_truncated, text_height, text_width
 from src.render.quantize import INKY_SPECTRA6_PALETTE
@@ -88,14 +90,6 @@ _AQI_RECT = (616 * SS, _SEC_Y0, 716 * SS, _SEC_Y1)
 # fill bands (cold/comfort zones, wood grain) use mid-grey on L so they
 # dither into engraving-style halftone.
 # ---------------------------------------------------------------------------
-
-
-def _grey(v: int, mode: str) -> int | tuple[int, int, int]:
-    return v if mode == "L" else (v, v, v)
-
-
-def _ink(mode: str) -> int | tuple[int, int, int]:
-    return 0 if mode == "L" else (0, 0, 0)
 
 
 def _brass(mode: str) -> int | tuple[int, int, int]:
