@@ -10,7 +10,7 @@ from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
 
-from flask import Blueprint, current_app, jsonify, render_template
+from flask import Blueprint, current_app, jsonify, render_template, request
 
 from src.services.theme import resolve_theme_name
 from src.web.event_store import read_recent_events
@@ -19,6 +19,7 @@ from src.web.state_reader import (
     read_breakers,
     read_cache_ages,
     read_host_metrics,
+    read_last_error,
     read_last_success,
     read_quota,
 )
@@ -290,3 +291,38 @@ def index():
 @status_bp.route("/api/status")
 def api_status():
     return jsonify(_build_status())
+
+
+@status_bp.route("/api/health")
+def api_health():
+    """Minimal uptime-monitor probe: HTTP 200 when the last run succeeded, 503 otherwise.
+
+    Healthy means a success marker exists and no error is newer than it.
+    An optional ``?max_age=<seconds>`` query parameter additionally requires
+    the last success to be at most that old (quiet hours are exempt — the
+    renderer intentionally does not run then).
+    """
+    output_dir = current_app.config["OUTPUT_DIR"]
+    cfg = current_app.config["DASH_CFG"]
+    success = read_last_success(output_dir)
+    error = read_last_error(output_dir)
+
+    healthy = success["timestamp"] is not None and not error["is_current"]
+    max_age = request.args.get("max_age", type=int)
+    in_quiet = is_quiet_hours_now(cfg.schedule.quiet_hours_start, cfg.schedule.quiet_hours_end)
+    if healthy and max_age is not None and not in_quiet:
+        seconds_since = success.get("seconds_since")
+        if seconds_since is None or seconds_since > max_age:
+            healthy = False
+
+    body = {
+        "healthy": healthy,
+        "last_success": success["timestamp"],
+        "seconds_since_success": success["seconds_since"],
+        "current_error": (
+            {"timestamp": error["timestamp"], "exception_type": error["exception_type"]}
+            if error["is_current"]
+            else None
+        ),
+    }
+    return jsonify(body), (200 if healthy else 503)

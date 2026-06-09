@@ -160,7 +160,7 @@ src/
     ├── config_editor.py       # Safe config read/write: EDITABLE_FIELD_PATHS derived from
     │                          #   src.config_schema.editable_field_paths(); apply_patch()
     ├── routes/
-    │   ├── status.py          # GET / (HTML), GET /api/status (JSON)
+    │   ├── status.py          # GET / (HTML), GET /api/status (JSON), GET /api/health (probe)
     │   ├── image.py           # GET /image/latest, GET /image/theme/<name>
     │   ├── logs.py            # GET /api/logs?lines=N
     │   ├── config.py          # GET/POST /api/config, GET /config (HTML editor),
