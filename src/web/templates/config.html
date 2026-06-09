@@ -499,6 +499,8 @@
   {# Save button (bottom)                                                #}
   {# ------------------------------------------------------------------ #}
   <div style="display:flex; justify-content:flex-end; gap:.5rem; padding-top:.5rem; border-top:1px solid var(--border); flex-wrap:wrap;">
+    <button class="btn" onclick="livePreview(this)"
+            title="Render the selected theme with your unsaved edits — nothing is written">Live preview</button>
     <button class="btn cfg-discard-btn" onclick="discardConfig()" hidden>Discard</button>
     <button class="btn" onclick="openSavePreview({ refreshAfterSave: true, triggerButton: this })">Save + Refresh</button>
     <button class="btn btn-primary" onclick="openSavePreview({ refreshAfterSave: false, triggerButton: this })">Save</button>

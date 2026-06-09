@@ -212,7 +212,7 @@ Additional config-page behavior:
 | `/api/config/schema` | GET | The v5 declarative schema with current values inlined: every section, field type, label, description, choices, secret flag, and `value` (or `has_value` for secrets). The web editor consumes this for form rendering. |
 | `/api/config/backups` | GET | Recent config backup files (newest first) |
 | `/api/config/restore-latest` | POST | Restore the most recent backup (CSRF-protected) |
-| `/api/preview` | POST | Render any registered theme to PNG against dummy data. Body: `{"theme": "<name>"}`. Pseudo names (`random`, `random_daily`, `random_hourly`) and unknown themes return 400; render exceptions return 500. CSRF-protected. |
+| `/api/preview` | POST | Render any registered theme to PNG against dummy data. Body: `{"theme": "<name>"}` plus an optional `"patch"` dict (same flat shape as `POST /api/config`) to render against a candidate config without persisting anything — the config page's **Live preview** button uses this to show unsaved edits. Pseudo names (`random`, `random_daily`, `random_hourly`), unknown themes, and patches that fail validation return 400; render exceptions return 500. CSRF-protected. |
 | `/api/health` | GET | Uptime-monitor probe: HTTP 200 when the last renderer run succeeded (a success marker exists and no error is newer), 503 otherwise. Optional `?max_age=<seconds>` additionally requires the last success to be at most that old; the age check is skipped during quiet hours, when the renderer intentionally doesn't run. Point Uptime Kuma / healthchecks.io at it (they support Basic Auth if you have auth enabled). |
 
 The preview endpoint powers the "see what this theme looks like" button on the config

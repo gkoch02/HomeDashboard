@@ -759,7 +759,7 @@ def test_validate_raw_swallows_temp_cleanup_error(tmp_path):
 
     with patch("src.web.config_editor.os.unlink", side_effect=unlink_fails):
         # Valid YAML so no validation error should be raised by load_config.
-        errors, warnings = _validate_raw({"title": "T"})
+        _cfg, errors, warnings = _validate_raw({"title": "T"})
     # Result is returned regardless of cleanup failure.
     assert errors == []
 

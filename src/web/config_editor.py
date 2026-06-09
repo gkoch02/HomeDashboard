@@ -97,7 +97,7 @@ def restore_latest_backup(config_path: str) -> tuple[bool, str]:
     backup_path = path.parent / backups[0]["name"]
     try:
         raw = _load_raw_yaml(str(backup_path))
-        errors_obj, _warnings_obj = _validate_raw(raw)
+        _cfg, errors_obj, _warnings_obj = _validate_raw(raw)
         if errors_obj:
             return False, "Latest backup failed validation and was not restored."
         _write_raw_yaml(config_path, raw, rotate_backup=False)
@@ -197,7 +197,7 @@ def apply_patch(config_path: str, patch: dict) -> tuple[bool, list[dict], list[d
     raw = _load_raw_yaml(config_path)
     updated_raw = _apply_to_raw(raw, safe_patch)
 
-    errors_obj, warnings_obj = _validate_raw(updated_raw)
+    _cfg, errors_obj, warnings_obj = _validate_raw(updated_raw)
 
     errors = [{"field": e.field, "message": e.message, "hint": e.hint} for e in errors_obj]
     warnings = [{"field": w.field, "message": w.message, "hint": w.hint} for w in warnings_obj]
@@ -208,6 +208,32 @@ def apply_patch(config_path: str, patch: dict) -> tuple[bool, list[dict], list[d
         return True, errors, warnings
 
     return False, errors, warnings
+
+
+def build_patched_config(config_path: str, patch: dict) -> tuple[object, list[dict], list[dict]]:
+    """Build a candidate Config with *patch* applied — without writing anything.
+
+    Same allowlist and validation pipeline as :func:`apply_patch` (unknown and
+    sensitive fields are silently dropped), but the patched YAML is only ever
+    materialised in a temp file for parsing. Powers the web editor's
+    patch-preview: "what would the dashboard look like with my unsaved edits?"
+
+    Returns ``(cfg, errors, warnings)``; *cfg* is ``None`` when validation
+    produced fatal errors.
+    """
+    safe_patch = {k: v for k, v in patch.items() if k in EDITABLE_FIELD_PATHS}
+
+    raw = _load_raw_yaml(config_path)
+    updated_raw = _apply_to_raw(raw, safe_patch)
+
+    cfg, errors_obj, warnings_obj = _validate_raw(updated_raw)
+
+    errors = [{"field": e.field, "message": e.message, "hint": e.hint} for e in errors_obj]
+    warnings = [{"field": w.field, "message": w.message, "hint": w.hint} for w in warnings_obj]
+
+    if errors_obj:
+        return None, errors, warnings
+    return cfg, errors, warnings
 
 
 # ---------------------------------------------------------------------------
@@ -295,13 +321,17 @@ def _apply_to_raw(raw: dict, patch: dict) -> dict:
 
 
 def _validate_raw(raw: dict) -> tuple:
-    """Parse *raw* into a Config via a temp file and run validate_config()."""
+    """Parse *raw* into a Config via a temp file and run validate_config().
+
+    Returns ``(cfg, errors, warnings)``.
+    """
     fd, tmp = tempfile.mkstemp(suffix=".yaml")
     try:
         with os.fdopen(fd, "w") as f:
             yaml.dump(raw, f, default_flow_style=False, allow_unicode=True)
         cfg = load_config(tmp)
-        return validate_config(cfg, config_path="")
+        errors, warnings = validate_config(cfg, config_path="")
+        return cfg, errors, warnings
     finally:
         try:
             os.unlink(tmp)

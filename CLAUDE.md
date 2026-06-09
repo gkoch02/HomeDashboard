@@ -171,7 +171,7 @@ src/
     │   ├── config.py          # GET/POST /api/config, GET /config (HTML editor),
     │   │                      #   GET /api/config/schema (v5: schema-driven form metadata)
     │   ├── preview.py         # POST /api/preview — render any registered theme to PNG
-    │   │                      #   against dummy data; CSRF-protected
+    │   │                      #   against dummy data or a candidate config patch; CSRF-protected
     │   └── actions.py         # POST /api/trigger-refresh, /api/reset-breaker, /api/clear-cache
     ├── templates/             # Jinja2 templates: base.html, status.html, config.html
     └── static/                # dashboard.js, style.css
@@ -437,7 +437,7 @@ default to `None` and fall back gracefully so adding a new field never breaks ex
 - Web UI config is in `config/web.yaml` (separate from `config/config.yaml`); it is git-ignored and contains the password hash — never commit it
 - `EDITABLE_FIELD_PATHS` in `config_editor.py` is now derived from `src.config_schema.editable_field_paths()` — adding a new editable field is a single `FieldSpec` entry in `config_schema.py`, not a dict edit in two places. Sensitive fields are marked `secret=True` in the schema and surface as `_*_set: bool` flags in `GET /api/config` responses (or as a `has_value` boolean in `GET /api/config/schema`); the plaintext is never sent to the browser.
 - `GET /api/config/schema` returns `to_json(values=...)` from `config_schema.py` — sections, field types, labels, descriptions, choices, secret flags, and the current values inlined for non-secret fields. The schema response is the source of truth for the web editor's form rendering.
-- `POST /api/preview` (`src/web/routes/preview.py`) renders any registered theme against dummy data and returns the PNG bytes inline. CSRF-protected, rejects pseudo names (`random`, `random_daily`, `random_hourly`) and unknown themes with HTTP 400, render exceptions with HTTP 500. Patch-preview (rendering against a candidate config diff) was deferred to v5.1 — visual feedback on the theme dropdown was the critical win.
+- `POST /api/preview` (`src/web/routes/preview.py`) renders any registered theme against dummy data and returns the PNG bytes inline. The optional `"patch"` field (same flat shape as `POST /api/config`) renders against a candidate config built via `config_editor.build_patched_config()` — same allowlist/validation as a real save, nothing persisted; the config page's **Live preview** button sends the current form values this way. CSRF-protected; pseudo names (`random`, `random_daily`, `random_hourly`), unknown themes, and patches failing validation return HTTP 400, render exceptions HTTP 500.
 - `apply_patch()` in `config_editor.py` validates the patched YAML through `load_config()` + `validate_config()` in a temp file before writing; `validate_config()` does a lazy import of `src.display.driver.WAVESHARE_MODELS` (which imports PIL) — tests that call `apply_patch` must patch `src.web.config_editor.validate_config` to avoid the PIL dependency
 - Manual refresh uses a trigger-file approach: the web UI touches `state/web_trigger`; the `dashboard-trigger.path` systemd unit watches for this file and starts `dashboard.service`; the service deletes the file via `ExecStartPost`; no sudo required
 - `dashboard-web.service` and `dashboard-trigger.path` are installed by `make web-enable` using the same `__USER__`/`__INSTALL_DIR__` substitution as `dashboard.service`
