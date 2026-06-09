@@ -20,8 +20,9 @@ Adding a new theme requires only two steps:
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Callable, Literal
+from typing import TYPE_CHECKING, Literal
 
 if TYPE_CHECKING:
     from PIL import Image, ImageDraw, ImageFont

@@ -38,7 +38,7 @@ ruff format src/ tests/                        # Format (direct invocation)
 
 ## Tech Stack
 
-- **Python 3.9+** — no async
+- **Python 3.10+** — no async
 - **Pillow** — image rendering (PIL)
 - **google-api-python-client / google-auth** — Google Calendar & Contacts APIs
 - **requests** — OpenWeatherMap API + ICS feed fetching
