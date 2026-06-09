@@ -88,7 +88,7 @@ and replace 3.9 with 3.13 in the CI test matrix.
 
 ## P1 — Strengthen the quality gates
 
-### P1-1. Burn down the mypy `ignore_errors` blanket (L, incremental)
+### P1-1. Burn down the mypy `ignore_errors` blanket (L, incremental) — ✅ done
 
 29 of the 30 render-component modules — the majority of the codebase by
 line count — are excluded from type checking via `ignore_errors = true`
@@ -118,7 +118,7 @@ art panels (mostly weather-variant scene paths).
 
 ## P2 — Render-layer maintainability
 
-### P2-1. Extract shared drawing/data helpers (M)
+### P2-1. Extract shared drawing/data helpers (M) — ✅ done (`src/render/artkit.py`)
 
 The procedural art panels have grown organically and now duplicate
 concepts:
@@ -136,7 +136,7 @@ shared season helper, mode-aware colour resolution, and the dither/
 supersample scaffolding. Pixel-snapshot tests make this refactor safe —
 any behavioural drift shows up as a hash change.
 
-### P2-2. Split the two oversized modules (M, optional)
+### P2-2. Split the two oversized modules (M, optional) — ✅ config.py done; weatherglass split deliberately skipped (no second consumer for its instrument primitives yet)
 
 - `weatherglass_panel.py` is 1,977 lines with 41 private helpers; the
   generic instrument primitives (`_draw_dial_rim`, `_draw_needle`,
@@ -154,7 +154,7 @@ Both are well-tested, so this is purely about keeping future edits cheap.
 ## P3 — Roadmap features (v5.1+)
 
 In priority order, all grounded in existing deferrals or natural
-extensions:
+extensions (all four: ✅ done):
 
 1. **Web UI patch-preview** — explicitly deferred from v5: render a theme
    preview against a *candidate* config diff before saving, so config
