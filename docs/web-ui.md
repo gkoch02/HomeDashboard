@@ -182,6 +182,7 @@ A browser editor for `config/config.yaml`. Changes are validated server-side bef
 | **Advanced: Cache & Intervals** | TTLs, fetch intervals, circuit breaker settings, quote refresh |
 | **Advanced: Random Theme Pool** | Include/exclude theme lists |
 | **Advanced: Theme Schedule** | Time-based theme switching (add/remove rows) |
+| **Advanced: Theme Rules** | Context-aware theme switching (`theme_rules`), edited as YAML in a validated textarea — parse errors and unknown fields block the save, and Live preview can render against unsaved rules |
 | **Credential Status (read-only)** | Which API keys / credentials appear configured |
 | **Change Summary** | Shows unsaved changes at a glance while you edit |
 | **Config Backups** | Lists recent backups and allows restoring the latest one |

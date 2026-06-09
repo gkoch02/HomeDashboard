@@ -399,6 +399,22 @@ def schema() -> tuple[SectionSpec, ...]:
                 ),
             ),
         ),
+        SectionSpec(
+            name="theme_rules",
+            title="Theme rules",
+            fields=(
+                _f(
+                    "theme_rules",
+                    ("theme_rules",),
+                    "list[dict]",
+                    "Context-aware theme rules",
+                    description=(
+                        "Ordered list of {when: {...}, theme: 'name'} rules; "
+                        "first match wins. The web editor edits these as YAML."
+                    ),
+                ),
+            ),
+        ),
     )
 
 

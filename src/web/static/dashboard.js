@@ -168,6 +168,7 @@ function getCurrentChangeList() {
     cache: _lastLoadedConfig.cache,
     random_theme: _lastLoadedConfig.random_theme,
     theme_schedule: _lastLoadedConfig.theme_schedule,
+    theme_rules: _lastLoadedConfig.theme_rules_yaml || "",
   });
 }
 
@@ -621,6 +622,10 @@ function collectConfigPatch() {
   });
   patch["theme_schedule"] = schedule;
 
+  // Theme rules — sent as YAML text; the server parses and validates it.
+  const rulesEl = $("cfg-theme-rules");
+  if (rulesEl) patch["theme_rules"] = rulesEl.value;
+
   return patch;
 }
 
@@ -685,6 +690,10 @@ function populateConfigForm(data) {
     tbody.innerHTML = "";
     (data.theme_schedule || []).forEach(e => addScheduleRow(e.time, e.theme));
   }
+
+  // Theme rules YAML textarea
+  const rulesEl = $("cfg-theme-rules");
+  if (rulesEl) rulesEl.value = data.theme_rules_yaml || "";
 
   // Sync theme dropdown and grid
   if (data.theme) {

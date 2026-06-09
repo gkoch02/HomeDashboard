@@ -177,8 +177,57 @@ def get_config_for_web(config_path: str) -> dict:
             "exclude": cfg.random_theme.exclude,
         },
         "theme_schedule": [{"time": e.time, "theme": e.theme} for e in cfg.theme_schedule.entries],
+        "theme_rules_yaml": _theme_rules_yaml(config_path),
         "backups": list_config_backups(config_path),
     }
+
+
+def _theme_rules_yaml(config_path: str) -> str:
+    """Return the on-disk ``theme_rules`` list as YAML text for the editor textarea.
+
+    Reads the raw file (not the parsed Config) so the round-trip is lossless —
+    unknown keys a future version might add survive an unrelated save.
+    """
+    rules = _load_raw_yaml(config_path).get("theme_rules")
+    if not rules:
+        return ""
+    return yaml.dump(rules, default_flow_style=False, allow_unicode=True, sort_keys=False)
+
+
+def _normalise_patch(patch: dict) -> tuple[dict, list[dict]]:
+    """Pre-parse patch values that arrive as YAML text.
+
+    The web editor's theme-rules field is a YAML textarea, so its value is a
+    string; parse it into the list shape the YAML file stores. Returns
+    ``(patch, errors)`` — on a parse failure the field is dropped from the
+    patch and a structured error is reported instead.
+    """
+    if not isinstance(patch.get("theme_rules"), str):
+        return patch, []
+    patch = dict(patch)
+    text = patch["theme_rules"]
+    try:
+        parsed = yaml.safe_load(text) or []
+    except yaml.YAMLError as exc:
+        del patch["theme_rules"]
+        return patch, [
+            {
+                "field": "theme_rules",
+                "message": f"Not valid YAML: {exc}",
+                "hint": "Each entry is '- when: {<conditions>}' plus 'theme: <name>'.",
+            }
+        ]
+    if not isinstance(parsed, list):
+        del patch["theme_rules"]
+        return patch, [
+            {
+                "field": "theme_rules",
+                "message": "theme_rules must be a YAML list of rules.",
+                "hint": "Each entry is '- when: {<conditions>}' plus 'theme: <name>'.",
+            }
+        ]
+    patch["theme_rules"] = parsed
+    return patch, []
 
 
 def apply_patch(config_path: str, patch: dict) -> tuple[bool, list[dict], list[dict]]:
@@ -192,6 +241,7 @@ def apply_patch(config_path: str, patch: dict) -> tuple[bool, list[dict], list[d
     Returns ``(saved, errors, warnings)`` where *saved* is True only when
     the file was written with no fatal validation errors.
     """
+    patch, parse_errors = _normalise_patch(patch)
     safe_patch = {k: v for k, v in patch.items() if k in EDITABLE_FIELD_PATHS}
 
     raw = _load_raw_yaml(config_path)
@@ -199,10 +249,12 @@ def apply_patch(config_path: str, patch: dict) -> tuple[bool, list[dict], list[d
 
     _cfg, errors_obj, warnings_obj = _validate_raw(updated_raw)
 
-    errors = [{"field": e.field, "message": e.message, "hint": e.hint} for e in errors_obj]
+    errors = parse_errors + [
+        {"field": e.field, "message": e.message, "hint": e.hint} for e in errors_obj
+    ]
     warnings = [{"field": w.field, "message": w.message, "hint": w.hint} for w in warnings_obj]
 
-    if not errors_obj:
+    if not errors_obj and not parse_errors:
         with _write_lock:
             _write_raw_yaml(config_path, updated_raw)
         return True, errors, warnings
@@ -221,6 +273,7 @@ def build_patched_config(config_path: str, patch: dict) -> tuple[object, list[di
     Returns ``(cfg, errors, warnings)``; *cfg* is ``None`` when validation
     produced fatal errors.
     """
+    patch, parse_errors = _normalise_patch(patch)
     safe_patch = {k: v for k, v in patch.items() if k in EDITABLE_FIELD_PATHS}
 
     raw = _load_raw_yaml(config_path)
@@ -228,10 +281,12 @@ def build_patched_config(config_path: str, patch: dict) -> tuple[object, list[di
 
     cfg, errors_obj, warnings_obj = _validate_raw(updated_raw)
 
-    errors = [{"field": e.field, "message": e.message, "hint": e.hint} for e in errors_obj]
+    errors = parse_errors + [
+        {"field": e.field, "message": e.message, "hint": e.hint} for e in errors_obj
+    ]
     warnings = [{"field": w.field, "message": w.message, "hint": w.hint} for w in warnings_obj]
 
-    if errors_obj:
+    if errors_obj or parse_errors:
         return None, errors, warnings
     return cfg, errors, warnings
 
@@ -307,6 +362,17 @@ def _apply_to_raw(raw: dict, patch: dict) -> dict:
         if field_path == "theme_schedule":
             # List of {time, theme} dicts — store directly as YAML list.
             raw["theme_schedule"] = value if isinstance(value, list) else []
+            continue
+
+        if field_path == "theme_rules":
+            # List of {when, theme} dicts (already parsed from the YAML
+            # textarea by _normalise_patch). An empty list removes the key so
+            # the saved YAML stays clean.
+            rules = value if isinstance(value, list) else []
+            if rules:
+                raw["theme_rules"] = rules
+            else:
+                raw.pop("theme_rules", None)
             continue
 
         # Navigate (and create) nested dicts, then set the leaf.

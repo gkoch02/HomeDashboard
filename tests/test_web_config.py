@@ -172,8 +172,9 @@ def test_editable_fields_round_trip_through_load_config(tmp_path):
     """
     from src.config import load_config
 
-    # Sanity: every editable field has a sample value (theme_schedule is special).
-    skip_keys = {"theme_schedule"}
+    # Sanity: every editable field has a sample value (theme_schedule and
+    # theme_rules are list-shaped specials with their own round-trip tests).
+    skip_keys = {"theme_schedule", "theme_rules"}
     missing = set(EDITABLE_FIELD_PATHS) - skip_keys - set(_SAMPLE_VALUES)
     assert not missing, f"Sample values missing for: {sorted(missing)}"
 
@@ -838,3 +839,83 @@ def test_post_api_config_reload_updates_dash_cfg_atomically(client, app):
     assert ttls["events"] == new_cfg.cache.events_ttl_minutes
     assert ttls["weather"] == new_cfg.cache.weather_ttl_minutes
     assert ttls["birthdays"] == new_cfg.cache.birthdays_ttl_minutes
+
+
+# ---------------------------------------------------------------------------
+# theme_rules — YAML-textarea editing path
+# ---------------------------------------------------------------------------
+
+_RULES_YAML = "- when:\n    weekday: weekend\n  theme: today\n"
+
+
+def test_editable_field_theme_rules_round_trips(tmp_path):
+    """theme_rules arrives as YAML text, is parsed, saved, and read back."""
+    from src.config import load_config
+    from src.web.config_editor import _normalise_patch, get_config_for_web
+
+    patch, errors = _normalise_patch({"theme_rules": _RULES_YAML})
+    assert errors == []
+    raw = _apply_to_raw({}, patch)
+    assert raw["theme_rules"] == [{"when": {"weekday": "weekend"}, "theme": "today"}]
+
+    p = tmp_path / "config.yaml"
+    p.write_text(yaml.dump(raw, default_flow_style=False, sort_keys=False))
+
+    cfg = load_config(str(p))
+    assert len(cfg.theme_rules.rules) == 1
+    assert cfg.theme_rules.rules[0].theme == "today"
+    assert cfg.theme_rules.rules[0].when.weekday == "weekend"
+
+    served = get_config_for_web(str(p))["theme_rules_yaml"]
+    assert yaml.safe_load(served) == raw["theme_rules"]
+
+
+def test_theme_rules_empty_string_removes_key(tmp_path):
+    from src.web.config_editor import _normalise_patch
+
+    patch, errors = _normalise_patch({"theme_rules": ""})
+    assert errors == []
+    raw = _apply_to_raw({"theme_rules": [{"theme": "today"}], "title": "T"}, patch)
+    assert "theme_rules" not in raw
+    assert raw["title"] == "T"
+
+
+def test_theme_rules_invalid_yaml_is_a_structured_error():
+    from src.web.config_editor import _normalise_patch
+
+    patch, errors = _normalise_patch({"theme_rules": ": bad ["})
+    assert "theme_rules" not in patch
+    assert len(errors) == 1
+    assert errors[0]["field"] == "theme_rules"
+    assert "Not valid YAML" in errors[0]["message"]
+
+
+def test_theme_rules_non_list_yaml_is_a_structured_error():
+    from src.web.config_editor import _normalise_patch
+
+    patch, errors = _normalise_patch({"theme_rules": "just a string"})
+    assert "theme_rules" not in patch
+    assert errors[0]["field"] == "theme_rules"
+    assert "list" in errors[0]["message"]
+
+
+def test_apply_patch_rejects_invalid_theme_rules_yaml(tmp_path):
+    """A YAML parse error blocks the save entirely — nothing is written."""
+    p = tmp_path / "config.yaml"
+    p.write_text("title: Before\n")
+    with patch(_VALIDATE_PATCH, return_value=([], [])):
+        saved, errors, _warnings = apply_patch(str(p), {"theme_rules": ": bad ["})
+    assert saved is False
+    assert any(e["field"] == "theme_rules" for e in errors)
+    assert p.read_text() == "title: Before\n"
+
+
+def test_apply_patch_saves_valid_theme_rules_yaml(tmp_path):
+    p = tmp_path / "config.yaml"
+    p.write_text("title: Before\n")
+    with patch(_VALIDATE_PATCH, return_value=([], [])):
+        saved, errors, _warnings = apply_patch(str(p), {"theme_rules": _RULES_YAML})
+    assert saved is True and errors == []
+    assert yaml.safe_load(p.read_text())["theme_rules"] == [
+        {"when": {"weekday": "weekend"}, "theme": "today"}
+    ]

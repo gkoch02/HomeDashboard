@@ -449,6 +449,24 @@
   </div>
 
   {# ------------------------------------------------------------------ #}
+  {# Theme Rules                                                         #}
+  {# ------------------------------------------------------------------ #}
+  <div class="cfg-section cfg-advanced-only">
+    <div class="cfg-section-title">Advanced: Theme Rules</div>
+    <div class="field-hint" style="padding-left:0; margin-bottom:.5rem;">
+      Context-aware theme switching — first matching rule wins, and rules beat the schedule
+      and the base theme. Each entry pairs a <code>when:</code> block (any of
+      <code>weather</code>, <code>weather_alert_present</code>, <code>daypart</code>,
+      <code>season</code>, <code>weekday</code>, <code>calendar</code>) with a
+      <code>theme:</code> name. Edited as YAML; validated on save and usable with
+      Live&nbsp;preview. Leave empty to disable.
+    </div>
+    <textarea id="cfg-theme-rules" data-field="theme_rules" rows="8" spellcheck="false"
+              style="width:100%; font-family:monospace; font-size:.85rem;"
+              placeholder="- when: { weather: [rain, snow] }&#10;  theme: weather&#10;- when: { weekday: weekend }&#10;  theme: today"></textarea>
+  </div>
+
+  {# ------------------------------------------------------------------ #}
   {# Credentials (read-only info)                                        #}
   {# ------------------------------------------------------------------ #}
   <div class="cfg-section">
