@@ -305,7 +305,7 @@ def api_health():
     output_dir = current_app.config["OUTPUT_DIR"]
     cfg = current_app.config["DASH_CFG"]
     success = read_last_success(output_dir)
-    error = read_last_error(output_dir)
+    error = read_last_error(output_dir, last_success=success)
 
     healthy = success["timestamp"] is not None and not error["is_current"]
     max_age = request.args.get("max_age", type=int)

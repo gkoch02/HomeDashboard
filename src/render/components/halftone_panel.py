@@ -755,7 +755,7 @@ def _draw_margin_band(
     # temperatures. Within that column the temp is horizontally centred
     # so 1- and 2-digit values don't look left-biased against the wide
     # blank reservation that 3-digit values would fill.
-    temp_font = style.font_title(TEMP_NUMERAL_SIZE)  # type: ignore[misc]
+    temp_font = (style.font_title or style.font_bold)(TEMP_NUMERAL_SIZE)
     temp_text = _fmt_temp(weather.current_temp) if weather else "—"
     temp_bbox = draw.textbbox((0, 0), temp_text, font=temp_font)
     temp_visible_h = temp_bbox[3] - temp_bbox[1]
@@ -813,7 +813,7 @@ def _draw_margin_band(
     # display size without overflowing on long condition strings (the
     # widest OWM phrase ``HEAVY INTENSITY RAIN`` plus triple-digit temps
     # still fits inside the 492 px right column at 25 pt).
-    now_font = style.font_section_label(25)  # type: ignore[misc]
+    now_font = (style.font_section_label or style.font_bold)(25)
     now_parts: list[str] = []
     if weather is not None:
         if weather.current_description:
@@ -867,7 +867,7 @@ def _draw_margin_band(
             draw.text((cursor - bb[0], row_mid - glyph_mid), s, font=f, fill=ink)
             cursor += (bb[2] - bb[0]) + pad
 
-    date_font = style.font_section_label(22)  # type: ignore[misc]
+    date_font = (style.font_section_label or style.font_bold)(22)
     date_text = today.strftime("%a · %b %-d · %Y").upper()
     db = draw.textbbox((0, 0), date_text, font=date_font)
     date_x = text_col_right - (db[2] - db[0]) - db[0]

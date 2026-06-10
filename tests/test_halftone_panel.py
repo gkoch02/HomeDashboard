@@ -20,6 +20,7 @@ from src.render.components.halftone_panel import (
     _moon_disc,
     _next_event_line,
     _radial_gradient_disc,
+    draw_halftone,
 )
 from src.render.quantize import flatten_pixels
 from src.render.theme import AVAILABLE_THEMES, load_theme
@@ -406,3 +407,23 @@ class TestRenderWithDummyData:
         # tens of thousands of ink pixels.
         ones = sum(1 for p in flatten_pixels(img) if not p)
         assert ones > 10_000
+
+
+def test_draw_halftone_default_style_does_not_crash():
+    """The defensive ``style is None`` fallback must render, not TypeError.
+
+    The default ThemeStyle has no font_title/font_section_label, so the
+    margin-band typography needs ``or font_bold`` fallbacks for this path.
+    """
+    from PIL import Image, ImageDraw
+
+    img = Image.new("L", (800, 480), 255)
+    draw_halftone(
+        ImageDraw.Draw(img),
+        generate_dummy_data(now=FIXED_NOW),
+        TODAY,
+        FIXED_NOW,
+        image=img,
+        style=None,
+    )
+    assert 0 in set(flatten_pixels(img))

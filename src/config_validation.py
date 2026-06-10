@@ -17,8 +17,13 @@ import zoneinfo
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-from src.config import Config
+if TYPE_CHECKING:
+    # Annotation-only: importing src.config at runtime would deadlock the
+    # circular bottom-of-module re-export in config.py when this module is
+    # imported first.
+    from src.config import Config
 
 
 @dataclass

@@ -259,9 +259,9 @@ files migrate transparently on first read. See
 
 ### (Patch version bump for minor fixes)
 
-## [4.2] - 2026-04-04
+## [4.2]
 
-### (Version bump only — released alongside 4.2.1)
+### (Version bump only — never released separately; see 4.2.1)
 
 ## [4.1.3] - 2026-04-04
 

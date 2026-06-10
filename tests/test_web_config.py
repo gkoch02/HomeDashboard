@@ -919,3 +919,45 @@ def test_apply_patch_saves_valid_theme_rules_yaml(tmp_path):
     assert yaml.safe_load(p.read_text())["theme_rules"] == [
         {"when": {"weekday": "weekend"}, "theme": "today"}
     ]
+
+
+def test_theme_rules_entry_shape_is_validated():
+    """Parseable-but-wrong-shape YAML must not save as silently dead rules."""
+    from src.web.config_editor import _normalise_patch
+
+    bad_cases = [
+        "- when weekday weekend\n- theme today\n",  # list of strings (missing colons)
+        "- when: {weekday: weekend}\n",  # missing theme key
+        "- theme: 7\n",  # theme not a string
+        "- when: not-a-mapping\n  theme: today\n",  # when not a mapping
+    ]
+    for text in bad_cases:
+        patch, errors = _normalise_patch({"theme_rules": text})
+        assert "theme_rules" not in patch, text
+        assert errors and errors[0]["field"] == "theme_rules", text
+
+
+def test_theme_rules_non_list_value_is_rejected_not_cleared(tmp_path):
+    """A buggy API client sending a dict must not silently erase saved rules."""
+    p = tmp_path / "config.yaml"
+    p.write_text("title: T\ntheme_rules:\n- when: {weekday: weekend}\n  theme: today\n")
+    with patch(_VALIDATE_PATCH, return_value=([], [])):
+        saved, errors, _warnings = apply_patch(str(p), {"theme_rules": {"oops": 1}})
+    assert saved is False
+    assert any(e["field"] == "theme_rules" for e in errors)
+    assert "theme: today" in p.read_text()
+
+
+def test_theme_rules_list_value_entries_also_validated():
+    """Programmatic clients sending a list (not YAML text) get the same checks."""
+    from src.web.config_editor import _normalise_patch
+
+    patch, errors = _normalise_patch({"theme_rules": ["nope"]})
+    assert "theme_rules" not in patch
+    assert errors[0]["field"] == "theme_rules"
+
+    patch, errors = _normalise_patch(
+        {"theme_rules": [{"when": {"weekday": "weekend"}, "theme": "today"}]}
+    )
+    assert errors == []
+    assert patch["theme_rules"] == [{"when": {"weekday": "weekend"}, "theme": "today"}]

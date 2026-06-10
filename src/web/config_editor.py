@@ -20,10 +20,14 @@ import tempfile
 import threading
 from datetime import datetime
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import yaml  # type: ignore[import-untyped]
 
 from src.config import load_config, validate_config
+
+if TYPE_CHECKING:
+    from src.config import Config
 
 # Derived from src.config_schema — adding a new editable field is a single
 # `FieldSpec` entry there, not a dict edit here.
@@ -195,38 +199,43 @@ def _theme_rules_yaml(config_path: str) -> str:
 
 
 def _normalise_patch(patch: dict) -> tuple[dict, list[dict]]:
-    """Pre-parse patch values that arrive as YAML text.
+    """Pre-parse and shape-check patch values that arrive as YAML text.
 
     The web editor's theme-rules field is a YAML textarea, so its value is a
-    string; parse it into the list shape the YAML file stores. Returns
-    ``(patch, errors)`` — on a parse failure the field is dropped from the
-    patch and a structured error is reported instead.
+    string; parse it into the list shape the YAML file stores, then check
+    every entry actually looks like a rule. load_config() silently skips
+    malformed entries, so anything accepted here without a shape check would
+    save successfully and then do nothing. Returns ``(patch, errors)`` — on
+    any failure the field is dropped from the patch and a structured error is
+    reported instead, which blocks the save.
     """
-    if not isinstance(patch.get("theme_rules"), str):
+    if "theme_rules" not in patch:
         return patch, []
+
+    _HINT = "Each entry is '- when: {<conditions>}' plus 'theme: <name>'."
+
+    def _reject(message: str) -> tuple[dict, list[dict]]:
+        rejected = {k: v for k, v in patch.items() if k != "theme_rules"}
+        return rejected, [{"field": "theme_rules", "message": message, "hint": _HINT}]
+
+    value = patch["theme_rules"]
+    if isinstance(value, str):
+        try:
+            value = yaml.safe_load(value) or []
+        except yaml.YAMLError as exc:
+            return _reject(f"Not valid YAML: {exc}")
+    if not isinstance(value, list):
+        return _reject("theme_rules must be a YAML list of rules.")
+    for i, entry in enumerate(value, start=1):
+        if not isinstance(entry, dict):
+            return _reject(f"Rule {i} is not a mapping (got {type(entry).__name__}).")
+        if not isinstance(entry.get("theme"), str) or not entry["theme"]:
+            return _reject(f"Rule {i} is missing a 'theme: <name>' value.")
+        if "when" in entry and not isinstance(entry["when"], dict):
+            return _reject(f"Rule {i} has a 'when:' that is not a mapping.")
+
     patch = dict(patch)
-    text = patch["theme_rules"]
-    try:
-        parsed = yaml.safe_load(text) or []
-    except yaml.YAMLError as exc:
-        del patch["theme_rules"]
-        return patch, [
-            {
-                "field": "theme_rules",
-                "message": f"Not valid YAML: {exc}",
-                "hint": "Each entry is '- when: {<conditions>}' plus 'theme: <name>'.",
-            }
-        ]
-    if not isinstance(parsed, list):
-        del patch["theme_rules"]
-        return patch, [
-            {
-                "field": "theme_rules",
-                "message": "theme_rules must be a YAML list of rules.",
-                "hint": "Each entry is '- when: {<conditions>}' plus 'theme: <name>'.",
-            }
-        ]
-    patch["theme_rules"] = parsed
+    patch["theme_rules"] = value
     return patch, []
 
 
@@ -262,7 +271,9 @@ def apply_patch(config_path: str, patch: dict) -> tuple[bool, list[dict], list[d
     return False, errors, warnings
 
 
-def build_patched_config(config_path: str, patch: dict) -> tuple[object, list[dict], list[dict]]:
+def build_patched_config(
+    config_path: str, patch: dict
+) -> tuple[Config | None, list[dict], list[dict]]:
     """Build a candidate Config with *patch* applied — without writing anything.
 
     Same allowlist and validation pipeline as :func:`apply_patch` (unknown and
