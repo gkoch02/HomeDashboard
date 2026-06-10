@@ -18,9 +18,7 @@ from datetime import datetime
 
 from PIL import ImageDraw
 
-from src.render.fonts import dm_bold as _dm_bold
-from src.render.fonts import dm_regular as _dm_regular
-from src.render.primitives import text_height
+from src.render.primitives import Fill, text_height
 from src.render.theme import ComponentRegion, ThemeStyle
 
 # ---------------------------------------------------------------------------
@@ -92,7 +90,7 @@ def fuzzy_time(dt: datetime) -> str:
     return _PHRASES[bucket].format(hour=hour_name, next=next_hour)
 
 
-def _phrase_segments(phrase: str, style: ThemeStyle) -> list[tuple[str, int]]:
+def _phrase_segments(phrase: str, style: ThemeStyle) -> list[tuple[str, Fill]]:
     """Split a fuzzy time phrase into semantic segments for accent rendering."""
     if phrase in {"midnight", "noon"}:
         return [(phrase, style.primary_accent_fill())]
@@ -121,7 +119,7 @@ def _draw_segmented_text(
     draw: ImageDraw.ImageDraw,
     x: int,
     y: int,
-    segments: list[tuple[str, int]],
+    segments: list[tuple[str, Fill]],
     font,
 ) -> None:
     """Draw horizontally adjacent text segments with independent fills."""
@@ -162,9 +160,9 @@ def draw_fuzzyclock(
     v_pad = 24
     max_w = region.w - h_pad * 2
 
-    # Font callables — prefer the style's bold/regular; fall back to DM Sans
-    phrase_font_fn = style.font_bold or _dm_bold
-    date_font_fn = style.font_regular or _dm_regular
+    # Font callables — the style's bold/regular (defaults filled by __post_init__)
+    phrase_font_fn = style.font_bold
+    date_font_fn = style.font_regular
 
     # Find the largest phrase size that fits within max_w
     best_phrase_size = 20

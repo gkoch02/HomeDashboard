@@ -17,7 +17,7 @@ make previews       # Generate all theme preview PNGs → assets/previews/theme_
 make previews-split # Combine Waveshare + Inky previews into assets/previews/theme_<name>_split.png
 make check          # Validate config/config.yaml
 make docs-check     # Run scripts/check_docs.py (markdown link / heading sanity)
-make version        # Print current version (e.g. main.py 4.6)
+make version        # Print current version (e.g. main.py 5.1.0)
 make deploy         # Rsync to Pi (configurable: PI_USER, PI_HOST, PI_DIR)
 make install        # Install systemd timer on remote Pi (via ssh/scp)
 make pi-install     # Full Pi setup: apt deps, venv, Inky + Waveshare drivers (run ON Pi)
@@ -38,7 +38,7 @@ ruff format src/ tests/                        # Format (direct invocation)
 
 ## Tech Stack
 
-- **Python 3.9+** — no async
+- **Python 3.10+** — no async
 - **Pillow** — image rendering (PIL)
 - **google-api-python-client / google-auth** — Google Calendar & Contacts APIs
 - **requests** — OpenWeatherMap API + ICS feed fetching
@@ -47,7 +47,7 @@ ruff format src/ tests/                        # Format (direct invocation)
 - **PyYAML** — config parsing
 - **numpy** — Inky palette quantization (`src/render/quantize.py` fast path) and Inky `show()`/`clear()` buffer assembly (`src/display/driver.py`); declared in core `dependencies`
 - **Flask 3 + Waitress** — optional web UI (`requirements-web.txt`; `pip install -e ".[web]"`)
-- **pytest** — testing (with unittest.mock); coverage via **pytest-cov** (target: ≥90%, currently ~99%); theme pixel-hash snapshots in `tests/snapshots/theme_pixel_hashes.json`
+- **pytest** — testing (with unittest.mock); coverage via **pytest-cov** (gate: ≥94%, currently ~96%); theme pixel-hash snapshots in `tests/snapshots/theme_pixel_hashes.json`
 - **ruff** — linting and formatting (max line length: 100)
 - **AST-based custom guard** in `tools/check_naive_datetime.py` enforces aware-datetime discipline; CI runs it via `tests/test_naive_datetime_guard.py`
 
@@ -78,6 +78,8 @@ src/
 ├── config_schema.py           # v5 declarative schema (FieldSpec/SectionSpec) — source of truth
 │                              #   for editable / secret / enum metadata; powers the web editor
 ├── config_migrations.py       # Schema-versioned migration runner; v4_to_v5 step + backup helper
+├── config_validation.py       # validate_config / ConfigError / ConfigWarning (split from
+│                              #   config.py; every name re-exported from src.config)
 ├── dummy_data.py              # Realistic dummy data for --dummy / dev previews
 ├── filters.py                 # Event filtering (calendar, keyword, all-day)
 ├── data/models.py             # Pure dataclasses: CalendarEvent, WeatherData, AirQualityData,
@@ -104,6 +106,9 @@ src/
 │   ├── circuit_breaker.py     # Per-source circuit breaker
 │   └── quota_tracker.py       # Daily API call counter
 └── render/
+    ├── artkit.py              # Shared art-theme helpers: mode-aware colours (grey/ink/
+    │                          #   accent_red) + meteorological season; used by weatherglass,
+    │                          #   postcard, naturalist, halftone, almanac
     ├── canvas.py              # Top-level render orchestrator; iterates the component registry
     │                          #   and delegates resize+finalize to display.backend
     ├── theme.py               # Theme system (ComponentRegion, ThemeLayout, ThemeStyle);
@@ -160,13 +165,13 @@ src/
     ├── config_editor.py       # Safe config read/write: EDITABLE_FIELD_PATHS derived from
     │                          #   src.config_schema.editable_field_paths(); apply_patch()
     ├── routes/
-    │   ├── status.py          # GET / (HTML), GET /api/status (JSON)
+    │   ├── status.py          # GET / (HTML), GET /api/status (JSON), GET /api/health (probe)
     │   ├── image.py           # GET /image/latest, GET /image/theme/<name>
     │   ├── logs.py            # GET /api/logs?lines=N
     │   ├── config.py          # GET/POST /api/config, GET /config (HTML editor),
     │   │                      #   GET /api/config/schema (v5: schema-driven form metadata)
     │   ├── preview.py         # POST /api/preview — render any registered theme to PNG
-    │   │                      #   against dummy data; CSRF-protected
+    │   │                      #   against dummy data or a candidate config patch; CSRF-protected
     │   └── actions.py         # POST /api/trigger-refresh, /api/reset-breaker, /api/clear-cache
     ├── templates/             # Jinja2 templates: base.html, status.html, config.html
     └── static/                # dashboard.js, style.css
@@ -257,7 +262,7 @@ The cooldown is `display.min_refresh_interval_seconds` (config), defaulting to 6
 - **Dataclass-first**: pure data models with no I/O in `src/data/models.py`
 - **Config mirrors YAML**: dataclass hierarchy in `config.py` matches YAML structure; all fields optional with defaults
 - **Max line length**: 100 characters
-- **Testing**: heavy use of `unittest.mock.patch`; fixtures for temp dirs and dummy data; every public render function has dedicated smoke tests plus logic unit tests. Coverage gate is `fail_under = 90` in `pyproject.toml` (`[tool.coverage.report]`). Run `make coverage` to print missing lines and write an HTML report to `htmlcov/`. `src/_version.py` and `src/main.py` are omitted from coverage
+- **Testing**: heavy use of `unittest.mock.patch`; fixtures for temp dirs and dummy data; every public render function has dedicated smoke tests plus logic unit tests. Coverage gate is `fail_under = 94` in `pyproject.toml` (`[tool.coverage.report]`). Run `make coverage` to print missing lines and write an HTML report to `htmlcov/`. `src/_version.py` and `src/main.py` are omitted from coverage
 - **Thread safety**: cache operations use `threading.Lock()`
 - **Graceful degradation**: fetch failure → load cached → use stale data → staleness indicator in header
 - **Error boundaries**: credential loading failures, malformed API responses, and cache write errors are caught and logged without crashing the app. A top-level `try/except` in `DashboardApp.run()` writes `output/last_error.txt` (read by the web UI for "is the last run current?") and re-raises so the failure propagates to systemd
@@ -276,7 +281,7 @@ The cooldown is `display.min_refresh_interval_seconds` (config), defaulting to 6
 --force-full-refresh   Force full eInk refresh and bypass fetch intervals
 --ignore-breakers      Ignore OPEN circuit breakers for this run
 --check-config         Validate config and exit
---version              Print version and exit (e.g. "main.py 4.6")
+--version              Print version and exit (e.g. "main.py 5.1.0")
 ```
 
 ## Adding New Features
@@ -430,9 +435,10 @@ default to `None` and fall back gracefully so adding a new field never breaks ex
 - `moonphase`, `moonphase_invert`, and `moonphase_photo` are all included in the random rotation pool by default. `moonphase_invert` shares the same overlay function (`_draw_moonphase_overlay`) from `moonphase.py` — it adapts to fg/bg colors automatically. `moonphase_photo` (`src/render/themes/moonphase_photo.py`) is derived from `moonphase_theme()` via `dataclasses.replace` with `use_moon_photo=True`, so it inherits the layout, overlay, fonts, and Inky palette unchanged — the only difference is photo vs. procedural discs.
 - `moonphase_panel.py` has its own `_quote_for_panel()` function with a `"moonphase-"` key prefix so its quote selection is independent from `info_panel`'s quote (they won't show the same quote on the same day).
 - Web UI config is in `config/web.yaml` (separate from `config/config.yaml`); it is git-ignored and contains the password hash — never commit it
+- `theme_rules` is web-editable via a YAML textarea (Advanced mode): the JS sends the textarea text under the `theme_rules` patch key; `config_editor._normalise_patch()` parses it server-side and shape-checks every entry (parse failures, non-list shapes, non-mapping entries, missing/invalid `theme`, and non-mapping `when` are structured errors that block the save — `load_config()` silently skips malformed entries, so accepting them would save dead rules), `_apply_to_raw()` stores the parsed list (empty list removes the key), and `get_config_for_web()` serves it back as `theme_rules_yaml` for lossless round-tripping.
 - `EDITABLE_FIELD_PATHS` in `config_editor.py` is now derived from `src.config_schema.editable_field_paths()` — adding a new editable field is a single `FieldSpec` entry in `config_schema.py`, not a dict edit in two places. Sensitive fields are marked `secret=True` in the schema and surface as `_*_set: bool` flags in `GET /api/config` responses (or as a `has_value` boolean in `GET /api/config/schema`); the plaintext is never sent to the browser.
 - `GET /api/config/schema` returns `to_json(values=...)` from `config_schema.py` — sections, field types, labels, descriptions, choices, secret flags, and the current values inlined for non-secret fields. The schema response is the source of truth for the web editor's form rendering.
-- `POST /api/preview` (`src/web/routes/preview.py`) renders any registered theme against dummy data and returns the PNG bytes inline. CSRF-protected, rejects pseudo names (`random`, `random_daily`, `random_hourly`) and unknown themes with HTTP 400, render exceptions with HTTP 500. Patch-preview (rendering against a candidate config diff) was deferred to v5.1 — visual feedback on the theme dropdown was the critical win.
+- `POST /api/preview` (`src/web/routes/preview.py`) renders any registered theme against dummy data and returns the PNG bytes inline. The optional `"patch"` field (same flat shape as `POST /api/config`) renders against a candidate config built via `config_editor.build_patched_config()` — same allowlist/validation as a real save, nothing persisted; the config page's **Live preview** button sends the current form values this way. CSRF-protected; pseudo names (`random`, `random_daily`, `random_hourly`), unknown themes, and patches failing validation return HTTP 400, render exceptions HTTP 500.
 - `apply_patch()` in `config_editor.py` validates the patched YAML through `load_config()` + `validate_config()` in a temp file before writing; `validate_config()` does a lazy import of `src.display.driver.WAVESHARE_MODELS` (which imports PIL) — tests that call `apply_patch` must patch `src.web.config_editor.validate_config` to avoid the PIL dependency
 - Manual refresh uses a trigger-file approach: the web UI touches `state/web_trigger`; the `dashboard-trigger.path` systemd unit watches for this file and starts `dashboard.service`; the service deletes the file via `ExecStartPost`; no sudo required
 - `dashboard-web.service` and `dashboard-trigger.path` are installed by `make web-enable` using the same `__USER__`/`__INSTALL_DIR__` substitution as `dashboard.service`

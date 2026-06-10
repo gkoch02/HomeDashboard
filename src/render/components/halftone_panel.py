@@ -24,6 +24,8 @@ from functools import lru_cache
 from PIL import Image, ImageDraw
 
 from src.data.models import CalendarEvent, DashboardData
+from src.render.artkit import grey as _grey
+from src.render.artkit import ink as _ink
 from src.render.fonts import weather_icon
 from src.render.moon import is_waxing, moon_illumination
 from src.render.primitives import draw_text_truncated
@@ -65,11 +67,6 @@ _HERO_CY = 156
 # ---------------------------------------------------------------------------
 
 
-def _grey(v: int, mode: str) -> int | tuple[int, int, int]:
-    """Return *v* (0..255) as either an L-mode int or an RGB greyscale triple."""
-    return v if mode == "L" else (v, v, v)
-
-
 def _accent_yellow(mode: str) -> int | tuple[int, int, int]:
     """Warm-light accent for sun/moon highlights.
 
@@ -79,11 +76,6 @@ def _accent_yellow(mode: str) -> int | tuple[int, int, int]:
     if mode == "RGB":
         return INKY_SPECTRA6_PALETTE[INKY_YELLOW]
     return 210
-
-
-def _ink(mode: str) -> int | tuple[int, int, int]:
-    """Solid foreground ink (black)."""
-    return 0 if mode == "L" else (0, 0, 0)
 
 
 # ---------------------------------------------------------------------------
@@ -365,6 +357,7 @@ def _radial_gradient_disc(d: int, inner_v: int, outer_v: int) -> Image.Image:
     cx = cy = (d - 1) / 2.0
     rad = (d - 1) / 2.0
     px = out.load()
+    assert px is not None
     for y in range(d):
         for x in range(d):
             dx = x - cx
@@ -430,6 +423,7 @@ def _moon_disc(d: int, illumination_pct: float, waxing: bool) -> Image.Image:
     term_x_rel = (1.0 - 2.0 * phase) * R  # +R = no lit, -R = fully lit
     soft_px = 5.0
     px = out.load()
+    assert px is not None
     for y in range(d):
         for x in range(d):
             dx = x - cx
@@ -643,6 +637,7 @@ def _draw_bayer_rule(image: Image.Image, x0: int, y0: int, w: int, h: int, mode:
     """
     on = _ink(mode)
     px = image.load()
+    assert px is not None
     # Top hairline (full-width, solid).
     for xx in range(w):
         px[x0 + xx, y0] = on
@@ -750,7 +745,7 @@ def _draw_margin_band(
         else ""
     )
     feels_font = style.font_semibold(20) if feels_caption else None
-    feels_h = 0
+    feels_h: float = 0
     if feels_caption and feels_font is not None:
         fb = draw.textbbox((0, 0), feels_caption, font=feels_font)
         feels_h = (fb[3] - fb[1]) + 8  # 8 px gap above the caption
@@ -760,7 +755,7 @@ def _draw_margin_band(
     # temperatures. Within that column the temp is horizontally centred
     # so 1- and 2-digit values don't look left-biased against the wide
     # blank reservation that 3-digit values would fill.
-    temp_font = style.font_title(TEMP_NUMERAL_SIZE)
+    temp_font = (style.font_title or style.font_bold)(TEMP_NUMERAL_SIZE)
     temp_text = _fmt_temp(weather.current_temp) if weather else "—"
     temp_bbox = draw.textbbox((0, 0), temp_text, font=temp_font)
     temp_visible_h = temp_bbox[3] - temp_bbox[1]
@@ -807,7 +802,7 @@ def _draw_margin_band(
         today_zone = (below_top, inner_bottom)
         next_zone = None
 
-    def _centre_y(bbox: tuple[int, int, int, int], zone: tuple[int, int]) -> int:
+    def _centre_y(bbox: tuple[float, float, float, float], zone: tuple[int, int]) -> float:
         """Return the y to draw at so *bbox*'s visible ink centres in *zone*."""
         bb_h = bbox[3] - bbox[1]
         zone_mid = (zone[0] + zone[1]) // 2
@@ -818,7 +813,7 @@ def _draw_margin_band(
     # display size without overflowing on long condition strings (the
     # widest OWM phrase ``HEAVY INTENSITY RAIN`` plus triple-digit temps
     # still fits inside the 492 px right column at 25 pt).
-    now_font = style.font_section_label(25)
+    now_font = (style.font_section_label or style.font_bold)(25)
     now_parts: list[str] = []
     if weather is not None:
         if weather.current_description:
@@ -866,13 +861,13 @@ def _draw_margin_band(
         # chunk (icon vs text) happens to be tallest.
         row_mid = (today_zone[0] + today_zone[1]) // 2
 
-        cursor = text_col_x
+        cursor: float = text_col_x
         for (s, f, bb), pad in zip(measured, pads):
             glyph_mid = (bb[1] + bb[3]) // 2
             draw.text((cursor - bb[0], row_mid - glyph_mid), s, font=f, fill=ink)
             cursor += (bb[2] - bb[0]) + pad
 
-    date_font = style.font_section_label(22)
+    date_font = (style.font_section_label or style.font_bold)(22)
     date_text = today.strftime("%a · %b %-d · %Y").upper()
     db = draw.textbbox((0, 0), date_text, font=date_font)
     date_x = text_col_right - (db[2] - db[0]) - db[0]
@@ -913,6 +908,7 @@ def _draw_text_band_rule(image: Image.Image, x0: int, y: int, w: int, mode: str)
     """
     on = _ink(mode)
     px = image.load()
+    assert px is not None
     for xx in range(w):
         if _BAYER_4X4[0][xx & 3] < 128:
             px[x0 + xx, y] = on

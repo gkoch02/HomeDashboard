@@ -10,6 +10,7 @@ from src.render.fonts import weather_icon as weather_icon_font
 from src.render.icons import draw_weather_icon
 from src.render.moon import moon_phase_glyph
 from src.render.primitives import (
+    Fill,
     deg_to_compass,
     draw_staleness_glyph,
     draw_text_truncated,
@@ -24,7 +25,7 @@ from src.render.primitives import (
 from src.render.theme import ComponentRegion, ThemeStyle
 
 
-def _aqi_accent(style: ThemeStyle, aqi: int) -> int:
+def _aqi_accent(style: ThemeStyle, aqi: int) -> Fill:
     if aqi <= 50:
         return style.accent_good if style.accent_good is not None else style.fg
     if aqi <= 150:

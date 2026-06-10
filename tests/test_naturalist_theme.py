@@ -25,6 +25,7 @@ from src.render.components.naturalist_panel import (
     _season,
     _weather_modifier,
 )
+from src.render.quantize import flatten_pixels
 from src.render.theme import AVAILABLE_THEMES, load_theme
 
 FIXED_NOW = datetime(2026, 4, 6, 10, 30)
@@ -291,7 +292,7 @@ class TestRenderEachSeason:
         img = render_dashboard(data, DisplayConfig(), theme=theme)
         assert img.mode == "1"
         assert img.size == (800, 480)
-        ones = sum(1 for p in img.getdata() if not p)
+        ones = sum(1 for p in flatten_pixels(img) if not p)
         assert ones > 3000, f"{today_str} produced an unusually empty plate ({ones} ink pixels)"
 
 
@@ -312,7 +313,7 @@ class TestRenderEachWeatherModifier:
         theme = load_theme("naturalist")
         img = render_dashboard(data, DisplayConfig(), theme=theme)
         assert img.size == (800, 480)
-        ones = sum(1 for p in img.getdata() if not p)
+        ones = sum(1 for p in flatten_pixels(img) if not p)
         assert ones > 3000
 
 
@@ -357,14 +358,14 @@ class TestEmptyEventsRendersCallout:
         theme = load_theme("naturalist")
         img = render_dashboard(data, DisplayConfig(), theme=theme)
         # No crash; some ink rendered for the four FIG callouts.
-        ones = sum(1 for p in img.getdata() if not p)
+        ones = sum(1 for p in flatten_pixels(img) if not p)
         assert ones > 3000
 
 
 class TestRenderWithDummyData:
     def test_pixel_count_non_trivial(self):
         img = _render()
-        ones = sum(1 for p in img.getdata() if not p)
+        ones = sum(1 for p in flatten_pixels(img) if not p)
         assert ones > 8000
 
 

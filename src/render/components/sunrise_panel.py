@@ -18,6 +18,7 @@ from src.render.icons import FALLBACK_ICON, OWM_ICON_MAP
 from src.render.moon import moon_illumination, moon_phase_glyph, moon_phase_name
 from src.render.primitives import (
     BLACK,
+    Fill,
     dashed_hline,
     draw_text_truncated,
     events_for_day,
@@ -61,7 +62,7 @@ def _stipple_fill(
     y0: int,
     x1: int,
     y1: int,
-    fill: int = BLACK,
+    fill: Fill = BLACK,
 ) -> None:
     """Fill a region with a stippled dot pattern (checkerboard every 3px)."""
     for y in range(y0, y1 + 1):

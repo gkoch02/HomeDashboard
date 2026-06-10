@@ -13,6 +13,7 @@ from src.display.backend import (
     WaveshareBackend,
     build_display_backend,
 )
+from src.render.quantize import flatten_pixels
 
 
 def _layout(canvas_w=800, canvas_h=480, mode="1", preferred_quant=None):
@@ -94,7 +95,7 @@ class TestWaveshareBackend:
         out = backend.resize_and_finalize(image, canvas_size=(32, 32), layout=layout)
         assert out.mode == "1"
         # Ordered dithering produces a checker — at least one black pixel exists.
-        assert 0 in set(out.getdata())
+        assert 0 in set(flatten_pixels(out))
 
 
 # ---------------------------------------------------------------------------
@@ -128,4 +129,4 @@ class TestInkyBackend:
         image = Image.new("RGB", (16, 16), (128, 128, 128))
         out = backend.resize_and_finalize(image, canvas_size=(16, 16), layout=layout)
         assert out.mode == "RGB"
-        assert (128, 128, 128) in set(out.getdata())
+        assert (128, 128, 128) in set(flatten_pixels(out))

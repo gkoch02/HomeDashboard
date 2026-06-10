@@ -323,3 +323,75 @@ def test_api_status_marks_auth_disabled_when_open_access(client):
     resp = client.get("/api/status")
     data = json.loads(resp.data)
     assert data["web_auth_enabled"] is False
+
+
+# ---------------------------------------------------------------------------
+# Health endpoint
+# ---------------------------------------------------------------------------
+
+
+def _write_success(app, ts):
+    Path(app.config["OUTPUT_DIR"], "last_success.txt").write_text(ts)
+
+
+def _write_error(app, ts):
+    Path(app.config["OUTPUT_DIR"], "last_error.txt").write_text(
+        json.dumps({"timestamp": ts, "exception_type": "RuntimeError", "message": "boom"})
+    )
+
+
+def test_health_no_success_marker_is_unhealthy(client):
+    resp = client.get("/api/health")
+    assert resp.status_code == 503
+    data = json.loads(resp.data)
+    assert data["healthy"] is False
+    assert data["last_success"] is None
+
+
+def test_health_with_success_marker_is_healthy(app, client):
+    _write_success(app, "2026-06-09T12:00:00+00:00")
+    resp = client.get("/api/health")
+    assert resp.status_code == 200
+    data = json.loads(resp.data)
+    assert data["healthy"] is True
+    assert data["current_error"] is None
+
+
+def test_health_error_newer_than_success_is_unhealthy(app, client):
+    _write_success(app, "2026-06-09T12:00:00+00:00")
+    _write_error(app, "2026-06-09T13:00:00+00:00")
+    resp = client.get("/api/health")
+    assert resp.status_code == 503
+    data = json.loads(resp.data)
+    assert data["healthy"] is False
+    assert data["current_error"]["exception_type"] == "RuntimeError"
+
+
+def test_health_error_older_than_success_is_healthy(app, client):
+    _write_success(app, "2026-06-09T13:00:00+00:00")
+    _write_error(app, "2026-06-09T12:00:00+00:00")
+    resp = client.get("/api/health")
+    assert resp.status_code == 200
+
+
+def test_health_max_age_exceeded_is_unhealthy(app, client, monkeypatch):
+    monkeypatch.setattr("src.web.routes.status.is_quiet_hours_now", lambda *a: False)
+    _write_success(app, "2026-06-09T12:00:00+00:00")  # long past
+    resp = client.get("/api/health?max_age=600")
+    assert resp.status_code == 503
+
+
+def test_health_max_age_skipped_during_quiet_hours(app, client, monkeypatch):
+    monkeypatch.setattr("src.web.routes.status.is_quiet_hours_now", lambda *a: True)
+    _write_success(app, "2026-06-09T12:00:00+00:00")
+    resp = client.get("/api/health?max_age=600")
+    assert resp.status_code == 200
+
+
+def test_health_max_age_satisfied_is_healthy(app, client, monkeypatch):
+    from src._time import now_utc
+
+    monkeypatch.setattr("src.web.routes.status.is_quiet_hours_now", lambda *a: False)
+    _write_success(app, now_utc().isoformat())
+    resp = client.get("/api/health?max_age=600")
+    assert resp.status_code == 200

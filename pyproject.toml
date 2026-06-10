@@ -1,9 +1,9 @@
 [project]
-name = "dashboard-v4"
-version = "4.6"
+name = "home-dashboard"
+version = "5.1.0"
 description = "Python eInk dashboard for Raspberry Pi — calendar, weather, birthdays, and daily quotes"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 license = {text = "MIT"}
 dependencies = [
     "Pillow>=10.0",
@@ -39,6 +39,11 @@ web = [
 testpaths = ["tests"]
 pythonpath = ["."]
 addopts = "--cov=src --cov-report=term-missing"
+filterwarnings = [
+    # Fail fast on Pillow API deprecations (e.g. getdata, removed in Pillow 14)
+    # instead of letting hundreds of silent warnings accumulate.
+    "error:.*deprecated and will be removed in Pillow.*:DeprecationWarning",
+]
 
 [tool.coverage.run]
 source = ["src"]
@@ -57,17 +62,16 @@ exclude_lines = [
 ]
 show_missing = true
 skip_covered = false
-fail_under = 90
+fail_under = 94
 
 [tool.ruff]
 line-length = 100
-target-version = "py39"
+target-version = "py310"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP"]
 ignore = [
     "E501",  # line length handled by formatter
-    "UP007", # X | Y syntax requires 3.10+ for runtime (we use from __future__ for annotations)
 ]
 
 [tool.ruff.lint.isort]
@@ -78,7 +82,7 @@ quote-style = "double"
 indent-style = "space"
 
 [tool.mypy]
-python_version = "3.9"
+python_version = "3.10"
 warn_return_any = false
 warn_unused_configs = true
 disallow_untyped_defs = false
@@ -90,40 +94,3 @@ module = "src.data.models"
 disallow_untyped_defs = true
 warn_return_any = true
 
-# Render components call Optional[FontCallable] fields (e.g. style.font_bold(size))
-# that are guaranteed non-None by ThemeStyle.__post_init__, but mypy can't prove this.
-# ignore_errors suppresses the pervasive "None not callable" [misc] false positives.
-# Runtime correctness is verified by the smoke tests in the test suite.
-[[tool.mypy.overrides]]
-module = [
-    "src.render.components.air_quality_panel",
-    "src.render.components.almanac_panel",
-    "src.render.components.astronomy_panel",
-    "src.render.components.birthday_bar",
-    "src.render.components.constellation_map_panel",
-    "src.render.components.countdown_panel",
-    "src.render.components.diags_panel",
-    "src.render.components.fuzzyclock_panel",
-    "src.render.components.halftone_panel",
-    "src.render.components.header",
-    "src.render.components.info_panel",
-    "src.render.components.light_cycle_panel",
-    "src.render.components.message_panel",
-    "src.render.components.moonphase_panel",
-    "src.render.components.monthly_panel",
-    "src.render.components.naturalist_panel",
-    "src.render.components.postcard_panel",
-    "src.render.components.qotd_panel",
-    "src.render.components.scorecard_panel",
-    "src.render.components.sunrise_panel",
-    "src.render.components.tides_panel",
-    "src.render.components.timeline_panel",
-    "src.render.components.today_view",
-    "src.render.components.trends_panel",
-    "src.render.components.weather_full",
-    "src.render.components.weather_panel",
-    "src.render.components.weatherglass_panel",
-    "src.render.components.week_view",
-    "src.render.components.year_pulse_panel",
-]
-ignore_errors = true

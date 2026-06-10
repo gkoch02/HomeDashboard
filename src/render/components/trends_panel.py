@@ -19,6 +19,7 @@ Each row degrades gracefully when the underlying data isn't available
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import date, datetime, timedelta
 
 from PIL import Image, ImageDraw
@@ -199,11 +200,11 @@ def _draw_text_right(
     draw: ImageDraw.ImageDraw,
     text: str,
     *,
-    right: int,
-    top: int,
+    right: float,
+    top: float,
     font,
     fill,
-) -> tuple[int, int]:
+) -> tuple[float, float]:
     """Right-anchor *text* at *(right, top)*. Returns (width, height) drawn."""
     bb = draw.textbbox((0, 0), text, font=font)
     tw = bb[2] - bb[0]
@@ -223,7 +224,7 @@ def _draw_sparkline(
     image: Image.Image,
     draw: ImageDraw.ImageDraw,
     rect: tuple[int, int, int, int],
-    values: list[float | None],
+    values: Sequence[float | None],
     *,
     line_fill,
     fill_color,
@@ -297,13 +298,15 @@ def _draw_sparkline(
         draw.line(seg, fill=line_fill, width=2)
 
     # Now marker.
-    if now_index is not None and 0 <= now_index < n and values[now_index] is not None:
-        mx = _x_for(now_index)
-        my = _y_for(values[now_index])
-        r = 4
-        draw.ellipse((mx - r, my - r, mx + r, my + r), fill=accent_now, outline=line_fill)
-        # Vertical tick from the marker down to the baseline.
-        draw.line([(mx, my + r + 1), (mx, y1)], fill=accent_now, width=1)
+    if now_index is not None and 0 <= now_index < n:
+        v_now = values[now_index]
+        if v_now is not None:
+            mx = _x_for(now_index)
+            my = _y_for(v_now)
+            r = 4
+            draw.ellipse((mx - r, my - r, mx + r, my + r), fill=accent_now, outline=line_fill)
+            # Vertical tick from the marker down to the baseline.
+            draw.line([(mx, my + r + 1), (mx, y1)], fill=accent_now, width=1)
 
 
 def _fill_polygon_from_curve(
@@ -343,6 +346,7 @@ def _bayer_fill_polygon(
     mdraw.polygon(shifted, fill=255)
     mpx = mask.load()
     cpx = image.load()
+    assert mpx is not None and cpx is not None
     img_w, img_h = image.size
     for yy in range(ih):
         cy = y_min + yy
@@ -785,7 +789,7 @@ def _draw_moon_row(
         image,
         draw,
         (cx0, cy0, cx1, cy1),
-        series,  # type: ignore[arg-type]
+        series,
         line_fill=fill_color,
         fill_color=fill_color,
         now_index=0,

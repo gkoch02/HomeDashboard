@@ -20,7 +20,7 @@ Use this page for local workflow, dev commands, and repo orientation. For archit
 
 ## Prerequisites
 
-- Python 3.9+
+- Python 3.10+
 - `git`
 - `make`
 

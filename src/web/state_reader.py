@@ -52,8 +52,11 @@ def read_last_success(output_dir: str) -> dict:
         return {"timestamp": None, "seconds_since": None}
 
 
-def read_last_error(output_dir: str) -> dict:
+def read_last_error(output_dir: str, last_success: dict | None = None) -> dict:
     """Return last-failure info from output/last_error.txt.
+
+    *last_success* may carry an already-read ``read_last_success()`` result to
+    avoid re-reading the success marker (e.g. the health probe reads both).
 
     Returns::
 
@@ -81,7 +84,7 @@ def read_last_error(output_dir: str) -> dict:
         ts = datetime.fromisoformat(ts_str) if ts_str else None
         is_current = False
         if ts is not None:
-            success = read_last_success(output_dir)
+            success = last_success if last_success is not None else read_last_success(output_dir)
             success_ts_str = success.get("timestamp")
             if success_ts_str is None:
                 is_current = True

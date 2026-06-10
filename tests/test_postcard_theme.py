@@ -23,6 +23,7 @@ from src.render.components.postcard_panel import (
     _radial_gradient_disc,
     _scene_kind,
 )
+from src.render.quantize import flatten_pixels
 from src.render.theme import AVAILABLE_THEMES, load_theme
 
 FIXED_NOW = datetime(2026, 4, 6, 14, 30)
@@ -250,7 +251,7 @@ class TestRenderEachIcon:
         img = render_dashboard(data, DisplayConfig(), theme=theme)
         assert img.mode == "1"
         assert img.size == (800, 480)
-        ones = sum(1 for p in img.getdata() if not p)
+        ones = sum(1 for p in flatten_pixels(img) if not p)
         assert ones > 1000, f"icon {icon!r} produced an empty render"
 
 
@@ -305,7 +306,7 @@ class TestManyEvents:
         theme = load_theme("postcard")
         img = render_dashboard(data, DisplayConfig(), theme=theme)
         # No crash; some ink rendered.
-        ones = sum(1 for p in img.getdata() if not p)
+        ones = sum(1 for p in flatten_pixels(img) if not p)
         assert ones > 1000
 
 
@@ -328,7 +329,7 @@ class TestRenderWithDummyData:
     def test_pixel_count_non_trivial(self):
         img = _render()
         assert img.size == (800, 480)
-        ones = sum(1 for p in img.getdata() if not p)
+        ones = sum(1 for p in flatten_pixels(img) if not p)
         assert ones > 10_000
 
 

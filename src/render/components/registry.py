@@ -26,9 +26,10 @@ to the theme's ``draw_order``. No edits to ``canvas.py``.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date, datetime
-from typing import Any, Callable
+from typing import Any
 
 from PIL import Image, ImageDraw
 

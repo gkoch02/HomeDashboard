@@ -12,6 +12,10 @@ if TYPE_CHECKING:
 BLACK = 0
 WHITE = 1
 
+# Fill values are 1-bit/greyscale ints on Waveshare canvases and (R, G, B)
+# tuples on the Inky RGB canvas path.
+Fill = int | tuple[int, int, int]
+
 
 def load_and_dither_image(
     path: str,
@@ -42,11 +46,11 @@ def load_and_dither_image(
 
 def draw_text_truncated(
     draw: ImageDraw.ImageDraw,
-    xy: tuple[int, int],
+    xy: tuple[float, float],
     text: str,
     font: ImageFont.FreeTypeFont,
-    max_width: int,
-    fill: int | tuple[int, int, int] = BLACK,
+    max_width: float,
+    fill: Fill = BLACK,
 ) -> int:
     """Draw text, truncating with ellipsis if needed. Returns actual width drawn."""
     bbox = draw.textbbox((0, 0), text, font=font)
@@ -80,13 +84,13 @@ def draw_text_truncated(
 
 def draw_text_wrapped(
     draw: ImageDraw.ImageDraw,
-    xy: tuple[int, int],
+    xy: tuple[float, float],
     text: str,
     font: ImageFont.FreeTypeFont,
-    max_width: int,
+    max_width: float,
     max_lines: int = 3,
     line_spacing: int = 2,
-    fill: int | tuple[int, int, int] = BLACK,
+    fill: Fill = BLACK,
 ) -> int:
     """Draw wrapped text. Returns total height used."""
     words = text.split()
@@ -147,22 +151,22 @@ def text_width(draw: ImageDraw.ImageDraw, text: str, font: ImageFont.FreeTypeFon
     return int(bbox[2] - bbox[0])
 
 
-def hline(draw: ImageDraw.ImageDraw, y: int, x0: int, x1: int, fill: int = BLACK):
+def hline(draw: ImageDraw.ImageDraw, y: float, x0: float, x1: float, fill: Fill = BLACK):
     draw.line([(x0, y), (x1, y)], fill=fill, width=1)
 
 
-def vline(draw: ImageDraw.ImageDraw, x: int, y0: int, y1: int, fill: int = BLACK):
+def vline(draw: ImageDraw.ImageDraw, x: float, y0: float, y1: float, fill: Fill = BLACK):
     draw.line([(x, y0), (x, y1)], fill=fill, width=1)
 
 
 def dashed_hline(
     draw: ImageDraw.ImageDraw,
-    y: int,
-    x0: int,
-    x1: int,
+    y: float,
+    x0: float,
+    x1: float,
     on: int = 2,
     off: int = 4,
-    fill: int = BLACK,
+    fill: Fill = BLACK,
 ) -> None:
     """Draw a horizontal dashed line with configurable on/off segment lengths."""
     x = x0
@@ -173,12 +177,12 @@ def dashed_hline(
 
 def dashed_vline(
     draw: ImageDraw.ImageDraw,
-    x: int,
-    y0: int,
-    y1: int,
+    x: float,
+    y0: float,
+    y1: float,
     on: int = 2,
     off: int = 4,
-    fill: int = BLACK,
+    fill: Fill = BLACK,
 ) -> None:
     """Draw a vertical dashed line with configurable on/off segment lengths."""
     y = y0
@@ -187,7 +191,9 @@ def dashed_vline(
         y += on + off
 
 
-def filled_rect(draw: ImageDraw.ImageDraw, rect: tuple[int, int, int, int], fill: int = BLACK):
+def filled_rect(
+    draw: ImageDraw.ImageDraw, rect: tuple[float, float, float, float], fill: Fill = BLACK
+):
     draw.rectangle(rect, fill=fill)
 
 

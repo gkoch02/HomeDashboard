@@ -104,7 +104,7 @@ def _to_local_naive(dt: datetime, tz: tzinfo | None) -> datetime:
     return dt
 
 
-def _hours_of_day(dt: datetime, today: date, tz: tzinfo | None) -> float | None:
+def _hours_of_day(dt: datetime | None, today: date, tz: tzinfo | None) -> float | None:
     """Return *dt* as fractional hours-of-day on *today*, clamped to [0, 24].
 
     Returns ``None`` for datetimes that fall on neither today nor an adjacent
@@ -166,7 +166,7 @@ def _resolve_sun_times(
         if all(v is not None for _, v in events):
             sunrise_hr = events[3][1]
             sunset_hr = events[4][1]
-            ad, nd, cd, sr, ss, cdk, ndk, adk = (v for _, v in events)
+            ad, nd, cd, sr, ss, cdk, ndk, adk = (v for _, v in events if v is not None)
             bands: list[tuple[float, float, int]] = [
                 (0.0, ad, 4),  # midnight → astronomical dawn = night
                 (ad, nd, 3),  # astronomical twilight (morning)
@@ -426,6 +426,7 @@ def _draw_now_glyph_and_needle(
         glyph = moon_phase_glyph(today)
         glyph_fill = style.fg
     glyph_font = weather_icon(30)
+    gy: float
     gx, gy = _polar(_GLYPH_R + 22, now_hr)
     bbox = draw.textbbox((0, 0), glyph, font=glyph_font)
     gw, gh = bbox[2] - bbox[0], bbox[3] - bbox[1]

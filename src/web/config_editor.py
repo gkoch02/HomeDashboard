@@ -20,10 +20,14 @@ import tempfile
 import threading
 from datetime import datetime
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import yaml  # type: ignore[import-untyped]
 
 from src.config import load_config, validate_config
+
+if TYPE_CHECKING:
+    from src.config import Config
 
 # Derived from src.config_schema — adding a new editable field is a single
 # `FieldSpec` entry there, not a dict edit here.
@@ -97,7 +101,7 @@ def restore_latest_backup(config_path: str) -> tuple[bool, str]:
     backup_path = path.parent / backups[0]["name"]
     try:
         raw = _load_raw_yaml(str(backup_path))
-        errors_obj, _warnings_obj = _validate_raw(raw)
+        _cfg, errors_obj, _warnings_obj = _validate_raw(raw)
         if errors_obj:
             return False, "Latest backup failed validation and was not restored."
         _write_raw_yaml(config_path, raw, rotate_backup=False)
@@ -177,8 +181,62 @@ def get_config_for_web(config_path: str) -> dict:
             "exclude": cfg.random_theme.exclude,
         },
         "theme_schedule": [{"time": e.time, "theme": e.theme} for e in cfg.theme_schedule.entries],
+        "theme_rules_yaml": _theme_rules_yaml(config_path),
         "backups": list_config_backups(config_path),
     }
+
+
+def _theme_rules_yaml(config_path: str) -> str:
+    """Return the on-disk ``theme_rules`` list as YAML text for the editor textarea.
+
+    Reads the raw file (not the parsed Config) so the round-trip is lossless —
+    unknown keys a future version might add survive an unrelated save.
+    """
+    rules = _load_raw_yaml(config_path).get("theme_rules")
+    if not rules:
+        return ""
+    return yaml.dump(rules, default_flow_style=False, allow_unicode=True, sort_keys=False)
+
+
+def _normalise_patch(patch: dict) -> tuple[dict, list[dict]]:
+    """Pre-parse and shape-check patch values that arrive as YAML text.
+
+    The web editor's theme-rules field is a YAML textarea, so its value is a
+    string; parse it into the list shape the YAML file stores, then check
+    every entry actually looks like a rule. load_config() silently skips
+    malformed entries, so anything accepted here without a shape check would
+    save successfully and then do nothing. Returns ``(patch, errors)`` — on
+    any failure the field is dropped from the patch and a structured error is
+    reported instead, which blocks the save.
+    """
+    if "theme_rules" not in patch:
+        return patch, []
+
+    _HINT = "Each entry is '- when: {<conditions>}' plus 'theme: <name>'."
+
+    def _reject(message: str) -> tuple[dict, list[dict]]:
+        rejected = {k: v for k, v in patch.items() if k != "theme_rules"}
+        return rejected, [{"field": "theme_rules", "message": message, "hint": _HINT}]
+
+    value = patch["theme_rules"]
+    if isinstance(value, str):
+        try:
+            value = yaml.safe_load(value) or []
+        except yaml.YAMLError as exc:
+            return _reject(f"Not valid YAML: {exc}")
+    if not isinstance(value, list):
+        return _reject("theme_rules must be a YAML list of rules.")
+    for i, entry in enumerate(value, start=1):
+        if not isinstance(entry, dict):
+            return _reject(f"Rule {i} is not a mapping (got {type(entry).__name__}).")
+        if not isinstance(entry.get("theme"), str) or not entry["theme"]:
+            return _reject(f"Rule {i} is missing a 'theme: <name>' value.")
+        if "when" in entry and not isinstance(entry["when"], dict):
+            return _reject(f"Rule {i} has a 'when:' that is not a mapping.")
+
+    patch = dict(patch)
+    patch["theme_rules"] = value
+    return patch, []
 
 
 def apply_patch(config_path: str, patch: dict) -> tuple[bool, list[dict], list[dict]]:
@@ -192,22 +250,56 @@ def apply_patch(config_path: str, patch: dict) -> tuple[bool, list[dict], list[d
     Returns ``(saved, errors, warnings)`` where *saved* is True only when
     the file was written with no fatal validation errors.
     """
+    patch, parse_errors = _normalise_patch(patch)
     safe_patch = {k: v for k, v in patch.items() if k in EDITABLE_FIELD_PATHS}
 
     raw = _load_raw_yaml(config_path)
     updated_raw = _apply_to_raw(raw, safe_patch)
 
-    errors_obj, warnings_obj = _validate_raw(updated_raw)
+    _cfg, errors_obj, warnings_obj = _validate_raw(updated_raw)
 
-    errors = [{"field": e.field, "message": e.message, "hint": e.hint} for e in errors_obj]
+    errors = parse_errors + [
+        {"field": e.field, "message": e.message, "hint": e.hint} for e in errors_obj
+    ]
     warnings = [{"field": w.field, "message": w.message, "hint": w.hint} for w in warnings_obj]
 
-    if not errors_obj:
+    if not errors_obj and not parse_errors:
         with _write_lock:
             _write_raw_yaml(config_path, updated_raw)
         return True, errors, warnings
 
     return False, errors, warnings
+
+
+def build_patched_config(
+    config_path: str, patch: dict
+) -> tuple[Config | None, list[dict], list[dict]]:
+    """Build a candidate Config with *patch* applied — without writing anything.
+
+    Same allowlist and validation pipeline as :func:`apply_patch` (unknown and
+    sensitive fields are silently dropped), but the patched YAML is only ever
+    materialised in a temp file for parsing. Powers the web editor's
+    patch-preview: "what would the dashboard look like with my unsaved edits?"
+
+    Returns ``(cfg, errors, warnings)``; *cfg* is ``None`` when validation
+    produced fatal errors.
+    """
+    patch, parse_errors = _normalise_patch(patch)
+    safe_patch = {k: v for k, v in patch.items() if k in EDITABLE_FIELD_PATHS}
+
+    raw = _load_raw_yaml(config_path)
+    updated_raw = _apply_to_raw(raw, safe_patch)
+
+    cfg, errors_obj, warnings_obj = _validate_raw(updated_raw)
+
+    errors = parse_errors + [
+        {"field": e.field, "message": e.message, "hint": e.hint} for e in errors_obj
+    ]
+    warnings = [{"field": w.field, "message": w.message, "hint": w.hint} for w in warnings_obj]
+
+    if errors_obj or parse_errors:
+        return None, errors, warnings
+    return cfg, errors, warnings
 
 
 # ---------------------------------------------------------------------------
@@ -283,6 +375,17 @@ def _apply_to_raw(raw: dict, patch: dict) -> dict:
             raw["theme_schedule"] = value if isinstance(value, list) else []
             continue
 
+        if field_path == "theme_rules":
+            # List of {when, theme} dicts (already parsed from the YAML
+            # textarea by _normalise_patch). An empty list removes the key so
+            # the saved YAML stays clean.
+            rules = value if isinstance(value, list) else []
+            if rules:
+                raw["theme_rules"] = rules
+            else:
+                raw.pop("theme_rules", None)
+            continue
+
         # Navigate (and create) nested dicts, then set the leaf.
         obj = raw
         for key in yaml_path[:-1]:
@@ -295,13 +398,17 @@ def _apply_to_raw(raw: dict, patch: dict) -> dict:
 
 
 def _validate_raw(raw: dict) -> tuple:
-    """Parse *raw* into a Config via a temp file and run validate_config()."""
+    """Parse *raw* into a Config via a temp file and run validate_config().
+
+    Returns ``(cfg, errors, warnings)``.
+    """
     fd, tmp = tempfile.mkstemp(suffix=".yaml")
     try:
         with os.fdopen(fd, "w") as f:
             yaml.dump(raw, f, default_flow_style=False, allow_unicode=True)
         cfg = load_config(tmp)
-        return validate_config(cfg, config_path="")
+        errors, warnings = validate_config(cfg, config_path="")
+        return cfg, errors, warnings
     finally:
         try:
             os.unlink(tmp)

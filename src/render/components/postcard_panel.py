@@ -37,6 +37,9 @@ from functools import lru_cache
 from PIL import Image, ImageDraw
 
 from src.data.models import CalendarEvent, DashboardData
+from src.render.artkit import accent_red as _accent_red
+from src.render.artkit import grey as _grey
+from src.render.artkit import ink as _ink
 from src.render.components.info_panel import _quote_for_today
 from src.render.moon import is_waxing, moon_illumination
 from src.render.primitives import (
@@ -46,8 +49,7 @@ from src.render.primitives import (
     text_height,
     wrap_lines,
 )
-from src.render.quantize import INKY_SPECTRA6_PALETTE
-from src.render.theme import INKY_RED, ComponentRegion, ThemeStyle
+from src.render.theme import ComponentRegion, ThemeStyle
 
 # ---------------------------------------------------------------------------
 # Geometry — postcard is split at SCENE_W; everything left of it is the
@@ -76,26 +78,6 @@ _HORIZON_Y_FRAC = 0.62
 # ---------------------------------------------------------------------------
 # Mode-aware colour helpers (mirrors halftone_panel)
 # ---------------------------------------------------------------------------
-
-
-def _grey(v: int, mode: str) -> int | tuple[int, int, int]:
-    return v if mode == "L" else (v, v, v)
-
-
-def _ink(mode: str) -> int | tuple[int, int, int]:
-    return 0 if mode == "L" else (0, 0, 0)
-
-
-def _accent_red(mode: str) -> int | tuple[int, int, int]:
-    """Postmark / stamp-border accent.  Red on Inky, solid black on L mode.
-
-    L mode collapses the accent to solid ink because mid-grey would dither
-    into a noisy half-tone pattern after Floyd-Steinberg — fine for
-    procedural illustration but illegible for small text and thin rules.
-    """
-    if mode == "RGB":
-        return INKY_SPECTRA6_PALETTE[INKY_RED]
-    return 0
 
 
 # ---------------------------------------------------------------------------
@@ -703,6 +685,7 @@ def _radial_gradient_disc(d: int, inner_v: int, outer_v: int) -> Image.Image:
     cx = cy = (d - 1) / 2.0
     rad = (d - 1) / 2.0
     px = out.load()
+    assert px is not None
     for y in range(d):
         for x in range(d):
             dx = x - cx
@@ -745,6 +728,7 @@ def _moon_disc(d: int, illumination_pct: float, waxing: bool) -> Image.Image:
     term_x_rel = (1.0 - 2.0 * phase) * R
     soft_px = 4.0 * SS
     px = out.load()
+    assert px is not None
     for y in range(d):
         for x in range(d):
             dx = x - cx
@@ -1085,9 +1069,7 @@ def _draw_back(
     inner_w = inner_x1 - inner_x0
 
     # --- Greeting (Playfair regular, solid ink so it doesn't fuzz after dither).
-    greeting_font = (
-        style.font_semibold(20 * SS) if style.font_semibold else style.font_bold(20 * SS)
-    )
+    greeting_font = style.font_semibold(20 * SS)
     greeting = "Greetings from today —"
     draw.text((inner_x0, y0 + BACK_PAD_Y), greeting, font=greeting_font, fill=ink)
 
@@ -1111,6 +1093,7 @@ def _draw_back(
     draw.line([(inner_x0, rule_y), (inner_x1, rule_y)], fill=ink, width=SS)
 
     # --- Address-line agenda (today's events)
+    assert style.font_section_label is not None
     label_font = style.font_section_label(13 * SS)
     label = f"TODAY  ·  {today.strftime('%a %b %-d').upper()}"
     draw.text((inner_x0, rule_y + 6 * SS), label, font=label_font, fill=ink)
@@ -1187,6 +1170,7 @@ def _draw_postmark(
     # Three wavy "cancellation" lines extending right from the postmark.
     wave_top = cy - 6 * SS
     wave_w = 96 * SS
+    dy: float
     for i, dy in enumerate((-6 * SS, 0, 6 * SS)):
         wy = wave_top + dy + 6 * SS
         prev = None
@@ -1279,8 +1263,9 @@ def _draw_address_lines(
     softer than the body text so the rules read as "address lines" rather
     than as primary content.
     """
+    assert style.font_section_label is not None
     time_font = style.font_section_label(14 * SS)
-    body_font = style.font_semibold(17 * SS) if style.font_semibold else style.font_regular(17 * SS)
+    body_font = style.font_semibold(17 * SS)
     rule_fill = _grey(60, mode)
     line_h = 30 * SS
     max_rows = 5

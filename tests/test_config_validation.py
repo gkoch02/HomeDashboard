@@ -1,5 +1,7 @@
 """Tests for config validation (validate_config, print_validation_report)."""
 
+from pathlib import Path
+
 from src.config import (
     BirthdayConfig,
     Config,
@@ -516,3 +518,22 @@ class TestCountdownValidation:
         errors, _ = validate_config(cfg)
         assert any("countdown.events[1].date" in e.field for e in errors)
         assert not any("countdown.events[0].date" in e.field for e in errors)
+
+
+def test_config_validation_importable_standalone():
+    """Importing src.config_validation before src.config must not raise.
+
+    config.py re-imports this module at its bottom for the backwards-compat
+    re-exports; the annotation-only Config import lives under TYPE_CHECKING
+    so the cycle can't deadlock regardless of which module loads first.
+    """
+    import subprocess
+    import sys
+
+    result = subprocess.run(
+        [sys.executable, "-c", "import src.config_validation"],
+        capture_output=True,
+        text=True,
+        cwd=str(Path(__file__).resolve().parents[1]),
+    )
+    assert result.returncode == 0, result.stderr

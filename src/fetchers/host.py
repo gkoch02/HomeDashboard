@@ -7,14 +7,13 @@ that field, so the rest still populate. Returns None only if *every* field fails
 import logging
 import os
 import socket
-from typing import Optional
 
 from src.data.models import HostData
 
 logger = logging.getLogger(__name__)
 
 
-def fetch_host_data() -> Optional[HostData]:
+def fetch_host_data() -> HostData | None:
     """Collect host system metrics synchronously.
 
     Uses /proc filesystem and stdlib — safe for Raspberry Pi and any Linux host.

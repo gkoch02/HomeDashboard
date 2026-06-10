@@ -45,6 +45,7 @@ from src.astronomy import (
     sun_times,
 )
 from src.data.models import DashboardData
+from src.render.artkit import season
 from src.render.components.info_panel import _quote_for_today
 from src.render.moon import (
     moon_illumination,
@@ -149,15 +150,8 @@ def _fmt_signed_minutes(td: timedelta | None) -> str:
 
 
 def _season(today: date) -> str:
-    """Return the meteorological season name for *today* (Northern hemisphere)."""
-    m = today.month
-    if m in (12, 1, 2):
-        return "Winter"
-    if m in (3, 4, 5):
-        return "Spring"
-    if m in (6, 7, 8):
-        return "Summer"
-    return "Autumn"
+    """Return the capitalized season name for *today* (Northern hemisphere)."""
+    return season(today).capitalize()
 
 
 def _next_phase_date(today: date, target_fraction: float) -> date:

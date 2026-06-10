@@ -314,7 +314,7 @@ def _band_quote(
     author = quote.get("author", "")
 
     q_font = (style.font_regular)(15)
-    a_font = (style.font_medium or style.font_regular)(12)
+    a_font = style.font_medium(12)
     max_w = w - _PAD * 2
 
     # Centre the quote vertically

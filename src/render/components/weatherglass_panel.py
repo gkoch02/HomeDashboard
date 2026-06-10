@@ -39,6 +39,8 @@ from PIL import Image, ImageDraw
 
 from src.astronomy import sun_times
 from src.data.models import AirQualityData, DashboardData, WeatherAlert, WeatherData
+from src.render.artkit import grey as _grey
+from src.render.artkit import ink as _ink
 from src.render.moon import is_waxing, moon_illumination, moon_phase_name
 from src.render.primitives import draw_text_truncated, text_height, text_width
 from src.render.quantize import INKY_SPECTRA6_PALETTE
@@ -88,14 +90,6 @@ _AQI_RECT = (616 * SS, _SEC_Y0, 716 * SS, _SEC_Y1)
 # fill bands (cold/comfort zones, wood grain) use mid-grey on L so they
 # dither into engraving-style halftone.
 # ---------------------------------------------------------------------------
-
-
-def _grey(v: int, mode: str) -> int | tuple[int, int, int]:
-    return v if mode == "L" else (v, v, v)
-
-
-def _ink(mode: str) -> int | tuple[int, int, int]:
-    return 0 if mode == "L" else (0, 0, 0)
 
 
 def _brass(mode: str) -> int | tuple[int, int, int]:
@@ -418,7 +412,7 @@ def _draw_masthead(
     )
 
 
-def _draw_compass_star(draw: ImageDraw.ImageDraw, cx: int, cy: int, r: int, fill) -> None:
+def _draw_compass_star(draw: ImageDraw.ImageDraw, cx: float, cy: int, r: int, fill) -> None:
     """Four-pointed compass-star ornament centred at (cx, cy)."""
     pts = [(cx, cy - r), (cx + r // 3, cy), (cx, cy + r), (cx - r // 3, cy)]
     draw.polygon(pts, fill=fill)
@@ -560,7 +554,7 @@ def _rotate_text_paste(
     strip = Image.new("L", (tw + 2 * pad, th + 2 * pad), 0)
     sd = ImageDraw.Draw(strip)
     sd.text((pad - bbox[0], pad - bbox[1]), text, font=font, fill=255)
-    rotated = strip.rotate(-angle_deg, resample=Image.BICUBIC, expand=True)
+    rotated = strip.rotate(-angle_deg, resample=Image.Resampling.BICUBIC, expand=True)
     rw, rh = rotated.size
     cx, cy = centre
     a = math.radians(angle_deg)
@@ -830,7 +824,7 @@ def _draw_barometer(
     # Tick marks: 36 around the full circle (every 10°), heavier every 3rd
     # (every 30°).  Drawn THICK so they stay legible after dithering.
     for i in range(36):
-        deg = i * 10
+        deg: float = i * 10
         a = math.radians(deg)
         if i % 3 == 0:
             tlen = 12 * SS
@@ -1477,7 +1471,7 @@ def _draw_sun_arc(
     elif now.tzinfo is not None:
         local_tz = now.tzinfo
 
-    def _time_frac(dt: datetime) -> float | None:
+    def _time_frac(dt: datetime | None) -> float | None:
         """Map a datetime to a fraction along the arc baseline (0..1 = midnight..midnight)."""
         if dt is None:
             return None

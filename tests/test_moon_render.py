@@ -21,6 +21,7 @@ from src.render.moon_render import (
     moon_photo_available,
     render_moon_disc,
 )
+from src.render.quantize import flatten_pixels
 
 # Phase ages (days) for a 29.53059-day synodic month.
 NEW = 0.0
@@ -87,12 +88,12 @@ class TestTerminatorGeometry:
     def test_lit_mask_full_moon_mostly_lit(self):
         mask = _build_lit_mask(80, FULL, 29.53059)
         # Full disc area ≈ pi r^2; nearly all of it should be lit (255).
-        lit = sum(1 for p in mask.getdata() if p > 127)
+        lit = sum(1 for p in flatten_pixels(mask) if p > 127)
         assert lit > 0.9 * 3.14159 * 40 * 40
 
     def test_lit_mask_new_moon_dark(self):
         mask = _build_lit_mask(80, NEW, 29.53059)
-        assert max(mask.getdata()) == 0
+        assert max(flatten_pixels(mask)) == 0
 
     def test_lit_mask_first_quarter_right_half(self):
         size = 80
@@ -138,14 +139,14 @@ class TestRenderPhotoDisc:
     def test_photo_full_moon_is_bright(self, fake_photo):
         img = self._disc_image("L", fake_photo, FULL, dark_canvas=True)
         assert img.getbbox() is not None
-        assert max(img.getdata()) > 0
+        assert max(flatten_pixels(img)) > 0
 
     def test_photo_new_moon_only_earthshine(self, fake_photo):
         # New moon: no lit region, only faint earthshine.  On the L canvas the
         # disc is dithered to bilevel, so individual pixels reach 255 — but the
         # mean stays low because the earthshine is heavily dimmed.
         img = self._disc_image("L", fake_photo, NEW, dark_canvas=True)
-        data = list(img.getdata())
+        data = list(flatten_pixels(img))
         assert sum(data) / len(data) < 60
 
     def test_photo_renders_on_rgb_as_greyscale(self, fake_photo):

@@ -14,8 +14,8 @@ from __future__ import annotations
 
 import logging
 import shutil
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
 
 from src.config_schema import CURRENT_SCHEMA_VERSION
 

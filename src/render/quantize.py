@@ -17,15 +17,36 @@ floyd_steinberg
 
 ordered
     4×4 Bayer ordered/threshold dithering, implemented in pure Python
-    (``getdata`` / ``putdata``) — no numpy dependency required.
+    (``tobytes`` / ``putdata``) — no numpy dependency required.
     Produces a regular dot-matrix pattern; useful for structured gradients.
 """
 
 from __future__ import annotations
 
+from typing import cast
+
 from PIL import Image
 
 _VALID_MODES = ("threshold", "floyd_steinberg", "ordered")
+
+
+def flatten_pixels(image: Image.Image) -> list[int] | list[tuple[int, int, int]]:
+    """Flat per-pixel value list with the semantics of the deprecated ``Image.getdata()``.
+
+    ``getdata()`` is deprecated (removed in Pillow 14); ``tobytes()`` is the
+    stable replacement, but mode ``"1"`` packs eight pixels per byte and RGB
+    interleaves channels, so this helper restores per-pixel values: 0/255 ints
+    for ``"1"``, 0–255 ints for ``"L"``, and ``(r, g, b)`` tuples for ``"RGB"``.
+    """
+    if image.mode == "1":
+        return list(image.convert("L").tobytes())
+    if image.mode == "L":
+        return list(image.tobytes())
+    if image.mode == "RGB":
+        raw = image.tobytes()
+        return list(zip(raw[0::3], raw[1::3], raw[2::3]))
+    raise ValueError(f"Unsupported image mode {image.mode!r} (expected '1', 'L', or 'RGB')")
+
 
 # SATURATED_PALETTE from InkyE673 (inky_e673.py) — the correct driver for the
 # Inky Impression 7.3" 2025 Spectra 6 panel.  Ordering matches the controller's
@@ -132,7 +153,7 @@ def quantize_for_display(image: Image.Image, mode: str = "threshold") -> Image.I
 def _ordered_bayer(image: Image.Image) -> Image.Image:
     """Apply 4×4 Bayer ordered dithering (pure Python — no numpy required)."""
     w, h = image.size
-    pixels = list(image.getdata())
+    pixels = cast("list[int]", flatten_pixels(image))
     thresholds = [_BAYER_4X4[y & 3][x & 3] for y in range(h) for x in range(w)]
     quantized = [255 if p > t else 0 for p, t in zip(pixels, thresholds)]
     out = Image.new("L", (w, h))
@@ -239,8 +260,7 @@ def _quantize_palette_ordered_python(
 ) -> Image.Image:
     w, h = image.size
     rgb_img = image.convert("RGB")
-    # Avoid deprecated getdata() by using tobytes + frombytes round-trip via getdata fallback
-    raw = list(rgb_img.getdata())  # list of (r,g,b) tuples
+    raw = cast("list[tuple[int, int, int]]", flatten_pixels(rgb_img))
     result: list[tuple[int, int, int]] = []
 
     x = y = 0
@@ -351,7 +371,7 @@ def _quantize_palette_fs_python(
 ) -> Image.Image:
     """Pure-Python Floyd-Steinberg fallback (no numpy required)."""
     w, h = image.size
-    raw = list(image.convert("RGB").getdata())
+    raw = cast("list[tuple[int, int, int]]", flatten_pixels(image.convert("RGB")))
     # Mutable float buffer; each entry is [r, g, b].
     buf: list[list[float]] = [[float(p[0]), float(p[1]), float(p[2])] for p in raw]
     result: list[tuple[int, int, int]] = [(0, 0, 0)] * (w * h)

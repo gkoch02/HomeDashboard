@@ -168,6 +168,7 @@ function getCurrentChangeList() {
     cache: _lastLoadedConfig.cache,
     random_theme: _lastLoadedConfig.random_theme,
     theme_schedule: _lastLoadedConfig.theme_schedule,
+    theme_rules: _lastLoadedConfig.theme_rules_yaml || "",
   });
 }
 
@@ -621,6 +622,10 @@ function collectConfigPatch() {
   });
   patch["theme_schedule"] = schedule;
 
+  // Theme rules — sent as YAML text; the server parses and validates it.
+  const rulesEl = $("cfg-theme-rules");
+  if (rulesEl) patch["theme_rules"] = rulesEl.value;
+
   return patch;
 }
 
@@ -685,6 +690,10 @@ function populateConfigForm(data) {
     tbody.innerHTML = "";
     (data.theme_schedule || []).forEach(e => addScheduleRow(e.time, e.theme));
   }
+
+  // Theme rules YAML textarea
+  const rulesEl = $("cfg-theme-rules");
+  if (rulesEl) rulesEl.value = data.theme_rules_yaml || "";
 
   // Sync theme dropdown and grid
   if (data.theme) {
@@ -973,3 +982,53 @@ document.addEventListener("DOMContentLoaded", () => {
     if (_configDirty) { e.preventDefault(); e.returnValue = ""; }
   });
 });
+
+// ---------------------------------------------------------------------------
+// Live preview — render the selected theme against the current (possibly
+// unsaved) form values via POST /api/preview {theme, patch}. Nothing is
+// persisted; the backend builds and validates a candidate config.
+// ---------------------------------------------------------------------------
+
+async function livePreview(btn) {
+  const themeEl = $("cfg-theme");
+  let theme = themeEl ? themeEl.value : "";
+  // Pseudo-themes resolve at run-time; preview the default instead.
+  if (!theme || theme === "random" || theme === "random_daily" || theme === "random_hourly") {
+    theme = "default";
+  }
+  if (btn) btn.disabled = true;
+  try {
+    const resp = await fetch("/api/preview", {
+      method: "POST",
+      headers: csrf_headers({ "Content-Type": "application/json" }),
+      body: JSON.stringify({ theme, patch: collectConfigPatch() }),
+    });
+    if (!resp.ok) {
+      let msg = "Preview failed.";
+      try {
+        const data = await resp.json();
+        msg = data.error || msg;
+        if (data.validation_errors && data.validation_errors.length) {
+          msg += " " + data.validation_errors.map(e => `${e.field}: ${e.message}`).join("; ");
+        }
+      } catch (_) { /* non-JSON error body */ }
+      const result_el = $("cfg-result");
+      if (result_el) result_el.innerHTML = `<div class="cfg-errors">✗ ${esc_html(msg)}</div>`;
+      return;
+    }
+    const blob = await resp.blob();
+    const dlg = document.getElementById("theme-preview-dialog");
+    const img = document.getElementById("theme-preview-img");
+    if (!dlg || !img) return;
+    if (img._objectUrl) URL.revokeObjectURL(img._objectUrl);
+    img._objectUrl = URL.createObjectURL(blob);
+    img.src = img._objectUrl;
+    img.alt = `Live preview — ${theme}`;
+    dlg.showModal();
+  } catch (_) {
+    const result_el = $("cfg-result");
+    if (result_el) result_el.innerHTML = '<div class="cfg-errors">✗ Preview request failed.</div>';
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}

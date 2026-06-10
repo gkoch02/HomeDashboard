@@ -8,6 +8,41 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
+- **`GET /api/health`** web endpoint — uptime-monitor probe returning
+  HTTP 200 when the last renderer run succeeded and 503 otherwise, with
+  an optional `?max_age=<seconds>` freshness requirement that is skipped
+  during quiet hours. Points cleanly at Uptime Kuma / healthchecks.io.
+- **Patch-preview** — `POST /api/preview` accepts an optional `patch`
+  dict (same shape as `POST /api/config`) and renders against a
+  candidate config without persisting anything; the config page gained a
+  **Live preview** button that sends the current unsaved form values.
+- **Theme-rules editor** — `theme_rules` is now editable from the web UI
+  as a validated YAML textarea (Advanced mode), wired into save,
+  dirty-tracking, the change summary, and Live preview.
+- `src/render/artkit.py` — shared mode-aware colour + season helpers for
+  the procedural art themes (previously copy-pasted per panel).
+
+### Changed
+
+- Python floor raised to **3.10** (3.9 is EOL; mypy can no longer check
+  a 3.9 target). CI matrix is now 3.10 / 3.11 / 3.13.
+- mypy now checks **every** module: the `ignore_errors` blanket covering
+  all 29 render components was removed via root-cause typing fixes
+  (non-Optional core fonts on `ThemeStyle`, widened `Fill`/coordinate
+  types in `primitives.py`/`icons.py`). Pixel output is unchanged.
+- Deprecated Pillow `getdata()` (removal scheduled for Pillow 14)
+  replaced with a `tobytes()`-based `flatten_pixels()` helper; Pillow
+  deprecation warnings now fail the test suite immediately.
+- Coverage gate raised from 90% to 94% (actual ≈ 96%).
+- `validate_config` and friends moved to `src/config_validation.py`
+  (re-exported from `src.config`, so imports keep working).
+- `requirements*.txt` are now guarded against drift from
+  `pyproject.toml` by a test.
+
+## [5.1.0] - 2026-06-09
+
+### Added
+
 - **`postcard` theme** — vintage dithered postcard.  Left two-thirds is a
   Floyd-Steinberg-dithered procedural "view" — sky gradient, layered
   mountains, water with horizontal ripple lines, foreground shore, plus
@@ -116,7 +151,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   the same vertical band as the sun's lower-left rays.  Dropped the
   label to `y0 + 116` so it clears the glyph.
 
-## [5.0.0] — Pluggable & Polished
+## [5.0.0] - 2026-05-01 — Pluggable & Polished
 
 The v5 release is a structural refactor that pays down v4's hard-coded
 dispatch sites and ships the long-pending CalDAV calendar source on top of
@@ -224,10 +259,9 @@ files migrate transparently on first read. See
 
 ### (Patch version bump for minor fixes)
 
-## [4.2] - Unreleased
+## [4.2]
 
-### Added
-- 
+### (Version bump only — never released separately; see 4.2.1)
 
 ## [4.1.3] - 2026-04-04
 
