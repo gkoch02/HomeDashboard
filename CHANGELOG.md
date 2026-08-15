@@ -8,6 +8,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Fixed
 
+- **`halftone_agenda`'s calendar side now carries the same weight of ink as
+  its weather side.** Both panes are pure black on pure white by the time the
+  panel sees them, so the calendar reading grey was stroke mass, not tone: at
+  22 px Righteous sets ~4.4 px stems while DM Sans SemiBold sets ~3.7 px. The
+  agenda now runs one weight heavier than the role each element fills — bold
+  titles, semibold times, medium locations and footer — and the theme's bold
+  role points at DM Sans Bold instead of Righteous, which was only ever
+  reached as a fallback.
+
 - **`halftone_agenda` agenda pane reads better on a panel.** Rows are
   top-justified under the rule at a pitch sized to their type, instead of a
   stretch-to-fill pitch that left a two-event day floating mid-pane; the

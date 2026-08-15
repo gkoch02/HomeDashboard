@@ -549,6 +549,61 @@ class TestAgendaRowTreatment:
         )
 
 
+class TestAgendaWeight:
+    """The calendar side must lay down as much ink as the weather side.
+
+    Both panes are pure black on pure white by the time the panel sees them,
+    so "not black enough" is a question of stroke mass, not of tone: at 22 px
+    Righteous sets ~4.4 px stems and DM Sans SemiBold ~3.7 px, which reads as
+    grey text next to it. The agenda therefore runs one weight heavier than
+    the role each element fills.
+    """
+
+    def _mean_stem(self, font, text="12:30p Grocery run") -> float:
+        from PIL import ImageDraw
+
+        from src.render.skyart import TYPESET_CUT
+
+        tile = Image.new("L", (320, 34), 255)
+        ImageDraw.Draw(tile).text((2, 4), text, font=font, fill=0)
+        px = tile.point(lambda v: 0 if v < TYPESET_CUT else 255).load()
+        runs = total = 0
+        for y in range(34):
+            run = 0
+            for x in range(320):
+                if px[x, y] == 0:
+                    run += 1
+                else:
+                    if run:
+                        runs += 1
+                        total += run
+                    run = 0
+        return total / max(1, runs)
+
+    def test_bold_role_is_dm_sans_not_the_display_face(self):
+        # Righteous is reached through font_title / font_section_label /
+        # font_date_number, which frees the bold role for the agenda rows.
+        from src.render.fonts import dm_bold, righteous
+
+        style = load_theme("halftone_agenda").style
+        assert style.font_bold is dm_bold
+        assert style.font_title is righteous
+
+    def test_agenda_titles_match_the_weather_pane_for_stroke_mass(self):
+        from src.render.fonts import righteous
+
+        style = load_theme("halftone_agenda").style
+        target = self._mean_stem(righteous(22))
+        title = self._mean_stem(style.font_bold(22))
+        assert title >= target * 0.95, f"agenda {title:.2f}px vs weather {target:.2f}px"
+
+    def test_every_agenda_role_is_a_step_heavier(self):
+        style = load_theme("halftone_agenda").style
+        light = self._mean_stem(style.font_regular(17))
+        used = self._mean_stem(style.font_medium(17))  # what locations now use
+        assert used > light
+
+
 class TestTypesetHardening:
     """Text must not dither.
 

@@ -239,7 +239,7 @@ def draw_halftone_agenda(
 
     # --- "updated HH:MM am" caption in the bottom corner of the agenda pane.
     ink = _ink(mode)
-    footer_font = style.font_regular(16)
+    footer_font = style.font_medium(16)
     stamp = f"updated {_clock(now_naive).lower()}"
     sw = text_width(draw, stamp, footer_font)
     draw.text(
@@ -502,9 +502,13 @@ def _draw_event_row(
     """
     mode = image.mode
     ink = _ink(mode)
-    time_font = style.font_medium(time_pt)
-    title_font = style.font_semibold(title_pt)
-    loc_font = style.font_regular(max(12, time_pt - 2))
+    # One weight heavier than the role each of these fills. See the theme
+    # module: at these sizes DM Sans at its nominal weight lays down noticeably
+    # less ink than the Righteous in the weather pane, and on a panel that
+    # reads as grey text rather than as lighter text.
+    time_font = style.font_semibold(time_pt)
+    title_font = style.font_bold(title_pt)
+    loc_font = style.font_medium(max(12, time_pt - 2))
 
     time_str = "ALL DAY" if event.is_all_day else fmt_time(event.start)
     title_x = x0 + time_w + 12
@@ -579,7 +583,7 @@ def _draw_agenda_pane(
     mode = image.mode
     ink = _ink(mode)
     title_font = (style.font_title or style.font_bold)(26)
-    count_font = style.font_medium(14)
+    count_font = style.font_semibold(14)
 
     day_events = events_for_day(events, day)
 
@@ -670,7 +674,7 @@ def _draw_agenda_pane(
         # has its neighbours to read against, while this line sits alone under
         # the last row with nothing around it. It is the one line that says the
         # day continues past what is shown, so it has to survive the panel.
-        more_font = style.font_semibold(title_pt)
+        more_font = style.font_bold(title_pt)
         draw.text(
             (x0 + time_w + 12, y + 2),
             f"+{overflow} more",
