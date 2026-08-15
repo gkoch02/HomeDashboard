@@ -713,6 +713,14 @@ def harden_typeset(image: Image.Image, box: Rect, *, cut: int = TYPESET_CUT) -> 
     ``box`` is ``(x, y, w, h)`` in canvas coordinates. No-op on a non-``"L"``
     canvas: the Inky path maps each pixel independently, so no error crosses a
     glyph edge there and the greys are already resolved one at a time.
+
+    Known limitation: this runs while the canvas is still 800×480. On a display
+    whose resolution differs, ``WaveshareBackend.resize_and_finalize()`` then
+    LANCZOS-resizes and quantizes, which recreates grey edges and diffuses them
+    again — so the hardening only bites at native resolution. Fixing that means
+    hardening after the resize, which needs the backend to know which rects are
+    type; every theme's small text softens on a scaled panel for the same
+    reason.
     """
     if image.mode != "L":
         return
