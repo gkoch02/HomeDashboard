@@ -16,6 +16,7 @@ from src.render.components import (
     birthday_bar,
     constellation_map_panel,
     countdown_panel,
+    day_arc_panel,
     diags_panel,
     fuzzyclock_panel,
     halftone_panel,
@@ -364,6 +365,21 @@ def _constellation_map(ctx: RenderContext) -> None:
         ctx.today,
         ctx.now,
         region=ctx.layout.constellation_map,
+        style=ctx.style,
+        latitude=ctx.latitude,
+        longitude=ctx.longitude,
+    )
+
+
+@register_component("day_arc")
+def _day_arc(ctx: RenderContext) -> None:
+    day_arc_panel.draw_day_arc(
+        ctx.draw,
+        ctx.data,
+        ctx.today,
+        ctx.now,
+        image=ctx.image,
+        region=ctx.layout.day_arc,
         style=ctx.style,
         latitude=ctx.latitude,
         longitude=ctx.longitude,

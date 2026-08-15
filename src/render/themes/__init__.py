@@ -15,6 +15,7 @@ from src.render.themes import almanac as _almanac  # noqa: F401
 from src.render.themes import astronomy as _astronomy  # noqa: F401
 from src.render.themes import constellation_map as _constellation_map  # noqa: F401
 from src.render.themes import countdown as _countdown  # noqa: F401
+from src.render.themes import day_arc as _day_arc  # noqa: F401
 from src.render.themes import diags as _diags  # noqa: F401
 from src.render.themes import fantasy as _fantasy  # noqa: F401
 from src.render.themes import fuzzyclock as _fuzzyclock  # noqa: F401

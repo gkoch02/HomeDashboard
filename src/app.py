@@ -24,6 +24,10 @@ from src.services.theme import resolve_theme_name
 
 logger = logging.getLogger(__name__)
 
+# Themes whose view can extend past the end of the standard Monday-anchored
+# week and therefore need one extra day of calendar events fetched.
+THEMES_NEEDING_TOMORROW = frozenset({"day_arc"})
+
 # State files that belong in state_dir (not output_dir)
 _STATE_FILES = [
     "dashboard_cache.json",
@@ -99,12 +103,11 @@ class DashboardApp:
         configured_theme = self.args.theme if self.args.theme is not None else self.cfg.theme
         # Phase 1: pre-fetch resolve (no data) — used to size the calendar event window.
         pre_theme = resolve_theme_name(self.cfg, self.args.theme, now=now, data=None)
-        # If any rule can later resolve to "monthly" post-fetch, pre-size the event
-        # window for monthly now; the extra calendar events are cheap and avoid a
-        # re-fetch when a weather rule flips to monthly.
-        window_theme = (
-            "monthly" if pre_theme != "monthly" and self._rules_can_pick_monthly() else pre_theme
-        )
+        # A post-fetch theme_rules flip can land on a theme that needs more
+        # calendar data than the pre-fetch pick did, so size the window for the
+        # widest requirement among the candidates; the extra events are cheap and
+        # avoid rendering an incomplete view.
+        window_theme = self._window_theme(pre_theme)
         event_window_start, event_window_days = self._event_window_for_theme(window_theme, now)
 
         data = self._load_data(now, force_full, pre_theme, event_window_start, event_window_days)
@@ -200,23 +203,36 @@ class DashboardApp:
         return pipeline.fetch()
 
     def _event_window_for_theme(self, theme_name: str, now: datetime) -> tuple[_date | None, int]:
-        if theme_name != "monthly":
-            return None, 7
-        today = now.date()
-        cal = Calendar(firstweekday=6)
-        weeks = cal.monthdatescalendar(today.year, today.month)
-        grid_start = weeks[0][0]
-        grid_end = weeks[-1][-1] + timedelta(days=1)
-        return grid_start, (grid_end - grid_start).days
+        if theme_name == "monthly":
+            today = now.date()
+            cal = Calendar(firstweekday=6)
+            weeks = cal.monthdatescalendar(today.year, today.month)
+            grid_start = weeks[0][0]
+            grid_end = weeks[-1][-1] + timedelta(days=1)
+            return grid_start, (grid_end - grid_start).days
+        if theme_name in THEMES_NEEDING_TOMORROW:
+            # One day past the standard week. The default window is anchored to
+            # Monday and runs 7 days, so on a Sunday "tomorrow" (next Monday)
+            # falls outside it — and day_arc rolls its agenda over to tomorrow
+            # after dark, which would render "Nothing scheduled tomorrow" every
+            # Sunday evening regardless of what is actually on Monday.
+            return None, 8
+        return None, 7
 
-    def _rules_can_pick_monthly(self) -> bool:
-        """Return True when any ``theme_rules`` entry could resolve to ``monthly``.
+    def _window_theme(self, pre_theme: str) -> str:
+        """Return the theme whose event window should be fetched.
 
-        Used pre-fetch to widen the calendar event window so the monthly grid
-        has complete data if a weather-dependent rule later flips the theme to
-        monthly (after the pre-fetch resolve already picked a non-monthly theme).
+        Widest requirement wins across the pre-fetch pick and every theme a
+        ``theme_rules`` entry could later resolve to, so a post-fetch flip never
+        renders against a window that was sized for a hungrier-but-different view.
         """
-        return any(rule.theme == "monthly" for rule in self.cfg.theme_rules.rules)
+        candidates = {pre_theme} | {rule.theme for rule in self.cfg.theme_rules.rules}
+        if "monthly" in candidates:
+            return "monthly"
+        needs_tomorrow = candidates & THEMES_NEEDING_TOMORROW
+        if needs_tomorrow:
+            return sorted(needs_tomorrow)[0]
+        return pre_theme
 
     def _apply_filters(self, data):
         if (

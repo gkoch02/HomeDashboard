@@ -52,6 +52,10 @@ _THEME_SPLIT_MODES: dict[str, str] = {
     "message": "vertical",
     "today": "vertical",
     "monthly": "vertical",
+    # Colour is spread across every band — yellow in the ribbon and daylight
+    # bar, red in the now-caret, the in-progress event and the birthday
+    # bullets. A vertical cut is the only one that shows both accents.
+    "day_arc": "vertical",
     "light_cycle": "vertical",
     "almanac": "vertical",
     "constellation_map": "vertical",
