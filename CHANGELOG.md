@@ -22,6 +22,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   ordered-Bayer rule and Bayer screening) extracted from `halftone_panel` so
   `day_arc` can share it rather than duplicating ~430 lines. Pixel output of
   `halftone` is unchanged.
+- `.github/PULL_REQUEST_TEMPLATE.md` — seeds new PRs with the contribution
+  checklist, including the conditional steps that are easy to miss (pixel-hash
+  baselines, preview regeneration, `mypy`, changelog entry).
 - `artkit.to_local_naive()` / `artkit.hours_of_day()` — the naive/aware
   datetime normalisers promoted out of `light_cycle_panel` for reuse by any
   panel plotting a time axis.
@@ -42,6 +45,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- `CONTRIBUTING.md` coverage figures corrected — the gate has been 94% (with
+  actual ≈96%) since it was ratcheted; the doc still claimed ≥90% and ~99%.
 - `to_local_naive` no longer consults the host machine's timezone when no
   timezone is supplied, so a render of identical inputs is reproducible
   across machines (the theme pixel snapshots hash that render).
