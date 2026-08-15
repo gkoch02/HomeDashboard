@@ -34,9 +34,12 @@
         "do_not_enforce_on_create": false,
         "required_status_checks": [
           { "context": "lint" },
-          { "context": "test (3.9)" },
+          { "context": "test (3.10)" },
           { "context": "test (3.11)" },
           { "context": "test (3.12)" },
+          { "context": "test (3.13)" },
+          { "context": "test-core-install" },
+          { "context": "snapshot-tests" },
           { "context": "typecheck" },
           { "context": "smoke" }
         ]
