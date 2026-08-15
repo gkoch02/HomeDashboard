@@ -26,6 +26,11 @@ jobs:
       - run: pip install -e ".[dev]"
       - run: ruff check src/ tests/
       - run: ruff format --check src/ tests/
+      # Validates markdown links and the canonical theme inventories in
+      # docs/themes.md and docs/previews.md. CONTRIBUTING asks contributors to
+      # run this, but nothing enforced it — which is how themes drifted out of
+      # the preview batch loop unnoticed.
+      - run: python scripts/check_docs.py
 
   test:
     runs-on: ubuntu-latest
