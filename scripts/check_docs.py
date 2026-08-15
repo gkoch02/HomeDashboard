@@ -11,6 +11,8 @@ ROOT = Path(__file__).resolve().parents[1]
 DOC_FILES = [ROOT / "README.md", ROOT / "CONTRIBUTING.md"] + sorted((ROOT / "docs").glob("*.md"))
 LINK_RE = re.compile(r"\[[^\]]+\]\(([^)]+)\)")
 THEME_DETAIL_RE = re.compile(r"^####\s+(.+)$", re.MULTILINE)
+# The "full batch for all concrete themes" shell loop in docs/previews.md.
+PREVIEW_BATCH_RE = re.compile(r"for theme in ([^;]+); do", re.DOTALL)
 
 
 def normalize_heading(heading: str) -> str:
@@ -69,6 +71,29 @@ def check_theme_inventory(theme_names: set[str]) -> list[str]:
     for name in extra_in_themes:
         errors.append(f"docs/themes.md: unexpected theme heading '{name}'")
 
+    errors.extend(check_preview_batch(theme_names))
+    return errors
+
+
+def check_preview_batch(theme_names: set[str]) -> list[str]:
+    """Keep the Inky preview batch loop in sync with the theme registry.
+
+    The loop is documented as covering "all concrete themes", so a theme that
+    never gets added to it silently never gets an Inky preview regenerated.
+    Both ``day_arc`` and ``moonphase_photo`` drifted out of it that way before
+    this check existed.
+    """
+    errors: list[str] = []
+    previews_doc = (ROOT / "docs" / "previews.md").read_text()
+    match = PREVIEW_BATCH_RE.search(previews_doc)
+    if match is None:
+        return ["docs/previews.md: could not find the 'for theme in ...' batch loop"]
+
+    listed = set(match.group(1).replace("\\", " ").split())
+    for name in sorted(theme_names - listed):
+        errors.append(f"docs/previews.md: theme '{name}' missing from the preview batch loop")
+    for name in sorted(listed - theme_names):
+        errors.append(f"docs/previews.md: unknown theme '{name}' in the preview batch loop")
     return errors
 
 
