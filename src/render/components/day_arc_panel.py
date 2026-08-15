@@ -704,6 +704,11 @@ def agenda_day(
 # ---------------------------------------------------------------------------
 
 
+def _pip_points(cx: int, cy: int, half: int) -> list[tuple[int, int]]:
+    """Diamond vertices for an event pip centred at ``(cx, cy)``."""
+    return [(cx, cy - half), (cx + half, cy), (cx, cy + half), (cx - half, cy)]
+
+
 def _draw_axis_strip(
     image: Image.Image,
     draw: ImageDraw.ImageDraw,
@@ -782,19 +787,17 @@ def _draw_axis_strip(
             continue
         placed.append(x)
         state = event_state(ev, now)
-        pts = [
-            (x, pip_y),
-            (x + half, pip_y + half),
-            (x, pip_y + 2 * half),
-            (x - half, pip_y + half),
-        ]
+        pts = _pip_points(x, pip_y + half, half)
         if state == "past":
+            # The tile is (_AXIS_PIP_H + 2) square, so the diamond centres on
+            # (half + 1, half + 1) in its local coordinates.
+            def _pip(d: ImageDraw.ImageDraw, h: int = half) -> None:
+                d.polygon(_pip_points(h + 1, h + 1, h), fill=0)
+
             screened_paste(
                 image,
                 (x - half - 1, pip_y - 1, _AXIS_PIP_H + 2, _AXIS_PIP_H + 2),
-                lambda d, p=pts, ax=x, ay=pip_y, h=half: d.polygon(
-                    [(px - ax + h + 1, py - ay + 1) for px, py in p], fill=0
-                ),
+                _pip,
                 threshold=_PAST_SCREEN,
             )
         elif state == "now":
