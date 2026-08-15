@@ -57,7 +57,12 @@ from src.render.primitives import (
     wrap_lines,
 )
 from src.render.quantize import _BAYER_4X4
-from src.render.skyart import draw_bayer_rule, draw_weather_scene, screened_paste
+from src.render.skyart import (
+    draw_bayer_rule,
+    draw_weather_scene,
+    harden_typeset,
+    screened_paste,
+)
 from src.render.theme import ComponentRegion, ThemeStyle
 
 # Weather Icons glyphs — Righteous has no sunrise/sunset marks of its own.
@@ -105,18 +110,34 @@ TEMP_PT = 64
 TEMP_COL_W = 158
 TEMP_COL_GAP = 10
 
-# Bayer cut for elapsed content — matches day_arc, retaining roughly 60% of
-# the ink so a past row reads as spent without becoming unreadable.
-_PAST_SCREEN = 96
+# Bayer cut for elapsed rows. Higher keeps more ink (see
+# ``skyart.screened_paste``). One fixed cut across every tier doesn't work
+# here: perforating a 32 px title at 38% still reads across the room, while the
+# same cut on the 17 px type the packed tiers set leaves a row of dots. The cut
+# rises as the type shrinks so a past row reads as spent at every density
+# rather than as damage.
+_PAST_SCREEN_DISPLAY = 96  # ≈38% of the coverage, for the roomy tiers
+_PAST_SCREEN_BODY = 128  # 50%
+_PAST_SCREEN_DENSE = 160  # ≈62%, for the smallest type on the plate
+
+
+def past_screen(title_pt: int) -> int:
+    """Bayer cut for an elapsed row set at *title_pt*."""
+    if title_pt >= 26:
+        return _PAST_SCREEN_DISPLAY
+    if title_pt >= 20:
+        return _PAST_SCREEN_BODY
+    return _PAST_SCREEN_DENSE
+
 
 # Density tiers for the agenda column: (max_rows, row_h, time_w, time_pt,
 # title_pt, show_location). Tuned for this pane — 382 px of content width and
 # ~400 px of height, which is half as wide and half again as tall as day_arc's
 # agenda, so the tiers run to more rows before the type has to shrink.
 _DENSITY_TIERS: tuple[tuple[int, int, int, int, int, bool], ...] = (
-    (2, 108, 100, 24, 32, True),
-    (4, 76, 92, 20, 26, True),
-    (6, 54, 84, 18, 22, True),
+    (2, 76, 100, 22, 30, True),
+    (4, 64, 92, 20, 26, True),
+    (6, 52, 84, 18, 22, True),
     (8, 42, 76, 16, 19, False),
     (11, 33, 68, 14, 17, False),
 )
@@ -230,6 +251,16 @@ def draw_halftone_agenda(
         font=footer_font,
         fill=ink,
     )
+
+    # Both typeset regions are solid ink on solid paper, so snap them to pure
+    # black and white before the backend's Floyd-Steinberg pass gets to them.
+    # Left to dither, the antialiased glyph edges come off the panel ragged and
+    # the white type in the in-progress bar erodes the bar around it. The
+    # illustration above is untouched and still dithers — that is the point of
+    # the theme.
+    if band_h > 0:
+        harden_typeset(image, (x0, band_y, art_w, band_h))
+    harden_typeset(image, (pane_x, y0, pane_w, h))
 
 
 # ---------------------------------------------------------------------------
@@ -503,7 +534,7 @@ def _draw_event_row(
             d.text((0, 4), time_str, font=time_font, fill=0)
             draw_text_truncated(d, (time_w + 12, 2), event.summary, title_font, title_w, fill=0)
 
-        screened_paste(image, (x0, y, w, row_h - 6), _render, threshold=_PAST_SCREEN)
+        screened_paste(image, (x0, y, w, row_h - 6), _render, threshold=past_screen(title_pt))
         return
 
     # Upcoming: crisp, with a tick of rule between the time and the title —
@@ -604,11 +635,12 @@ def _draw_agenda_pane(
         visible = day_events
     overflow = len(day_events) - len(visible)
 
-    # A short list is centred in the pane rather than stacked against the rule
-    # with a void beneath it — the tiers are generous enough that two events on
-    # a 400-px pane would otherwise leave a third of it empty.
-    used_h = len(visible) * row_h + (row_h if overflow else 0)
-    y = rows_y + max(0, (rows_h - used_h) // 2)
+    # Rows start under the rule and run down, at the tier's own pitch. Row
+    # heights are sized to their type rather than stretched to fill the pane,
+    # so a light day reads as a short list with the day's remaining space below
+    # it — centring it instead left two events floating in the middle of the
+    # pane with gaps above and below that looked like a layout fault.
+    y = rows_y
     # The soonest timed event still ahead carries the accent tick. All-day rows
     # are skipped: they sort to the top of the day and have no "next" about
     # them, so accenting one would point at the wrong row all morning.
@@ -633,17 +665,15 @@ def _draw_agenda_pane(
         y += row_h
 
     if overflow:
-        more_font = style.font_medium(time_pt)
-        text = f"+{overflow} more"
-
-        def _render(d: ImageDraw.ImageDraw, t: str = text) -> None:
-            d.text((0, 2), t, font=more_font, fill=0)
-
-        # Screened like a past row: secondary, but at the same cut — a lighter
-        # one is too faint to read on eInk.
-        screened_paste(
-            image,
-            (x0 + time_w + 12, y + 2, 200, text_height(more_font) + 10),
-            _render,
-            threshold=_PAST_SCREEN,
+        # Plain ink at row weight. Screening it the way an elapsed row is
+        # screened made it the faintest thing on the plate: a past row at least
+        # has its neighbours to read against, while this line sits alone under
+        # the last row with nothing around it. It is the one line that says the
+        # day continues past what is shown, so it has to survive the panel.
+        more_font = style.font_semibold(title_pt)
+        draw.text(
+            (x0 + time_w + 12, y + 2),
+            f"+{overflow} more",
+            font=more_font,
+            fill=_ink(image.mode),
         )

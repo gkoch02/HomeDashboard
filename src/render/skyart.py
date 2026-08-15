@@ -688,6 +688,49 @@ def draw_bayer_rule(
                 px[x0 + xx, y] = on
 
 
+# Cut used when snapping typeset regions to pure ink or paper. 128 keeps a
+# glyph's nominal weight: an antialiased edge pixel is lit in proportion to the
+# coverage of the stem, so the half-covered ones round to whichever side they
+# lean toward.
+TYPESET_CUT = 128
+
+
+def harden_typeset(image: Image.Image, box: Rect, *, cut: int = TYPESET_CUT) -> None:
+    """Snap a typeset region to pure ink or paper, in place.
+
+    Text is the one thing on these plates that must not dither. PIL antialiases
+    TrueType glyphs on an ``"L"`` canvas, and a Floyd-Steinberg pass then
+    diffuses that edge error across glyph boundaries: the letterforms come off
+    the panel ragged, and white type inside an inverted bar erodes into it. A
+    ``"1"``-mode theme never shows this because PIL renders its text with no
+    antialiasing to begin with — snapping the region here puts an L-mode plate
+    on the same footing, while leaving the illustration free to dither.
+
+    Call it on regions that are *only* type on a solid field. Anything already
+    pure — Bayer rules, screened rows — passes through unchanged, but a region
+    holding a gradient would be flattened.
+
+    ``box`` is ``(x, y, w, h)`` in canvas coordinates. No-op on a non-``"L"``
+    canvas: the Inky path maps each pixel independently, so no error crosses a
+    glyph edge there and the greys are already resolved one at a time.
+
+    Known limitation: this runs while the canvas is still 800×480. On a display
+    whose resolution differs, ``WaveshareBackend.resize_and_finalize()`` then
+    LANCZOS-resizes and quantizes, which recreates grey edges and diffuses them
+    again — so the hardening only bites at native resolution. Fixing that means
+    hardening after the resize, which needs the backend to know which rects are
+    type; every theme's small text softens on a scaled panel for the same
+    reason.
+    """
+    if image.mode != "L":
+        return
+    x, y, w, h = box
+    if w <= 0 or h <= 0:
+        return
+    region = image.crop((x, y, x + w, y + h))
+    image.paste(region.point(lambda v: 0 if v < cut else 255), (x, y))
+
+
 def bayer_screen(w: int, h: int, phase_x: int, phase_y: int, threshold: int) -> Image.Image:
     """Return a ``w×h`` L-mode mask of the 4×4 Bayer lattice at *threshold*.
 
@@ -724,8 +767,12 @@ def screened_paste(
     one backend and not the other. The output here is pure ink-or-nothing, so
     FS passes it through untouched and the Inky palette mapping is unambiguous.
 
-    *threshold* is the Bayer cut in 0–240: higher removes more ink. The default
-    of 96 retains roughly 60% of the original coverage.
+    *threshold* is the Bayer cut in 0–240: a cell survives when its lattice
+    value is below the cut, so a **higher** threshold keeps **more** ink. With
+    the 4×4 matrix the useful stops are 48 (3/16 cells ≈ 19% of the coverage),
+    96 (6/16 ≈ 38%, the default), 128 (8/16 = 50%) and 160 (10/16 ≈ 62%).
+    Small type needs a higher cut than display type to stay readable — the
+    same fraction of a 14 px glyph is far less legible than of a 32 px one.
     """
     x, y, w, h = box
     if w <= 0 or h <= 0:

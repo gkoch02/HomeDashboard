@@ -13,6 +13,8 @@ from src.dummy_data import generate_dummy_data
 from src.render.canvas import render_dashboard
 from src.render.components.halftone_agenda_panel import (
     _DENSITY_TIERS,
+    _PAST_SCREEN_DENSE,
+    _PAST_SCREEN_DISPLAY,
     AGENDA_PAD_X,
     AGENDA_X,
     ART_W,
@@ -28,9 +30,15 @@ from src.render.components.halftone_agenda_panel import (
     _sun_times,
     agenda_metrics,
     draw_halftone_agenda,
+    past_screen,
 )
 from src.render.quantize import INKY_SPECTRA6_PALETTE, flatten_pixels
-from src.render.skyart import draw_bayer_rule, draw_weather_scene
+from src.render.skyart import (
+    TYPESET_CUT,
+    draw_bayer_rule,
+    draw_weather_scene,
+    harden_typeset,
+)
 from src.render.theme import (
     AVAILABLE_THEMES,
     INKY_RED,
@@ -437,6 +445,225 @@ class TestPaneSeparation:
             for y in range(480 - FOOTER_H, 480)
         ]
         assert any(px[x, y] == 0 for x, y in footer_band)
+
+
+class TestAgendaRowTreatment:
+    """Row spacing, elapsed-row screening and the overflow line.
+
+    A screened region can never contain a solid 2×2 block of ink — the Bayer
+    lattice has no such run at any cut this panel uses (the test below pins
+    that) — so the presence of one is a reliable "drawn in plain ink" signal.
+    """
+
+    def _solid_2x2_blocks(self, img, box) -> int:
+        px = img.load()
+        x0, y0, x1, y1 = box
+        return sum(
+            1
+            for y in range(y0, y1 - 1)
+            for x in range(x0, x1 - 1)
+            if px[x, y] == 0 and px[x + 1, y] == 0 and px[x, y + 1] == 0 and px[x + 1, y + 1] == 0
+        )
+
+    def test_lattice_never_yields_a_solid_2x2_block(self):
+        from src.render.quantize import _BAYER_4X4
+
+        for cut in (_PAST_SCREEN_DISPLAY, _PAST_SCREEN_DENSE):
+            for y in range(4):
+                for x in range(4):
+                    assert not all(
+                        _BAYER_4X4[(y + dy) % 4][(x + dx) % 4] < cut
+                        for dy in (0, 1)
+                        for dx in (0, 1)
+                    ), f"cut {cut} has a solid 2x2 at {(y, x)}"
+
+    def test_rows_are_top_justified(self):
+        # A light day and a busy one must start their first row at the same y:
+        # the list hangs from the rule, and the day's free space falls below
+        # it. Measured on the draw call rather than on ink, because different
+        # tiers set different type and so put their first pixel at different
+        # offsets inside the row.
+        import src.render.components.halftone_agenda_panel as mod
+
+        def first_row_y(events):
+            seen: list[int] = []
+            original = mod._draw_event_row
+
+            def spy(*args, **kwargs):
+                seen.append(kwargs["y"])
+                return original(*args, **kwargs)
+
+            mod._draw_event_row = spy
+            try:
+                _render(data=_data_for(events=events))
+            finally:
+                mod._draw_event_row = original
+            assert seen, "no rows drawn"
+            return seen[0]
+
+        light = first_row_y([_event(9), _event(15)])
+        busy = first_row_y([_event(7 + i, name=f"Event {i}") for i in range(8)])
+        assert light == busy, f"light starts at {light}, busy at {busy}"
+
+    def test_row_pitch_is_sized_to_its_type(self):
+        # Rows are spaced to their content, not stretched to fill the pane, so
+        # a two-event day is a short list rather than a sparse one.
+        leading = 26  # generous, but well short of stretch-to-fill
+        for _max_rows, row_h, _time_w, _time_pt, title_pt, show_loc in _DENSITY_TIERS:
+            content = title_pt + (title_pt - 4 if show_loc else 0)
+            assert row_h <= content + leading, (row_h, title_pt, show_loc)
+
+    def test_past_screen_keeps_more_ink_as_type_shrinks(self):
+        cuts = [past_screen(tier[4]) for tier in _DENSITY_TIERS]
+        assert cuts == sorted(cuts), f"cut must rise as type shrinks: {cuts}"
+        assert cuts[0] == _PAST_SCREEN_DISPLAY
+        assert cuts[-1] == _PAST_SCREEN_DENSE
+
+    def test_elapsed_rows_are_screened_and_the_overflow_line_is_not(self):
+        # "+N more" used to go through the same screen as a spent row, which
+        # made the one line saying the day continues the faintest mark on the
+        # plate. Every screening call must now belong to an elapsed row.
+        import src.render.components.halftone_agenda_panel as mod
+
+        events = [_event(6 + i, name=f"Event {i}") for i in range(14)]
+        calls: list[tuple[int, int, int, int]] = []
+        original = mod.screened_paste
+
+        def spy(image, box, render, **kwargs):
+            calls.append(box)
+            return original(image, box, render, **kwargs)
+
+        mod.screened_paste = spy
+        try:
+            _render(data=_data_for(events=events))
+        finally:
+            mod.screened_paste = original
+
+        elapsed_shown = sum(
+            1 for e in events[: len(calls)] if e.end.replace(tzinfo=None) <= FIXED_NOW
+        )
+        assert calls, "elapsed rows should still be screened"
+        assert len(calls) == elapsed_shown, (
+            f"{len(calls)} screened regions for {elapsed_shown} elapsed rows — "
+            "the overflow line should be drawn in plain ink"
+        )
+
+
+class TestTypesetHardening:
+    """Text must not dither.
+
+    PIL antialiases TrueType glyphs on an "L" canvas and the theme's
+    Floyd-Steinberg pass then diffuses that edge error across glyph boundaries,
+    which eats notches out of stems (a doubled "l" is the usual casualty) and
+    speckles the white type inside the inverted bar. Snapping the typeset
+    regions to pure ink/paper first is what keeps the plate legible on a panel.
+    """
+
+    def _pre_quantize(self, **kw):
+        """Render and capture the L canvas as handed to the display backend."""
+        import src.render.canvas as canvas_mod
+
+        captured = {}
+        original = canvas_mod.build_display_backend
+
+        def spy(cfg):
+            backend = original(cfg)
+            inner = backend.resize_and_finalize
+
+            def wrapper(image, *a, **kwargs):
+                captured["image"] = image.copy()
+                return inner(image, *a, **kwargs)
+
+            backend.resize_and_finalize = wrapper
+            return backend
+
+        canvas_mod.build_display_backend = spy
+        try:
+            _render(**kw)
+        finally:
+            canvas_mod.build_display_backend = original
+        return captured["image"]
+
+    def _mid_greys(self, image, box):
+        return sum(image.crop(box).histogram()[8:248])
+
+    def test_agenda_pane_has_no_mid_greys(self):
+        events = [_event(9), _event(10, minute=0, mins=120, name="All hands"), _event(15)]
+        canvas = self._pre_quantize(data=_data_for(events=events))
+        assert self._mid_greys(canvas, (AGENDA_X, 0, 800, 480)) == 0
+
+    def test_weather_band_has_no_mid_greys(self):
+        canvas = self._pre_quantize(data=_data_for())
+        assert self._mid_greys(canvas, (0, BAND_Y, ART_W, 480)) == 0
+
+    def test_illustration_still_dithers(self):
+        # The hardening must be confined to the typeset regions — the whole
+        # point of the theme is that the art keeps its greyscale gradient.
+        canvas = self._pre_quantize(data=_data_for(icon="01d"))
+        assert self._mid_greys(canvas, (0, 0, ART_W, 280)) > 1000
+
+    def test_inverted_bar_is_pure_ink_and_paper(self):
+        # The in-progress bar is the one solid field on the plate, and the one
+        # place FS damage would be most visible: a dithered accent reads as
+        # grey rather than black, and diffused error eats the white type.
+        events = [_event(10, minute=0, mins=120, name="All hands")]
+        canvas = self._pre_quantize(data=_data_for(events=events))
+        img = _render(data=_data_for(events=events)).convert("L")
+        px = img.load()
+        inked = [
+            y
+            for y in range(480)
+            if sum(1 for x in range(AGENDA_X + 30, 780) if px[x, y] == 0) > 300
+        ]
+        runs: list[list[int]] = []
+        for y in inked:
+            if runs and y == runs[-1][-1] + 1:
+                runs[-1].append(y)
+            else:
+                runs.append([y])
+        bar = next((r for r in runs if len(r) > 8), [])
+        assert bar, f"no inverted bar found (runs {[len(r) for r in runs]})"
+
+        # Rows clear of the type are unbroken ink — no white diffused in.
+        solid = [y for y in bar if all(px[x, y] == 0 for x in range(AGENDA_X + 30, 780))]
+        assert len(solid) >= 6, f"only {len(solid)} unbroken ink rows in the bar"
+
+        # And the whole band is ink or paper before quantization, so the
+        # backend has no intermediate value to dither into it.
+        assert self._mid_greys(canvas, (AGENDA_X, bar[0], 800, bar[-1] + 1)) == 0
+
+
+class TestHardenTypeset:
+    def test_snaps_greys_to_ink_or_paper(self):
+        img = Image.new("L", (4, 1))
+        img.putdata([0, TYPESET_CUT - 1, TYPESET_CUT, 255])
+        harden_typeset(img, (0, 0, 4, 1))
+        assert list(flatten_pixels(img)) == [0, 0, 255, 255]
+
+    def test_leaves_pixels_outside_the_box_alone(self):
+        img = Image.new("L", (4, 1), 200)
+        harden_typeset(img, (0, 0, 2, 1))
+        assert list(flatten_pixels(img)) == [255, 255, 200, 200]
+
+    def test_no_op_on_rgb_canvas(self):
+        # The Inky path resolves each pixel independently, so no error crosses a
+        # glyph edge — and snapping there would flatten the palette accents.
+        img = Image.new("RGB", (2, 1), (120, 30, 30))
+        harden_typeset(img, (0, 0, 2, 1))
+        assert set(flatten_pixels(img)) == {(120, 30, 30)}
+
+    def test_empty_box_is_a_no_op(self):
+        img = Image.new("L", (2, 1), 120)
+        harden_typeset(img, (0, 0, 0, 0))
+        assert list(flatten_pixels(img)) == [120, 120]
+
+    def test_already_pure_content_is_unchanged(self):
+        # Bayer rules and screened rows are pure 0/255 and must survive intact.
+        img = Image.new("L", (8, 8), 255)
+        draw_bayer_rule(img, 0, 0, 8, 4, "L")
+        before = img.tobytes()
+        harden_typeset(img, (0, 0, 8, 8))
+        assert img.tobytes() == before
 
 
 class TestDeterminism:
