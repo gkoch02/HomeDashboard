@@ -23,6 +23,7 @@ from src.render.components.day_arc_panel import (
     _AXIS_PIP_Y,
     _AXIS_TICK_MAJOR_H,
     _AXIS_TICK_Y,
+    _FALLBACK_DUSK_HOUR,
     AXIS_H,
     AXIS_MAX_HOUR,
     AXIS_MIN_HOUR,
@@ -40,6 +41,7 @@ from src.render.components.day_arc_panel import (
     build_time_axis,
     draw_day_arc,
     event_state,
+    is_after_dark,
     sky_tone_at,
 )
 from src.render.quantize import INKY_SPECTRA6_PALETTE, flatten_pixels
@@ -371,6 +373,54 @@ class TestAgendaDay:
             False,
         )
         assert agenda_day([_event(8)], TODAY, MIDNIGHT + timedelta(hours=19), None)[1] is True
+
+
+class TestRibbonAgendaAgreement:
+    """The ribbon must never show daylight above a TOMORROW agenda.
+
+    The rollover is deliberately gated on sunset so the ribbon going dark and
+    the agenda flipping read as one gesture. Deriving darkness from
+    ``sunset is not None`` broke that whenever no sun data was available at
+    all: the rollover still fired on the fallback dusk, but the ribbon stayed
+    sunny for every hour of the day.
+    """
+
+    @pytest.mark.parametrize("hour", [0, 5, 6, 12, 17, 18, 21, 23])
+    def test_rollover_never_happens_while_the_ribbon_is_lit(self, hour):
+        now = MIDNIGHT + timedelta(hours=hour)
+        for sunrise, sunset in ((SUNRISE, SUNSET), (None, None)):
+            _, is_tomorrow = agenda_day([_event(8)], TODAY, now, sunset)
+            if is_tomorrow:
+                assert is_after_dark(TODAY, now, sunrise, sunset), (
+                    f"agenda rolled over at {hour}:00 but the ribbon is still lit "
+                    f"(sunrise={sunrise}, sunset={sunset})"
+                )
+
+    def test_fallback_dusk_is_shared_by_both_paths(self):
+        # With no sun data the rollover fires at _FALLBACK_DUSK_HOUR, so the
+        # ribbon must be dark from exactly that moment too.
+        before = MIDNIGHT + timedelta(hours=_FALLBACK_DUSK_HOUR, minutes=-1)
+        at = MIDNIGHT + timedelta(hours=_FALLBACK_DUSK_HOUR)
+        assert is_after_dark(TODAY, before, None, None) is False
+        assert is_after_dark(TODAY, at, None, None) is True
+        assert agenda_day([_event(8)], TODAY, before, None)[1] is False
+        assert agenda_day([_event(8)], TODAY, at, None)[1] is True
+
+    def test_fallback_dawn_keeps_the_small_hours_dark(self):
+        assert is_after_dark(TODAY, MIDNIGHT + timedelta(hours=3), None, None) is True
+        assert is_after_dark(TODAY, MIDNIGHT + timedelta(hours=9), None, None) is False
+
+    def test_real_sun_data_is_unaffected(self):
+        assert is_after_dark(TODAY, FIXED_NOW, SUNRISE, SUNSET) is False
+        assert is_after_dark(TODAY, SUNSET + timedelta(minutes=1), SUNRISE, SUNSET) is True
+        assert is_after_dark(TODAY, SUNRISE - timedelta(minutes=1), SUNRISE, SUNSET) is True
+
+    def test_renders_without_any_sun_data(self):
+        # No location and no weather: the panel must still produce a night
+        # plate rather than a sunny one, and not crash getting there.
+        data = _data_for(weather=False, now=MIDNIGHT + timedelta(hours=21))
+        img = _render(data=data, latitude=None, longitude=None)
+        assert _ink_count(img) > 1000
 
 
 class TestAxisStripBands:

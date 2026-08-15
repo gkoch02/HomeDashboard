@@ -152,7 +152,10 @@ AXIS_MAX_HOUR = 24  # never run past midnight
 _PAST_SCREEN = 96
 _MORE_SCREEN = 96
 
-# Rollover falls back to this hour when no sunset is available.
+# Used when no sun data is available at all (no location and no weather).
+# Both the ribbon's night treatment and the agenda rollover read these, so the
+# two can never disagree about whether it is dark.
+_FALLBACK_DAWN_HOUR = 6
 _FALLBACK_DUSK_HOUR = 18
 
 # RNG salts. Distinct from halftone's so the two themes don't share a star
@@ -666,6 +669,37 @@ def event_state(event: CalendarEvent, now: datetime) -> str:
     return "next"
 
 
+def effective_dusk(today: date, sunset: datetime | None) -> datetime:
+    """Today's dusk: the real sunset, or a fixed fallback when none is known."""
+    if sunset is not None:
+        return sunset
+    return datetime.combine(today, time(hour=_FALLBACK_DUSK_HOUR))
+
+
+def effective_dawn(today: date, sunrise: datetime | None) -> datetime:
+    """Today's dawn: the real sunrise, or a fixed fallback when none is known."""
+    if sunrise is not None:
+        return sunrise
+    return datetime.combine(today, time(hour=_FALLBACK_DAWN_HOUR))
+
+
+def is_after_dark(
+    today: date,
+    now: datetime,
+    sunrise: datetime | None,
+    sunset: datetime | None,
+) -> bool:
+    """Whether the ribbon should render its night treatment.
+
+    Deliberately shares its dusk with :func:`agenda_day`. When no sun data is
+    available at all the rollover still fires on the fallback dusk, so deriving
+    darkness from ``sunset is not None`` would leave a bright midday ribbon
+    sitting above a TOMORROW agenda — precisely the contradiction the two-part
+    rollover condition exists to avoid.
+    """
+    return now >= effective_dusk(today, sunset) or now < effective_dawn(today, sunrise)
+
+
 def agenda_day(
     events: list[CalendarEvent],
     today: date,
@@ -688,10 +722,7 @@ def agenda_day(
     Gating on both makes the rollover coincide with the ribbon going dark, so
     the theme's two night adaptations read as a single gesture.
     """
-    dusk = sunset
-    if dusk is None:
-        dusk = datetime.combine(today, time(hour=_FALLBACK_DUSK_HOUR))
-    if now < dusk:
+    if now < effective_dusk(today, sunset):
         return (today, False)
     timed = [e for e in events_for_day(events, today) if not e.is_all_day]
     if any(_strip_tz(e.end) > now for e in timed):
@@ -1231,9 +1262,7 @@ def draw_day_arc(
         x0,
         x0 + w - 1,
     )
-    is_dark = sunset is not None and (
-        now_naive >= sunset or (sunrise is not None and now_naive < sunrise)
-    )
+    is_dark = is_after_dark(today, now_naive, sunrise, sunset)
 
     sky_rect = (x0, y0, x0 + w, y0 + SKY_H)
     _draw_ribbon_art(image, axis, sky_rect, data, today, now_naive, is_dark=is_dark)
