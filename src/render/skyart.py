@@ -759,8 +759,12 @@ def screened_paste(
     one backend and not the other. The output here is pure ink-or-nothing, so
     FS passes it through untouched and the Inky palette mapping is unambiguous.
 
-    *threshold* is the Bayer cut in 0–240: higher removes more ink. The default
-    of 96 retains roughly 60% of the original coverage.
+    *threshold* is the Bayer cut in 0–240: a cell survives when its lattice
+    value is below the cut, so a **higher** threshold keeps **more** ink. With
+    the 4×4 matrix the useful stops are 48 (3/16 cells ≈ 19% of the coverage),
+    96 (6/16 ≈ 38%, the default), 128 (8/16 = 50%) and 160 (10/16 ≈ 62%).
+    Small type needs a higher cut than display type to stay readable — the
+    same fraction of a 14 px glyph is far less legible than of a 32 px one.
     """
     x, y, w, h = box
     if w <= 0 or h <= 0:

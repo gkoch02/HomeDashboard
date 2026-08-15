@@ -8,6 +8,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Fixed
 
+- **`halftone_agenda` agenda pane reads better on a panel.** Rows are
+  top-justified under the rule at a pitch sized to their type, instead of a
+  stretch-to-fill pitch that left a two-event day floating mid-pane; the
+  elapsed-row Bayer cut now rises as the type shrinks (a single cut left the
+  17 px type of a packed day as a row of dots); and `+N more` is drawn in
+  plain ink rather than screened, since it sits alone under the last row and
+  is the one mark saying the day continues past what is shown.
+
 - **`halftone_agenda` type is no longer chewed by the dither.** PIL antialiases
   TrueType glyphs on an `"L"` canvas, and the theme's Floyd-Steinberg pass then
   diffused that edge error across glyph boundaries — stems came off the panel
