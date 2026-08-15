@@ -8,6 +8,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Fixed
 
+- **`config.example.yaml` no longer ships partial refresh enabled.** It set
+  `enable_partial_refresh: true`, contradicting both the code default and
+  `docs/configuration.md`, so anyone starting from the template drove the
+  panel with Waveshare's fast waveform on 19 of every 20 refreshes. That
+  waveform does not drive black as deeply as a full init, which reads as grey
+  blacks in large filled areas — an inverted event row, a header bar. Added an
+  FAQ entry for the symptom and a note at the driver branch that reaches it.
+
 - **`halftone_agenda`'s calendar side now carries the same weight of ink as
   its weather side.** Both panes are pure black on pure white by the time the
   panel sees them, so the calendar reading grey was stroke mass, not tone: at

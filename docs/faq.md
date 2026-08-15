@@ -194,6 +194,27 @@ per hour.
 
 ## Display
 
+### Blacks look grey or washed out
+
+Check `display.enable_partial_refresh` in your `config.yaml`. When it is on,
+the dashboard refreshes the panel with Waveshare's fast waveform
+(`epd.init_fast()`) for every update until `max_partials_before_full` is
+reached, and that waveform does not drive black as deeply as a full refresh:
+large filled areas — an inverted header, a highlighted event row — come out
+closer to charcoal than to ink, and fine type reads grey.
+
+Set it to `false` for a full-waveform refresh every time, which is the code
+default and what the shipped example config now uses. To confirm the cause
+before changing anything, render once with `--force-full-refresh` and compare
+the same plate:
+
+```bash
+venv/bin/python -m src.main --config config/config.yaml --force-full-refresh
+```
+
+If that render looks black and the next scheduled one does not, partial
+refresh is the reason.
+
 ### The display shows ghosting or artifacts
 
 eInk displays accumulate artifacts over partial refreshes. The dashboard

@@ -78,6 +78,30 @@ class TestValidateConfigWarnings:
             for w in warnings
         )
 
+    def test_example_config_does_not_enable_partial_refresh(self):
+        """The template must not ship a setting that degrades render quality.
+
+        With partial refresh on, ``WaveshareDisplay.show()`` drives the panel
+        via ``epd.init_fast()`` until ``max_partials_before_full`` is reached,
+        and that waveform does not drive black as deeply — solid fills read as
+        charcoal rather than ink. The example shipped ``true`` for a while, so
+        every install derived from it had it on.
+        """
+        import yaml
+
+        root = Path(__file__).resolve().parents[1]
+        raw = yaml.safe_load((root / "config" / "config.example.yaml").read_text())
+        assert raw["display"]["enable_partial_refresh"] is False
+
+    def test_example_config_matches_the_code_default(self):
+        import yaml
+
+        from src.config import DisplayConfig
+
+        root = Path(__file__).resolve().parents[1]
+        raw = yaml.safe_load((root / "config" / "config.example.yaml").read_text())
+        assert raw["display"]["enable_partial_refresh"] == DisplayConfig().enable_partial_refresh
+
     def test_zero_coordinates_warns(self):
         cfg = Config(weather=WeatherConfig(latitude=0.0, longitude=0.0))
         _, warnings = validate_config(cfg)
