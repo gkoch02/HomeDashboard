@@ -112,12 +112,15 @@ src/
     │                          #   accent_red), meteorological season, and the naive/aware
     │                          #   datetime normalisers (to_local_naive / hours_of_day) used by
     │                          #   any panel plotting a time axis; used by weatherglass,
-    │                          #   postcard, naturalist, halftone, almanac, light_cycle, day_arc
+    │                          #   postcard, naturalist, halftone, halftone_agenda, almanac,
+    │                          #   light_cycle, day_arc
     ├── skyart.py              # Procedural sky-illustration vocabulary shared by the dithered
     │                          #   weather themes: sky gradients, sun + rays, phase-shaded moon,
     │                          #   clouds, rain/snow, lightning, fog, ordered-Bayer rule, and
-    │                          #   screened_paste() for Bayer-perforated content. Extracted from
-    │                          #   halftone_panel so day_arc could share it
+    │                          #   screened_paste() for Bayer-perforated content, plus
+    │                          #   draw_weather_scene() — the whole icon→illustration dispatch.
+    │                          #   Extracted from halftone_panel so day_arc and
+    │                          #   halftone_agenda could share it
     ├── canvas.py              # Top-level render orchestrator; iterates the component registry
     │                          #   and delegates resize+finalize to display.backend
     ├── theme.py               # Theme system (ComponentRegion, ThemeLayout, ThemeStyle);
@@ -139,22 +142,22 @@ src/
     │                          #   events_for_day, deg_to_compass)
     ├── star_catalog.py        # Curated J2000 bright-star + constellation-outline catalogue
     │                          #   (~45 named stars); backs the constellation_map theme
-    ├── themes/                # themes (36 — 35 concrete + `default` pseudo): standard week-view
+    ├── themes/                # themes (37 — 36 concrete + `default` pseudo): standard week-view
     │                          #   (default, agenda, terminal, minimalist, old_fashioned, today,
     │                          #   fantasy); full-screen focused (qotd, qotd_invert, fuzzyclock,
     │                          #   fuzzyclock_invert, weather, moonphase, moonphase_invert,
     │                          #   moonphase_photo);
     │                          #   specialized views (timeline, year_pulse, monthly, sunrise,
     │                          #   light_cycle, air_quality, astronomy, constellation_map,
-    │                          #   almanac, scorecard, tides, halftone, day_arc, trends,
-    │                          #   weatherglass);
+    │                          #   almanac, scorecard, tides, halftone, halftone_agenda,
+    │                          #   day_arc, trends, weatherglass);
     │                          #   dithered art (postcard, naturalist); photo overlay (photo);
     │                          #   utility (countdown, message, diags)
     │   ├── registry.py        # v5 theme plugin registry (register_theme + per-theme
     │   │                      #   inky_palette pair); adding a theme is one new file plus a
     │   │                      #   register_theme(...) call at its bottom
     │   └── __init__.py        # Side-effect imports of every theme module populate the registry
-    └── components/            # One file per UI region (30): header, week_view, weather_panel,
+    └── components/            # One file per UI region (31): header, week_view, weather_panel,
         │                      #   weather_full, birthday_bar, today_view, info_panel, qotd_panel,
         │                      #   fuzzyclock_panel, diags_panel, air_quality_panel,
         │                      #   astronomy_panel, constellation_map_panel, moonphase_panel,
@@ -162,7 +165,7 @@ src/
         │                      #   sunrise_panel, light_cycle_panel, scorecard_panel, tides_panel,
         │                      #   countdown_panel, almanac_panel, halftone_panel, trends_panel,
         │                      #   postcard_panel, naturalist_panel, weatherglass_panel,
-        │                      #   day_arc_panel
+        │                      #   day_arc_panel, halftone_agenda_panel
         ├── registry.py        # v5 component plugin registry (RenderContext + @register_component)
         ├── _builtins.py       # Adapter registrations for the built-in components
         └── __init__.py        # Side-effect import of _builtins populates the component registry
@@ -476,7 +479,14 @@ default to `None` and fall back gracefully so adding a new field never breaks ex
   - **`agenda_metrics(n, avail_h)` picks the tier by what actually fits**, not by nominal `max_rows` — a tier whose rows overran the region used to collapse a 3-event day to one row plus `+2 more`.
   - **Night**: `sky_tone_at(..., night=True)` scales the whole ramp by `_NIGHT_DIM` rather than flattening it, so the arc survives at reduced contrast, and the star field spreads across the full ribbon instead of only the margins. `agenda_day()` rolls the agenda over to tomorrow only when it is past sunset **and** every timed event today has ended (all-day events never block it; no sunset → an 18:00 fallback). Requiring both keeps a one-meeting day from flipping to TOMORROW at 10:30 in the morning. The ribbon always depicts *now*; the agenda depicts what is next.
   - Typography is role-split: Righteous for chrome, DM Sans for agenda rows (this theme puts far more small text on the plate than halftone). RNG salts `_STAR_SALT`/`_FOG_SALT` differ from halftone's so the two don't share a star field. Inky palette `(INKY_YELLOW, INKY_RED)`. Included in the random rotation pool.
-- `src/render/skyart.py` holds the procedural illustration vocabulary that `halftone_panel` and `day_arc_panel` share (sky gradients, sun, phase-shaded moon, stars, clouds, precipitation, lightning, fog, `draw_bayer_rule`, `bayer_screen`/`screened_paste`). `halftone_panel` imports every one under the private alias it used before the extraction (`from src.render.skyart import draw_cloud as _draw_cloud`), and keeps `_accent_yellow` / `_moon_disc` / `_radial_gradient_disc` as `# noqa: F401` re-exports because they were part of its surface and existing tests import them from it. `skyart.draw_sun` adds a fixed term to the radius for its rays, which suits halftone's 92-px hero disc; small suns want proportional rays instead (`day_arc_panel._draw_sun_disc`).
+- `src/render/skyart.py` holds the procedural illustration vocabulary that `halftone_panel`, `day_arc_panel` and `halftone_agenda_panel` share (sky gradients, sun, phase-shaded moon, stars, clouds, precipitation, lightning, fog, `draw_bayer_rule`, `bayer_screen`/`screened_paste`). `draw_weather_scene()` is the whole icon→illustration dispatch, lifted out of `halftone_panel._draw_illustration` so `halftone_agenda` could draw the same scene into a narrower plate: placements are written in the coordinates of halftone's nominal 800×296 hero and re-expressed as fractions of the rect handed in, element sizes come from `scale`, and scatter counts track area — so the nominal rect at `scale=1.0` reproduces the original placement pixel for pixel (halftone's snapshot hash is unchanged by the extraction). Horizontal offsets use the midpoint of the width fraction and `scale`: mapping them by width alone collides the partly-cloudy sun and cloud on a half-width plate, scaling them like the elements pushes the assembly off it. `draw_bayer_rule` takes `orientation="vertical"` for `halftone_agenda`'s full-height pane divider. `halftone_panel` imports every one under the private alias it used before the extraction (`from src.render.skyart import draw_cloud as _draw_cloud`), and keeps `_accent_yellow` / `_moon_disc` / `_radial_gradient_disc` as `# noqa: F401` re-exports because they were part of its surface and existing tests import them from it. `skyart.draw_sun` adds a fixed term to the radius for its rays, which suits halftone's 92-px hero disc; small suns want proportional rays instead (`day_arc_panel._draw_sun_disc`).
+- `halftone_agenda` is the split-plate sibling of `halftone`, rendered by `halftone_agenda_panel.py` via the full-canvas `halftone_agenda` region. The left 372 px carry the shared `skyart.draw_weather_scene` illustration (at `SCENE_SCALE = 0.72`) over a typeset weather band; a 6-px vertical Bayer rule divides the plate; the right 422 px are the agenda. Notable points:
+  - **Calendar semantics are imported from `day_arc_panel`, not re-derived** — `event_state` and `agenda_day` (the after-dark, all-events-ended rollover behind the `TOMORROW` chip). A second copy of the rollover rule would be free to drift out of agreement with the first.
+  - **Sun times are normalised once in the entry point** (`_sun_times`). OWM returns aware datetimes while `CalendarEvent.start`/`end` are naive local, and `agenda_day` compares the two — passing `weather.sunset` through raw raises `TypeError` on every real fetch.
+  - **The density tiers are this pane's own** (`_DENSITY_TIERS`, five of them): the column is half as wide and half again as tall as `day_arc`'s, so reusing that table set 32-px rows in a 400-px pane. `agenda_metrics` picks by what fits, same as its `day_arc` counterpart, and a short list is centred in the pane rather than stacked against the rule with a void beneath it.
+  - **Event marks bracket the row's type, not its pitch.** The roomiest tier sets 92-px rows so a two-event day breathes; a tick drawn to the full row height there reads as a column divider.
+  - **The next timed event still ahead gets an accent tick** (`_accent_red`, red on Inky, plain ink on Waveshare). All-day rows are excluded — they sort to the top of the day and have no "next" about them. This is also what gives the Inky render a colour mark on the agenda side; the yellow sun ring is confined to the art pane.
+  - Typography is role-split like `day_arc`'s: Righteous for the weather pane and agenda chrome, DM Sans for the event rows. Inky palette `(INKY_YELLOW, INKY_RED)`. Included in the random rotation pool.
 - `artkit.to_local_naive(dt, tz)` drops tzinfo **without conversion** when `tz is None`, rather than calling a bare `dt.astimezone()`. The bare call resolves against the host machine's timezone, which would make a render of identical inputs differ between machines — and `tests/test_theme_pixel_snapshots.py` hashes exactly that render. Note the two normalisations are different and must not be mixed: `CalendarEvent.start`/`end` are already naive local and are only defensively stripped, while sun times and `RenderContext.now` are aware and go through `to_local_naive`.
 - `tests/test_theme_pixel_snapshots.py` SHA-256s the raw `render_dashboard()` output for every theme in `_THEME_REGISTRY` (pinned `FIXED_NOW = 2026-04-06 10:30` + dummy data) and compares against `tests/snapshots/theme_pixel_hashes.json`. A guard test also fails when a newly registered theme has no baseline. The hash assertion is gated on runtime `PIL.__version__` exactly matching `reference_env.pillow_version` in the JSON — when it doesn't, the render still runs (catches crashes) but the assertion is skipped. This way routine upstream Pillow releases don't fail CI spuriously. The strict assertion fires in the dedicated `snapshot-tests` CI job, which reads `reference_env.pillow_version` and `pip install Pillow==<pinned>` before running. When a theme edit is intentional (or Pillow is upgraded deliberately), regenerate baselines with `UPDATE_SNAPSHOTS=1 pytest tests/test_theme_pixel_snapshots.py` and commit the updated JSON alongside the source change; the job will pick up the new Pillow version automatically.
 - `numpy` and `caldav` are declared in core `[project].dependencies` (not just `[dev]`/`[web]`). `numpy` is because `src/display/driver.py` (`InkyDisplay.show`/`clear`) and `src/render/quantize.py` (fast path) import it unconditionally at runtime. `caldav` is because `src/fetchers/calendar_caldav.py` imports it inside `fetch_from_caldav` only when `cfg.google.caldav_url` is set — but declaring it in core lets `pip install .` work end-to-end without an extras pin. The `test-core-install` CI job runs the non-web test suite against a bare `pip install . pytest` (no `[dev]`/`[web]` extras, no `flask`/`waitress`) to guard against core code drifting toward optional-extra packages. Web tests are explicitly excluded via `--ignore-glob='tests/test_web_*.py'` because they legitimately require the `[web]` extras.
