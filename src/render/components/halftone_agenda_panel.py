@@ -57,7 +57,12 @@ from src.render.primitives import (
     wrap_lines,
 )
 from src.render.quantize import _BAYER_4X4
-from src.render.skyart import draw_bayer_rule, draw_weather_scene, screened_paste
+from src.render.skyart import (
+    draw_bayer_rule,
+    draw_weather_scene,
+    harden_typeset,
+    screened_paste,
+)
 from src.render.theme import ComponentRegion, ThemeStyle
 
 # Weather Icons glyphs — Righteous has no sunrise/sunset marks of its own.
@@ -230,6 +235,16 @@ def draw_halftone_agenda(
         font=footer_font,
         fill=ink,
     )
+
+    # Both typeset regions are solid ink on solid paper, so snap them to pure
+    # black and white before the backend's Floyd-Steinberg pass gets to them.
+    # Left to dither, the antialiased glyph edges come off the panel ragged and
+    # the white type in the in-progress bar erodes the bar around it. The
+    # illustration above is untouched and still dithers — that is the point of
+    # the theme.
+    if band_h > 0:
+        harden_typeset(image, (x0, band_y, art_w, band_h))
+    harden_typeset(image, (pane_x, y0, pane_w, h))
 
 
 # ---------------------------------------------------------------------------

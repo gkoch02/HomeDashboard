@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **`halftone_agenda` type is no longer chewed by the dither.** PIL antialiases
+  TrueType glyphs on an `"L"` canvas, and the theme's Floyd-Steinberg pass then
+  diffused that edge error across glyph boundaries — stems came off the panel
+  serrated and doubled letters lost notches. The two typeset regions are now
+  snapped to pure ink or paper (`skyart.harden_typeset`) before the backend
+  quantizes, which is the same footing a `"1"`-mode theme starts from, while
+  the illustration is left to dither as before.
+
 ### Added
 
 - **`halftone_agenda` theme** — a split-plate variant of `halftone` following

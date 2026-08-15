@@ -688,6 +688,41 @@ def draw_bayer_rule(
                 px[x0 + xx, y] = on
 
 
+# Cut used when snapping typeset regions to pure ink or paper. 128 keeps a
+# glyph's nominal weight: an antialiased edge pixel is lit in proportion to the
+# coverage of the stem, so the half-covered ones round to whichever side they
+# lean toward.
+TYPESET_CUT = 128
+
+
+def harden_typeset(image: Image.Image, box: Rect, *, cut: int = TYPESET_CUT) -> None:
+    """Snap a typeset region to pure ink or paper, in place.
+
+    Text is the one thing on these plates that must not dither. PIL antialiases
+    TrueType glyphs on an ``"L"`` canvas, and a Floyd-Steinberg pass then
+    diffuses that edge error across glyph boundaries: the letterforms come off
+    the panel ragged, and white type inside an inverted bar erodes into it. A
+    ``"1"``-mode theme never shows this because PIL renders its text with no
+    antialiasing to begin with — snapping the region here puts an L-mode plate
+    on the same footing, while leaving the illustration free to dither.
+
+    Call it on regions that are *only* type on a solid field. Anything already
+    pure — Bayer rules, screened rows — passes through unchanged, but a region
+    holding a gradient would be flattened.
+
+    ``box`` is ``(x, y, w, h)`` in canvas coordinates. No-op on a non-``"L"``
+    canvas: the Inky path maps each pixel independently, so no error crosses a
+    glyph edge there and the greys are already resolved one at a time.
+    """
+    if image.mode != "L":
+        return
+    x, y, w, h = box
+    if w <= 0 or h <= 0:
+        return
+    region = image.crop((x, y, x + w, y + h))
+    image.paste(region.point(lambda v: 0 if v < cut else 255), (x, y))
+
+
 def bayer_screen(w: int, h: int, phase_x: int, phase_y: int, threshold: int) -> Image.Image:
     """Return a ``w×h`` L-mode mask of the 4×4 Bayer lattice at *threshold*.
 

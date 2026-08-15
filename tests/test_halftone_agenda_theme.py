@@ -30,7 +30,12 @@ from src.render.components.halftone_agenda_panel import (
     draw_halftone_agenda,
 )
 from src.render.quantize import INKY_SPECTRA6_PALETTE, flatten_pixels
-from src.render.skyart import draw_bayer_rule, draw_weather_scene
+from src.render.skyart import (
+    TYPESET_CUT,
+    draw_bayer_rule,
+    draw_weather_scene,
+    harden_typeset,
+)
 from src.render.theme import (
     AVAILABLE_THEMES,
     INKY_RED,
@@ -437,6 +442,123 @@ class TestPaneSeparation:
             for y in range(480 - FOOTER_H, 480)
         ]
         assert any(px[x, y] == 0 for x, y in footer_band)
+
+
+class TestTypesetHardening:
+    """Text must not dither.
+
+    PIL antialiases TrueType glyphs on an "L" canvas and the theme's
+    Floyd-Steinberg pass then diffuses that edge error across glyph boundaries,
+    which eats notches out of stems (a doubled "l" is the usual casualty) and
+    speckles the white type inside the inverted bar. Snapping the typeset
+    regions to pure ink/paper first is what keeps the plate legible on a panel.
+    """
+
+    def _pre_quantize(self, **kw):
+        """Render and capture the L canvas as handed to the display backend."""
+        import src.render.canvas as canvas_mod
+
+        captured = {}
+        original = canvas_mod.build_display_backend
+
+        def spy(cfg):
+            backend = original(cfg)
+            inner = backend.resize_and_finalize
+
+            def wrapper(image, *a, **kwargs):
+                captured["image"] = image.copy()
+                return inner(image, *a, **kwargs)
+
+            backend.resize_and_finalize = wrapper
+            return backend
+
+        canvas_mod.build_display_backend = spy
+        try:
+            _render(**kw)
+        finally:
+            canvas_mod.build_display_backend = original
+        return captured["image"]
+
+    def _mid_greys(self, image, box):
+        return sum(image.crop(box).histogram()[8:248])
+
+    def test_agenda_pane_has_no_mid_greys(self):
+        events = [_event(9), _event(10, minute=0, mins=120, name="All hands"), _event(15)]
+        canvas = self._pre_quantize(data=_data_for(events=events))
+        assert self._mid_greys(canvas, (AGENDA_X, 0, 800, 480)) == 0
+
+    def test_weather_band_has_no_mid_greys(self):
+        canvas = self._pre_quantize(data=_data_for())
+        assert self._mid_greys(canvas, (0, BAND_Y, ART_W, 480)) == 0
+
+    def test_illustration_still_dithers(self):
+        # The hardening must be confined to the typeset regions — the whole
+        # point of the theme is that the art keeps its greyscale gradient.
+        canvas = self._pre_quantize(data=_data_for(icon="01d"))
+        assert self._mid_greys(canvas, (0, 0, ART_W, 280)) > 1000
+
+    def test_inverted_bar_is_pure_ink_and_paper(self):
+        # The in-progress bar is the one solid field on the plate, and the one
+        # place FS damage would be most visible: a dithered accent reads as
+        # grey rather than black, and diffused error eats the white type.
+        events = [_event(10, minute=0, mins=120, name="All hands")]
+        canvas = self._pre_quantize(data=_data_for(events=events))
+        img = _render(data=_data_for(events=events)).convert("L")
+        px = img.load()
+        inked = [
+            y
+            for y in range(480)
+            if sum(1 for x in range(AGENDA_X + 30, 780) if px[x, y] == 0) > 300
+        ]
+        runs: list[list[int]] = []
+        for y in inked:
+            if runs and y == runs[-1][-1] + 1:
+                runs[-1].append(y)
+            else:
+                runs.append([y])
+        bar = next((r for r in runs if len(r) > 8), [])
+        assert bar, f"no inverted bar found (runs {[len(r) for r in runs]})"
+
+        # Rows clear of the type are unbroken ink — no white diffused in.
+        solid = [y for y in bar if all(px[x, y] == 0 for x in range(AGENDA_X + 30, 780))]
+        assert len(solid) >= 6, f"only {len(solid)} unbroken ink rows in the bar"
+
+        # And the whole band is ink or paper before quantization, so the
+        # backend has no intermediate value to dither into it.
+        assert self._mid_greys(canvas, (AGENDA_X, bar[0], 800, bar[-1] + 1)) == 0
+
+
+class TestHardenTypeset:
+    def test_snaps_greys_to_ink_or_paper(self):
+        img = Image.new("L", (4, 1))
+        img.putdata([0, TYPESET_CUT - 1, TYPESET_CUT, 255])
+        harden_typeset(img, (0, 0, 4, 1))
+        assert list(flatten_pixels(img)) == [0, 0, 255, 255]
+
+    def test_leaves_pixels_outside_the_box_alone(self):
+        img = Image.new("L", (4, 1), 200)
+        harden_typeset(img, (0, 0, 2, 1))
+        assert list(flatten_pixels(img)) == [255, 255, 200, 200]
+
+    def test_no_op_on_rgb_canvas(self):
+        # The Inky path resolves each pixel independently, so no error crosses a
+        # glyph edge — and snapping there would flatten the palette accents.
+        img = Image.new("RGB", (2, 1), (120, 30, 30))
+        harden_typeset(img, (0, 0, 2, 1))
+        assert set(flatten_pixels(img)) == {(120, 30, 30)}
+
+    def test_empty_box_is_a_no_op(self):
+        img = Image.new("L", (2, 1), 120)
+        harden_typeset(img, (0, 0, 0, 0))
+        assert list(flatten_pixels(img)) == [120, 120]
+
+    def test_already_pure_content_is_unchanged(self):
+        # Bayer rules and screened rows are pure 0/255 and must survive intact.
+        img = Image.new("L", (8, 8), 255)
+        draw_bayer_rule(img, 0, 0, 8, 4, "L")
+        before = img.tobytes()
+        harden_typeset(img, (0, 0, 8, 8))
+        assert img.tobytes() == before
 
 
 class TestDeterminism:
