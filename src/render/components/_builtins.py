@@ -19,6 +19,7 @@ from src.render.components import (
     day_arc_panel,
     diags_panel,
     fuzzyclock_panel,
+    halftone_agenda_panel,
     halftone_panel,
     header,
     info_panel,
@@ -395,6 +396,19 @@ def _halftone(ctx: RenderContext) -> None:
         ctx.now,
         image=ctx.image,
         region=ctx.layout.halftone,
+        style=ctx.style,
+    )
+
+
+@register_component("halftone_agenda")
+def _halftone_agenda(ctx: RenderContext) -> None:
+    halftone_agenda_panel.draw_halftone_agenda(
+        ctx.draw,
+        ctx.data,
+        ctx.today,
+        ctx.now,
+        image=ctx.image,
+        region=ctx.layout.halftone_agenda,
         style=ctx.style,
     )
 

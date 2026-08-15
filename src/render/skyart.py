@@ -525,29 +525,164 @@ def draw_missing(image: Image.Image, rect: Rect) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Scene composition
+# ---------------------------------------------------------------------------
+
+# The scene below was composed for halftone's 800x296 hero, and every placement
+# is still written in those coordinates. They are re-expressed as fractions of
+# whatever rect is passed in, so the same composition survives a narrower
+# plate. Element *sizes* scale separately via the ``scale`` argument, because a
+# square-ish hero wants a disc nearly as large as the wide one even though
+# every horizontal offset has to shrink with the width.
+_NOMINAL_W = 800
+_NOMINAL_H = 296
+
+
+def draw_weather_scene(
+    image: Image.Image,
+    rect: Rect,
+    icon: str | None,
+    today: date,
+    *,
+    scale: float = 1.0,
+) -> None:
+    """Draw the full procedural weather illustration for *icon* into *rect*.
+
+    Dispatches on :func:`illustration_kind` and composes the primitives above
+    into one of eight scenes (sun, moon, partly cloudy, overcast, rain, storm,
+    snow, fog), falling back to :func:`draw_missing` when there is no weather.
+
+    *scale* multiplies element sizes only; offsets and counts are derived from
+    *rect* so a plate of a different shape stays composed. Passing the nominal
+    800x296 rect at ``scale=1.0`` reproduces the original placement exactly.
+    """
+    x0, y0, x1, y1 = rect
+    w = x1 - x0
+    h = y1 - y0
+    cx = x0 + w // 2
+    cy = y0 + h // 2
+
+    # Horizontal offsets sit on the midpoint between the rect's width fraction
+    # and *scale*. Mapping them by width alone shrinks the gaps faster than the
+    # elements they separate — on a half-width plate the partly-cloudy sun and
+    # its cloud end up on top of each other — while scaling them like the
+    # elements pushes the assembly off a plate narrower than the landscape
+    # composition it was drawn for. The midpoint keeps the assembly on the
+    # plate, and what overlap is left reads as the occlusion a partly-cloudy
+    # sky wants anyway.
+    x_scale = (w / _NOMINAL_W + scale) / 2
+
+    def dx(v: float) -> int:
+        """Horizontal offset *v* (nominal px) mapped onto this rect's width."""
+        return round(v * x_scale)
+
+    def dy(v: float) -> int:
+        """Vertical offset *v* (nominal px) mapped onto this rect's height."""
+        return round(v * h / _NOMINAL_H)
+
+    def sz(v: float) -> int:
+        """Element size *v* (nominal px) at the caller's *scale*."""
+        return max(1, round(v * scale))
+
+    # Scatter counts track area rather than width: half the plate wants half
+    # the raindrops, not the same 260 crammed into it.
+    density = (w * h) / (_NOMINAL_W * _NOMINAL_H)
+
+    def n(v: float) -> int:
+        return max(1, round(v * density))
+
+    kind, is_night = illustration_kind(icon)
+
+    if kind == "sun":
+        draw_sky(image, rect, day=True)
+        draw_sun(image, rect, cx=cx, cy=cy, radius=sz(92))
+    elif kind == "moon":
+        draw_sky(image, rect, day=False)
+        draw_stars(image, rect, today, count=n(140), bottom_inset=dy(24))
+        draw_moon(image, rect, today, cx=cx, cy=cy, radius=sz(92))
+    elif kind == "partly_cloudy":
+        draw_sky(image, rect, day=not is_night)
+        if is_night:
+            draw_stars(image, rect, today, count=n(140), bottom_inset=dy(24))
+            draw_moon(image, rect, today, cx=cx - dx(140), cy=cy - dy(22), radius=sz(70))
+        else:
+            draw_sun(image, rect, cx=cx - dx(150), cy=cy - dy(22), radius=sz(78))
+        draw_cloud(image, rect, cx=cx + dx(90), cy=cy + dy(18), scale=1.25 * scale)
+    elif kind == "overcast":
+        # Layered light cumulus stacked across the sky.
+        draw_sky(image, rect, day=not is_night)
+        draw_cloud(image, rect, cx=cx - dx(220), cy=cy - dy(32), scale=0.95 * scale)
+        draw_cloud(image, rect, cx=cx + dx(190), cy=cy - dy(52), scale=0.9 * scale)
+        draw_cloud(image, rect, cx=cx, cy=cy + dy(28), scale=1.35 * scale)
+    elif kind == "rain":
+        draw_sky(image, rect, day=not is_night)
+        draw_cloud(image, rect, cx=cx, cy=cy - dy(42), scale=1.3 * scale, dark=True)
+        draw_precip(
+            image, rect, today, kind="rain", count=n(260), top_inset=dy(130), bottom_inset=dy(18)
+        )
+    elif kind == "storm":
+        # Mid-grey "broken sky" so the very dark storm cloud pops out.
+        draw_sky_stormy(image, rect)
+        draw_cloud(image, rect, cx=cx, cy=cy - dy(42), scale=1.4 * scale, dark=True)
+        draw_lightning(image, rect, cx=cx + dx(6), top_y=cy, bottom_inset=dy(10))
+        draw_precip(
+            image, rect, today, kind="rain", count=n(350), top_inset=dy(130), bottom_inset=dy(18)
+        )
+    elif kind == "snow":
+        draw_sky(image, rect, day=not is_night)
+        draw_cloud(image, rect, cx=cx, cy=cy - dy(42), scale=1.25 * scale)
+        draw_precip(
+            image, rect, today, kind="snow", count=n(260), top_inset=dy(130), bottom_inset=dy(18)
+        )
+    elif kind == "fog":
+        draw_fog(image, rect, today)
+    else:
+        draw_missing(image, rect)
+
+
+# ---------------------------------------------------------------------------
 # Decorative Bayer rule + screening
 # ---------------------------------------------------------------------------
 
 
-def draw_bayer_rule(image: Image.Image, x0: int, y0: int, w: int, h: int, mode: str) -> None:
+def draw_bayer_rule(
+    image: Image.Image,
+    x0: int,
+    y0: int,
+    w: int,
+    h: int,
+    mode: str,
+    *,
+    orientation: str = "horizontal",
+) -> None:
     """Engraving-style separator: a Bayer halftone strip bracketed by hairlines.
 
-    The hairlines give a crisp top and bottom edge so the eye reads it as a
+    The hairlines give the strip two crisp edges so the eye reads it as a
     decorative rule rather than as bleed-through from the hero illustration.
+    They run along the long edges: top and bottom for a horizontal rule, left
+    and right when *orientation* is ``"vertical"`` (``halftone_agenda`` divides
+    its two panes with one). The dot lattice is indexed off canvas coordinates
+    either way, so a vertical rule aligns with the horizontal ones it meets.
     """
     on = _ink(mode)
     px = image.load()
     assert px is not None
-    # Top hairline (full-width, solid).
-    for xx in range(w):
-        px[x0 + xx, y0] = on
-    # Bottom hairline.
-    for xx in range(w):
-        px[x0 + xx, y0 + h - 1] = on
-    # Interior rows: Bayer dot pattern, slightly denser so it reads as ~60%.
-    for yy in range(1, h - 1):
-        y = y0 + yy
+    if orientation == "vertical":
+        for yy in range(h):
+            px[x0, y0 + yy] = on
+            px[x0 + w - 1, y0 + yy] = on
+        x_range = range(1, w - 1)
+        y_range = range(h)
+    else:
         for xx in range(w):
+            px[x0 + xx, y0] = on
+            px[x0 + xx, y0 + h - 1] = on
+        x_range = range(w)
+        y_range = range(1, h - 1)
+    # Interior: Bayer dot pattern, slightly denser so it reads as ~60%.
+    for yy in y_range:
+        y = y0 + yy
+        for xx in x_range:
             t = _BAYER_4X4[yy & 3][xx & 3]
             if t < 144:
                 px[x0 + xx, y] = on

@@ -8,6 +8,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
+- **`halftone_agenda` theme** — a split-plate variant of `halftone` following
+  the layout sketch: the procedural weather engraving and the weather
+  read-out take the left 372 px, a full-height ordered-Bayer rule divides the
+  plate, and the right 422 px are given entirely to today's events. The
+  agenda reuses `day_arc`'s state dithering (elapsed events Bayer-screened,
+  the event in progress inverted, upcoming ones crisp), marks the next timed
+  event still ahead with an accent tick, and rolls over to tomorrow after
+  dark once the day is spent. Pure-Python — no external assets. Joins
+  `day_arc` in `THEMES_NEEDING_TOMORROW` so the rolled-over agenda has
+  Monday's events on a Sunday evening.
+- `skyart.draw_weather_scene()` — the icon→illustration dispatch lifted out
+  of `halftone_panel` so both halftone themes compose the same scene.
+  Placements map onto whatever rect is handed in and element sizes come from
+  a `scale` argument, so the composition survives a half-width plate; the
+  nominal rect at `scale=1.0` reproduces halftone's placement pixel for
+  pixel, and its snapshot hash is unchanged.
+- `skyart.draw_bayer_rule(..., orientation="vertical")` — side hairlines for
+  a vertical rule, used by `halftone_agenda`'s pane divider. The horizontal
+  default is byte-identical to the previous behaviour.
 - **`day_arc` theme** — a calendar-forward sibling of `halftone`. A dithered
   ribbon draws today as a left-to-right arc keyed to the real sunrise and
   sunset, with the sun (or the moon at its true phase, after dark) riding at

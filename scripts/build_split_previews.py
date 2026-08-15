@@ -70,6 +70,10 @@ _THEME_SPLIT_MODES: dict[str, str] = {
     # Hero illustration top / typeset margin bottom — horizontal cut puts
     # the Inky yellow sun accent above the typeset bottom strip.
     "halftone": "horizontal",
+    # The plate is already divided vertically (art left, agenda right), so a
+    # horizontal cut is the one that leaves both panes — the yellow-ringed sun
+    # and the red in-progress bar — visible on each render's half.
+    "halftone_agenda": "horizontal",
     # Stacked rows — horizontal cut keeps each row's chart intact and
     # shows both the Waveshare 1-bit fill and the Inky blue/yellow story.
     "trends": "horizontal",
