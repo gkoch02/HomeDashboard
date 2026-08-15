@@ -45,6 +45,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- `make docs-check` now runs in the `lint` CI job. It previously existed but
+  nothing enforced it, so the "all concrete themes" preview batch loop in
+  `docs/previews.md` silently drifted — `day_arc` and `moonphase_photo` were
+  both missing from it. `scripts/check_docs.py` now validates that list
+  against the theme registry as well, and both themes were added.
 - `CONTRIBUTING.md` coverage figures corrected — the gate has been 94% (with
   actual ≈96%) since it was ratcheted; the doc still claimed ≥90% and ~99%.
 - `to_local_naive` no longer consults the host machine's timezone when no

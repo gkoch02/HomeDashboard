@@ -16,7 +16,9 @@ make dry            # Preview with dummy data → output/latest.png
 make previews       # Generate all theme preview PNGs → assets/previews/theme_*.png
 make previews-split # Combine Waveshare + Inky previews into assets/previews/theme_<name>_split.png
 make check          # Validate config/config.yaml
-make docs-check     # Run scripts/check_docs.py (markdown link / heading sanity)
+make docs-check     # Run scripts/check_docs.py (markdown links + the canonical theme
+                    #   inventories in docs/themes.md and docs/previews.md). Enforced by
+                    #   the `lint` CI job, so drift here blocks a merge.
 make version        # Print current version (e.g. main.py 5.1.0)
 make deploy         # Rsync to Pi (configurable: PI_USER, PI_HOST, PI_DIR)
 make install        # Install systemd timer on remote Pi (via ssh/scp)
