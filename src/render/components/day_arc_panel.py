@@ -7,12 +7,13 @@ re-tasks the artwork so it *is* the calendar rather than competing with it.
 
 Three bands, top to bottom:
 
-  * **Ribbon** (168 px) — a horizontal sky gradient tracking the sun's height
+  * **Ribbon** (160 px) — a horizontal sky gradient tracking the sun's height
     across today, with the sun (or moon, after dark) riding an arc at the
     current time's real horizontal position and weather art drawn around it.
-  * **Axis strip** (32 px) — the ribbon's baseline doubles as a time axis:
-    a daylight bar, hour ticks, a NOW caret, and one pip per timed event so
-    the shape of the day is readable at a glance.
+  * **Axis strip** (40 px) — the ribbon's baseline doubles as a time axis:
+    a daylight bar, hour ticks, a NOW caret, one pip per timed event and the
+    hour labels, so the shape of the day is readable at a glance. Each of
+    those gets its own exclusive row band; see the ``_AXIS_*`` constants.
   * **Body** (274 px) — a full-height agenda on the left and a supporting rail
     (temperature, conditions, birthdays) on the right.
 
@@ -77,9 +78,9 @@ _SUNSET_GLYPH = ""  # wi-sunset
 # Region geometry
 # ---------------------------------------------------------------------------
 
-SKY_H = 168  # dithered sky + disc + weather art
+SKY_H = 160  # dithered sky + disc + weather art
 AXIS_Y = SKY_H  # solid horizon hairline sits on this row
-AXIS_H = 32  # paper-white strip carrying ticks, pips and the caret
+AXIS_H = 40  # paper-white strip carrying ticks, pips, the caret and labels
 RIBBON_H = SKY_H + AXIS_H  # 200
 RULE_H = 6  # ordered-Bayer separator
 BODY_Y = RIBBON_H + RULE_H  # 206
@@ -94,10 +95,35 @@ RAIL_W = 212
 # The axis strip is white so every tick, pip and label can be drawn in solid
 # ink. Marks drawn onto the sky itself would vanish into the night gradient at
 # one end of the day and wash out against the midday band at the other.
-_AXIS_BAR_Y = 2  # daylight bar, relative to AXIS_Y
-_AXIS_TICK_Y = 7
-_AXIS_LABEL_Y = 14
-_AXIS_PIP_Y = 18
+#
+# Every element gets an *exclusive* row band, all offsets relative to AXIS_Y.
+# They used to share rows, which made collisions a matter of luck: an event
+# starting on the hour puts its pip at exactly the x its hour label is centred
+# on, so the two could only ever land on top of each other. Keep these bands
+# disjoint — ``TestAxisStripBands`` fails the build if they stop being so.
+#
+#   y+0            baseline hairline
+#   y+2  … y+4     daylight bar
+#   y+6  … y+14    hour ticks + NOW caret
+#   y+16 … y+24    event pips
+#   y+26 … y+27    in-progress duration bar
+#   y+28 … y+38    hour labels (glyph ink lands ~3 px below the draw origin)
+_AXIS_BAR_Y = 2
+_AXIS_BAR_H = 3
+_AXIS_TICK_Y = 6
+_AXIS_TICK_MAJOR_H = 8
+_AXIS_TICK_MINOR_H = 4
+# The caret shares the tick row on purpose: it marks the current moment *on the
+# timeline*, so it belongs with the ticks, and the 1 px of tick it covers where
+# they coincide is a non-loss.
+_AXIS_CARET_H = 9
+_AXIS_CARET_HALF_W = 8
+_AXIS_PIP_Y = 16
+_AXIS_PIP_H = 9
+_AXIS_DUR_Y = 26
+_AXIS_DUR_H = 2
+_AXIS_LABEL_Y = 28
+_AXIS_LABEL_PT = 11
 
 # Sky tones. Chosen inside halftone's proven range: Floyd-Steinberg only reads
 # as a visible halftone well below mid-grey, so the midday peak stays dark
@@ -113,8 +139,8 @@ _NIGHT_DIM = 0.45
 # Disc placement. The disc rides a sine arc between sunrise and sunset so its
 # height encodes solar altitude — a second reading for free.
 DISC_R = 34
-DISC_BASE_Y = 128  # centre y at sunrise / sunset
-DISC_ARC_RISE = 74  # additional rise at solar midpoint
+DISC_BASE_Y = 120  # centre y at sunrise / sunset — 6 px clear of the baseline
+DISC_ARC_RISE = 66  # additional rise at solar midpoint (peak centre y = 54)
 
 # Axis window shaping.
 DAY_FRACTION = 0.78  # share of the axis width given to the daylight core
@@ -690,10 +716,15 @@ def _draw_axis_strip(
     y0: int,
     w: int,
 ) -> None:
-    """Baseline hairline, daylight bar, hour ticks, event pips and NOW caret."""
+    """Baseline hairline, daylight bar, hour ticks, event pips and NOW caret.
+
+    Each element is confined to its own row band (see the ``_AXIS_*`` constants)
+    so no combination of clock time and event times can make two of them
+    collide.
+    """
     mode = image.mode
     ink = _ink(mode)
-    label_font = (style.font_section_label or style.font_bold)(11)
+    label_font = (style.font_section_label or style.font_bold)(_AXIS_LABEL_PT)
 
     # Baseline: a solid rule the whole ribbon sits on.
     draw.rectangle((x0, y0, x0 + w - 1, y0), fill=ink)
@@ -705,7 +736,7 @@ def _draw_axis_strip(
         bar_x1 = axis.x_for(axis.sunset)
         if bar_x1 > bar_x0:
             draw.rectangle(
-                (bar_x0, y0 + _AXIS_BAR_Y, bar_x1, y0 + _AXIS_BAR_Y + 2),
+                (bar_x0, y0 + _AXIS_BAR_Y, bar_x1, y0 + _AXIS_BAR_Y + _AXIS_BAR_H - 1),
                 fill=_accent_yellow(mode) if mode == "RGB" else ink,
             )
 
@@ -719,7 +750,10 @@ def _draw_axis_strip(
         x = axis.x_for(hour)
         major = hour.hour % 3 == 0
         if major:
-            draw.line((x, y0 + _AXIS_TICK_Y, x, y0 + _AXIS_TICK_Y + 8), fill=ink)
+            draw.line(
+                (x, y0 + _AXIS_TICK_Y, x, y0 + _AXIS_TICK_Y + _AXIS_TICK_MAJOR_H),
+                fill=ink,
+            )
             label = fmt_time(hour)
             lw = text_width(draw, label, label_font)
             lx = x - lw // 2
@@ -727,13 +761,18 @@ def _draw_axis_strip(
                 draw.text((lx, y0 + _AXIS_LABEL_Y), label, font=label_font, fill=ink)
                 last_label_right = lx + lw
         elif x - last_minor_x >= 9:
-            draw.line((x, y0 + _AXIS_TICK_Y, x, y0 + _AXIS_TICK_Y + 4), fill=ink)
+            draw.line(
+                (x, y0 + _AXIS_TICK_Y, x, y0 + _AXIS_TICK_Y + _AXIS_TICK_MINOR_H),
+                fill=ink,
+            )
             last_minor_x = x
         hour += timedelta(hours=1)
 
-    # Event pips. Past events are screened, the in-progress one is solid with a
-    # duration bar, upcoming ones are hollow.
+    # Event pips, on their own row below the ticks. Past events are screened,
+    # the in-progress one is solid, upcoming ones are hollow.
     pip_y = y0 + _AXIS_PIP_Y
+    half = _AXIS_PIP_H // 2
+    dur_y = y0 + _AXIS_DUR_Y
     placed: list[int] = []
     for ev in events:
         if ev.is_all_day:
@@ -743,29 +782,42 @@ def _draw_axis_strip(
             continue
         placed.append(x)
         state = event_state(ev, now)
-        pts = [(x, pip_y), (x + 4, pip_y + 4), (x, pip_y + 8), (x - 4, pip_y + 4)]
+        pts = [
+            (x, pip_y),
+            (x + half, pip_y + half),
+            (x, pip_y + 2 * half),
+            (x - half, pip_y + half),
+        ]
         if state == "past":
             screened_paste(
                 image,
-                (x - 5, pip_y - 1, 11, 11),
-                lambda d, p=pts, ax=x, ay=pip_y: d.polygon(
-                    [(px - ax + 5, py - ay + 1) for px, py in p], fill=0
+                (x - half - 1, pip_y - 1, _AXIS_PIP_H + 2, _AXIS_PIP_H + 2),
+                lambda d, p=pts, ax=x, ay=pip_y, h=half: d.polygon(
+                    [(px - ax + h + 1, py - ay + 1) for px, py in p], fill=0
                 ),
                 threshold=_PAST_SCREEN,
             )
         elif state == "now":
             draw.polygon(pts, fill=ink)
+            # Duration bar gets its own band so it can't cut through a label.
             end_x = axis.x_for(_strip_tz(ev.end))
             if end_x > x:
-                draw.rectangle((x, pip_y + 10, end_x, pip_y + 11), fill=_accent_red(mode))
+                draw.rectangle((x, dur_y, end_x, dur_y + _AXIS_DUR_H - 1), fill=_accent_red(mode))
         else:
             draw.polygon(pts, outline=ink)
 
-    # NOW caret, plus a faint beam running up through the sky.
+    # NOW caret, in the tick row so it reads against the timeline itself, plus a
+    # faint beam running up through the sky.
     now_x = axis.x_for(now)
     draw.line((now_x, y0 - SKY_H + 1, now_x, y0 - 1), fill=_grey(230, mode))
+    caret_top = y0 + _AXIS_TICK_Y
+    caret_bot = caret_top + _AXIS_CARET_H
     draw.polygon(
-        [(now_x, y0 + _AXIS_PIP_Y - 2), (now_x + 8, y0 + AXIS_H - 2), (now_x - 8, y0 + AXIS_H - 2)],
+        [
+            (now_x, caret_top),
+            (now_x + _AXIS_CARET_HALF_W, caret_bot),
+            (now_x - _AXIS_CARET_HALF_W, caret_bot),
+        ],
         fill=_accent_red(mode),
     )
 

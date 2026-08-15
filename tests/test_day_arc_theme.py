@@ -12,9 +12,26 @@ from src.data.models import Birthday, CalendarEvent, DashboardData
 from src.dummy_data import generate_dummy_data
 from src.render.canvas import render_dashboard
 from src.render.components.day_arc_panel import (
+    _AXIS_BAR_H,
+    _AXIS_BAR_Y,
+    _AXIS_CARET_H,
+    _AXIS_DUR_H,
+    _AXIS_DUR_Y,
+    _AXIS_LABEL_PT,
+    _AXIS_LABEL_Y,
+    _AXIS_PIP_H,
+    _AXIS_PIP_Y,
+    _AXIS_TICK_MAJOR_H,
+    _AXIS_TICK_Y,
+    AXIS_H,
     AXIS_MAX_HOUR,
     AXIS_MIN_HOUR,
     DAY_FRACTION,
+    DISC_ARC_RISE,
+    DISC_BASE_Y,
+    DISC_R,
+    RIBBON_H,
+    SKY_H,
     _next_birthdays,
     _resolve_day_bounds,
     _sky_marks,
@@ -354,6 +371,63 @@ class TestAgendaDay:
             False,
         )
         assert agenda_day([_event(8)], TODAY, MIDNIGHT + timedelta(hours=19), None)[1] is True
+
+
+class TestAxisStripBands:
+    """The axis strip's elements must never share rows.
+
+    They used to: hour labels, event pips and the NOW caret all lived in
+    ``y+16 … y+30``. That made collisions a matter of luck — an event starting
+    on the hour puts its pip at exactly the x its hour label is centred on, so
+    a plain 9a/12p/3p/6p calendar collided on every single one.
+    """
+
+    def _bands(self) -> list[tuple[str, int, int]]:
+        return [
+            ("baseline", 0, 1),
+            ("daylight bar", _AXIS_BAR_Y, _AXIS_BAR_Y + _AXIS_BAR_H),
+            (
+                "ticks/caret",
+                _AXIS_TICK_Y,
+                _AXIS_TICK_Y + max(_AXIS_TICK_MAJOR_H, _AXIS_CARET_H) + 1,
+            ),
+            ("pips", _AXIS_PIP_Y, _AXIS_PIP_Y + _AXIS_PIP_H),
+            ("duration bar", _AXIS_DUR_Y, _AXIS_DUR_Y + _AXIS_DUR_H),
+            ("labels", _AXIS_LABEL_Y, _AXIS_LABEL_Y + _AXIS_LABEL_PT),
+        ]
+
+    def test_bands_are_pairwise_disjoint(self):
+        bands = self._bands()
+        for i, (name_a, a0, a1) in enumerate(bands):
+            for name_b, b0, b1 in bands[i + 1 :]:
+                assert a1 <= b0 or b1 <= a0, f"{name_a} [{a0},{a1}) overlaps {name_b} [{b0},{b1})"
+
+    def test_bands_fit_within_the_strip(self):
+        for name, lo, hi in self._bands():
+            assert 0 <= lo < hi <= AXIS_H, f"{name} [{lo},{hi}) escapes the {AXIS_H}px strip"
+
+    def test_ribbon_height_is_unchanged(self):
+        # The body below the ribbon (agenda geometry, density tiers) is sized
+        # against RIBBON_H, so trading sky for axis must keep the total fixed.
+        assert SKY_H + AXIS_H == RIBBON_H == 200
+
+    def test_disc_stays_clear_of_the_baseline(self):
+        assert DISC_BASE_Y + DISC_R < SKY_H
+        assert DISC_BASE_Y - DISC_ARC_RISE - DISC_R >= 0
+
+    def test_on_the_hour_events_do_not_collide_with_hour_labels(self):
+        # The reported regression, end to end: a 9a/12p/3p/6p day renders with
+        # the pip band and the label band both inked and no shared rows.
+        events = [_event(h, name=f"Meeting {h}") for h in (9, 12, 15, 18)]
+        img = _render(data=_data_for(events=events)).convert("L")
+        pip_band = img.crop((0, SKY_H + _AXIS_PIP_Y, 800, SKY_H + _AXIS_PIP_Y + _AXIS_PIP_H))
+        label_band = img.crop((0, SKY_H + _AXIS_LABEL_Y, 800, SKY_H + AXIS_H))
+        assert _ink_count(pip_band) > 0, "no event pips drawn"
+        assert _ink_count(label_band) > 0, "no hour labels drawn"
+        # The rows between the two bands are the separator — they must be clear
+        # of everything except the (optional) in-progress duration bar.
+        gap = img.crop((0, SKY_H + _AXIS_PIP_Y + _AXIS_PIP_H, 800, SKY_H + _AXIS_DUR_Y))
+        assert _ink_count(gap) == 0
 
 
 class TestAgendaMetrics:
