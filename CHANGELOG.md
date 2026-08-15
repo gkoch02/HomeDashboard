@@ -8,6 +8,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
+- **`day_arc` theme** — a calendar-forward sibling of `halftone`. A dithered
+  ribbon draws today as a left-to-right arc keyed to the real sunrise and
+  sunset, with the sun (or the moon at its true phase, after dark) riding at
+  the current time's actual position and weather art around it; the ribbon's
+  baseline is a time axis with hour ticks, a NOW caret and one pip per event.
+  Below it the day's agenda takes the bulk of the plate, with dithering used
+  as an encoding rather than decoration — elapsed events are Bayer-screened,
+  the event in progress is inverted, upcoming ones are crisp. Dims after
+  sunset and rolls the agenda over to tomorrow once the day is spent.
+- `src/render/skyart.py` — the procedural sky-illustration vocabulary
+  (gradients, sun, phase-shaded moon, clouds, precipitation, lightning, fog,
+  ordered-Bayer rule and Bayer screening) extracted from `halftone_panel` so
+  `day_arc` can share it rather than duplicating ~430 lines. Pixel output of
+  `halftone` is unchanged.
+- `artkit.to_local_naive()` / `artkit.hours_of_day()` — the naive/aware
+  datetime normalisers promoted out of `light_cycle_panel` for reuse by any
+  panel plotting a time axis.
+
 - **`GET /api/health`** web endpoint — uptime-monitor probe returning
   HTTP 200 when the last renderer run succeeded and 503 otherwise, with
   an optional `?max_age=<seconds>` freshness requirement that is skipped
@@ -24,6 +42,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- `to_local_naive` no longer consults the host machine's timezone when no
+  timezone is supplied, so a render of identical inputs is reproducible
+  across machines (the theme pixel snapshots hash that render).
 - Python floor raised to **3.10** (3.9 is EOL; mypy can no longer check
   a 3.9 target). CI matrix is now 3.10 / 3.11 / 3.13.
 - mypy now checks **every** module: the `ignore_errors` blanket covering
