@@ -15,7 +15,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   agenda reuses `day_arc`'s state dithering (elapsed events Bayer-screened,
   the event in progress inverted, upcoming ones crisp), marks the next timed
   event still ahead with an accent tick, and rolls over to tomorrow after
-  dark once the day is spent. Pure-Python — no external assets.
+  dark once the day is spent. Pure-Python — no external assets. Joins
+  `day_arc` in `THEMES_NEEDING_TOMORROW` so the rolled-over agenda has
+  Monday's events on a Sunday evening.
 - `skyart.draw_weather_scene()` — the icon→illustration dispatch lifted out
   of `halftone_panel` so both halftone themes compose the same scene.
   Placements map onto whatever rect is handed in and element sizes come from

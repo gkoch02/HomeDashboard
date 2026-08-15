@@ -290,6 +290,13 @@ class TestEventWindowForTheme:
         assert start is None
         assert days == 8
 
+    def test_halftone_agenda_fetches_one_day_past_the_week(self, tmp_path):
+        # Same rollover behaviour as day_arc, so the same widened window.
+        app = _make_app(tmp_path)
+        start, days = app._event_window_for_theme("halftone_agenda", datetime(2026, 4, 11, 10, 0))
+        assert start is None
+        assert days == 8
+
     def test_day_arc_window_covers_tomorrow_on_a_sunday(self, tmp_path):
         # Regression: the default window is Monday-anchored and 7 days long, so
         # on a Sunday it stops before tomorrow. day_arc rolls its agenda over to
@@ -324,6 +331,20 @@ class TestWindowTheme:
         app = _make_app(tmp_path)
         app.cfg.theme_rules.rules = [ThemeRule(when={"weather": "rain"}, theme="day_arc")]
         assert app._window_theme("default") == "day_arc"
+
+    def test_halftone_agenda_rule_widens_the_window(self, tmp_path):
+        from src.config import ThemeRule
+
+        app = _make_app(tmp_path)
+        app.cfg.theme_rules.rules = [ThemeRule(when={"weather": "rain"}, theme="halftone_agenda")]
+        assert app._window_theme("default") == "halftone_agenda"
+
+    def test_every_rollover_theme_is_registered(self, tmp_path):
+        # A typo here silently drops the extra day rather than failing.
+        from src.app import THEMES_NEEDING_TOMORROW
+        from src.render.theme import AVAILABLE_THEMES
+
+        assert THEMES_NEEDING_TOMORROW <= set(AVAILABLE_THEMES)
 
     def test_monthly_wins_over_day_arc(self, tmp_path):
         # monthly's grid window is a superset of day_arc's week-plus-one.

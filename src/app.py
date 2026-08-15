@@ -25,8 +25,9 @@ from src.services.theme import resolve_theme_name
 logger = logging.getLogger(__name__)
 
 # Themes whose view can extend past the end of the standard Monday-anchored
-# week and therefore need one extra day of calendar events fetched.
-THEMES_NEEDING_TOMORROW = frozenset({"day_arc"})
+# week and therefore need one extra day of calendar events fetched. Both
+# themes here roll their agenda over to tomorrow after dark.
+THEMES_NEEDING_TOMORROW = frozenset({"day_arc", "halftone_agenda"})
 
 # State files that belong in state_dir (not output_dir)
 _STATE_FILES = [
@@ -213,8 +214,8 @@ class DashboardApp:
         if theme_name in THEMES_NEEDING_TOMORROW:
             # One day past the standard week. The default window is anchored to
             # Monday and runs 7 days, so on a Sunday "tomorrow" (next Monday)
-            # falls outside it — and day_arc rolls its agenda over to tomorrow
-            # after dark, which would render "Nothing scheduled tomorrow" every
+            # falls outside it — and these themes roll their agenda over to
+            # tomorrow after dark, which would render "Nothing scheduled" every
             # Sunday evening regardless of what is actually on Monday.
             return None, 8
         return None, 7
