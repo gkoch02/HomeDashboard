@@ -24,6 +24,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   stamp.
 - The captions were also wrong: `updated 12:45 pm` over weather fetched at
   12:20 reported when the pixels were painted, not when the data arrived.
+- **"Restore latest backup" no longer rolls the config back two or more
+  edits.** The web UI's backup list sorted filenames in reverse lexicographic
+  order, and `config.yaml.bak.<timestamp>` sorts after the shorter
+  `config.yaml.bak` — so a rotated archive outranked the plain backup that is
+  actually the snapshot from the immediately preceding save. After saves
+  A → B → C, restoring "the latest" gave you A. The plain `.bak` now always
+  ranks first and rotated archives follow by modification time, so the list
+  shown on the config page is genuinely newest-first too.
+- Pre-migration backups (`config.yaml.bak-v4`) match the same glob and were
+  offered as restorable config backups, which would have rolled the file back
+  to an older schema. They are no longer listed.
+- Backup rotation carried only second precision, so two saves inside the same
+  second rotated onto the same filename and the second one silently discarded
+  an archive. Rotated names now carry microseconds.
 
 ### Added
 
