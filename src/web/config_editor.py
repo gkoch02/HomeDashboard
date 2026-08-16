@@ -66,29 +66,50 @@ EDITABLE_FIELD_PATHS: dict[str, tuple] = _editable_field_paths()
 
 
 def list_config_backups(config_path: str, limit: int = 5) -> list[dict]:
-    """Return available backup files for *config_path*, newest first."""
+    """Return available backup files for *config_path*, newest first.
+
+    Ordering is *not* lexicographic on the filename: ``config.yaml.bak.<ts>``
+    sorts after the shorter ``config.yaml.bak``, so a reverse name sort puts a
+    rotated archive ahead of the plain backup that is actually the newest one.
+    Instead the plain ``.bak`` — which ``_write_raw_yaml`` guarantees is the
+    snapshot taken by the immediately preceding save — always ranks first, and
+    the rotated archives follow by modification time (newest first). The
+    embedded name timestamp only breaks mtime ties, since a rotation renames
+    the file and carries the original mtime with it.
+
+    Versioned pre-migration backups (``config.yaml.bak-v4``, written by
+    ``src.config_migrations``) are a different kind of artifact — restoring one
+    would roll the file back to an older schema — so they are not listed here.
+    """
     path = Path(config_path)
     if not path.parent.exists():
         return []
 
-    backups: list[dict] = []
-    for candidate in sorted(path.parent.glob(f"{path.stem}.yaml.bak*"), reverse=True):
+    plain_name = f"{path.stem}.yaml.bak"
+    rotated_prefix = f"{plain_name}."
+
+    plain: list[dict] = []
+    rotated: list[tuple[int, str, dict]] = []
+    for candidate in path.parent.glob(f"{plain_name}*"):
+        is_plain = candidate.name == plain_name
+        if not is_plain and not candidate.name.startswith(rotated_prefix):
+            continue  # e.g. a .bak-v4 pre-migration backup
         try:
             stat = candidate.stat()
-            backups.append(
-                {
-                    "name": candidate.name,
-                    "size": stat.st_size,
-                    "modified_at": datetime.fromtimestamp(stat.st_mtime).isoformat(
-                        timespec="seconds"
-                    ),
-                }
-            )
         except OSError:
             continue
-        if len(backups) >= limit:
-            break
-    return backups
+        entry = {
+            "name": candidate.name,
+            "size": stat.st_size,
+            "modified_at": datetime.fromtimestamp(stat.st_mtime).isoformat(timespec="seconds"),
+        }
+        if is_plain:
+            plain.append(entry)
+        else:
+            rotated.append((stat.st_mtime_ns, candidate.name, entry))
+
+    rotated.sort(key=lambda item: (item[0], item[1]), reverse=True)
+    return (plain + [entry for _mtime, _name, entry in rotated])[:limit]
 
 
 def restore_latest_backup(config_path: str) -> tuple[bool, str]:
@@ -319,6 +340,24 @@ def _load_raw_yaml(config_path: str) -> dict:
         return {}
 
 
+def _rotated_backup_path(path: Path) -> Path:
+    """Return an unused ``<config>.yaml.bak.<timestamp>`` path for a rotation.
+
+    The timestamp carries microseconds because two saves landing in the same
+    second would otherwise rotate onto the same filename, and the second
+    ``replace()`` would silently discard the first archive. The suffix loop is
+    belt-and-braces for a clock that repeats a microsecond.
+    """
+    stamp = datetime.now().strftime("%Y%m%d-%H%M%S-%f")  # allow-naive-datetime — file naming
+    base = f"{path.stem}.yaml.bak.{stamp}"
+    candidate = path.with_name(base)
+    counter = 1
+    while candidate.exists():
+        candidate = path.with_name(f"{base}-{counter}")
+        counter += 1
+    return candidate
+
+
 def _write_raw_yaml(config_path: str, raw: dict, *, rotate_backup: bool = True) -> None:
     """Write *raw* to *config_path* atomically using a temp-file rename.
 
@@ -336,10 +375,7 @@ def _write_raw_yaml(config_path: str, raw: dict, *, rotate_backup: bool = True) 
             with os.fdopen(fd_b, "wb") as fb:
                 fb.write(path.read_bytes())
             if bak.exists():
-                timestamp = datetime.now().strftime(
-                    "%Y%m%d-%H%M%S"
-                )  # allow-naive-datetime — backup file naming
-                bak.replace(path.with_name(f"{path.stem}.yaml.bak.{timestamp}"))
+                bak.replace(_rotated_backup_path(path))
             os.replace(tmp_b, bak)
         except OSError as exc:
             logger.warning("Could not write config backup to %s: %s", bak, exc)

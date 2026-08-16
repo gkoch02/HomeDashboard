@@ -409,6 +409,112 @@ def test_restore_latest_backup(tmp_path):
 
 
 # ---------------------------------------------------------------------------
+# Backup ordering — the plain .bak is the newest snapshot, not a rotated one
+# ---------------------------------------------------------------------------
+
+
+def test_list_config_backups_ranks_plain_bak_ahead_of_timestamped(tmp_path):
+    """A reverse name sort puts config.yaml.bak.<ts> first; the plain .bak is newer."""
+    cfg = tmp_path / "config.yaml"
+    cfg.write_text("title: C\n")
+    (tmp_path / "config.yaml.bak.20260816-113201").write_text("title: A\n")
+    (tmp_path / "config.yaml.bak").write_text("title: B\n")
+
+    names = [item["name"] for item in list_config_backups(str(cfg), limit=5)]
+
+    assert names[0] == "config.yaml.bak"
+    assert names == ["config.yaml.bak", "config.yaml.bak.20260816-113201"]
+
+
+def test_list_config_backups_orders_rotated_archives_newest_first(tmp_path):
+    """Rotated archives rank by mtime, so the ordering survives a name-format change."""
+    cfg = tmp_path / "config.yaml"
+    cfg.write_text("title: live\n")
+    older = tmp_path / "config.yaml.bak.20260101-000000"
+    newer = tmp_path / "config.yaml.bak.20260816-113201-000123"
+    older.write_text("title: older\n")
+    newer.write_text("title: newer\n")
+    os.utime(older, (1_000_000, 1_000_000))
+    os.utime(newer, (2_000_000, 2_000_000))
+
+    names = [item["name"] for item in list_config_backups(str(cfg), limit=5)]
+
+    assert names == [newer.name, older.name]
+
+
+def test_list_config_backups_limit_applies_after_ordering(tmp_path):
+    """The limit must truncate the ranked list, not the raw directory-scan order."""
+    cfg = tmp_path / "config.yaml"
+    cfg.write_text("title: live\n")
+    (tmp_path / "config.yaml.bak.20260101-000000").write_text("title: old\n")
+    (tmp_path / "config.yaml.bak.20260816-113201").write_text("title: mid\n")
+    (tmp_path / "config.yaml.bak").write_text("title: newest\n")
+
+    backups = list_config_backups(str(cfg), limit=1)
+
+    assert [item["name"] for item in backups] == ["config.yaml.bak"]
+
+
+def test_list_config_backups_excludes_pre_migration_backups(tmp_path):
+    """config.yaml.bak-v4 matches the glob but is a schema snapshot, not an edit backup."""
+    cfg = tmp_path / "config.yaml"
+    cfg.write_text("title: live\n")
+    (tmp_path / "config.yaml.bak").write_text("title: previous\n")
+    (tmp_path / "config.yaml.bak-v4").write_text("title: pre-migration\n")
+
+    names = [item["name"] for item in list_config_backups(str(cfg), limit=5)]
+
+    assert names == ["config.yaml.bak"]
+
+
+def test_restore_latest_backup_returns_immediately_previous_save(tmp_path):
+    """A -> B -> C then Restore Latest must land on B, not the rotated A."""
+    cfg = tmp_path / "config.yaml"
+    cfg.write_text("title: A\n")
+    with patch(_VALIDATE_PATCH, _no_errors):
+        apply_patch(str(cfg), {"title": "B"})
+        apply_patch(str(cfg), {"title": "C"})
+        assert yaml.safe_load(cfg.read_text())["title"] == "C"
+
+        restored, message = restore_latest_backup(str(cfg))
+
+    assert restored is True
+    assert "config.yaml.bak" in message
+    assert yaml.safe_load(cfg.read_text())["title"] == "B"
+
+
+def test_write_raw_yaml_rotations_within_one_second_keep_both_archives(tmp_path):
+    """Second-precision names collided, so a fast second save discarded an archive."""
+    cfg = tmp_path / "config.yaml"
+    cfg.write_text("title: A\n")
+    _write_raw_yaml(str(cfg), {"title": "B"})  # .bak = A
+    _write_raw_yaml(str(cfg), {"title": "C"})  # A rotates out, .bak = B
+    _write_raw_yaml(str(cfg), {"title": "D"})  # B rotates out, .bak = C
+
+    rotated = sorted(tmp_path.glob("config.yaml.bak.*"))
+    assert len(rotated) == 2
+    assert {yaml.safe_load(p.read_text())["title"] for p in rotated} == {"A", "B"}
+    assert yaml.safe_load((tmp_path / "config.yaml.bak").read_text())["title"] == "C"
+
+
+def test_rotated_backup_path_avoids_an_existing_name(tmp_path):
+    """Defensive suffix loop for a clock that repeats a microsecond."""
+    from src.web.config_editor import _rotated_backup_path
+
+    cfg = tmp_path / "config.yaml"
+    cfg.write_text("title: live\n")
+
+    first = _rotated_backup_path(cfg)
+    first.write_text("title: taken\n")
+    with patch("src.web.config_editor.datetime") as fake_dt:
+        fake_dt.now.return_value.strftime.return_value = first.name.split(".bak.")[1]
+        second = _rotated_backup_path(cfg)
+
+    assert second != first
+    assert second.name == f"{first.name}-1"
+
+
+# ---------------------------------------------------------------------------
 # /api/config HTTP routes — also mock validate_config
 # ---------------------------------------------------------------------------
 
