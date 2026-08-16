@@ -17,12 +17,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   tail, so `thunderstorm with light drizzle` no longer renders as a
   complete-looking `THUNDERSTORM WITH LIGHT`.
 
-- **`halftone_agenda` rows show event end times.** Each row carries a range —
-  `12:30–2p`, eliding the shared meridiem so it fits the time column — and
-  falls back to a wrapped second line where the column is too narrow, or to
-  the start alone for an all-day event or one running past midnight. The two
-  densest tiers got wider time columns instead of wrapping, since their rows
-  are too short for a second line and their titles have width to spare.
+- **`halftone_agenda` rows show event end times**, stacked under the start
+  (`12:30p –` / `2p`). Stacking keeps the treatment uniform: an inline range's
+  width depends on the times themselves, so at one density some rows would
+  show an end time and their neighbours wouldn't. The stacked cell is never
+  wider than a single label, so the time columns stay narrow and the question
+  is only vertical — every tier but the densest has room, and that one shows
+  the start alone, as do all-day events and any event running past midnight.
 
 ### Changed
 

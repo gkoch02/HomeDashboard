@@ -126,13 +126,8 @@ _DENSITY_TIERS: tuple[tuple[int, int, int, int, int, bool], ...] = (
     (2, 76, 100, 22, 30, True),
     (4, 64, 92, 20, 26, True),
     (6, 52, 84, 18, 22, True),
-    # The two densest tiers carry wider time columns than their type alone
-    # needs, so even the worst-case range ("11:30a–1:15p") fits on one line.
-    # Their rows are too short to wrap onto a second line, and unlike the roomy
-    # tiers above they have title width to spare — a 19 px title still clears
-    # every sample name at 274 px, where a 30 px one would start truncating.
-    (8, 42, 96, 16, 19, False),
-    (11, 33, 86, 14, 17, False),
+    (8, 42, 76, 16, 19, False),
+    (11, 33, 68, 14, 17, False),
 )
 
 
@@ -469,19 +464,6 @@ def agenda_metrics(n_events: int, avail_h: int) -> tuple[int, int, int, int, int
     return _DENSITY_TIERS[-1]
 
 
-def compact_range(start: str, end: str) -> str:
-    """Join two ``fmt_time`` strings into a range, eliding a shared meridiem.
-
-    ``fmt_time`` gives "9a" / "12:30p", so a same-meridiem pair repeats a
-    letter the reader does not need: "12:30p–2p" becomes "12:30–2p". That
-    saves the ~12 px which is the difference between fitting the time column
-    and not, for the great majority of events.
-    """
-    if start[-1:] in "ap" and start[-1:] == end[-1:]:
-        return f"{start[:-1]}–{end}"
-    return f"{start}–{end}"
-
-
 def event_times(event: CalendarEvent) -> tuple[str, str | None]:
     """Return ``(start, end)`` labels for *event*; *end* is None when unusable.
 
@@ -510,6 +492,15 @@ def _location_text(event: CalendarEvent) -> str:
     return " ".join(event.location.split(",")[0].split())
 
 
+def two_line_time_fits(time_pt: int, row_h: int) -> bool:
+    """Can a row set the start and end times on two lines?
+
+    Line two sits one pixel under line one, and the pair has to clear the row.
+    True for every tier but the densest, whose 33-px rows are 4 px short.
+    """
+    return 2 * time_pt + 7 <= row_h - 2
+
+
 def _draw_time_cell(
     draw: ImageDraw.ImageDraw,
     start: str,
@@ -518,39 +509,28 @@ def _draw_time_cell(
     *,
     x0: int,
     y: int,
-    time_w: int,
     time_pt: int,
     row_h: int,
     fill: int | tuple[int, int, int],
 ) -> None:
-    """Draw the start time, and the end time with it when there is room.
+    """Draw the start time, with the end time stacked underneath it.
 
-    Three outcomes, in order of preference. The elided range fits the column
-    for the great majority of events, so that is the common case. A range that
-    crosses the meridiem with minutes on both sides ("11:30a–1:15p") is wider
-    than every tier's column, and wraps onto a second line instead — the
-    columns are not widened to fit it, because the width would come out of the
-    title and cost a truncation on titles that fit today. In the densest tier
-    there is no vertical room for that second line either, so the end time is
-    dropped rather than shrunk into illegibility.
+    Stacking rather than setting a range inline is what keeps the treatment
+    uniform: an inline range's width depends on the times themselves — a
+    meridiem-crossing pair like "11:30a-1:15p" is half again as wide as
+    "12:30-2p" — so some rows would show an end time and their neighbours
+    wouldn't, at the same density. Stacked, the cell is never wider than one
+    label, which every tier's column already fits, and the only question left
+    is vertical room. The densest tier has none and drops the end time; see
+    :func:`two_line_time_fits`.
     """
     time_font = style.font_semibold(time_pt)
-
-    # Pick the layout before drawing anything: the one-line range replaces the
-    # start label rather than being written over the top of it.
-    one_line = compact_range(start, end) if end is not None else None
-    if one_line is not None:
-        bbox = draw.textbbox((0, 0), one_line, font=time_font)
-        if bbox[2] - bbox[0] <= time_w - 4:
-            draw.text((x0, y + 4), one_line, font=time_font, fill=fill)
-            return
-
-    draw.text((x0, y + 4), start, font=time_font, fill=fill)
-    if end is None:
+    if end is None or not two_line_time_fits(time_pt, row_h):
+        draw.text((x0, y + 4), start, font=time_font, fill=fill)
         return
-    end_pt = max(11, time_pt - 3)
-    if time_pt + end_pt + 3 <= row_h - 8:
-        draw.text((x0, y + 4 + time_pt + 1), f"–{end}", font=style.font_medium(end_pt), fill=fill)
+    # The trailing dash carries the eye down to the second line.
+    draw.text((x0, y + 4), f"{start} –", font=time_font, fill=fill)
+    draw.text((x0, y + 5 + time_pt), end, font=time_font, fill=fill)
 
 
 def _draw_event_row(
@@ -603,7 +583,6 @@ def _draw_event_row(
         style,
         x0=x0,
         y=y,
-        time_w=time_w,
         time_pt=time_pt,
         row_h=row_h,
         fill=ink,

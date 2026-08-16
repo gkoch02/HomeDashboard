@@ -32,9 +32,9 @@ from src.render.components.halftone_agenda_panel import (
     _location_text,
     _sun_times,
     agenda_metrics,
-    compact_range,
     draw_halftone_agenda,
     event_times,
+    two_line_time_fits,
 )
 from src.render.quantize import INKY_SPECTRA6_PALETTE, flatten_pixels
 from src.render.skyart import (
@@ -515,13 +515,6 @@ class TestWeatherBandType:
 class TestEventTimes:
     """Rows show when an event ends, not just when it starts."""
 
-    def test_compact_range_elides_a_shared_meridiem(self):
-        assert compact_range("12:30p", "2p") == "12:30–2p"
-        assert compact_range("8a", "8:45a") == "8–8:45a"
-
-    def test_compact_range_keeps_both_across_the_meridiem(self):
-        assert compact_range("11:30a", "1:15p") == "11:30a–1:15p"
-
     def test_all_day_has_no_range(self):
         event = _event(0, name="Conference", is_all_day=True)
         assert event_times(event) == ("ALL DAY", None)
@@ -538,27 +531,24 @@ class TestEventTimes:
     def test_zero_length_event_shows_only_its_start(self):
         assert event_times(_event(9, mins=0))[1] is None
 
-    def test_every_tier_can_show_an_end_time(self):
-        """Each tier fits the widest range on one line, or can wrap it.
+    def test_only_the_densest_tier_drops_the_end_time(self):
+        # Stacking makes this a question of vertical room alone, so the answer
+        # is the same for every event in a tier — no row shows an end time
+        # while the row above it doesn't.
+        fits = [two_line_time_fits(tier[3], tier[1]) for tier in _DENSITY_TIERS]
+        assert fits[:-1] == [True] * (len(_DENSITY_TIERS) - 1), fits
+        assert fits[-1] is False, "the densest tier has no room for a second line"
 
-        The worst case is a range that crosses the meridiem with minutes on
-        both sides. A tier that satisfies neither branch would silently drop
-        the end time for those events.
-        """
+    def test_widest_label_fits_every_column(self):
+        # The stacked cell is never wider than one label plus the trailing
+        # dash, which is what lets the columns stay narrow.
         from PIL import ImageDraw
 
-        from src.render.fonts import dm_semibold
-
         probe = ImageDraw.Draw(Image.new("L", (10, 10)))
-        worst = compact_range("11:30a", "1:15p")
-        for _rows, row_h, time_w, time_pt, _title_pt, _loc in _DENSITY_TIERS:
-            box = probe.textbbox((0, 0), worst, font=dm_semibold(time_pt))
-            one_line = (box[2] - box[0]) <= time_w - 4
-            end_pt = max(11, time_pt - 3)
-            two_line = time_pt + end_pt + 3 <= row_h - 8
-            assert one_line or two_line, (
-                f"tier {time_pt}pt/{row_h}px can neither fit nor wrap {worst!r}"
-            )
+        style = load_theme("halftone_agenda").style
+        for _rows, _row_h, time_w, time_pt, _title_pt, _loc in _DENSITY_TIERS:
+            box = probe.textbbox((0, 0), "11:30a –", font=style.font_semibold(time_pt))
+            assert box[2] - box[0] <= time_w - 4, f"{time_pt}pt overruns its {time_w}px column"
 
     def test_time_cell_never_overflows_its_column(self):
         # The column is what separates the time from the tick; ink past it
@@ -576,7 +566,6 @@ class TestEventTimes:
                 style,
                 x0=0,
                 y=0,
-                time_w=time_w,
                 time_pt=time_pt,
                 row_h=row_h,
                 fill=0,
