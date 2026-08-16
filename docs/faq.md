@@ -203,7 +203,7 @@ reached, and that waveform does not drive black as deeply as a full refresh:
 large filled areas — an inverted header, a highlighted event row — come out
 closer to charcoal than to ink, and fine type reads grey.
 
-Set it to `false` for a full-waveform refresh every time, which is the code
+Note that this is cumulative: the panel drifts further from black the longer it goes between full refreshes, so the effect appears an hour or two in and resets when the full refresh fires. Set it to `false` for a full-waveform refresh every time, which is the code
 default and what the shipped example config now uses. To confirm the cause
 before changing anything, render once with `--force-full-refresh` and compare
 the same plate:

@@ -53,6 +53,7 @@ def _header(ctx: RenderContext) -> None:
         is_stale=ctx.data.is_stale,
         title=ctx.title,
         source_staleness=ctx.data.source_staleness,
+        content_at=ctx.data.content_at,
         region=ctx.layout.header,
         style=ctx.style,
     )

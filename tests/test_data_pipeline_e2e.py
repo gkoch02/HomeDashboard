@@ -80,6 +80,81 @@ class TestDataPipelineE2E:
         assert data.source_staleness.get("weather") == StalenessLevel.FRESH
         assert data.source_staleness.get("birthdays") == StalenessLevel.FRESH
 
+    def test_content_at_is_the_fetch_time_on_a_live_fetch(self, tmp_path):
+        pipeline = _make_pipeline(tmp_path, force_refresh=True)
+        with (
+            patch("src.data_pipeline.fetch_events", return_value=_make_events()),
+            patch("src.data_pipeline.fetch_weather", return_value=_make_weather()),
+            patch("src.data_pipeline.fetch_birthdays", return_value=_make_birthdays()),
+            patch("src.data_pipeline.fetch_host_data", return_value=None),
+        ):
+            data = pipeline.fetch()
+
+        assert data.content_at == pipeline.fetched_at
+
+    def test_content_at_stays_put_when_every_source_comes_from_cache(self, tmp_path):
+        """The whole point: a run that fetched nothing must not advance it.
+
+        `fetched_at` is a render clock and moves every run. If a caption read
+        that, the rendered image would differ on every tick and force a panel
+        write for content that has not changed.
+        """
+        first = _make_pipeline(tmp_path, force_refresh=True)
+        with (
+            patch("src.data_pipeline.fetch_events", return_value=_make_events()),
+            patch("src.data_pipeline.fetch_weather", return_value=_make_weather()),
+            patch("src.data_pipeline.fetch_birthdays", return_value=_make_birthdays()),
+            patch("src.data_pipeline.fetch_host_data", return_value=None),
+        ):
+            first_data = first.fetch()
+
+        # Second run a few minutes later: every source is within its interval,
+        # so nothing is fetched and the cache is served.
+        second = _make_pipeline(tmp_path)
+        with patch("src.data_pipeline.fetch_host_data", return_value=None):
+            second_data = second.fetch()
+
+        assert second.fetched_at > first.fetched_at, "render clock should advance"
+        assert second_data.content_at == first_data.content_at
+
+    def test_content_at_is_the_newest_source_timestamp(self, tmp_path):
+        # Populate the cache, then re-fetch only weather: content_at should
+        # track the newer weather fetch, not the older cached calendar.
+        first = _make_pipeline(tmp_path, force_refresh=True)
+        with (
+            patch("src.data_pipeline.fetch_events", return_value=_make_events()),
+            patch("src.data_pipeline.fetch_weather", return_value=_make_weather()),
+            patch("src.data_pipeline.fetch_birthdays", return_value=_make_birthdays()),
+            patch("src.data_pipeline.fetch_host_data", return_value=None),
+        ):
+            first_data = first.fetch()
+
+        second = _make_pipeline(tmp_path)
+        second.interval_map["weather"] = 0  # weather is due again
+        with (
+            patch("src.data_pipeline.fetch_weather", return_value=_make_weather()),
+            patch("src.data_pipeline.fetch_host_data", return_value=None),
+        ):
+            second_data = second.fetch()
+
+        assert second_data.content_at == second.fetched_at
+        assert second_data.content_at > first_data.content_at
+
+    def test_content_at_is_none_without_any_source(self, tmp_path):
+        cfg = Config()
+        cfg.purpleair = PurpleAirConfig(api_key="", sensor_id=0)
+        cfg.google.calendar_ids = []
+        pipeline = DataPipeline(cfg, cache_dir=str(tmp_path), force_refresh=True)
+        with (
+            patch("src.data_pipeline.fetch_events", side_effect=RuntimeError("no calendar")),
+            patch("src.data_pipeline.fetch_weather", side_effect=RuntimeError("no key")),
+            patch("src.data_pipeline.fetch_birthdays", side_effect=RuntimeError("no creds")),
+            patch("src.data_pipeline.fetch_host_data", return_value=None),
+        ):
+            data = pipeline.fetch()
+
+        assert data.content_at is None
+
     def test_fetch_failure_falls_back_to_cache(self, tmp_path):
         """When a fetcher fails, pipeline falls back to cached data."""
         # First run: populate cache

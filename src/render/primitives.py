@@ -220,6 +220,26 @@ def fmt_time(dt: datetime) -> str:
     return s.replace("am", "a").replace("pm", "p")
 
 
+def content_time(data, now: datetime) -> datetime:
+    """Timestamp to print in an "updated" caption.
+
+    Returns when the *content* last changed (``DashboardData.content_at``),
+    falling back to *now* when no source contributed one — dummy data, or a
+    snapshot built by hand in a test.
+
+    Captions must use this rather than the render clock. The display is only
+    written when the rendered image differs from the last one, so a caption
+    reading the wall clock changes every tick and forces a panel refresh for
+    content that has not moved: on a 5-minute timer that is ~12 writes an hour
+    to repaint a few hundred pixels, which on Waveshare's fast waveform is what
+    makes static ink drift grey between full refreshes. It is also the more
+    truthful reading — "updated 12:45" over weather fetched at 12:20 is a lie
+    the render clock tells and this does not.
+    """
+    stamp = getattr(data, "content_at", None)
+    return stamp if stamp is not None else now
+
+
 def wrap_lines(text: str, font, max_width: int) -> list[str]:
     """Word-wrap *text* into lines that each fit within *max_width* pixels."""
     words = text.split()

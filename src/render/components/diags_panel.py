@@ -14,6 +14,7 @@ from PIL import ImageDraw
 from src._version import __version__
 from src.data.models import AirQualityData, DashboardData, HostData, StalenessLevel
 from src.render.primitives import (
+    content_time,
     deg_to_compass,
     draw_text_truncated,
     fmt_time,
@@ -125,7 +126,9 @@ def _draw_header(draw, rx, ry, w, data: DashboardData, style: ThemeStyle) -> Non
     title_y = ry + (_HEADER_H - text_height(title_font)) // 2
     draw.text((rx + 10, title_y), "DIAGNOSTICS", font=title_font, fill=style.primary_accent_fill())
 
-    now = data.fetched_at
+    # The stamp beside the staleness flags reports when the data is from,
+    # not when this frame was painted — see primitives.content_time.
+    now = content_time(data, data.fetched_at)
     ts_font = style.font_regular(_DATA_SIZE - 1)
     if isinstance(now, datetime):
         ts_str = now.strftime("%-d %b  ") + fmt_time(now)

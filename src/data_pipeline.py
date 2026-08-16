@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from concurrent.futures import Future, ThreadPoolExecutor
-from datetime import date
+from datetime import date, datetime
 from typing import cast
 
 from src._time import now_local
@@ -172,6 +172,9 @@ class DataPipeline:
         # Read the cache file once — _should_skip / _use_cache decode out of
         # this in-memory dict instead of re-opening (perf-tested).
         self._cache_blob = load_cache_blob(self.cache_dir)
+        # Per-source timestamp of the data actually used this run, whether it
+        # came off the wire or out of the cache. Drives DashboardData.content_at.
+        self._content_at: dict[str, datetime] = {}
 
         enabled = [f for f in all_fetchers() if f.enabled(self.cfg)]
 
@@ -239,6 +242,7 @@ class DataPipeline:
             else None,
             host_data=host_data,
             fetched_at=self.fetched_at,
+            content_at=max(self._content_at.values(), default=None),
             is_stale=bool(self.stale_sources),
             stale_sources=self.stale_sources,
             source_staleness=self.source_staleness,
@@ -274,6 +278,7 @@ class DataPipeline:
             logger.warning("Cached %s is expired (>%dx TTL), discarding", source, 4)
             return None
         self.source_staleness[source] = level
+        self._content_at[source] = cached_at
         self.stale_sources.append(source)
         return data
 
@@ -319,6 +324,7 @@ class DataPipeline:
                 interval,
             )
             self.source_staleness[source] = StalenessLevel.FRESH
+            self._content_at[source] = cached_at
             return data, True
         return None, False
 
@@ -397,6 +403,7 @@ class DataPipeline:
             metadata = self._cache_metadata_for(source)
             save_source(source, data, self.fetched_at, self.cache_dir, metadata=metadata)
             self.source_staleness[source] = StalenessLevel.FRESH
+            self._content_at[source] = self.fetched_at
             self.breaker.record_success(source)
             self.quota.record_call(source)
             if success_log_fn:
