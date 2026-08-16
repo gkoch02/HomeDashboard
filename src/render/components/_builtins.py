@@ -16,8 +16,10 @@ from src.render.components import (
     birthday_bar,
     constellation_map_panel,
     countdown_panel,
+    day_arc_panel,
     diags_panel,
     fuzzyclock_panel,
+    halftone_agenda_panel,
     halftone_panel,
     header,
     info_panel,
@@ -370,6 +372,21 @@ def _constellation_map(ctx: RenderContext) -> None:
     )
 
 
+@register_component("day_arc")
+def _day_arc(ctx: RenderContext) -> None:
+    day_arc_panel.draw_day_arc(
+        ctx.draw,
+        ctx.data,
+        ctx.today,
+        ctx.now,
+        image=ctx.image,
+        region=ctx.layout.day_arc,
+        style=ctx.style,
+        latitude=ctx.latitude,
+        longitude=ctx.longitude,
+    )
+
+
 @register_component("halftone")
 def _halftone(ctx: RenderContext) -> None:
     halftone_panel.draw_halftone(
@@ -379,6 +396,19 @@ def _halftone(ctx: RenderContext) -> None:
         ctx.now,
         image=ctx.image,
         region=ctx.layout.halftone,
+        style=ctx.style,
+    )
+
+
+@register_component("halftone_agenda")
+def _halftone_agenda(ctx: RenderContext) -> None:
+    halftone_agenda_panel.draw_halftone_agenda(
+        ctx.draw,
+        ctx.data,
+        ctx.today,
+        ctx.now,
+        image=ctx.image,
+        region=ctx.layout.halftone_agenda,
         style=ctx.style,
     )
 

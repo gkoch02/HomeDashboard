@@ -284,6 +284,79 @@ class TestEventWindowForTheme:
         assert start == date(2026, 3, 29)
         assert days == 35
 
+    def test_day_arc_fetches_one_day_past_the_week(self, tmp_path):
+        app = _make_app(tmp_path)
+        start, days = app._event_window_for_theme("day_arc", datetime(2026, 4, 11, 10, 0))
+        assert start is None
+        assert days == 8
+
+    def test_halftone_agenda_fetches_one_day_past_the_week(self, tmp_path):
+        # Same rollover behaviour as day_arc, so the same widened window.
+        app = _make_app(tmp_path)
+        start, days = app._event_window_for_theme("halftone_agenda", datetime(2026, 4, 11, 10, 0))
+        assert start is None
+        assert days == 8
+
+    def test_day_arc_window_covers_tomorrow_on_a_sunday(self, tmp_path):
+        # Regression: the default window is Monday-anchored and 7 days long, so
+        # on a Sunday it stops before tomorrow. day_arc rolls its agenda over to
+        # tomorrow after dark, and without the extra day it would report
+        # "Nothing scheduled tomorrow" every Sunday evening.
+        from datetime import date, timedelta
+
+        sunday = date(2026, 8, 16)
+        assert sunday.weekday() == 6
+        app = _make_app(tmp_path)
+        _, days = app._event_window_for_theme("day_arc", datetime(2026, 8, 16, 21, 0))
+        window_start = sunday - timedelta(days=sunday.weekday())
+        window_end = window_start + timedelta(days=days)
+        assert window_start <= sunday + timedelta(days=1) < window_end
+
+
+class TestWindowTheme:
+    def test_uses_the_pre_fetch_theme_by_default(self, tmp_path):
+        app = _make_app(tmp_path)
+        assert app._window_theme("default") == "default"
+
+    def test_monthly_rule_widens_the_window(self, tmp_path):
+        from src.config import ThemeRule
+
+        app = _make_app(tmp_path)
+        app.cfg.theme_rules.rules = [ThemeRule(when={"weather": "rain"}, theme="monthly")]
+        assert app._window_theme("default") == "monthly"
+
+    def test_day_arc_rule_widens_the_window(self, tmp_path):
+        from src.config import ThemeRule
+
+        app = _make_app(tmp_path)
+        app.cfg.theme_rules.rules = [ThemeRule(when={"weather": "rain"}, theme="day_arc")]
+        assert app._window_theme("default") == "day_arc"
+
+    def test_halftone_agenda_rule_widens_the_window(self, tmp_path):
+        from src.config import ThemeRule
+
+        app = _make_app(tmp_path)
+        app.cfg.theme_rules.rules = [ThemeRule(when={"weather": "rain"}, theme="halftone_agenda")]
+        assert app._window_theme("default") == "halftone_agenda"
+
+    def test_every_rollover_theme_is_registered(self, tmp_path):
+        # A typo here silently drops the extra day rather than failing.
+        from src.app import THEMES_NEEDING_TOMORROW
+        from src.render.theme import AVAILABLE_THEMES
+
+        assert THEMES_NEEDING_TOMORROW <= set(AVAILABLE_THEMES)
+
+    def test_monthly_wins_over_day_arc(self, tmp_path):
+        # monthly's grid window is a superset of day_arc's week-plus-one.
+        from src.config import ThemeRule
+
+        app = _make_app(tmp_path)
+        app.cfg.theme_rules.rules = [
+            ThemeRule(when={"weather": "rain"}, theme="day_arc"),
+            ThemeRule(when={"weather": "snow"}, theme="monthly"),
+        ]
+        assert app._window_theme("day_arc") == "monthly"
+
 
 # ---------------------------------------------------------------------------
 # DashboardApp._apply_filters

@@ -25,6 +25,8 @@ from PIL import ImageDraw
 
 from src.astronomy import sun_times
 from src.data.models import DashboardData
+from src.render.artkit import hours_of_day as _hours_of_day
+from src.render.artkit import to_local_naive as _to_local_naive
 from src.render.fonts import weather_icon
 from src.render.icons import FALLBACK_ICON, OWM_ICON_MAP
 from src.render.moon import moon_phase_glyph
@@ -89,35 +91,6 @@ def _bbox(radius: float) -> tuple[int, int, int, int]:
         _CENTER_X + int(radius),
         _CENTER_Y + int(radius),
     )
-
-
-# ---------------------------------------------------------------------------
-# Time helpers
-# ---------------------------------------------------------------------------
-
-
-def _to_local_naive(dt: datetime, tz: tzinfo | None) -> datetime:
-    """Strip tzinfo, converting to *tz* first when both *dt* and *tz* are aware."""
-    if dt.tzinfo is not None:
-        dt = dt.astimezone(tz) if tz is not None else dt.astimezone()
-        dt = dt.replace(tzinfo=None)
-    return dt
-
-
-def _hours_of_day(dt: datetime | None, today: date, tz: tzinfo | None) -> float | None:
-    """Return *dt* as fractional hours-of-day on *today*, clamped to [0, 24].
-
-    Returns ``None`` for datetimes that fall on neither today nor an adjacent
-    day — those can't be plotted on a single 24h dial.
-    """
-    if dt is None:
-        return None
-    naive = _to_local_naive(dt, tz)
-    delta_days = (naive.date() - today).days
-    if delta_days < -1 or delta_days > 1:
-        return None
-    hours = naive.hour + naive.minute / 60.0 + naive.second / 3600.0 + delta_days * 24.0
-    return max(0.0, min(24.0, hours))
 
 
 # ---------------------------------------------------------------------------

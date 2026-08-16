@@ -27,7 +27,7 @@ Valid values:
 
 - **Week-view**: `default`, `agenda`, `terminal`, `minimalist`, `old_fashioned`, `today`, `fantasy`
 - **Full-screen focused**: `qotd`, `qotd_invert`, `weather`, `fuzzyclock`, `fuzzyclock_invert`, `moonphase`, `moonphase_invert`, `moonphase_photo`, `photo`
-- **Specialized**: `air_quality`, `almanac`, `astronomy`, `constellation_map`, `halftone`, `timeline`, `trends`, `year_pulse`, `monthly`, `sunrise`, `light_cycle`, `scorecard`, `tides`
+- **Specialized**: `air_quality`, `almanac`, `astronomy`, `constellation_map`, `day_arc`, `halftone`, `halftone_agenda`, `timeline`, `trends`, `year_pulse`, `monthly`, `sunrise`, `light_cycle`, `scorecard`, `tides`
 - **Dithered art**: `postcard`, `naturalist`
 - **Utility**: `countdown`, `message`, `diags`
 - **Rotation**: `random_daily` (alias `random`), `random_hourly`
@@ -181,7 +181,9 @@ Rules that reference weather or calendar data silently skip on the first boot (n
 |---|---|---|
 | `air_quality` | indoor/outdoor AQI dashboard | PurpleAir-first full-screen layout |
 | `almanac` | editorial daily reference | Old-Farmer's-Almanac front page: ornamental masthead with Roman-numeral volume, big editorial dateline, four bordered sections in a 2×2 grid (Heavens, From the Sky, Week Ahead, Next in the Garden), and a footer aphorism with author in small caps. Combines weather, astronomy, moon, calendar, birthdays, and quote — no new fetcher. |
+| `day_arc` | today's calendar, front and centre | Calendar-forward sibling of `halftone`. A dithered ribbon draws today as a left-to-right arc keyed to real sunrise/sunset, with the sun (or moon, after dark) at the current time's true position; the ribbon's baseline is a time axis carrying hour ticks, a NOW caret and one pip per event. Below it, a full-height agenda where dithering means something — elapsed events are Bayer-screened, the event in progress is inverted, upcoming ones are crisp — plus a rail with temperature, conditions and birthdays. Adapts after dark and rolls over to tomorrow once the day is spent. Pure-Python — no external assets. |
 | `halftone` | contemplative weather plate | Procedurally-drawn dithered weather illustration (sun, clouds, rain stipple, thunderstorm, snow, fog, or moon-at-current-phase) as a hero engraving; below it a typeset margin band with the temperature numeral + feels-like caption, a NOW row (condition + H/L), a TODAY row (sunrise/sunset + date), and a NEXT row (soonest upcoming timed event). Floyd-Steinberg quantization turns the procedural greyscale gradients into engraving-style halftone. Pure-Python — no external assets. |
+| `halftone_agenda` | weather art beside the day's list | Split-plate variant of `halftone`: the engraving and the weather read-out take the left 372 px, a full-height ordered-Bayer rule divides the plate, and the right pane is given entirely to today's events. The agenda is a plain list — every row set identically, no state encoded in the rendering — and rolls over to tomorrow after dark once the day is spent. Pure-Python — no external assets. |
 | `trends` | long-context dashboard | Five stacked sparkline rows: 24h temp, AQI scale, 7-day daylight, 14-day event density, 30-day moon. Bayer-filled area under each curve gives a clean halftone density read on eInk. First chart/graph theme; ordered-Bayer quantization preserves the regular dot pattern. |
 | `astronomy` | sky-tonight dashboard | Sunrise/sunset, civil/nautical/astronomical twilight, moon phase + next full/new, next meteor shower, dark-sky window. Uses `weather.latitude` / `weather.longitude` for twilight math (falls back gracefully without them). Pure-Python — no API calls. |
 | `constellation_map` | tonight's actual sky | Dark-canvas star chart projected for the user's location and the current moment. Renders ~45 named bright stars, seven recognisable northern constellations connected by lines, and the moon at its current alt/az. During daylight the chart auto-projects for tonight's solar midnight so it stays informative. Requires `weather.latitude` / `weather.longitude`; pure-Python sky math (no API). |
@@ -262,6 +264,18 @@ Procedurally-drawn dithered weather plate evoking a 19th-century natural-history
 
 [![Halftone theme — Waveshare/Inky split](../assets/previews/theme_halftone_split.png)](../assets/previews/theme_halftone_split.png)
 
+#### halftone_agenda
+
+The split-plate variant of [`halftone`](#halftone): where `halftone` gives the whole width to the engraving and reduces the calendar to a single NEXT line, and [`day_arc`](#day_arc) turns the artwork itself into a time axis, this one cuts the plate down the middle — art and weather on the left, the day's events on the right.
+
+The **left pane** (372 px) carries the same procedural illustration, chosen from the current OWM icon code and recomposed for a narrower, nearly-square plate: the placements are mapped onto the pane while element sizes scale separately, so a partly-cloudy sun and its cloud stay a composed pair instead of collapsing into each other. A 6-px ordered-Bayer rule separates it from a typeset band holding the temperature numeral, the condition (wrapped to a second line rather than truncated) with high and low beside it, then a hairline rule, sunrise and sunset, and the date with the feels-like reading against the right margin. The numeral and the condition beside it are set as large as the band allows — the ceiling is the point where the widest OWM phrase would need a third line.
+
+A full-height vertical Bayer rule divides the panes. The **right pane** (422 px) is the calendar at the size a dedicated column allows: a TODAY header with the event count, then as many rows as fit at a legible size — five density tiers from two roomy rows with locations down to eleven dense ones, with `+N more` beyond that. Every row is set identically and carries its event's start and end time, the end stacked under the start (`12:30p –` / `2p`) so the cell is never wider than a single label. Only the densest tier, whose rows are too short for a second line, shows the start alone — as do all-day events and any event running past midnight. Unlike [`day_arc`](#day_arc), this pane encodes no state in the rendering: the inverted "now" bar, the Bayer-screened elapsed rows and the next-up accent were all removed, because each needs a large or dithered area of ink to survive the panel and none does under partial refresh, where Waveshare's fast waveform leaves a filled bar reading as charcoal. After sunset, once every timed event has ended, the pane rolls over to tomorrow behind a plain `TOMORROW` dateline — the same two-part condition `day_arc` uses. An "updated" caption closes the bottom corner.
+
+Typography follows the split: Righteous for the weather pane and the agenda's chrome, DM Sans for the event rows — a weight heavier than the role each element fills, since at these sizes DM Sans lays down noticeably less ink than Righteous and the calendar side otherwise reads grey beside the weather side. On Inky, yellow rings the sun and moon; the calendar side is monochrome. Pure-Python, no external assets.
+
+[![Halftone agenda theme — Waveshare/Inky split](../assets/previews/theme_halftone_agenda_split.png)](../assets/previews/theme_halftone_agenda_split.png)
+
 #### trends
 
 Stacked sparkline dashboard — the first chart/graph theme. A 32-px masthead carries today's date and current time; below it five evenly-stacked rows each visualise a different time series: **TEMP — 24h** (current observation + interpolated forecast across ±12 h), **AIR** (current AQI on a 6-zone health scale with progressive Bayer density per zone), **DAYLIGHT — 7d** (daily day-length for the next week, computed in-process via `src.astronomy`), **EVENTS — 14d** (per-day event count bars), and **MOON — 30d** (illumination curve through one synodic month, with the current phase glyph stamped at right). Each chart sits on a Bayer-filled area whose ordered dot pattern survives the eInk quantize step. Every row degrades gracefully when its data source is missing (no weather, no PurpleAir sensor, no lat/lon). On Inky the series render in blue with a yellow today-marker.
@@ -273,6 +287,20 @@ Stacked sparkline dashboard — the first chart/graph theme. A 32-px masthead ca
 Single-day agenda with a large date panel and roomy event list.
 
 [![Today theme — Waveshare/Inky split](../assets/previews/theme_today_split.png)](../assets/previews/theme_today_split.png)
+
+#### day_arc
+
+The calendar-forward sibling of [`halftone`](#halftone) — same engraving language, but the artwork *is* the calendar instead of competing with it.
+
+The top 160 px is a **day ribbon**: a horizontal sky gradient keyed to the real sunrise and sunset (computed from `weather.latitude` / `weather.longitude`, falling back to the OWM-reported times, then to a fixed 05:00–23:00 window), with the sun — or the moon at its true phase, after dark — riding a sine arc at the current time's actual horizontal position. Weather art is drawn around it from the OWM icon code, reusing halftone's cloud, rain, snow, lightning and fog primitives. Beneath it a 40-px **time axis** carries a daylight bar, hour ticks, a NOW caret, one pip per timed event and the hour labels — each on its own row band, so no combination of clock time and event times can make two of them collide. The axis is piecewise-linear: the daylight core always gets 78% of the width, so a midwinter day still reads as a day, while the compressed night margins keep a 21:00 dinner at a truthful position.
+
+Below a 6-px ordered-Bayer rule, the remaining 274 px belong to the day. A full-height **agenda** fills the left, and dithering carries meaning rather than decoration: elapsed events are perforated on a Bayer lattice so they read as spent from across the room, the event happening right now is inverted into a solid bar, and everything still to come is crisp. The type size adapts to how full the day is (three roomy rows up to seven dense ones, with `+N more` beyond that). A narrow **rail** on the right carries the temperature numeral, feels-like, conditions, H/L and upcoming birthdays; the footer shows sunrise, sunset and the render time.
+
+After sunset the ribbon dims — the arc survives at reduced contrast rather than flattening — and a star field spreads across it. Once every one of today's timed events has ended, the agenda rolls over to tomorrow behind an inverted `TOMORROW` chip. Both conditions are required: the ribbon always depicts *now*, the agenda depicts what is next. Gating the rollover on sunset as well as on the last event keeps a one-meeting day from flipping to tomorrow at 10:30 in the morning.
+
+Typography is split by role. Righteous — halftone's single display voice — carries the chrome, while DM Sans sets the agenda rows, since this theme puts far more small text on the plate than halftone does. On Inky, yellow marks the sun, the moon's limb and the daylight bar; red marks the NOW caret, the in-progress event and the birthday bullets. Pure-Python, no external assets.
+
+[![Day arc theme — Waveshare/Inky split](../assets/previews/theme_day_arc_split.png)](../assets/previews/theme_day_arc_split.png)
 
 #### fantasy
 
@@ -478,13 +506,13 @@ Bundled font families used by the current built-in themes:
 | Font | Used by |
 |---|---|
 | Plus Jakarta Sans | default and general fallback |
-| DM Sans | `agenda`, `minimalist`, `weather`, `fuzzyclock`, `timeline`, `diags`, `monthly`, `countdown`, `astronomy`, `light_cycle`, `constellation_map` (margin), `trends` |
+| DM Sans | `agenda`, `minimalist`, `weather`, `fuzzyclock`, `timeline`, `diags`, `monthly`, `countdown`, `astronomy`, `light_cycle`, `constellation_map` (margin), `trends`, `day_arc` (agenda rows), `halftone_agenda` (agenda rows) |
 | Playfair Display | `old_fashioned`, `qotd`, `almanac`, `postcard`, `naturalist` |
 | Cinzel | `fantasy`, `old_fashioned`, `almanac` (section labels + small caps), `postcard` (section labels + author small caps), `naturalist` (specimen name + author small caps) |
 | Cormorant Garamond | `moonphase` (body, illumination, strips, quote) |
 | Tangerine | `moonphase` (script quote attribution) |
 | Manufacturing Consent | `moonphase` (Fraktur phase-name headline) |
-| Righteous | `light_cycle` (centre date numeral), `halftone` (every typeset element) |
+| Righteous | `light_cycle` (centre date numeral), `halftone` (every typeset element), `day_arc` (chrome), `halftone_agenda` (weather pane + agenda chrome) |
 | Audiowide | `constellation_map` (cardinal letters, star + constellation labels) |
 | Astloch | `almanac` (masthead + dateline character font), `naturalist` (masthead character font) |
 | NuCore Condensed | `sunrise`, `tides` (high-contrast display numerals) |

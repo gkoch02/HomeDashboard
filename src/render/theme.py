@@ -159,6 +159,14 @@ class ThemeLayout:
     halftone: ComponentRegion = field(
         default_factory=lambda: ComponentRegion(0, 0, 800, 480, visible=False)
     )
+    # Used by the ``day_arc`` theme for the day-ribbon + promoted agenda plate.
+    day_arc: ComponentRegion = field(
+        default_factory=lambda: ComponentRegion(0, 0, 800, 480, visible=False)
+    )
+    # Used by the ``halftone_agenda`` theme for the split art / agenda plate.
+    halftone_agenda: ComponentRegion = field(
+        default_factory=lambda: ComponentRegion(0, 0, 800, 480, visible=False)
+    )
     # Used by the ``trends`` theme for the stacked sparkline dashboard.
     trends: ComponentRegion = field(
         default_factory=lambda: ComponentRegion(0, 0, 800, 480, visible=False)
