@@ -13,23 +13,30 @@ nearly-square pane, with a typeset band beneath it holding the temperature
 numeral, condition, high/low, sunrise, sunset, date and feels-like reading.
 
 The right pane is the calendar, at the size a dedicated column allows: as many
-of today's events as fit at a legible type size, with the dithering carrying
-state — elapsed events perforated, the event in progress inverted, upcoming
-ones crisp — and an "updated" caption in the bottom corner.
+of today's events as fit at a legible type size, every row set identically,
+and an "updated" caption in the bottom corner. It carries no state treatment —
+see the panel module for why the inverted "now" bar and the screened elapsed
+rows were taken out.
 
 Typography follows the split. Righteous, halftone's single display voice,
 carries the weather pane and the agenda's chrome; DM Sans sets the event rows,
 which are small enough and numerous enough to want the screen-optimised cut
 (the same division ``day_arc`` makes, for the same reason).
 
+The agenda's DM Sans runs a weight heavier than the roles it fills — bold for
+titles, semibold for times, medium for locations and the footer. Weight, not
+size, is what makes ink read as black on an eInk panel: at 22 px Righteous
+sets ~4.4 px stems while DM Sans SemiBold sets ~3.7 px, so matching the roles
+one-for-one left the calendar side visibly greyer than the weather side.
+
 On Inky the canvas is RGB (``prefer_color_on_inky=True``): yellow rings the
-sun and moon, red fills the in-progress event bar. Everything else stays black
-on paper so the engraving still reads as one.
+sun and moon. The calendar side is entirely black on paper — the red accent
+went with the state treatments — so the engraving still reads as one.
 """
 
 from __future__ import annotations
 
-from src.render.fonts import dm_medium, dm_regular, dm_semibold, righteous
+from src.render.fonts import dm_bold, dm_medium, dm_regular, dm_semibold, righteous
 from src.render.theme import (
     INKY_RED,
     INKY_YELLOW,
@@ -73,7 +80,12 @@ def halftone_agenda_theme() -> Theme:
             font_regular=dm_regular,
             font_medium=dm_medium,
             font_semibold=dm_semibold,
-            font_bold=righteous,
+            # DM Sans Bold, not Righteous: the display face is reached through
+            # font_title / font_section_label / font_date_number, which leaves
+            # the bold role free for the agenda's heaviest rows. Righteous sets
+            # ~4.4 px stems at 22 px and DM Sans Bold ~4.4 px at the same size,
+            # so the two panes carry the same weight of ink on the panel.
+            font_bold=dm_bold,
             font_title=righteous,
             font_section_label=righteous,
             font_date_number=righteous,

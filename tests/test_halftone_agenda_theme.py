@@ -13,8 +13,6 @@ from src.dummy_data import generate_dummy_data
 from src.render.canvas import render_dashboard
 from src.render.components.halftone_agenda_panel import (
     _DENSITY_TIERS,
-    _PAST_SCREEN_DENSE,
-    _PAST_SCREEN_DISPLAY,
     AGENDA_PAD_X,
     AGENDA_X,
     ART_W,
@@ -30,7 +28,6 @@ from src.render.components.halftone_agenda_panel import (
     _sun_times,
     agenda_metrics,
     draw_halftone_agenda,
-    past_screen,
 )
 from src.render.quantize import INKY_SPECTRA6_PALETTE, flatten_pixels
 from src.render.skyart import (
@@ -403,12 +400,20 @@ class TestRenderInkyPath:
         assert img.mode == "RGB"
         assert img.size == (800, 480)
 
-    def test_uses_the_registered_palette(self):
-        # Yellow rings the sun; red fills the in-progress event bar.
+    def test_yellow_rings_the_sun(self):
         data = _data_for(events=[_event(10, minute=0, mins=120, name="All hands")])
         pixels = set(flatten_pixels(self._inky(data=data)))
         assert INKY_SPECTRA6_PALETTE[INKY_YELLOW] in pixels
-        assert INKY_SPECTRA6_PALETTE[INKY_RED] in pixels
+
+    def test_the_calendar_side_carries_no_colour(self):
+        # The colour story lives entirely in the art pane now: dropping the
+        # state treatments took the only red mark off the agenda with them.
+        # The Inky backend defers palette mapping to the device, so the pane
+        # still holds greys here — what matters is that none of them is a hue.
+        data = _data_for(events=[_event(10, minute=0, mins=120, name="All hands")])
+        pane = self._inky(data=data).crop((AGENDA_X + DIVIDER_W, 0, 800, 480))
+        hues = {p for p in flatten_pixels(pane) if len(set(p)) > 1}
+        assert not hues, f"unexpected colour on the calendar side: {sorted(hues)[:4]}"
 
     def test_night_path_renders(self):
         night = datetime(2026, 4, 6, 22, 30)
@@ -448,34 +453,63 @@ class TestPaneSeparation:
 
 
 class TestAgendaRowTreatment:
-    """Row spacing, elapsed-row screening and the overflow line.
+    """The pane is a plain list: no state is encoded in the rendering.
 
-    A screened region can never contain a solid 2×2 block of ink — the Bayer
-    lattice has no such run at any cut this panel uses (the test below pins
-    that) — so the presence of one is a reliable "drawn in plain ink" signal.
+    It used to invert the in-progress event into a solid bar, perforate
+    elapsed rows on a Bayer lattice and accent the next one up. All three
+    depended on large or dithered areas of ink surviving the panel, which they
+    do not under partial refresh — Waveshare's fast waveform leaves a filled
+    bar reading as charcoal and a screened row as mud.
     """
 
-    def _solid_2x2_blocks(self, img, box) -> int:
+    def _agenda(self, img):
+        return img.convert("L").crop((AGENDA_X, 0, 800, 480 - FOOTER_H))
+
+    def test_rows_do_not_change_with_the_clock(self):
+        # The same day rendered before and after an event has passed must
+        # produce identical pixels in the agenda pane.
+        events = [_event(9, name="Standup"), _event(15, name="Retro")]
+        morning = _render(data=_data_for(events=events, now=MIDNIGHT.replace(hour=8)))
+        midday = _render(data=_data_for(events=events, now=MIDNIGHT.replace(hour=12)))
+        assert self._agenda(morning).tobytes() == self._agenda(midday).tobytes()
+
+    def test_no_filled_blocks_in_the_pane(self):
+        # No inverted bar, no inverted TOMORROW chip. Width alone doesn't say
+        # it — the header's Bayer rule spans the pane — so this looks for a
+        # *band*: several consecutive rows that are each broadly inked. The
+        # rule is 3 px tall; the bar this replaces was 30-60.
+        events = [_event(7 + i, name=f"Event {i}") for i in range(6)]
+        img = _render(data=_data_for(events=events)).convert("L")
         px = img.load()
-        x0, y0, x1, y1 = box
-        return sum(
-            1
-            for y in range(y0, y1 - 1)
-            for x in range(x0, x1 - 1)
-            if px[x, y] == 0 and px[x + 1, y] == 0 and px[x, y + 1] == 0 and px[x + 1, y + 1] == 0
-        )
+        broad = []
+        for y in range(480):
+            run = longest = 0
+            for x in range(AGENDA_X + 2, 800):
+                run = run + 1 if px[x, y] == 0 else 0
+                longest = max(longest, run)
+            broad.append(longest >= 100)
+        streak = best = 0
+        for wide in broad:
+            streak = streak + 1 if wide else 0
+            best = max(best, streak)
+        assert best <= 4, f"{best} consecutive broadly-inked rows — that is a filled block"
 
-    def test_lattice_never_yields_a_solid_2x2_block(self):
-        from src.render.quantize import _BAYER_4X4
-
-        for cut in (_PAST_SCREEN_DISPLAY, _PAST_SCREEN_DENSE):
-            for y in range(4):
-                for x in range(4):
-                    assert not all(
-                        _BAYER_4X4[(y + dy) % 4][(x + dx) % 4] < cut
-                        for dy in (0, 1)
-                        for dx in (0, 1)
-                    ), f"cut {cut} has a solid 2x2 at {(y, x)}"
+    def test_elapsed_rows_are_not_screened(self):
+        # A screened row is a lattice of isolated pixels; solid type is not.
+        events = [_event(7, name="Long gone")]
+        img = _render(data=_data_for(events=events)).convert("L")
+        px = img.load()
+        iso = tot = 0
+        for y in range(80, 200):
+            for x in range(AGENDA_X + 20, 780):
+                if px[x, y] == 0:
+                    tot += 1
+                    if all(
+                        px[x + dx, y + dy] != 0 for dx, dy in ((-1, 0), (1, 0), (0, -1), (0, 1))
+                    ):
+                        iso += 1
+        assert tot > 100, "no row drawn"
+        assert iso / tot < 0.05, f"{100 * iso / tot:.0f}% isolated ink — row looks screened"
 
     def test_rows_are_top_justified(self):
         # A light day and a busy one must start their first row at the same y:
@@ -513,40 +547,60 @@ class TestAgendaRowTreatment:
             content = title_pt + (title_pt - 4 if show_loc else 0)
             assert row_h <= content + leading, (row_h, title_pt, show_loc)
 
-    def test_past_screen_keeps_more_ink_as_type_shrinks(self):
-        cuts = [past_screen(tier[4]) for tier in _DENSITY_TIERS]
-        assert cuts == sorted(cuts), f"cut must rise as type shrinks: {cuts}"
-        assert cuts[0] == _PAST_SCREEN_DISPLAY
-        assert cuts[-1] == _PAST_SCREEN_DENSE
 
-    def test_elapsed_rows_are_screened_and_the_overflow_line_is_not(self):
-        # "+N more" used to go through the same screen as a spent row, which
-        # made the one line saying the day continues the faintest mark on the
-        # plate. Every screening call must now belong to an elapsed row.
-        import src.render.components.halftone_agenda_panel as mod
+class TestAgendaWeight:
+    """The calendar side must lay down as much ink as the weather side.
 
-        events = [_event(6 + i, name=f"Event {i}") for i in range(14)]
-        calls: list[tuple[int, int, int, int]] = []
-        original = mod.screened_paste
+    Both panes are pure black on pure white by the time the panel sees them,
+    so "not black enough" is a question of stroke mass, not of tone: at 22 px
+    Righteous sets ~4.4 px stems and DM Sans SemiBold ~3.7 px, which reads as
+    grey text next to it. The agenda therefore runs one weight heavier than
+    the role each element fills.
+    """
 
-        def spy(image, box, render, **kwargs):
-            calls.append(box)
-            return original(image, box, render, **kwargs)
+    def _mean_stem(self, font, text="12:30p Grocery run") -> float:
+        from PIL import ImageDraw
 
-        mod.screened_paste = spy
-        try:
-            _render(data=_data_for(events=events))
-        finally:
-            mod.screened_paste = original
+        from src.render.skyart import TYPESET_CUT
 
-        elapsed_shown = sum(
-            1 for e in events[: len(calls)] if e.end.replace(tzinfo=None) <= FIXED_NOW
-        )
-        assert calls, "elapsed rows should still be screened"
-        assert len(calls) == elapsed_shown, (
-            f"{len(calls)} screened regions for {elapsed_shown} elapsed rows — "
-            "the overflow line should be drawn in plain ink"
-        )
+        tile = Image.new("L", (320, 34), 255)
+        ImageDraw.Draw(tile).text((2, 4), text, font=font, fill=0)
+        px = tile.point(lambda v: 0 if v < TYPESET_CUT else 255).load()
+        runs = total = 0
+        for y in range(34):
+            run = 0
+            for x in range(320):
+                if px[x, y] == 0:
+                    run += 1
+                else:
+                    if run:
+                        runs += 1
+                        total += run
+                    run = 0
+        return total / max(1, runs)
+
+    def test_bold_role_is_dm_sans_not_the_display_face(self):
+        # Righteous is reached through font_title / font_section_label /
+        # font_date_number, which frees the bold role for the agenda rows.
+        from src.render.fonts import dm_bold, righteous
+
+        style = load_theme("halftone_agenda").style
+        assert style.font_bold is dm_bold
+        assert style.font_title is righteous
+
+    def test_agenda_titles_match_the_weather_pane_for_stroke_mass(self):
+        from src.render.fonts import righteous
+
+        style = load_theme("halftone_agenda").style
+        target = self._mean_stem(righteous(22))
+        title = self._mean_stem(style.font_bold(22))
+        assert title >= target * 0.95, f"agenda {title:.2f}px vs weather {target:.2f}px"
+
+    def test_every_agenda_role_is_a_step_heavier(self):
+        style = load_theme("halftone_agenda").style
+        light = self._mean_stem(style.font_regular(17))
+        used = self._mean_stem(style.font_medium(17))  # what locations now use
+        assert used > light
 
 
 class TestTypesetHardening:
@@ -601,36 +655,6 @@ class TestTypesetHardening:
         # point of the theme is that the art keeps its greyscale gradient.
         canvas = self._pre_quantize(data=_data_for(icon="01d"))
         assert self._mid_greys(canvas, (0, 0, ART_W, 280)) > 1000
-
-    def test_inverted_bar_is_pure_ink_and_paper(self):
-        # The in-progress bar is the one solid field on the plate, and the one
-        # place FS damage would be most visible: a dithered accent reads as
-        # grey rather than black, and diffused error eats the white type.
-        events = [_event(10, minute=0, mins=120, name="All hands")]
-        canvas = self._pre_quantize(data=_data_for(events=events))
-        img = _render(data=_data_for(events=events)).convert("L")
-        px = img.load()
-        inked = [
-            y
-            for y in range(480)
-            if sum(1 for x in range(AGENDA_X + 30, 780) if px[x, y] == 0) > 300
-        ]
-        runs: list[list[int]] = []
-        for y in inked:
-            if runs and y == runs[-1][-1] + 1:
-                runs[-1].append(y)
-            else:
-                runs.append([y])
-        bar = next((r for r in runs if len(r) > 8), [])
-        assert bar, f"no inverted bar found (runs {[len(r) for r in runs]})"
-
-        # Rows clear of the type are unbroken ink — no white diffused in.
-        solid = [y for y in bar if all(px[x, y] == 0 for x in range(AGENDA_X + 30, 780))]
-        assert len(solid) >= 6, f"only {len(solid)} unbroken ink rows in the bar"
-
-        # And the whole band is ink or paper before quantization, so the
-        # backend has no intermediate value to dither into it.
-        assert self._mid_greys(canvas, (AGENDA_X, bar[0], 800, bar[-1] + 1)) == 0
 
 
 class TestHardenTypeset:

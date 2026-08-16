@@ -6,7 +6,35 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Changed
+
+- **`halftone_agenda`'s agenda pane no longer encodes event state.** The
+  inverted "now" bar, the Bayer-screened elapsed rows and the next-up accent
+  tick are gone; every row is set identically and the `TOMORROW` chip is plain
+  type. Each of those treatments needed a large or dithered area of ink to
+  survive the panel, and none of them does under partial refresh, where
+  Waveshare's fast waveform leaves a filled bar reading as charcoal rather
+  than ink. The pane is the day's list, and row rendering is now a pure
+  function of the event rather than of the clock.
+
 ### Fixed
+
+- **`config.example.yaml` no longer ships partial refresh enabled.** It set
+  `enable_partial_refresh: true`, contradicting both the code default and
+  `docs/configuration.md`, so anyone starting from the template drove the
+  panel with Waveshare's fast waveform on 19 of every 20 refreshes. That
+  waveform does not drive black as deeply as a full init, which reads as grey
+  blacks in large filled areas — an inverted event row, a header bar. Added an
+  FAQ entry for the symptom and a note at the driver branch that reaches it.
+
+- **`halftone_agenda`'s calendar side now carries the same weight of ink as
+  its weather side.** Both panes are pure black on pure white by the time the
+  panel sees them, so the calendar reading grey was stroke mass, not tone: at
+  22 px Righteous sets ~4.4 px stems while DM Sans SemiBold sets ~3.7 px. The
+  agenda now runs one weight heavier than the role each element fills — bold
+  titles, semibold times, medium locations and footer — and the theme's bold
+  role points at DM Sans Bold instead of Righteous, which was only ever
+  reached as a fallback.
 
 - **`halftone_agenda` agenda pane reads better on a panel.** Rows are
   top-justified under the rule at a pitch sized to their type, instead of a
