@@ -23,11 +23,14 @@ from src.render.components.halftone_agenda_panel import (
     RULE_H,
     SCENE_SCALE,
     _clock,
+    _draw_time_cell,
     _fmt_temp,
     _location_text,
     _sun_times,
     agenda_metrics,
+    compact_range,
     draw_halftone_agenda,
+    event_times,
 )
 from src.render.quantize import INKY_SPECTRA6_PALETTE, flatten_pixels
 from src.render.skyart import (
@@ -450,6 +453,82 @@ class TestPaneSeparation:
             for y in range(480 - FOOTER_H, 480)
         ]
         assert any(px[x, y] == 0 for x, y in footer_band)
+
+
+class TestEventTimes:
+    """Rows show when an event ends, not just when it starts."""
+
+    def test_compact_range_elides_a_shared_meridiem(self):
+        assert compact_range("12:30p", "2p") == "12:30–2p"
+        assert compact_range("8a", "8:45a") == "8–8:45a"
+
+    def test_compact_range_keeps_both_across_the_meridiem(self):
+        assert compact_range("11:30a", "1:15p") == "11:30a–1:15p"
+
+    def test_all_day_has_no_range(self):
+        event = _event(0, name="Conference", is_all_day=True)
+        assert event_times(event) == ("ALL DAY", None)
+
+    def test_timed_event_gives_both_ends(self):
+        start, end = event_times(_event(12, minute=30, mins=90))
+        assert (start, end) == ("12:30p", "2p")
+
+    def test_event_running_past_midnight_shows_only_its_start(self):
+        # A range that reads as ending before it starts is worse than no range.
+        event = _event(23, mins=120, name="Night shift")
+        assert event_times(event) == ("11p", None)
+
+    def test_zero_length_event_shows_only_its_start(self):
+        assert event_times(_event(9, mins=0))[1] is None
+
+    def test_every_tier_can_show_an_end_time(self):
+        """Each tier fits the widest range on one line, or can wrap it.
+
+        The worst case is a range that crosses the meridiem with minutes on
+        both sides. A tier that satisfies neither branch would silently drop
+        the end time for those events.
+        """
+        from PIL import ImageDraw
+
+        from src.render.fonts import dm_semibold
+
+        probe = ImageDraw.Draw(Image.new("L", (10, 10)))
+        worst = compact_range("11:30a", "1:15p")
+        for _rows, row_h, time_w, time_pt, _title_pt, _loc in _DENSITY_TIERS:
+            box = probe.textbbox((0, 0), worst, font=dm_semibold(time_pt))
+            one_line = (box[2] - box[0]) <= time_w - 4
+            end_pt = max(11, time_pt - 3)
+            two_line = time_pt + end_pt + 3 <= row_h - 8
+            assert one_line or two_line, (
+                f"tier {time_pt}pt/{row_h}px can neither fit nor wrap {worst!r}"
+            )
+
+    def test_time_cell_never_overflows_its_column(self):
+        # The column is what separates the time from the tick; ink past it
+        # would collide with the rule between the two.
+        from PIL import ImageDraw
+
+        style = load_theme("halftone_agenda").style
+        for _rows, row_h, time_w, time_pt, _title_pt, _loc in _DENSITY_TIERS:
+            tile = Image.new("L", (time_w + 60, row_h), 255)
+            draw = ImageDraw.Draw(tile)
+            _draw_time_cell(
+                draw,
+                "11:30a",
+                "1:15p",
+                style,
+                x0=0,
+                y=0,
+                time_w=time_w,
+                time_pt=time_pt,
+                row_h=row_h,
+                fill=0,
+            )
+            px = tile.load()
+            overflow = [
+                (x, y) for y in range(row_h) for x in range(time_w, time_w + 60) if px[x, y] == 0
+            ]
+            assert not overflow, f"tier {time_pt}pt spills past its {time_w}px column"
 
 
 class TestAgendaRowTreatment:

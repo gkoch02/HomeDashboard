@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added
+
+- **`halftone_agenda` rows show event end times.** Each row carries a range —
+  `12:30–2p`, eliding the shared meridiem so it fits the time column — and
+  falls back to a wrapped second line where the column is too narrow, or to
+  the start alone for an all-day event or one running past midnight. The two
+  densest tiers got wider time columns instead of wrapping, since their rows
+  are too short for a second line and their titles have width to spare.
+
 ### Changed
 
 - **`halftone_agenda`'s agenda pane no longer encodes event state.** The

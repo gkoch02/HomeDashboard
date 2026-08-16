@@ -13,8 +13,8 @@ nearly-square pane, with a typeset band beneath it holding the temperature
 numeral, condition, high/low, sunrise, sunset, date and feels-like reading.
 
 The right pane is the calendar, at the size a dedicated column allows: as many
-of today's events as fit at a legible type size, every row set identically,
-and an "updated" caption in the bottom corner. It carries no state treatment —
+of today's events as fit at a legible type size, every row set identically
+and carrying its start and end time, and an "updated" caption in the bottom corner. It carries no state treatment —
 see the panel module for why the inverted "now" bar and the screened elapsed
 rows were taken out.
 
