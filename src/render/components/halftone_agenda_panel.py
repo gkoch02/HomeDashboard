@@ -104,9 +104,19 @@ _DATE_ROW_H = 32
 # Fixed reservation for the temperature numeral, so the condition column keeps
 # its width whether the reading is "8°" or "108°". Same trick as halftone's
 # TEMP_COL_W, at this pane's smaller display size.
-TEMP_PT = 64
-TEMP_COL_W = 158
+#
+# The sizes below are the largest the band will take. 78 pt sets "108°" at
+# 153 px, which leaves the condition column 165 px — just enough for the widest
+# OWM phrase ("heavy intensity rain") to wrap the way it does now, as
+# "HEAVY INTENSITY / RAIN". At 82 pt it breaks as "HEAVY / INTENSITY RAIN" and
+# at 86 pt it needs three lines, which overruns the zone. The column reserves
+# 8 px past the numeral so a 3-digit reading never crowds the stack.
+TEMP_PT = 78
+TEMP_COL_W = 161
 TEMP_COL_GAP = 10
+# Condition and high/low, sized to match the numeral they sit beside.
+COND_PT = 19
+HIGH_LOW_PT = 21
 
 # Density tiers for the agenda column: (max_rows, row_h, time_w, time_pt,
 # title_pt, show_location). Tuned for this pane — 382 px of content width and
@@ -339,13 +349,20 @@ def _draw_weather_band(
     # rain") are exactly the ones worth reading in full.
     stack_x = left + TEMP_COL_W + TEMP_COL_GAP
     stack_w = max(20, right - stack_x)
-    cond_font = (style.font_section_label or style.font_bold)(16)
-    hl_font = style.font_semibold(18)
+    cond_font = (style.font_section_label or style.font_bold)(COND_PT)
+    hl_font = style.font_semibold(HIGH_LOW_PT)
 
     lines: list[tuple[str, ImageFont.FreeTypeFont]] = []
     if weather is not None:
         if weather.current_description:
-            for line in wrap_lines(weather.current_description.upper(), cond_font, stack_w)[:2]:
+            wrapped = wrap_lines(weather.current_description.upper(), cond_font, stack_w)
+            if len(wrapped) > 2:
+                # Fold the overflow into the second line rather than dropping
+                # it: draw_text_truncated then ellipsizes, so a phrase like
+                # "thunderstorm with light drizzle" reads as cut off instead of
+                # as a complete but wrong "THUNDERSTORM WITH LIGHT".
+                wrapped = [wrapped[0], " ".join(wrapped[1:])]
+            for line in wrapped:
                 lines.append((line, cond_font))
         lines.append((f"H {_fmt_temp(weather.high)}  ·  L {_fmt_temp(weather.low)}", hl_font))
     else:

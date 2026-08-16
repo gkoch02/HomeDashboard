@@ -17,11 +17,15 @@ from src.render.components.halftone_agenda_panel import (
     AGENDA_X,
     ART_W,
     BAND_Y,
+    COND_PT,
     DIVIDER_W,
     FOOTER_H,
     HERO_H,
+    HIGH_LOW_PT,
     RULE_H,
     SCENE_SCALE,
+    TEMP_COL_W,
+    TEMP_PT,
     _clock,
     _draw_time_cell,
     _fmt_temp,
@@ -453,6 +457,59 @@ class TestPaneSeparation:
             for y in range(480 - FOOTER_H, 480)
         ]
         assert any(px[x, y] == 0 for x, y in footer_band)
+
+
+class TestWeatherBandType:
+    """The band's display type is sized to the room it actually has."""
+
+    def _probe(self):
+        from PIL import ImageDraw
+
+        return ImageDraw.Draw(Image.new("L", (10, 10)))
+
+    def test_three_digit_temperature_fits_its_column(self):
+        # The column is a fixed reservation so the condition stack keeps its
+        # width whatever the reading is; a numeral wider than it would push
+        # into that stack.
+        style = load_theme("halftone_agenda").style
+        box = self._probe().textbbox((0, 0), "108°", font=style.font_title(TEMP_PT))
+        assert box[2] - box[0] <= TEMP_COL_W
+
+    def test_widest_condition_still_wraps_to_two_lines(self):
+        # 19 pt is the largest size at which the widest OWM phrase breaks as
+        # "HEAVY INTENSITY / RAIN"; past it the band needs a third line.
+        from src.render.components.halftone_agenda_panel import ART_PAD_X, TEMP_COL_GAP
+        from src.render.primitives import wrap_lines
+
+        style = load_theme("halftone_agenda").style
+        stack_w = (ART_W - ART_PAD_X) - (ART_PAD_X + TEMP_COL_W + TEMP_COL_GAP)
+        wrapped = wrap_lines("HEAVY INTENSITY RAIN", style.font_section_label(COND_PT), stack_w)
+        assert len(wrapped) <= 2, wrapped
+
+    def test_high_low_fits_beside_the_numeral(self):
+        from src.render.components.halftone_agenda_panel import ART_PAD_X, TEMP_COL_GAP
+
+        style = load_theme("halftone_agenda").style
+        stack_w = (ART_W - ART_PAD_X) - (ART_PAD_X + TEMP_COL_W + TEMP_COL_GAP)
+        box = self._probe().textbbox(
+            (0, 0), "H 108° · L 100°", font=style.font_semibold(HIGH_LOW_PT)
+        )
+        assert box[2] - box[0] <= stack_w
+
+    def test_overlong_condition_is_ellipsized_not_silently_cut(self):
+        # "thunderstorm with light drizzle" wraps to three lines; folding the
+        # overflow into line two lets it ellipsize, so it reads as cut off
+        # rather than as a complete but wrong "THUNDERSTORM WITH LIGHT".
+        data = _data_for()
+        assert data.weather is not None
+        data.weather.current_description = "thunderstorm with light drizzle"
+        band = _render(data=data).convert("L").crop((0, BAND_Y, ART_W, 480))
+        with_long = _ink_count(band)
+        data.weather.current_description = "thunderstorm with light"
+        band = _render(data=data).convert("L").crop((0, BAND_Y, ART_W, 480))
+        # The ellipsized version must differ from the phrase it would otherwise
+        # be mistaken for.
+        assert with_long != _ink_count(band)
 
 
 class TestEventTimes:

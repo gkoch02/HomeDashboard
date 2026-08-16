@@ -8,6 +8,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
+- **`halftone_agenda`'s weather band reads larger.** The temperature numeral
+  goes 64 → 78 pt with the condition and high/low sized to match (16 → 19 and
+  18 → 21). The column reservation was over-sized for the numeral it held, so
+  most of this came free; 78 pt is the ceiling at which the widest OWM phrase
+  still wraps to two lines.
+- A condition too long for two lines now ellipsizes instead of dropping its
+  tail, so `thunderstorm with light drizzle` no longer renders as a
+  complete-looking `THUNDERSTORM WITH LIGHT`.
+
 - **`halftone_agenda` rows show event end times.** Each row carries a range —
   `12:30–2p`, eliding the shared meridiem so it fits the time column — and
   falls back to a wrapped second line where the column is too narrow, or to
