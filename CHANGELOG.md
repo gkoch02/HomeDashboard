@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Changed
+
+- **`halftone_agenda`'s agenda pane no longer encodes event state.** The
+  inverted "now" bar, the Bayer-screened elapsed rows and the next-up accent
+  tick are gone; every row is set identically and the `TOMORROW` chip is plain
+  type. Each of those treatments needed a large or dithered area of ink to
+  survive the panel, and none of them does under partial refresh, where
+  Waveshare's fast waveform leaves a filled bar reading as charcoal rather
+  than ink. The pane is the day's list, and row rendering is now a pure
+  function of the event rather than of the clock.
+
 ### Fixed
 
 - **`config.example.yaml` no longer ships partial refresh enabled.** It set

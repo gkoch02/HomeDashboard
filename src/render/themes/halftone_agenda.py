@@ -13,9 +13,10 @@ nearly-square pane, with a typeset band beneath it holding the temperature
 numeral, condition, high/low, sunrise, sunset, date and feels-like reading.
 
 The right pane is the calendar, at the size a dedicated column allows: as many
-of today's events as fit at a legible type size, with the dithering carrying
-state — elapsed events perforated, the event in progress inverted, upcoming
-ones crisp — and an "updated" caption in the bottom corner.
+of today's events as fit at a legible type size, every row set identically,
+and an "updated" caption in the bottom corner. It carries no state treatment —
+see the panel module for why the inverted "now" bar and the screened elapsed
+rows were taken out.
 
 Typography follows the split. Righteous, halftone's single display voice,
 carries the weather pane and the agenda's chrome; DM Sans sets the event rows,
@@ -29,8 +30,8 @@ sets ~4.4 px stems while DM Sans SemiBold sets ~3.7 px, so matching the roles
 one-for-one left the calendar side visibly greyer than the weather side.
 
 On Inky the canvas is RGB (``prefer_color_on_inky=True``): yellow rings the
-sun and moon, red fills the in-progress event bar. Everything else stays black
-on paper so the engraving still reads as one.
+sun and moon. The calendar side is entirely black on paper — the red accent
+went with the state treatments — so the engraving still reads as one.
 """
 
 from __future__ import annotations
