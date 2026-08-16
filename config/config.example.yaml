@@ -11,7 +11,14 @@ display:
   # width/height are derived automatically from `model`. Override here only if needed.
   # width: 800
   # height: 480
-  enable_partial_refresh: true
+  # Partial refresh drives the panel with Waveshare's fast waveform
+  # (`epd.init_fast()`), which is quicker but does not drive black as deeply —
+  # large filled areas come out closer to charcoal than to ink, and ghosting
+  # accumulates. The dashboard renders on a timer, so the seconds saved rarely
+  # matter; leave this off unless you specifically want the faster update.
+  enable_partial_refresh: false
+  # When partial refresh is on, force a full-waveform refresh after this many
+  # partials. Lower it if blacks start looking washed out between full ones.
   max_partials_before_full: 20
   week_days: 7
   show_weather: true

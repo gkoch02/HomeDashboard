@@ -206,6 +206,10 @@ class WaveshareDisplay(DisplayDriver):
                 epd.display(epd.getbuffer(image))
                 tracker.record_full()
             else:
+                # Fast waveform: quicker, but it does not drive black as
+                # deeply as a full init, so solid fills read closer to
+                # charcoal than to ink and ghosting accumulates. Reached only
+                # when the user opts into partial refresh.
                 epd.init_fast()
                 epd.display(epd.getbuffer(image))
                 tracker.record_partial()

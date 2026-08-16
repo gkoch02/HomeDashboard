@@ -23,7 +23,9 @@ display:
   model: "epd7in5_V2"             # provider-specific model name
   # width: 800                    # override auto-derived width
   # height: 480                   # override auto-derived height
-  enable_partial_refresh: false    # Waveshare only; ignored/not supported on Inky
+  enable_partial_refresh: false    # Waveshare only; ignored/not supported on Inky.
+                                  # On: uses the fast waveform, which is quicker but
+                                  # does not drive black as deeply (see the FAQ).
   max_partials_before_full: 20    # partial refreshes before forcing a full one
   week_days: 7                    # number of days in the week view
   show_weather: true

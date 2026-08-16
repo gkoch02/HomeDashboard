@@ -21,6 +21,7 @@ from src.render.themes import fantasy as _fantasy  # noqa: F401
 from src.render.themes import fuzzyclock as _fuzzyclock  # noqa: F401
 from src.render.themes import fuzzyclock_invert as _fuzzyclock_invert  # noqa: F401
 from src.render.themes import halftone as _halftone  # noqa: F401
+from src.render.themes import halftone_agenda as _halftone_agenda  # noqa: F401
 from src.render.themes import light_cycle as _light_cycle  # noqa: F401
 from src.render.themes import message as _message  # noqa: F401
 from src.render.themes import minimalist as _minimalist  # noqa: F401

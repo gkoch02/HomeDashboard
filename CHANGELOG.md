@@ -8,6 +8,90 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
+- **`halftone_agenda`'s weather band reads larger.** The temperature numeral
+  goes 64 → 78 pt with the condition and high/low sized to match (16 → 19 and
+  18 → 21). The column reservation was over-sized for the numeral it held, so
+  most of this came free; 78 pt is the ceiling at which the widest OWM phrase
+  still wraps to two lines.
+- A condition too long for two lines now ellipsizes instead of dropping its
+  tail, so `thunderstorm with light drizzle` no longer renders as a
+  complete-looking `THUNDERSTORM WITH LIGHT`.
+
+- **`halftone_agenda` rows show event end times**, stacked under the start
+  (`12:30p –` / `2p`). Stacking keeps the treatment uniform: an inline range's
+  width depends on the times themselves, so at one density some rows would
+  show an end time and their neighbours wouldn't. The stacked cell is never
+  wider than a single label, so the time columns stay narrow and the question
+  is only vertical — every tier but the densest has room, and that one shows
+  the start alone, as do all-day events and any event running past midnight.
+
+### Changed
+
+- **`halftone_agenda`'s agenda pane no longer encodes event state.** The
+  inverted "now" bar, the Bayer-screened elapsed rows and the next-up accent
+  tick are gone; every row is set identically and the `TOMORROW` chip is plain
+  type. Each of those treatments needed a large or dithered area of ink to
+  survive the panel, and none of them does under partial refresh, where
+  Waveshare's fast waveform leaves a filled bar reading as charcoal rather
+  than ink. The pane is the day's list, and row rendering is now a pure
+  function of the event rather than of the clock.
+
+### Fixed
+
+- **`config.example.yaml` no longer ships partial refresh enabled.** It set
+  `enable_partial_refresh: true`, contradicting both the code default and
+  `docs/configuration.md`, so anyone starting from the template drove the
+  panel with Waveshare's fast waveform on 19 of every 20 refreshes. That
+  waveform does not drive black as deeply as a full init, which reads as grey
+  blacks in large filled areas — an inverted event row, a header bar. Added an
+  FAQ entry for the symptom and a note at the driver branch that reaches it.
+
+- **`halftone_agenda`'s calendar side now carries the same weight of ink as
+  its weather side.** Both panes are pure black on pure white by the time the
+  panel sees them, so the calendar reading grey was stroke mass, not tone: at
+  22 px Righteous sets ~4.4 px stems while DM Sans SemiBold sets ~3.7 px. The
+  agenda now runs one weight heavier than the role each element fills — bold
+  titles, semibold times, medium locations and footer — and the theme's bold
+  role points at DM Sans Bold instead of Righteous, which was only ever
+  reached as a fallback.
+
+- **`halftone_agenda` agenda pane reads better on a panel.** Rows are
+  top-justified under the rule at a pitch sized to their type, instead of a
+  stretch-to-fill pitch that left a two-event day floating mid-pane; the
+  elapsed-row Bayer cut now rises as the type shrinks (a single cut left the
+  17 px type of a packed day as a row of dots); and `+N more` is drawn in
+  plain ink rather than screened, since it sits alone under the last row and
+  is the one mark saying the day continues past what is shown.
+
+- **`halftone_agenda` type is no longer chewed by the dither.** PIL antialiases
+  TrueType glyphs on an `"L"` canvas, and the theme's Floyd-Steinberg pass then
+  diffused that edge error across glyph boundaries — stems came off the panel
+  serrated and doubled letters lost notches. The two typeset regions are now
+  snapped to pure ink or paper (`skyart.harden_typeset`) before the backend
+  quantizes, which is the same footing a `"1"`-mode theme starts from, while
+  the illustration is left to dither as before.
+
+### Added
+
+- **`halftone_agenda` theme** — a split-plate variant of `halftone` following
+  the layout sketch: the procedural weather engraving and the weather
+  read-out take the left 372 px, a full-height ordered-Bayer rule divides the
+  plate, and the right 422 px are given entirely to today's events. The
+  agenda reuses `day_arc`'s state dithering (elapsed events Bayer-screened,
+  the event in progress inverted, upcoming ones crisp), marks the next timed
+  event still ahead with an accent tick, and rolls over to tomorrow after
+  dark once the day is spent. Pure-Python — no external assets. Joins
+  `day_arc` in `THEMES_NEEDING_TOMORROW` so the rolled-over agenda has
+  Monday's events on a Sunday evening.
+- `skyart.draw_weather_scene()` — the icon→illustration dispatch lifted out
+  of `halftone_panel` so both halftone themes compose the same scene.
+  Placements map onto whatever rect is handed in and element sizes come from
+  a `scale` argument, so the composition survives a half-width plate; the
+  nominal rect at `scale=1.0` reproduces halftone's placement pixel for
+  pixel, and its snapshot hash is unchanged.
+- `skyart.draw_bayer_rule(..., orientation="vertical")` — side hairlines for
+  a vertical rule, used by `halftone_agenda`'s pane divider. The horizontal
+  default is byte-identical to the previous behaviour.
 - **`day_arc` theme** — a calendar-forward sibling of `halftone`. A dithered
   ribbon draws today as a left-to-right arc keyed to the real sunrise and
   sunset, with the sun (or the moon at its true phase, after dark) riding at

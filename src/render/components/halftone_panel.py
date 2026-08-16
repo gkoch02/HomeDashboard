@@ -35,17 +35,18 @@ from src.render.quantize import _BAYER_4X4
 # before the move and existing tests import them from it.
 from src.render.skyart import accent_yellow as _accent_yellow  # noqa: F401
 from src.render.skyart import draw_bayer_rule as _draw_bayer_rule
-from src.render.skyart import draw_cloud as _draw_cloud
-from src.render.skyart import draw_fog as _draw_fog
-from src.render.skyart import draw_lightning as _draw_lightning
-from src.render.skyart import draw_missing as _draw_missing
-from src.render.skyart import draw_moon as _draw_moon
-from src.render.skyart import draw_precip as _draw_precip
-from src.render.skyart import draw_sky as _draw_sky
-from src.render.skyart import draw_sky_stormy as _draw_sky_stormy
-from src.render.skyart import draw_stars as _draw_stars
-from src.render.skyart import draw_sun as _draw_sun
-from src.render.skyart import illustration_kind as _illustration_kind
+from src.render.skyart import draw_cloud as _draw_cloud  # noqa: F401
+from src.render.skyart import draw_fog as _draw_fog  # noqa: F401
+from src.render.skyart import draw_lightning as _draw_lightning  # noqa: F401
+from src.render.skyart import draw_missing as _draw_missing  # noqa: F401
+from src.render.skyart import draw_moon as _draw_moon  # noqa: F401
+from src.render.skyart import draw_precip as _draw_precip  # noqa: F401
+from src.render.skyart import draw_sky as _draw_sky  # noqa: F401
+from src.render.skyart import draw_sky_stormy as _draw_sky_stormy  # noqa: F401
+from src.render.skyart import draw_stars as _draw_stars  # noqa: F401
+from src.render.skyart import draw_sun as _draw_sun  # noqa: F401
+from src.render.skyart import draw_weather_scene as _draw_weather_scene
+from src.render.skyart import illustration_kind as _illustration_kind  # noqa: F401
 from src.render.skyart import moon_disc as _moon_disc  # noqa: F401
 from src.render.skyart import radial_gradient_disc as _radial_gradient_disc  # noqa: F401
 from src.render.theme import ComponentRegion, ThemeStyle
@@ -73,11 +74,6 @@ TEMP_COL_W = 280
 # The row math above subtracts this from the band height so the existing
 # zones (NOW / TODAY / NEXT) never overlap the footer.
 FOOTER_H = 22
-
-# Centre of the hero region — sun/moon and most cloud assemblies position
-# themselves relative to this point.
-_HERO_CX = 400
-_HERO_CY = 156
 
 
 # ---------------------------------------------------------------------------
@@ -142,48 +138,15 @@ def _draw_illustration(
     today: date,
     now: datetime,
 ) -> None:
-    icon = data.weather.current_icon if data.weather is not None else None
-    kind, is_night = _illustration_kind(icon)
+    """Paint the hero engraving for the current conditions.
 
-    if kind == "sun":
-        _draw_sky(image, hero_rect, day=True)
-        _draw_sun(image, hero_rect, cx=_HERO_CX, cy=_HERO_CY - 8, radius=92)
-    elif kind == "moon":
-        _draw_sky(image, hero_rect, day=False)
-        _draw_stars(image, hero_rect, today)
-        _draw_moon(image, hero_rect, today, cx=_HERO_CX, cy=_HERO_CY - 8, radius=92)
-    elif kind == "partly_cloudy":
-        _draw_sky(image, hero_rect, day=not is_night)
-        if is_night:
-            _draw_stars(image, hero_rect, today)
-            _draw_moon(image, hero_rect, today, cx=_HERO_CX - 140, cy=_HERO_CY - 30, radius=70)
-        else:
-            _draw_sun(image, hero_rect, cx=_HERO_CX - 150, cy=_HERO_CY - 30, radius=78)
-        _draw_cloud(image, hero_rect, cx=_HERO_CX + 90, cy=_HERO_CY + 10, scale=1.25)
-    elif kind == "overcast":
-        # Layered light cumulus stacked across the sky.
-        _draw_sky(image, hero_rect, day=not is_night)
-        _draw_cloud(image, hero_rect, cx=_HERO_CX - 220, cy=_HERO_CY - 40, scale=0.95)
-        _draw_cloud(image, hero_rect, cx=_HERO_CX + 190, cy=_HERO_CY - 60, scale=0.9)
-        _draw_cloud(image, hero_rect, cx=_HERO_CX, cy=_HERO_CY + 20, scale=1.35)
-    elif kind == "rain":
-        _draw_sky(image, hero_rect, day=not is_night)
-        _draw_cloud(image, hero_rect, cx=_HERO_CX, cy=_HERO_CY - 50, scale=1.3, dark=True)
-        _draw_precip(image, hero_rect, today, kind="rain")
-    elif kind == "storm":
-        # Mid-grey "broken sky" so the very dark storm cloud pops out.
-        _draw_sky_stormy(image, hero_rect)
-        _draw_cloud(image, hero_rect, cx=_HERO_CX, cy=_HERO_CY - 50, scale=1.4, dark=True)
-        _draw_lightning(image, hero_rect, cx=_HERO_CX + 6, top_y=_HERO_CY - 8)
-        _draw_precip(image, hero_rect, today, kind="rain", count=350)
-    elif kind == "snow":
-        _draw_sky(image, hero_rect, day=not is_night)
-        _draw_cloud(image, hero_rect, cx=_HERO_CX, cy=_HERO_CY - 50, scale=1.25)
-        _draw_precip(image, hero_rect, today, kind="snow")
-    elif kind == "fog":
-        _draw_fog(image, hero_rect, today)
-    else:
-        _draw_missing(image, hero_rect)
+    The scene composition itself lives in :func:`src.render.skyart.
+    draw_weather_scene` so ``halftone_agenda`` can draw the same illustration
+    into its narrower plate; this hero is the nominal rect the placements were
+    composed against, so it passes ``scale=1.0`` and gets them verbatim.
+    """
+    icon = data.weather.current_icon if data.weather is not None else None
+    _draw_weather_scene(image, hero_rect, icon, today)
 
 
 # ---------------------------------------------------------------------------
