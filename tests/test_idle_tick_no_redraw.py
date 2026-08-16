@@ -45,10 +45,19 @@ TIME_DRIVEN = {
     "trends",
 }
 
+# Themes that always redraw for reasons this test cannot model. `diags` reports
+# live host telemetry — uptime, load, free RAM, CPU temperature — which
+# `fetch_host_data()` re-reads on every pipeline run with no cache, so its image
+# changes every tick on real hardware no matter what its caption reads. Dummy
+# data regenerates identical HostData, so asserting either way here would only
+# test the fixture. It is excluded from both directions rather than being listed
+# as fixed, which would overstate what this change does.
+ALWAYS_LIVE = {"diags"}
+
 # Not driven by DashboardData in a way this test can hold still.
 NOT_APPLICABLE = {"random", "random_daily", "random_hourly", "photo", "message", "countdown"}
 
-CANDIDATES = sorted(set(AVAILABLE_THEMES) - TIME_DRIVEN - NOT_APPLICABLE)
+CANDIDATES = sorted(set(AVAILABLE_THEMES) - TIME_DRIVEN - NOT_APPLICABLE - ALWAYS_LIVE)
 
 
 def _render(theme_name: str, tick: datetime) -> str:

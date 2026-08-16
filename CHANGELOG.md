@@ -17,9 +17,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   `DashboardData` now carries `content_at` — the newest timestamp among the
   sources actually backing the snapshot — and captions draw that instead, so
   an idle tick produces a byte-identical image and no write at all. Affects
-  the shared header (every week-view theme) plus `halftone`,
-  `halftone_agenda` and `diags`: 23 of 34 themes are now silent on an idle
-  tick, up from 12.
+  the shared header (every week-view theme) plus `halftone` and
+  `halftone_agenda`: 22 of 34 themes are now silent on an idle tick, up from
+  12. `diags` is deliberately not among them — it reports live host telemetry
+  that moves every run, so it redraws regardless and keeps its render-clock
+  stamp.
 - The captions were also wrong: `updated 12:45 pm` over weather fetched at
   12:20 reported when the pixels were painted, not when the data arrived.
 
