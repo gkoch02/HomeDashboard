@@ -52,6 +52,7 @@ from src.render.artkit import to_local_naive
 from src.render.components.day_arc_panel import agenda_day
 from src.render.fonts import weather_icon
 from src.render.primitives import (
+    content_time,
     draw_text_truncated,
     events_for_day,
     fmt_time,
@@ -228,7 +229,7 @@ def draw_halftone_agenda(
     # --- "updated HH:MM am" caption in the bottom corner of the agenda pane.
     ink = _ink(mode)
     footer_font = style.font_medium(16)
-    stamp = f"updated {_clock(now_naive).lower()}"
+    stamp = f"updated {_clock(to_local_naive(content_time(data, now), tz)).lower()}"
     sw = text_width(draw, stamp, footer_font)
     draw.text(
         (

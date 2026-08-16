@@ -23,7 +23,7 @@ from PIL import Image, ImageDraw
 from src.data.models import CalendarEvent, DashboardData
 from src.render.artkit import ink as _ink
 from src.render.fonts import weather_icon
-from src.render.primitives import draw_text_truncated
+from src.render.primitives import content_time, draw_text_truncated
 from src.render.quantize import _BAYER_4X4
 
 # The procedural illustration vocabulary lives in ``src.render.skyart`` so the
@@ -388,7 +388,7 @@ def _draw_margin_band(
     # the margin band. Lowercase + regular weight reads as a quiet caption
     # against the uppercase semibold section labels above.
     footer_font = style.font_regular(17)
-    footer_text = f"updated {_format_event_time(now).lower()}"
+    footer_text = f"updated {_format_event_time(content_time(data, now)).lower()}"
     fb = draw.textbbox((0, 0), footer_text, font=footer_font)
     footer_x = text_col_right - (fb[2] - fb[0]) - fb[0]
     footer_y = inner_bottom + (FOOTER_H - (fb[3] - fb[1])) // 2 - fb[1]

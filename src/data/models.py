@@ -103,6 +103,15 @@ class DashboardData:
     air_quality: AirQualityData | None = None
     host_data: HostData | None = None
     fetched_at: datetime = field(default_factory=datetime.now)
+    # When the displayed content itself last changed — the newest timestamp
+    # among the sources actually backing this snapshot. A live fetch stamps it
+    # with the fetch time; a source served from cache carries the cache's own
+    # timestamp forward. `fetched_at` is a *render* clock and advances every
+    # run whether or not anything was fetched, so anything drawn on the plate
+    # must use this instead: a caption reading `fetched_at` changes every tick
+    # and forces a panel write for content that did not move. None when no
+    # source contributed a timestamp (dummy data, an empty snapshot).
+    content_at: datetime | None = None
     is_stale: bool = False  # True when any component was filled from cache
     stale_sources: list[str] = field(default_factory=list)  # e.g. ["events", "weather"]
     source_staleness: dict[str, StalenessLevel] = field(default_factory=dict)

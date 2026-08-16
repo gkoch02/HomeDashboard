@@ -125,6 +125,13 @@ def _draw_header(draw, rx, ry, w, data: DashboardData, style: ThemeStyle) -> Non
     title_y = ry + (_HEADER_H - text_height(title_font)) // 2
     draw.text((rx + 10, title_y), "DIAGNOSTICS", font=title_font, fill=style.primary_accent_fill())
 
+    # The render clock, deliberately, unlike every other caption in the
+    # project (see primitives.content_time). This panel already redraws on
+    # every tick because it reports live host metrics — uptime alone moves
+    # every run — so reading content_at here would save no panel writes, and
+    # "when did this last render" is exactly the signal a diagnostics view
+    # wants. Data freshness is already carried by the staleness flags beside
+    # this stamp.
     now = data.fetched_at
     ts_font = style.font_regular(_DATA_SIZE - 1)
     if isinstance(now, datetime):

@@ -6,6 +6,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **An idle tick no longer redraws the panel.** Every "updated" caption was
+  rendered from the run's own clock, so the image differed on every tick even
+  when nothing had been fetched — around 12 hardware writes an hour on the
+  default 5-minute timer, each one repainting a few hundred pixels. With
+  partial refresh enabled those all go through Waveshare's fast waveform,
+  which is what makes static ink drift grey between full refreshes.
+  `DashboardData` now carries `content_at` — the newest timestamp among the
+  sources actually backing the snapshot — and captions draw that instead, so
+  an idle tick produces a byte-identical image and no write at all. Affects
+  the shared header (every week-view theme) plus `halftone` and
+  `halftone_agenda`: 22 of 34 themes are now silent on an idle tick, up from
+  12. `diags` is deliberately not among them — it reports live host telemetry
+  that moves every run, so it redraws regardless and keeps its render-clock
+  stamp.
+- The captions were also wrong: `updated 12:45 pm` over weather fetched at
+  12:20 reported when the pixels were painted, not when the data arrived.
+
 ### Added
 
 - **`halftone_agenda`'s weather band reads larger.** The temperature numeral

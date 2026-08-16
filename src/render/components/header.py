@@ -17,6 +17,7 @@ def draw_header(
     title: str = "Home Dashboard",
     source_staleness: dict[str, StalenessLevel] | None = None,
     *,
+    content_at: datetime | None = None,
     region: ComponentRegion | None = None,
     style: ThemeStyle | None = None,
 ):
@@ -56,8 +57,13 @@ def draw_header(
     # Last updated (right) — "Updated  Mar 15 · 9:43p"
     label_font = style.font_regular(11)
     time_font = style.font_semibold(13)
-    time_str = now.strftime("%-I:%M%p").replace("AM", "a").replace("PM", "p")
-    date_str = now.strftime("%b %-d")
+    # This label reports when the *data* last changed, not when the frame was
+    # painted: `now` advances every run whether or not anything was fetched, so
+    # reading it here would change these pixels on every tick and force a panel
+    # refresh for content that has not moved. See primitives.content_time.
+    stamp = content_at if content_at is not None else now
+    time_str = stamp.strftime("%-I:%M%p").replace("AM", "a").replace("PM", "p")
+    date_str = stamp.strftime("%b %-d")
     ts = f"{date_str}  ·  {time_str}"
 
     # Determine header label based on worst staleness level
