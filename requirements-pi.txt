@@ -1,5 +1,5 @@
 RPi.GPIO>=0.7.1
 spidev>=3.8
 lgpio>=0.2.2.0
-gpiozero>=2.0.1
+gpiozero>=2.0.1.post3
 inky>=2.4.0
