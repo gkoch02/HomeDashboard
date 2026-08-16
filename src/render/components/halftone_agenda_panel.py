@@ -23,11 +23,15 @@ width. ``draw_weather_scene`` maps its placements onto whatever rect it is
 handed and takes element sizes from that scale separately, so the composition
 survives the narrower, nearly-square pane instead of simply shrinking.
 
-Dithering carries meaning in the agenda, exactly as in ``day_arc``: elapsed
-events are Bayer-perforated so they read as spent, the event happening right
-now is inverted into a solid accent bar, and everything still to come is
-crisp. After dark, once every timed event has ended, the pane rolls over to
-tomorrow behind an inverted TOMORROW chip.
+The agenda is a plain list: every row is set the same way and carries its
+event's start and end time. It began with ``day_arc``'s state encoding —
+elapsed rows Bayer-perforated, the event in progress inverted into a solid
+bar, the next one up accented — and all three were removed, because each
+depends on a large or dithered area of ink surviving the panel and none of
+them does under partial refresh. Waveshare's fast waveform leaves a filled bar
+reading as charcoal and a screened row as mud, and partial refresh is worth
+keeping for its speed. After dark, once every timed event has ended, the pane
+still rolls over to tomorrow, now behind a plain TOMORROW dateline.
 
 No external assets — every illustration is generated from PIL primitives.
 """
@@ -100,9 +104,19 @@ _DATE_ROW_H = 32
 # Fixed reservation for the temperature numeral, so the condition column keeps
 # its width whether the reading is "8°" or "108°". Same trick as halftone's
 # TEMP_COL_W, at this pane's smaller display size.
-TEMP_PT = 64
-TEMP_COL_W = 158
+#
+# The sizes below are the largest the band will take. 78 pt sets "108°" at
+# 153 px, which leaves the condition column 165 px — just enough for the widest
+# OWM phrase ("heavy intensity rain") to wrap the way it does now, as
+# "HEAVY INTENSITY / RAIN". At 82 pt it breaks as "HEAVY / INTENSITY RAIN" and
+# at 86 pt it needs three lines, which overruns the zone. The column reserves
+# 8 px past the numeral so a 3-digit reading never crowds the stack.
+TEMP_PT = 78
+TEMP_COL_W = 161
 TEMP_COL_GAP = 10
+# Condition and high/low, sized to match the numeral they sit beside.
+COND_PT = 19
+HIGH_LOW_PT = 21
 
 # Density tiers for the agenda column: (max_rows, row_h, time_w, time_pt,
 # title_pt, show_location). Tuned for this pane — 382 px of content width and
@@ -330,13 +344,20 @@ def _draw_weather_band(
     # rain") are exactly the ones worth reading in full.
     stack_x = left + TEMP_COL_W + TEMP_COL_GAP
     stack_w = max(20, right - stack_x)
-    cond_font = (style.font_section_label or style.font_bold)(16)
-    hl_font = style.font_semibold(18)
+    cond_font = (style.font_section_label or style.font_bold)(COND_PT)
+    hl_font = style.font_semibold(HIGH_LOW_PT)
 
     lines: list[tuple[str, ImageFont.FreeTypeFont]] = []
     if weather is not None:
         if weather.current_description:
-            for line in wrap_lines(weather.current_description.upper(), cond_font, stack_w)[:2]:
+            wrapped = wrap_lines(weather.current_description.upper(), cond_font, stack_w)
+            if len(wrapped) > 2:
+                # Fold the overflow into the second line rather than dropping
+                # it: draw_text_truncated then ellipsizes, so a phrase like
+                # "thunderstorm with light drizzle" reads as cut off instead of
+                # as a complete but wrong "THUNDERSTORM WITH LIGHT".
+                wrapped = [wrapped[0], " ".join(wrapped[1:])]
+            for line in wrapped:
                 lines.append((line, cond_font))
         lines.append((f"H {_fmt_temp(weather.high)}  ·  L {_fmt_temp(weather.low)}", hl_font))
     else:
@@ -443,11 +464,73 @@ def agenda_metrics(n_events: int, avail_h: int) -> tuple[int, int, int, int, int
     return _DENSITY_TIERS[-1]
 
 
+def event_times(event: CalendarEvent) -> tuple[str, str | None]:
+    """Return ``(start, end)`` labels for *event*; *end* is None when unusable.
+
+    An all-day event has no clock times to show, and a timed event running past
+    midnight would read as ending before it starts, so both fall back to a
+    single label.
+    """
+    if event.is_all_day:
+        return ("ALL DAY", None)
+    start = _strip_tz(event.start)
+    end = _strip_tz(event.end)
+    if end <= start or end.date() != start.date():
+        return (fmt_time(start), None)
+    return (fmt_time(start), fmt_time(end))
+
+
+def _strip_tz(dt: datetime) -> datetime:
+    """Drop tzinfo without converting — event times are already naive local."""
+    return dt.replace(tzinfo=None) if dt.tzinfo is not None else dt
+
+
 def _location_text(event: CalendarEvent) -> str:
     """First comma-segment of the location, whitespace-collapsed."""
     if not event.location:
         return ""
     return " ".join(event.location.split(",")[0].split())
+
+
+def two_line_time_fits(time_pt: int, row_h: int) -> bool:
+    """Can a row set the start and end times on two lines?
+
+    Line two sits one pixel under line one, and the pair has to clear the row.
+    True for every tier but the densest, whose 33-px rows are 4 px short.
+    """
+    return 2 * time_pt + 7 <= row_h - 2
+
+
+def _draw_time_cell(
+    draw: ImageDraw.ImageDraw,
+    start: str,
+    end: str | None,
+    style: ThemeStyle,
+    *,
+    x0: int,
+    y: int,
+    time_pt: int,
+    row_h: int,
+    fill: int | tuple[int, int, int],
+) -> None:
+    """Draw the start time, with the end time stacked underneath it.
+
+    Stacking rather than setting a range inline is what keeps the treatment
+    uniform: an inline range's width depends on the times themselves — a
+    meridiem-crossing pair like "11:30a-1:15p" is half again as wide as
+    "12:30-2p" — so some rows would show an end time and their neighbours
+    wouldn't, at the same density. Stacked, the cell is never wider than one
+    label, which every tier's column already fits, and the only question left
+    is vertical room. The densest tier has none and drops the end time; see
+    :func:`two_line_time_fits`.
+    """
+    time_font = style.font_semibold(time_pt)
+    if end is None or not two_line_time_fits(time_pt, row_h):
+        draw.text((x0, y + 4), start, font=time_font, fill=fill)
+        return
+    # The trailing dash carries the eye down to the second line.
+    draw.text((x0, y + 4), f"{start} –", font=time_font, fill=fill)
+    draw.text((x0, y + 5 + time_pt), end, font=time_font, fill=fill)
 
 
 def _draw_event_row(
@@ -481,11 +564,10 @@ def _draw_event_row(
     # module: at these sizes DM Sans at its nominal weight lays down noticeably
     # less ink than the Righteous in the weather pane, and on a panel that
     # reads as grey text rather than as lighter text.
-    time_font = style.font_semibold(time_pt)
     title_font = style.font_bold(title_pt)
     loc_font = style.font_medium(max(12, time_pt - 2))
 
-    time_str = "ALL DAY" if event.is_all_day else fmt_time(event.start)
+    start_str, end_str = event_times(event)
     title_x = x0 + time_w + 12
     title_w = max(20, w - (time_w + 12))
     # The tick brackets the row's *type*, not its pitch: the roomiest tier sets
@@ -494,7 +576,17 @@ def _draw_event_row(
     content_h = text_height(title_font) + (text_height(loc_font) + 2 if show_location else 0)
     tick = (x0 + time_w, y + 2, x0 + time_w + 3, y + 2 + content_h + 4)
 
-    draw.text((x0, y + 4), time_str, font=time_font, fill=ink)
+    _draw_time_cell(
+        draw,
+        start_str,
+        end_str,
+        style,
+        x0=x0,
+        y=y,
+        time_pt=time_pt,
+        row_h=row_h,
+        fill=ink,
+    )
     # Filled for a timed event, outlined for an all-day one — a property of the
     # event, not of where the clock happens to be.
     if event.is_all_day:

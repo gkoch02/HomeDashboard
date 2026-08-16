@@ -6,6 +6,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added
+
+- **`halftone_agenda`'s weather band reads larger.** The temperature numeral
+  goes 64 → 78 pt with the condition and high/low sized to match (16 → 19 and
+  18 → 21). The column reservation was over-sized for the numeral it held, so
+  most of this came free; 78 pt is the ceiling at which the widest OWM phrase
+  still wraps to two lines.
+- A condition too long for two lines now ellipsizes instead of dropping its
+  tail, so `thunderstorm with light drizzle` no longer renders as a
+  complete-looking `THUNDERSTORM WITH LIGHT`.
+
+- **`halftone_agenda` rows show event end times**, stacked under the start
+  (`12:30p –` / `2p`). Stacking keeps the treatment uniform: an inline range's
+  width depends on the times themselves, so at one density some rows would
+  show an end time and their neighbours wouldn't. The stacked cell is never
+  wider than a single label, so the time columns stay narrow and the question
+  is only vertical — every tier but the densest has room, and that one shows
+  the start alone, as do all-day events and any event running past midnight.
+
 ### Changed
 
 - **`halftone_agenda`'s agenda pane no longer encodes event state.** The

@@ -17,17 +17,24 @@ from src.render.components.halftone_agenda_panel import (
     AGENDA_X,
     ART_W,
     BAND_Y,
+    COND_PT,
     DIVIDER_W,
     FOOTER_H,
     HERO_H,
+    HIGH_LOW_PT,
     RULE_H,
     SCENE_SCALE,
+    TEMP_COL_W,
+    TEMP_PT,
     _clock,
+    _draw_time_cell,
     _fmt_temp,
     _location_text,
     _sun_times,
     agenda_metrics,
     draw_halftone_agenda,
+    event_times,
+    two_line_time_fits,
 )
 from src.render.quantize import INKY_SPECTRA6_PALETTE, flatten_pixels
 from src.render.skyart import (
@@ -450,6 +457,124 @@ class TestPaneSeparation:
             for y in range(480 - FOOTER_H, 480)
         ]
         assert any(px[x, y] == 0 for x, y in footer_band)
+
+
+class TestWeatherBandType:
+    """The band's display type is sized to the room it actually has."""
+
+    def _probe(self):
+        from PIL import ImageDraw
+
+        return ImageDraw.Draw(Image.new("L", (10, 10)))
+
+    def test_three_digit_temperature_fits_its_column(self):
+        # The column is a fixed reservation so the condition stack keeps its
+        # width whatever the reading is; a numeral wider than it would push
+        # into that stack.
+        style = load_theme("halftone_agenda").style
+        box = self._probe().textbbox((0, 0), "108°", font=style.font_title(TEMP_PT))
+        assert box[2] - box[0] <= TEMP_COL_W
+
+    def test_widest_condition_still_wraps_to_two_lines(self):
+        # 19 pt is the largest size at which the widest OWM phrase breaks as
+        # "HEAVY INTENSITY / RAIN"; past it the band needs a third line.
+        from src.render.components.halftone_agenda_panel import ART_PAD_X, TEMP_COL_GAP
+        from src.render.primitives import wrap_lines
+
+        style = load_theme("halftone_agenda").style
+        stack_w = (ART_W - ART_PAD_X) - (ART_PAD_X + TEMP_COL_W + TEMP_COL_GAP)
+        wrapped = wrap_lines("HEAVY INTENSITY RAIN", style.font_section_label(COND_PT), stack_w)
+        assert len(wrapped) <= 2, wrapped
+
+    def test_high_low_fits_beside_the_numeral(self):
+        from src.render.components.halftone_agenda_panel import ART_PAD_X, TEMP_COL_GAP
+
+        style = load_theme("halftone_agenda").style
+        stack_w = (ART_W - ART_PAD_X) - (ART_PAD_X + TEMP_COL_W + TEMP_COL_GAP)
+        box = self._probe().textbbox(
+            (0, 0), "H 108° · L 100°", font=style.font_semibold(HIGH_LOW_PT)
+        )
+        assert box[2] - box[0] <= stack_w
+
+    def test_overlong_condition_is_ellipsized_not_silently_cut(self):
+        # "thunderstorm with light drizzle" wraps to three lines; folding the
+        # overflow into line two lets it ellipsize, so it reads as cut off
+        # rather than as a complete but wrong "THUNDERSTORM WITH LIGHT".
+        data = _data_for()
+        assert data.weather is not None
+        data.weather.current_description = "thunderstorm with light drizzle"
+        band = _render(data=data).convert("L").crop((0, BAND_Y, ART_W, 480))
+        with_long = _ink_count(band)
+        data.weather.current_description = "thunderstorm with light"
+        band = _render(data=data).convert("L").crop((0, BAND_Y, ART_W, 480))
+        # The ellipsized version must differ from the phrase it would otherwise
+        # be mistaken for.
+        assert with_long != _ink_count(band)
+
+
+class TestEventTimes:
+    """Rows show when an event ends, not just when it starts."""
+
+    def test_all_day_has_no_range(self):
+        event = _event(0, name="Conference", is_all_day=True)
+        assert event_times(event) == ("ALL DAY", None)
+
+    def test_timed_event_gives_both_ends(self):
+        start, end = event_times(_event(12, minute=30, mins=90))
+        assert (start, end) == ("12:30p", "2p")
+
+    def test_event_running_past_midnight_shows_only_its_start(self):
+        # A range that reads as ending before it starts is worse than no range.
+        event = _event(23, mins=120, name="Night shift")
+        assert event_times(event) == ("11p", None)
+
+    def test_zero_length_event_shows_only_its_start(self):
+        assert event_times(_event(9, mins=0))[1] is None
+
+    def test_only_the_densest_tier_drops_the_end_time(self):
+        # Stacking makes this a question of vertical room alone, so the answer
+        # is the same for every event in a tier — no row shows an end time
+        # while the row above it doesn't.
+        fits = [two_line_time_fits(tier[3], tier[1]) for tier in _DENSITY_TIERS]
+        assert fits[:-1] == [True] * (len(_DENSITY_TIERS) - 1), fits
+        assert fits[-1] is False, "the densest tier has no room for a second line"
+
+    def test_widest_label_fits_every_column(self):
+        # The stacked cell is never wider than one label plus the trailing
+        # dash, which is what lets the columns stay narrow.
+        from PIL import ImageDraw
+
+        probe = ImageDraw.Draw(Image.new("L", (10, 10)))
+        style = load_theme("halftone_agenda").style
+        for _rows, _row_h, time_w, time_pt, _title_pt, _loc in _DENSITY_TIERS:
+            box = probe.textbbox((0, 0), "11:30a –", font=style.font_semibold(time_pt))
+            assert box[2] - box[0] <= time_w - 4, f"{time_pt}pt overruns its {time_w}px column"
+
+    def test_time_cell_never_overflows_its_column(self):
+        # The column is what separates the time from the tick; ink past it
+        # would collide with the rule between the two.
+        from PIL import ImageDraw
+
+        style = load_theme("halftone_agenda").style
+        for _rows, row_h, time_w, time_pt, _title_pt, _loc in _DENSITY_TIERS:
+            tile = Image.new("L", (time_w + 60, row_h), 255)
+            draw = ImageDraw.Draw(tile)
+            _draw_time_cell(
+                draw,
+                "11:30a",
+                "1:15p",
+                style,
+                x0=0,
+                y=0,
+                time_pt=time_pt,
+                row_h=row_h,
+                fill=0,
+            )
+            px = tile.load()
+            overflow = [
+                (x, y) for y in range(row_h) for x in range(time_w, time_w + 60) if px[x, y] == 0
+            ]
+            assert not overflow, f"tier {time_pt}pt spills past its {time_w}px column"
 
 
 class TestAgendaRowTreatment:
