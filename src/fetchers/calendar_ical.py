@@ -19,6 +19,11 @@ logger = logging.getLogger(__name__)
 # One day comfortably exceeds the largest real UTC offset (+14:00).
 _EXPAND_PAD = timedelta(days=1)
 
+# Per-series ceiling on expanded occurrences (see _cap_runaway_series). The
+# densest legitimate pattern in an 8-day window is FREQ=HOURLY at 192; this
+# leaves huge headroom while still stopping an unbounded rule dead.
+_MAX_OCCURRENCES_PER_SERIES = 500
+
 
 def fetch_from_ical(
     urls: list[str],
@@ -153,6 +158,43 @@ def _expand_one_by_one(cal, module, time_min, time_max, url: str) -> list:
     return out
 
 
+def _cap_runaway_series(components: list, url: str) -> list:
+    """Drop occurrences past ``_MAX_OCCURRENCES_PER_SERIES`` for any one UID.
+
+    An unbounded rule (``FREQ=MINUTELY`` with no COUNT/UNTIL, whether broken
+    or hostile) expands to five figures inside a one-week window — ~13k
+    components for a 9-day span — and every one of them is then parsed,
+    written into the cache JSON, sorted, and handed to a renderer sized for a
+    normal week.
+
+    The cap is per series rather than per feed because ``between()`` returns
+    occurrences grouped by series, not in chronological order: a flat
+    head-of-list cap would keep the whole runaway series and silently drop the
+    real ones that happen to sort after it.
+    """
+    seen: dict[str, int] = {}
+    over: set[str] = set()
+    kept: list = []
+    for component in components:
+        uid = str(component.get("UID", ""))
+        count = seen.get(uid, 0) + 1
+        seen[uid] = count
+        if count > _MAX_OCCURRENCES_PER_SERIES:
+            over.add(uid)
+            continue
+        kept.append(component)
+    for uid in sorted(over):
+        logger.warning(
+            "Series %r in %s expands to %d occurrences in the fetch window; "
+            "keeping the first %d (check its RRULE for a missing COUNT/UNTIL)",
+            uid,
+            url,
+            seen[uid],
+            _MAX_OCCURRENCES_PER_SERIES,
+        )
+    return kept
+
+
 def _expand_components(cal, time_min, time_max, url: str) -> list:
     """Yield VEVENT components with recurrence rules expanded to occurrences.
 
@@ -191,12 +233,14 @@ def _expand_components(cal, time_min, time_max, url: str) -> list:
     span_min = time_min - _EXPAND_PAD
     span_max = time_max + _EXPAND_PAD
     try:
-        return list(recurring_ical_events.of(cal).between(span_min, span_max))
+        expanded = list(recurring_ical_events.of(cal).between(span_min, span_max))
+        return _cap_runaway_series(expanded, url)
     except Exception as exc:
         logger.warning("Recurrence expansion failed for %s: %s — retrying event by event", url, exc)
 
     try:
-        return _expand_one_by_one(cal, recurring_ical_events, span_min, span_max, url)
+        expanded = _expand_one_by_one(cal, recurring_ical_events, span_min, span_max, url)
+        return _cap_runaway_series(expanded, url)
     except Exception as exc:
         logger.warning("Per-event expansion failed for %s: %s — using raw events", url, exc)
         return _raw_vevents(cal)

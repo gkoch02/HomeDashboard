@@ -7,7 +7,12 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from src.fetchers.calendar_ical import _parse_ical_event, _url_hostname, fetch_from_ical
+from src.fetchers.calendar_ical import (
+    _MAX_OCCURRENCES_PER_SERIES,
+    _parse_ical_event,
+    _url_hostname,
+    fetch_from_ical,
+)
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -717,3 +722,54 @@ class TestFloatingTimesAtWindowStart:
             ["https://example.com/cal.ics"], days=7, start_date=date(2026, 4, 6)
         )
         assert [e.summary for e in events] == ["Inside"]
+
+
+class TestRunawaySeriesCap:
+    """An unbounded RRULE must not swamp the fetch.
+
+    ``FREQ=MINUTELY`` with no COUNT/UNTIL expands to five figures inside a
+    one-week window, and every occurrence is then parsed, cached, sorted and
+    handed to a renderer sized for a normal week.
+    """
+
+    _SPAM = (
+        "BEGIN:VEVENT\r\nUID:spam\r\nSUMMARY:Spam\r\n"
+        "DTSTART:20260406T000000Z\r\nDTEND:20260406T000100Z\r\n"
+        "RRULE:FREQ=MINUTELY\r\nEND:VEVENT\r\n"
+    )
+    _DAILY = (
+        "BEGIN:VEVENT\r\nUID:real\r\nSUMMARY:Standup\r\n"
+        "DTSTART:20260406T150000Z\r\nDTEND:20260406T153000Z\r\n"
+        "RRULE:FREQ=DAILY\r\nEND:VEVENT\r\n"
+    )
+
+    def _fetch(self, mock_get, body):
+        mock_get.return_value = _mock_response(_make_ical_response(body))
+        return fetch_from_ical(["https://example.com/cal.ics"], days=7, start_date=date(2026, 4, 6))
+
+    @patch("src.fetchers.calendar_ical.requests.get")
+    def test_unbounded_rule_is_capped_and_warns(self, mock_get, caplog):
+        import logging
+
+        with caplog.at_level(logging.WARNING, logger="src.fetchers.calendar_ical"):
+            events = self._fetch(mock_get, self._SPAM)
+        assert len(events) == _MAX_OCCURRENCES_PER_SERIES
+        assert "check its RRULE" in caplog.text
+
+    @patch("src.fetchers.calendar_ical.requests.get")
+    def test_cap_is_per_series_so_real_events_survive(self, mock_get):
+        """between() groups occurrences by series rather than sorting them, so a
+        flat head-of-list cap would keep the whole runaway series and drop the
+        real one behind it."""
+        events = self._fetch(mock_get, self._SPAM + self._DAILY)
+        assert sum(1 for e in events if e.summary == "Standup") == 7
+
+    @patch("src.fetchers.calendar_ical.requests.get")
+    def test_dense_but_legitimate_series_is_untouched(self, mock_get):
+        """FREQ=HOURLY over a week is 168 occurrences — well inside the cap."""
+        hourly = (
+            "BEGIN:VEVENT\r\nUID:hr\r\nSUMMARY:Hourly\r\n"
+            "DTSTART:20260406T000000Z\r\nDTEND:20260406T003000Z\r\n"
+            "RRULE:FREQ=HOURLY\r\nEND:VEVENT\r\n"
+        )
+        assert len(self._fetch(mock_get, hourly)) == 168
