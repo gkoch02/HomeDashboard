@@ -221,7 +221,13 @@ large filled areas — an inverted header, a highlighted event row — come out
 closer to charcoal than to ink, and fine type reads grey.
 
 Note that this is cumulative: the panel drifts further from black the longer it goes between full refreshes, so the effect appears an hour or two in and resets when the full refresh fires. Set it to `false` for a full-waveform refresh every time, which is the code
-default and what the shipped example config now uses. To confirm the cause
+default and what the shipped example config now uses.
+
+Themes whose plate is dithered artwork — `halftone`, `halftone_agenda`, `day_arc`,
+`postcard`, `naturalist`, `weatherglass`, `trends`, the `moonphase` family,
+`constellation_map` and `photo` — opt out of partial refresh entirely and always take the
+full waveform, so this cannot be the explanation for those. See
+[Themes that always refresh fully](configuration.md#themes-that-always-refresh-fully). To confirm the cause
 before changing anything, render once with `--force-full-refresh` and compare
 the same plate:
 
@@ -238,6 +244,12 @@ eInk displays accumulate artifacts over partial refreshes. The dashboard
 automatically performs a full refresh after a configurable number of partial
 refreshes (`display.max_partials_before_full`, default 20). You can also force
 one with `--force-full-refresh`.
+
+Lowering `max_partials_before_full` only shortens the drift; it does not remove it,
+because the partials between the full refreshes still use the fast waveform. That is why
+the dithered art themes decline partial refresh outright rather than refreshing fully
+more often — see
+[Themes that always refresh fully](configuration.md#themes-that-always-refresh-fully).
 
 For `display.provider: inky`, the panel does not support partial refresh at all.
 The dashboard therefore treats Inky differently: non-fuzzyclock themes are

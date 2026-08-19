@@ -26,6 +26,9 @@ display:
   enable_partial_refresh: false    # Waveshare only; ignored/not supported on Inky.
                                   # On: uses the fast waveform, which is quicker but
                                   # does not drive black as deeply (see the FAQ).
+                                  # Themes whose plate is dithered artwork opt out of
+                                  # it and always take the full waveform — see
+                                  # "Themes that always refresh fully" below.
   max_partials_before_full: 20    # partial refreshes before forcing a full one
   week_days: 7                    # number of days in the week view
   show_weather: true
@@ -388,6 +391,27 @@ won't trigger a write regardless of cadence.
 
 State persists in `state/refresh_throttle_state.json`. v4's `state/inky_refresh_state.json`
 is migrated transparently on first read after upgrade.
+
+### Themes that always refresh fully
+
+`display.enable_partial_refresh` is a request, not a guarantee. Waveshare's fast waveform
+(`epd.init_fast()`) does not drive black as deeply as a full init, and a plate built out
+of dithered greyscale or large solid ink fades under it — on the split-plate
+[`halftone_agenda`](themes.md#halftone_agenda) the fade tracked the engraving's rows
+straight across the agenda beside it.
+
+Themes declare the requirement themselves (`ThemeLayout.supports_partial_refresh`), and
+the output service uses the full waveform for them whatever the config says. These themes
+always refresh fully:
+
+`constellation_map`, `day_arc`, `halftone`, `halftone_agenda`, `moonphase`,
+`moonphase_invert`, `moonphase_photo`, `naturalist`, `photo`, `postcard`, `trends`,
+`weatherglass`
+
+Every other theme honours the setting as before, so a schedule or rotation that mixes the
+two gets partial refreshes on the type-and-rule themes and full ones on the artwork.
+`make check` lists the configured themes that opt out, so the setting never silently
+means less than it says.
 
 ---
 

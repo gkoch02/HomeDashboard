@@ -16,7 +16,8 @@ The right pane is the calendar, at the size a dedicated column allows: as many
 of today's events as fit at a legible type size, every row set identically and
 carrying its start and end time, and an "updated" caption in the bottom corner.
 It carries no state treatment — see the panel module for why the inverted "now"
-bar and the screened elapsed rows were taken out.
+bar and the screened elapsed rows were taken out, and why that reasoning no
+longer holds now that the theme declines partial refresh outright (#222).
 
 Typography follows the split. Righteous, halftone's single display voice,
 carries the weather pane and the agenda's chrome; DM Sans sets the event rows,
@@ -61,6 +62,10 @@ def halftone_agenda_theme() -> Theme:
             # a solid paper underlay, and FS only diffuses intermediate values.
             preferred_quantization_mode="floyd_steinberg",
             prefer_color_on_inky=True,
+            # The engraving is dithered ink, and on this split plate the fade runs
+            # horizontally across the agenda sharing its rows (#222). The pane gave
+            # up its state encoding for a partial compatibility it never had.
+            supports_partial_refresh=False,
             halftone_agenda=ComponentRegion(0, 0, 800, 480),
             # Hide all standard regions — this theme is full-canvas.
             header=ComponentRegion(0, 0, 800, 40, visible=False),

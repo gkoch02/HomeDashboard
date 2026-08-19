@@ -203,6 +203,16 @@ class ThemeLayout:
     prefer_color_on_inky: bool = False
     # Optional quantization preference for L-mode themes on 1-bit backends.
     preferred_quantization_mode: QuantizationMode | None = None
+    # Whether this theme's plate survives a partial (fast-waveform) refresh.
+    #
+    # Waveshare's ``epd.init_fast()`` does not drive black as deeply as a full
+    # init, so a plate built out of dithered greyscale or large solid fills
+    # fades — visibly, and in bands aligned with the artwork. Themes whose
+    # image depends on either declare ``False`` here; ``OutputService.publish``
+    # then forces the full waveform for them regardless of
+    # ``display.enable_partial_refresh``. Crisp 1-bit type-and-rule themes
+    # leave it ``True`` and keep the speed.
+    supports_partial_refresh: bool = True
 
 
 @dataclass
@@ -518,3 +528,21 @@ def load_theme(name: str) -> Theme:
             f"Unknown theme: {name!r}. Available: {', '.join(sorted(AVAILABLE_THEMES))}"
         )
     return factory()
+
+
+def theme_supports_partial_refresh(name: str) -> bool:
+    """Return whether *name*'s plate survives a partial (fast-waveform) refresh.
+
+    A thin read of ``ThemeLayout.supports_partial_refresh`` so callers outside
+    the render package (config validation, the web UI) can ask the question
+    without building a theme themselves.
+
+    Unknown names answer ``True``: whoever passes one already has an "unknown
+    theme" error to report, and a second complaint about the same typo helps
+    nobody.
+    """
+    try:
+        theme = load_theme(name)
+    except ValueError:
+        return True
+    return theme.layout.supports_partial_refresh

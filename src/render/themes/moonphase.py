@@ -207,6 +207,9 @@ def moonphase_theme() -> Theme:
             canvas_mode="L",
             preferred_quantization_mode="threshold",
             prefer_color_on_inky=True,
+            # The lunar disc's shaded terminator and the dark field around it both
+            # depend on ink the fast waveform does not lay down.
+            supports_partial_refresh=False,
         ),
         style=ThemeStyle(
             fg=255,  # white on black — night sky (L mode)

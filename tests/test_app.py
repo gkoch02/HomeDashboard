@@ -572,6 +572,28 @@ class TestRun:
         mock_marker.assert_called_once()
         assert mock_publish.call_args.kwargs["theme_name"] == "default"
         assert "now" in mock_publish.call_args.kwargs
+        assert mock_publish.call_args.kwargs["theme_supports_partial"] is True
+
+    def test_publish_carries_the_theme_partial_refresh_declaration(self, tmp_path):
+        """A theme that opts out of the fast waveform says so at publish time (#222)."""
+        app = self._make_full_app(tmp_path, dummy=True, dry_run=True, theme="halftone_agenda")
+        fake_data = MagicMock()
+        fake_data.events = []
+        from PIL import Image
+
+        fake_image = Image.new("1", (800, 480), 1)
+
+        with (
+            patch("src.app.should_skip_refresh", return_value=False),
+            patch("src.app.should_force_full_refresh", return_value=False),
+            patch("src.app.generate_dummy_data", return_value=fake_data),
+            patch("src.app.render_dashboard", return_value=fake_image),
+            patch.object(app.output, "publish") as mock_publish,
+            patch.object(app.output, "write_health_marker"),
+        ):
+            app.run()
+
+        assert mock_publish.call_args.kwargs["theme_supports_partial"] is False
 
     def test_theme_override_arg_used_directly(self, tmp_path):
         app = self._make_full_app(tmp_path, dummy=True, theme="minimalist")

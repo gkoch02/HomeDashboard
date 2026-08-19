@@ -257,6 +257,80 @@ class TestRandomThemeValidation:
         assert any(w.field == "random_theme" for w in warnings)
 
 
+class TestPartialRefreshThemeWarning:
+    """Themes that always take the full waveform are surfaced at check time (#222)."""
+
+    def _cfg(self, theme: str, partial: bool = True, provider: str = "waveshare") -> Config:
+        model = "epd7in5_V2" if provider == "waveshare" else "impression_7_3_2025"
+        return Config(
+            theme=theme,
+            display=DisplayConfig(
+                provider=provider,
+                model=model,
+                enable_partial_refresh=partial,
+            ),
+        )
+
+    def _warning(self, cfg: Config) -> ConfigWarning | None:
+        _, warnings = validate_config(cfg)
+        matches = [
+            w
+            for w in warnings
+            if w.field == "display.enable_partial_refresh" and "full refresh" in w.message
+        ]
+        return matches[0] if matches else None
+
+    def test_theme_that_declines_partials_warns(self):
+        warning = self._warning(self._cfg("halftone_agenda"))
+        assert warning is not None
+        assert "halftone_agenda" in warning.message
+
+    def test_no_warning_when_partial_refresh_is_off(self):
+        assert self._warning(self._cfg("halftone_agenda", partial=False)) is None
+
+    def test_no_warning_for_a_theme_that_supports_partials(self):
+        assert self._warning(self._cfg("default")) is None
+
+    def test_inky_is_left_to_its_own_warning(self):
+        """Inky never runs a partial refresh, so a per-theme note is just noise."""
+        assert self._warning(self._cfg("halftone_agenda", provider="inky")) is None
+
+    def test_scheduled_theme_counts(self):
+        from src.config import ThemeScheduleConfig, ThemeScheduleEntry
+
+        cfg = self._cfg("default")
+        cfg.theme_schedule = ThemeScheduleConfig(
+            entries=[ThemeScheduleEntry(time="22:00", theme="moonphase")]
+        )
+        warning = self._warning(cfg)
+        assert warning is not None
+        assert "moonphase" in warning.message
+
+    def test_theme_rule_target_counts(self):
+        from src.config import ThemeRule, ThemeRuleCondition, ThemeRulesConfig
+
+        cfg = self._cfg("default")
+        cfg.theme_rules = ThemeRulesConfig(
+            rules=[ThemeRule(theme="postcard", when=ThemeRuleCondition(season="summer"))]
+        )
+        warning = self._warning(cfg)
+        assert warning is not None
+        assert "postcard" in warning.message
+
+    def test_random_rotation_reports_the_pool(self):
+        """The whole rotation is in play, so the whole rotation is checked."""
+        warning = self._warning(self._cfg("random_daily"))
+        assert warning is not None
+        assert "more" in warning.message  # truncated list, count in the message
+
+    def test_random_rotation_without_art_themes_is_quiet(self):
+        from src.config import RandomThemeConfig
+
+        cfg = self._cfg("random_daily")
+        cfg.random_theme = RandomThemeConfig(include=["default", "agenda", "minimalist"])
+        assert self._warning(cfg) is None
+
+
 class TestThemeScheduleValidation:
     """Covers theme_schedule time-format and unknown-theme validation branches."""
 

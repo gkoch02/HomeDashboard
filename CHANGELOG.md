@@ -33,6 +33,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Fixed
 
+- **`halftone_agenda` no longer fades in bands under partial refresh.** The
+  theme's plate is dithered ink, and Waveshare's fast waveform does not drive
+  black deeply enough to hold it: every partial update lightened the engraving
+  and everything sharing its rows, including the agenda beside it. Lowering
+  `display.max_partials_before_full` only shortened the drift. Themes now
+  declare whether their plate survives a partial refresh
+  (`ThemeLayout.supports_partial_refresh`), and `OutputService.publish` uses
+  the full waveform for those that say no, whatever
+  `display.enable_partial_refresh` is set to. Twelve themes opt out —
+  `constellation_map`, `day_arc`, `halftone`, `halftone_agenda`, the three
+  `moonphase` variants, `naturalist`, `photo`, `postcard`, `trends` and
+  `weatherglass` — and every other theme keeps partial refresh and its speed.
+  `make check` names the configured themes that opt out, so the setting never
+  quietly means less than it says. (#222)
 - **One malformed VEVENT no longer disables ICS recurrence expansion for the
   whole feed.** `recurring_ical_events` raises on a VEVENT with no `DTSTART`
   and on an unparseable `RRULE`; the expander caught that and fell back to the

@@ -43,6 +43,8 @@ def moonphase_invert_theme() -> Theme:
             canvas_mode="L",
             preferred_quantization_mode="threshold",
             prefer_color_on_inky=True,
+            # Same shaded disc as ``moonphase``: the fast waveform washes it out.
+            supports_partial_refresh=False,
         ),
         style=ThemeStyle(
             fg=0,  # black on white — parchment / fairy-tale book (L mode)

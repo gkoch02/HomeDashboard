@@ -28,10 +28,20 @@ event's start and end time. It began with ``day_arc``'s state encoding —
 elapsed rows Bayer-perforated, the event in progress inverted into a solid
 bar, the next one up accented — and all three were removed, because each
 depends on a large or dithered area of ink surviving the panel and none of
-them does under partial refresh. Waveshare's fast waveform leaves a filled bar
-reading as charcoal and a screened row as mud, and partial refresh is worth
-keeping for its speed. After dark, once every timed event has ended, the pane
-still rolls over to tomorrow, now behind a plain TOMORROW dateline.
+them does under partial refresh: Waveshare's fast waveform leaves a filled bar
+reading as charcoal and a screened row as mud.
+
+That trade bought nothing (#222). The engraving in the left pane is dithered
+ink too, and the fast waveform faded it in bands that ran straight across the
+agenda's rows — the plate needs the full waveform whatever the calendar side
+does. The theme now says so itself
+(``ThemeLayout.supports_partial_refresh = False``) and
+``OutputService.publish`` gives it a full refresh regardless of
+``display.enable_partial_refresh``, which leaves the state treatments free to
+come back. The pane is still the plain list until they do.
+
+After dark, once every timed event has ended, the pane rolls over to tomorrow
+behind a plain TOMORROW dateline.
 
 No external assets — every illustration is generated from PIL primitives.
 """
@@ -556,8 +566,9 @@ def _draw_event_row(
     lattice, the next one up accented. All three depended on large or dithered
     areas of ink surviving the panel, and under partial refresh they don't:
     Waveshare's fast waveform leaves a filled bar reading as charcoal and a
-    screened row as mud. The pane is now just the day's list, which costs
-    nothing on a fast refresh.
+    screened row as mud. The theme no longer runs under partial refresh at all
+    (see the module docstring and #222), so this is now a plain list by
+    inheritance rather than by necessity.
     """
     mode = image.mode
     ink = _ink(mode)

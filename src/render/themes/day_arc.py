@@ -53,6 +53,9 @@ def day_arc_theme() -> Theme:
             # intermediate values.
             preferred_quantization_mode="floyd_steinberg",
             prefer_color_on_inky=True,
+            # The dithered sky ribbon is the plate: the fast waveform lightens it
+            # in bands, and the axis strip under it goes with them.
+            supports_partial_refresh=False,
             day_arc=ComponentRegion(0, 0, 800, 480),
             # Hide all standard regions — this theme is full-canvas.
             header=ComponentRegion(0, 0, 800, 40, visible=False),
