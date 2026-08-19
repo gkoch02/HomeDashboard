@@ -494,32 +494,19 @@ class TestEnumStaysConsistent:
         )
 
 
-class TestWebEditorExposesTheField:
-    def test_get_config_for_web_returns_the_current_value(self, tmp_path):
-        from src.web.config_editor import get_config_for_web
+class TestWebAssetsOfferTheField:
+    """Static checks on the hand-written config page.
 
-        p = tmp_path / "config.yaml"
-        p.write_text("weather:\n  api_key: 'k'\n  one_call_version: '4.0'\n")
+    These read the files as text rather than importing anything, so they stay
+    in the core suite; the tests that exercise the web editor itself live in
+    tests/test_web_config.py, which the no-extras CI job skips.
+    """
 
-        assert get_config_for_web(str(p))["weather"]["one_call_version"] == "4.0"
+    def test_template_offers_a_select_for_the_field(self):
+        from pathlib import Path
 
-    def test_schema_endpoint_carries_a_value_not_null(self, tmp_path):
-        """A schema-driven save must not write back a null it was handed."""
-        from src.config_schema import to_json
-        from src.web.config_editor import get_config_for_web
-        from src.web.routes.config import _flatten_for_schema
-
-        p = tmp_path / "config.yaml"
-        p.write_text("weather:\n  api_key: 'k'\n  one_call_version: '4.0'\n")
-
-        values = _flatten_for_schema(get_config_for_web(str(p)))
-        field = next(
-            f
-            for section in to_json(values=values)["sections"]
-            for f in section["fields"]
-            if f["path"] == "weather.one_call_version"
-        )
-        assert field["value"] == "4.0"
+        html = Path("src/web/templates/config.html").read_text()
+        assert 'data-field="weather.one_call_version"' in html
 
     def test_the_save_patch_includes_the_field(self):
         """dashboard.js must send it, or the dropdown silently does nothing."""

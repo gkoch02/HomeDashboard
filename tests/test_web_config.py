@@ -1068,3 +1068,34 @@ def test_theme_rules_list_value_entries_also_validated():
     )
     assert errors == []
     assert patch["theme_rules"] == [{"when": {"weekday": "weekend"}, "theme": "today"}]
+
+
+class TestOneCallVersionInTheEditor:
+    """weather.one_call_version must round-trip through the editor.
+
+    It is in config_schema (so POST /api/config will accept it); these pin the
+    other half — that the page is actually handed the current value, rather
+    than rendering an empty control that saves a null back.
+    """
+
+    def test_get_config_for_web_returns_the_current_value(self, tmp_path):
+        p = tmp_path / "config.yaml"
+        p.write_text("weather:\n  api_key: 'k'\n  one_call_version: '4.0'\n")
+
+        assert get_config_for_web(str(p))["weather"]["one_call_version"] == "4.0"
+
+    def test_schema_endpoint_carries_a_value_not_null(self, tmp_path):
+        from src.config_schema import to_json
+        from src.web.routes.config import _flatten_for_schema
+
+        p = tmp_path / "config.yaml"
+        p.write_text("weather:\n  api_key: 'k'\n  one_call_version: '4.0'\n")
+
+        values = _flatten_for_schema(get_config_for_web(str(p)))
+        field = next(
+            f
+            for section in to_json(values=values)["sections"]
+            for f in section["fields"]
+            if f["path"] == "weather.one_call_version"
+        )
+        assert field["value"] == "4.0"
