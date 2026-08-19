@@ -188,7 +188,7 @@ def schema() -> tuple[SectionSpec, ...]:
                         "index. Must match the subscription your OpenWeather account "
                         "actually holds; 'off' skips the request entirely."
                     ),
-                    choices=("3.0", "off"),
+                    choices=("3.0", "4.0", "off"),
                 ),
             ),
         ),

@@ -32,6 +32,7 @@ single degradation boundary that turns any failure into ``([], None)``.
 from __future__ import annotations
 
 import logging
+from urllib.parse import quote
 
 import requests  # type: ignore[import-untyped]
 
@@ -40,11 +41,18 @@ from src.data.models import WeatherAlert
 logger = logging.getLogger(__name__)
 
 _V3_URL = "https://api.openweathermap.org/data/3.0/onecall"
+_V4_CURRENT_URL = "https://api.openweathermap.org/data/4.0/onecall/current"
+_V4_ALERT_URL = "https://api.openweathermap.org/data/4.0/onecall/alert/{alert_id}"
 
 _TIMEOUT = 10  # seconds
 
+# Cap on alert-detail requests per fetch.  4.0 costs one extra call per active
+# alert, and three simultaneous alerts already overflow the alert banner, so
+# there is nothing to gain from resolving a fourth.
+_V4_MAX_ALERT_DETAILS = 3
+
 DEFAULT_VERSION = "3.0"
-SUPPORTED_VERSIONS = ("3.0", "off")
+SUPPORTED_VERSIONS = ("3.0", "4.0", "off")
 
 
 def fetch_alerts_and_uv(
@@ -55,14 +63,16 @@ def fetch_alerts_and_uv(
 ) -> tuple[list[WeatherAlert], float | None]:
     """Fetch active weather alerts and the UV index via the selected One Call version.
 
-    ``version`` is ``"3.0"`` or ``"off"`` (skip the request entirely).  Any
-    unrecognised value falls back to the default, so a config typo degrades to
-    today's behaviour rather than losing the data outright.
+    ``version`` is ``"3.0"``, ``"4.0"``, or ``"off"`` (skip the request
+    entirely).  Any unrecognised value falls back to the default, so a config
+    typo degrades to today's behaviour rather than losing the data outright.
 
     May raise; the caller is responsible for degrading to ``([], None)``.
     """
     if version == "off":
         return [], None
+    if version == "4.0":
+        return _fetch_v4(session, params)
     return _fetch_v3(session, params)
 
 
@@ -148,3 +158,59 @@ def _v4_parse_alert_detail(payload: dict) -> WeatherAlert | None:
     """
     event = str(payload.get("event") or "").strip()
     return WeatherAlert(event=event) if event else None
+
+
+def _fetch_v4(
+    session: requests.Session,
+    params: dict,
+) -> tuple[list[WeatherAlert], float | None]:
+    """Fetch alerts and UV from One Call 4.0.
+
+    Costs one request plus one per active alert (capped), because 4.0 reports
+    alerts as bare IDs.  On a quiet day that is a single request — the same as
+    3.0 — and the extra calls only appear when there is actually something to
+    show.
+    """
+    resp = session.get(_V4_CURRENT_URL, params=params, timeout=_TIMEOUT)
+    resp.raise_for_status()
+    payload = resp.json()
+
+    uv_index = _v4_parse_uv(payload)
+
+    alert_ids = _v4_parse_alert_ids(payload)
+    if len(alert_ids) > _V4_MAX_ALERT_DETAILS:
+        logger.debug(
+            "Resolving %d of %d active alerts (capped)", _V4_MAX_ALERT_DETAILS, len(alert_ids)
+        )
+        alert_ids = alert_ids[:_V4_MAX_ALERT_DETAILS]
+
+    alerts: list[WeatherAlert] = []
+    for alert_id in alert_ids:
+        # One bad alert must not cost the others, nor the UV index we already
+        # hold — so unlike the request above, these are caught individually.
+        try:
+            alert = _fetch_v4_alert(session, params, alert_id)
+        except Exception as exc:
+            logger.debug("Skipped weather alert %s: %s", alert_id, exc)
+            continue
+        if alert is not None:
+            alerts.append(alert)
+
+    return alerts, uv_index
+
+
+def _fetch_v4_alert(
+    session: requests.Session,
+    params: dict,
+    alert_id: str,
+) -> WeatherAlert | None:
+    """Resolve one alert ID to its event name via ``/onecall/alert/{id}``.
+
+    This endpoint takes the ID in the path and nothing but ``appid`` in the
+    query, so the shared params dict (which carries lat/lon/units) is not
+    reused here.
+    """
+    url = _V4_ALERT_URL.format(alert_id=quote(alert_id, safe=""))
+    resp = session.get(url, params={"appid": params.get("appid")}, timeout=_TIMEOUT)
+    resp.raise_for_status()
+    return _v4_parse_alert_detail(resp.json())

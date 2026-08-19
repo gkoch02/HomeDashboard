@@ -71,8 +71,12 @@ def _dispatch_session(routes: dict[str, dict], errors: dict[str, Exception] | No
     """Build a mock session whose .get() is routed by URL substring.
 
     ``routes`` maps a URL fragment to the JSON payload to return; ``errors``
-    maps a fragment to an exception raised by ``raise_for_status()``.  An
-    unmatched URL fails the test loudly rather than returning a bare MagicMock.
+    maps a fragment to an exception raised by ``raise_for_status()``.
+
+    An unmatched URL calls pytest.fail rather than raising AssertionError,
+    because the code under test catches Exception by design — an AssertionError
+    would be swallowed by the very degradation path these tests exercise, and a
+    misrouted request would quietly look like a graceful failure.
     """
     errors = errors or {}
 
@@ -88,7 +92,7 @@ def _dispatch_session(routes: dict[str, dict], errors: dict[str, Exception] | No
                 resp.raise_for_status = MagicMock()
                 resp.json.return_value = payload
                 return resp
-        raise AssertionError(f"unexpected request to {url}")
+        pytest.fail(f"unexpected request to {url}")
 
     session = MagicMock()
     session.get.side_effect = _get
@@ -230,7 +234,7 @@ class TestValidation:
         _errors, warnings = validate_config(cfg)
         return [w for w in warnings if w.field == "weather.one_call_version"]
 
-    @pytest.mark.parametrize("version", ["3.0", "off"])
+    @pytest.mark.parametrize("version", ["3.0", "4.0", "off"])
     def test_supported_versions_are_silent(self, version):
         assert self._warnings_for(version) == []
 
@@ -254,7 +258,7 @@ class TestSchema:
             if f["path"] == "weather.one_call_version"
         )
         assert field["type"] == "enum"
-        assert field["choices"] == ["3.0", "off"]
+        assert field["choices"] == ["3.0", "4.0", "off"]
         assert not field.get("secret")
 
 
@@ -307,3 +311,103 @@ class TestV4Parsers:
         from src.fetchers.weather_onecall import _v4_parse_alert_detail
 
         assert _v4_parse_alert_detail(payload) is None
+
+
+def _v4_routes(alert_ids=None, uvi=1.55):
+    """A /onecall/current payload with the given alert IDs, plus alert details."""
+    record = dict(_V4_CURRENT_SAMPLE["data"][0])
+    record["uvi"] = uvi
+    record["alerts"] = ["ID-1", "ID-2"] if alert_ids is None else alert_ids
+    routes = {"/onecall/current": {**_V4_CURRENT_SAMPLE, "data": [record]}}
+    for alert_id in record["alerts"]:
+        routes[f"/onecall/alert/{alert_id}"] = {**_V4_ALERT_SAMPLE, "event": f"Event {alert_id}"}
+    return routes
+
+
+class TestV4Transport:
+    def test_routes_only_to_4_0_endpoints(self):
+        session = _dispatch_session(_v4_routes())
+
+        _fetch_alerts_and_uv(session, {"appid": "k"}, "4.0")
+
+        assert _urls(session)
+        for url in _urls(session):
+            assert "/data/4.0/onecall" in url
+            assert "/data/3.0/" not in url
+            assert "/data/2.5/" not in url
+
+    def test_resolves_alert_ids_to_event_names(self):
+        session = _dispatch_session(_v4_routes(["ID-1"]))
+
+        alerts, uv = _fetch_alerts_and_uv(session, {"appid": "k"}, "4.0")
+
+        assert uv == 1.55
+        assert [a.event for a in alerts] == ["Event ID-1"]
+
+    def test_quiet_day_costs_a_single_request(self):
+        """With no active alerts 4.0 is no more expensive than 3.0."""
+        session = _dispatch_session(_v4_routes([]))
+
+        alerts, uv = _fetch_alerts_and_uv(session, {"appid": "k"}, "4.0")
+
+        assert session.get.call_count == 1
+        assert alerts == []
+        assert uv == 1.55
+
+    def test_alert_detail_requests_are_capped(self):
+        from src.fetchers.weather_onecall import _V4_MAX_ALERT_DETAILS
+
+        session = _dispatch_session(_v4_routes([f"ID-{i}" for i in range(10)]))
+
+        alerts, _uv = _fetch_alerts_and_uv(session, {"appid": "k"}, "4.0")
+
+        detail_calls = [u for u in _urls(session) if "/onecall/alert/" in u]
+        assert len(detail_calls) == _V4_MAX_ALERT_DETAILS
+        assert len(alerts) == _V4_MAX_ALERT_DETAILS
+
+    def test_alert_detail_request_omits_lat_lon_and_units(self):
+        """That endpoint takes the ID in the path and nothing but appid."""
+        session = _dispatch_session(_v4_routes(["ID-1"]))
+
+        _fetch_alerts_and_uv(
+            session, {"appid": "k", "lat": 1.0, "lon": 2.0, "units": "imperial"}, "4.0"
+        )
+
+        detail_call = next(c for c in session.get.call_args_list if "/onecall/alert/" in c[0][0])
+        assert detail_call.kwargs["params"] == {"appid": "k"}
+
+    def test_one_failing_alert_does_not_lose_the_others(self):
+        routes = _v4_routes(["ID-1", "ID-2"])
+        session = _dispatch_session(routes, errors={"/onecall/alert/ID-1": Exception("500")})
+
+        alerts, uv = _fetch_alerts_and_uv(session, {"appid": "k"}, "4.0")
+
+        assert [a.event for a in alerts] == ["Event ID-2"]
+        assert uv == 1.55, "a failed alert lookup must not cost the UV index"
+
+    def test_unauthorised_key_degrades_gracefully(self):
+        """A 4.0 key calling 4.0 without the subscription 401s like any other."""
+        session = _dispatch_session({}, errors={"/onecall/current": Exception("401 Unauthorized")})
+
+        assert _fetch_alerts_and_uv(session, {"appid": "k"}, "4.0") == ([], None)
+
+    def test_rate_limited_request_degrades_gracefully(self):
+        session = _dispatch_session({}, errors={"/onecall/current": Exception("429 Too Many")})
+
+        assert _fetch_alerts_and_uv(session, {"appid": "k"}, "4.0") == ([], None)
+
+    def test_malformed_payload_degrades_gracefully(self):
+        session = _dispatch_session({"/onecall/current": ["not", "a", "dict"]})
+
+        assert _fetch_alerts_and_uv(session, {"appid": "k"}, "4.0") == ([], None)
+
+    def test_alert_ids_are_url_escaped_into_the_path(self):
+        routes = _v4_routes([])
+        routes["/onecall/alert/a%2Fb%3Fc"] = _V4_ALERT_SAMPLE
+        routes["/onecall/current"]["data"][0]["alerts"] = ["a/b?c"]
+        session = _dispatch_session(routes)
+
+        _fetch_alerts_and_uv(session, {"appid": "k"}, "4.0")
+
+        detail_call = next(c for c in session.get.call_args_list if "/onecall/alert/" in c[0][0])
+        assert detail_call[0][0].endswith("/onecall/alert/a%2Fb%3Fc")

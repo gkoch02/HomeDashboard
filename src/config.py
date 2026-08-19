@@ -41,8 +41,8 @@ class WeatherConfig:
     latitude: float = 0.0
     longitude: float = 0.0
     units: str = "imperial"
-    # Which One Call product supplies alerts + the UV index: "3.0", or "off"
-    # to skip the request entirely. An OpenWeather account can hold only one
+    # Which One Call product supplies alerts + the UV index: "3.0", "4.0", or
+    # "off" to skip the request entirely. An account can hold only one
     # One Call subscription, so this cannot be auto-detected — calling the
     # version you are not subscribed to 401s exactly like having none.
     one_call_version: str = "3.0"
