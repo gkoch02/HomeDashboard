@@ -6,6 +6,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added
+
+- **ICS feeds expand recurring events.** The ICS path walked raw VEVENTs, so
+  a weekly standup exported from Google/Outlook appeared only in the week of
+  its original `DTSTART` and never again — while the CalDAV backend expanded
+  server-side, so the two backends disagreed on the same calendar. RRULE /
+  RDATE / EXDATE / RECURRENCE-ID are now expanded per-occurrence inside the
+  fetch window via the new `recurring-ical-events` core dependency, with a
+  graceful raw-walk fallback (plus warning) when the package is missing.
+  (#212)
+
+### Changed
+
+- **The Google API client stack is no longer imported on every tick.**
+  `calendar_google` pulled googleapiclient + friends at module top, and every
+  run reaches that module through the fetcher registry — including ICS-only,
+  CalDAV-only, and `--dummy` runs, and the web server via `state_reader`.
+  That import costs 1–2 s on a Pi. The imports are now deferred into
+  `_build_service`, so only runs that actually talk to the Google API pay
+  for them; a subprocess guard test fences the boundary. (#211)
+
 ### Fixed
 
 - **Weather alerts and UV work again.** The alerts/UV fetch still called

@@ -60,9 +60,7 @@ def fetch_from_ical(
         # Prefer X-WR-CALNAME if present, fall back to URL hostname
         cal_name = str(cal.get("X-WR-CALNAME", "")) or _url_hostname(url)
 
-        for component in cal.walk():
-            if component.name != "VEVENT":
-                continue
+        for component in _expand_components(cal, time_min, time_max, url):
             event = _parse_ical_event(component, cal_name, tz=tz)
             if event is None:
                 continue
@@ -91,6 +89,39 @@ def fetch_from_ical(
 
     all_events.sort(key=lambda e: e.start)
     return all_events
+
+
+def _expand_components(cal, time_min, time_max, url: str) -> list:
+    """Yield VEVENT components with recurrence rules expanded to occurrences.
+
+    A raw ``cal.walk()`` sees one VEVENT per recurring series, carrying only
+    the series' original DTSTART — so a weekly standup exported from
+    Google/Outlook appeared in the week of its first occurrence and never
+    again (issue #212). ``recurring_ical_events`` expands RRULE / RDATE /
+    EXDATE / RECURRENCE-ID into one component per occurrence inside the
+    window, matching the CalDAV backend's ``server_expand=True`` behaviour so
+    both backends agree on the same calendar. Occurrences still flow through
+    the existing per-event window filter, so boundary semantics for
+    non-recurring events are unchanged.
+
+    Falls back to the raw walk with a warning if the library is unavailable
+    (an old deployment whose requirements weren't refreshed) — recurring
+    events degrade to the old behaviour rather than dropping the feed.
+    """
+    try:
+        import recurring_ical_events  # type: ignore[import-untyped]
+    except ImportError:
+        logger.warning(
+            "recurring-ical-events not installed; recurring events in %s will "
+            "only appear in their first week (pip install recurring-ical-events)",
+            url,
+        )
+        return [c for c in cal.walk() if c.name == "VEVENT"]
+    try:
+        return list(recurring_ical_events.of(cal).between(time_min, time_max))
+    except Exception as exc:
+        logger.warning("Recurrence expansion failed for %s: %s — using raw events", url, exc)
+        return [c for c in cal.walk() if c.name == "VEVENT"]
 
 
 def _parse_ical_event(

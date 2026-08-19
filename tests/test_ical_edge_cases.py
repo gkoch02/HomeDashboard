@@ -461,3 +461,110 @@ class TestIcalendarMissing:
         monkeypatch.setitem(sys.modules, "icalendar", None)
         with pytest.raises(RuntimeError, match="icalendar"):
             fetch_from_ical(["https://example.com/cal.ics"])
+
+
+# ---------------------------------------------------------------------------
+# Recurrence expansion (#212)
+# ---------------------------------------------------------------------------
+
+
+class TestRecurrenceExpansion:
+    """A raw cal.walk() sees one VEVENT per recurring series, so a weekly
+    standup appeared only in the week of its original DTSTART and vanished
+    forever after. Expansion mirrors the CalDAV backend's server_expand."""
+
+    @patch("src.fetchers.calendar_ical.requests.get")
+    def test_weekly_rrule_yields_occurrence_in_window(self, mock_get):
+        # Series started long before the requested window.
+        ical_text = (
+            "BEGIN:VEVENT\r\n"
+            "SUMMARY:Weekly Standup\r\n"
+            "DTSTART:20250106T140000Z\r\n"
+            "DTEND:20250106T143000Z\r\n"
+            "RRULE:FREQ=WEEKLY;BYDAY=MO\r\n"
+            "UID:standup-1\r\n"
+            "END:VEVENT\r\n"
+        )
+        mock_get.return_value = _mock_response(_make_ical_response(ical_text))
+        # Window: Mon 2026-04-06 .. Mon 2026-04-13 (a year after DTSTART).
+        events = fetch_from_ical(["https://example.com/cal.ics"], days=7,
+                                 start_date=date(2026, 4, 6))
+        standups = [e for e in events if e.summary == "Weekly Standup"]
+        assert len(standups) == 1
+        assert standups[0].start.date() == date(2026, 4, 6)
+
+    @patch("src.fetchers.calendar_ical.requests.get")
+    def test_exdate_is_respected(self, mock_get):
+        ical_text = (
+            "BEGIN:VEVENT\r\n"
+            "SUMMARY:Weekly Standup\r\n"
+            "DTSTART:20260406T140000Z\r\n"
+            "DTEND:20260406T143000Z\r\n"
+            "RRULE:FREQ=WEEKLY;BYDAY=MO\r\n"
+            "EXDATE:20260413T140000Z\r\n"
+            "UID:standup-2\r\n"
+            "END:VEVENT\r\n"
+        )
+        mock_get.return_value = _mock_response(_make_ical_response(ical_text))
+        # Window covers 04-06 through 04-20 inclusive (the end bound is
+        # exclusive at midnight, so 15 days reaches the 04-20 occurrence).
+        events = fetch_from_ical(["https://example.com/cal.ics"], days=15,
+                                 start_date=date(2026, 4, 6))
+        starts = sorted(e.start.date() for e in events if e.summary == "Weekly Standup")
+        assert date(2026, 4, 6) in starts
+        assert date(2026, 4, 13) not in starts  # EXDATEd occurrence dropped
+        assert date(2026, 4, 20) in starts
+
+    @patch("src.fetchers.calendar_ical.requests.get")
+    def test_daily_rrule_yields_one_per_day(self, mock_get):
+        ical_text = (
+            "BEGIN:VEVENT\r\n"
+            "SUMMARY:Daily Walk\r\n"
+            "DTSTART:20260101T090000Z\r\n"
+            "DTEND:20260101T093000Z\r\n"
+            "RRULE:FREQ=DAILY\r\n"
+            "UID:walk-1\r\n"
+            "END:VEVENT\r\n"
+        )
+        mock_get.return_value = _mock_response(_make_ical_response(ical_text))
+        events = fetch_from_ical(["https://example.com/cal.ics"], days=7,
+                                 start_date=date(2026, 4, 6))
+        walks = [e for e in events if e.summary == "Daily Walk"]
+        assert len(walks) == 7
+
+    @patch("src.fetchers.calendar_ical.requests.get")
+    def test_non_recurring_event_unchanged(self, mock_get):
+        ical_text = (
+            "BEGIN:VEVENT\r\n"
+            "SUMMARY:One Off\r\n"
+            "DTSTART:20260407T100000Z\r\n"
+            "DTEND:20260407T110000Z\r\n"
+            "UID:oneoff-1\r\n"
+            "END:VEVENT\r\n"
+        )
+        mock_get.return_value = _mock_response(_make_ical_response(ical_text))
+        events = fetch_from_ical(["https://example.com/cal.ics"], days=7,
+                                 start_date=date(2026, 4, 6))
+        assert [e.summary for e in events] == ["One Off"]
+
+    @patch("src.fetchers.calendar_ical.requests.get")
+    def test_missing_library_falls_back_to_raw_walk(self, mock_get, caplog):
+        # Old deployment without the package: recurring series degrade to the
+        # old first-week-only behaviour, non-recurring events still work.
+        ical_text = (
+            "BEGIN:VEVENT\r\n"
+            "SUMMARY:One Off\r\n"
+            "DTSTART:20260407T100000Z\r\n"
+            "DTEND:20260407T110000Z\r\n"
+            "UID:oneoff-2\r\n"
+            "END:VEVENT\r\n"
+        )
+        mock_get.return_value = _mock_response(_make_ical_response(ical_text))
+        import logging
+
+        with patch.dict(sys.modules, {"recurring_ical_events": None}):
+            with caplog.at_level(logging.WARNING, logger="src.fetchers.calendar_ical"):
+                events = fetch_from_ical(["https://example.com/cal.ics"], days=7,
+                                         start_date=date(2026, 4, 6))
+        assert [e.summary for e in events] == ["One Off"]
+        assert "recurring-ical-events not installed" in caplog.text
