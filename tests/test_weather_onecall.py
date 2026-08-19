@@ -25,6 +25,47 @@ _V3_SAMPLE = {
     "alerts": [{"event": "Heat Advisory"}],
 }
 
+# Trimmed from the response examples in the One Call API 4.0 documentation.
+# Note the `data` array wrapper around what the docs call a single record, and
+# that `alerts` holds bare ID strings rather than alert objects.
+_V4_CURRENT_SAMPLE = {
+    "lat": 51.5,
+    "lon": -0.1,
+    "timezone": "Europe/London",
+    "timezone_offset": 3600,
+    "data": [
+        {
+            "dt": 1777449371,
+            "sunrise": 1777437375,
+            "sunset": 1777490344,
+            "temp": 286.42,
+            "feels_like": 285.32,
+            "pressure": 1024,
+            "humidity": 58,
+            "dew_point": 278.34,
+            "uvi": 1.55,
+            "clouds": 0,
+            "visibility": 10000,
+            "wind_speed": 8.23,
+            "wind_deg": 70,
+            "weather": [{"id": 800, "main": "Clear", "description": "sky is clear", "icon": "01d"}],
+            "alerts": [
+                "8B46C632-DCA7-44D7-8BDF-02445621BAFF",
+                "29F58A35-BB91-4A73-9F46-9FC64BDF604F",
+            ],
+        }
+    ],
+}
+
+_V4_ALERT_SAMPLE = {
+    "id": "8B46C632-DCA7-44D7-8BDF-02445621BAFF",
+    "sender_name": "NWS Tulsa (Eastern Oklahoma)",
+    "event": "Heat Advisory",
+    "start": 1597341600,
+    "end": 1597366800,
+    "description": "...HEAT ADVISORY REMAINS IN EFFECT...",
+}
+
 
 def _dispatch_session(routes: dict[str, dict], errors: dict[str, Exception] | None = None):
     """Build a mock session whose .get() is routed by URL substring.
@@ -215,3 +256,54 @@ class TestSchema:
         assert field["type"] == "enum"
         assert field["choices"] == ["3.0", "off"]
         assert not field.get("secret")
+
+
+class TestV4Parsers:
+    """The pure dict-in/value-out half of the 4.0 support, tested without HTTP."""
+
+    def test_parses_uv_from_the_data_wrapper(self):
+        from src.fetchers.weather_onecall import _v4_parse_uv
+
+        assert _v4_parse_uv(_V4_CURRENT_SAMPLE) == 1.55
+
+    @pytest.mark.parametrize("payload", [{}, {"data": []}, {"data": [{}]}])
+    def test_missing_uv_is_none_not_an_error(self, payload):
+        from src.fetchers.weather_onecall import _v4_parse_uv
+
+        assert _v4_parse_uv(payload) is None
+
+    def test_parses_alert_ids(self):
+        from src.fetchers.weather_onecall import _v4_parse_alert_ids
+
+        assert _v4_parse_alert_ids(_V4_CURRENT_SAMPLE) == [
+            "8B46C632-DCA7-44D7-8BDF-02445621BAFF",
+            "29F58A35-BB91-4A73-9F46-9FC64BDF604F",
+        ]
+
+    @pytest.mark.parametrize(
+        "payload", [{}, {"data": []}, {"data": [{}]}, {"data": [{"alerts": []}]}]
+    )
+    def test_no_alerts_is_an_empty_list(self, payload):
+        from src.fetchers.weather_onecall import _v4_parse_alert_ids
+
+        assert _v4_parse_alert_ids(payload) == []
+
+    def test_blank_alert_ids_are_dropped(self):
+        from src.fetchers.weather_onecall import _v4_parse_alert_ids
+
+        payload = {"data": [{"alerts": ["  ", "", "REAL-ID"]}]}
+        assert _v4_parse_alert_ids(payload) == ["REAL-ID"]
+
+    def test_parses_alert_detail_into_a_weather_alert(self):
+        from src.fetchers.weather_onecall import _v4_parse_alert_detail
+
+        alert = _v4_parse_alert_detail(_V4_ALERT_SAMPLE)
+        assert alert is not None
+        assert alert.event == "Heat Advisory"
+
+    @pytest.mark.parametrize("payload", [{}, {"event": ""}, {"event": "   "}, {"event": None}])
+    def test_nameless_alert_detail_is_dropped(self, payload):
+        """Matches the 3.0 path, which skips alerts with no usable event name."""
+        from src.fetchers.weather_onecall import _v4_parse_alert_detail
+
+        assert _v4_parse_alert_detail(payload) is None

@@ -20,6 +20,11 @@ helpers in this module need to change.
 3.0 is a single all-in-one request; ``uvi`` sits at ``current.uvi`` and alerts
 arrive inline as full objects under ``alerts``.
 
+4.0 is modular.  ``/onecall/current`` wraps its single record in a ``data``
+array, so ``uvi`` sits at ``data[0].uvi`` — and ``data[0].alerts`` is a list of
+alert *ID strings*, not alert objects.  Resolving one ID to the event name that
+``WeatherAlert`` carries costs an extra request to ``/onecall/alert/{id}``.
+
 Functions here are free to raise; ``weather._fetch_alerts_and_uv`` owns the
 single degradation boundary that turns any failure into ``([], None)``.
 """
@@ -90,3 +95,56 @@ def _fetch_v3(
         uv_index = float(current["uvi"])
 
     return alerts, uv_index
+
+
+# ---------------------------------------------------------------------------
+# One Call 4.0 — modular endpoints
+#
+# These parsers are pure (dict in, value out) and hold all of this module's
+# knowledge of the 4.0 envelope.  If OpenWeather reshapes a response, they are
+# the only things that need to change.  They tolerate absent optional data but
+# deliberately do not guess at unrecognised shapes: a genuinely wrong payload
+# raises, and the caller's degradation boundary turns that into ([], None) —
+# the same result a key without the subscription already gets.
+# ---------------------------------------------------------------------------
+
+
+def _v4_first_record(payload: dict) -> dict | None:
+    """Return the single record from a 4.0 response, or None if absent.
+
+    Even endpoints documented as returning exactly one record wrap it in the
+    same ``data`` array the paginated timeline endpoints use.
+    """
+    records = payload.get("data") or []
+    return records[0] if records else None
+
+
+def _v4_parse_uv(payload: dict) -> float | None:
+    """Extract the UV index from a ``/onecall/current`` response."""
+    record = _v4_first_record(payload)
+    if record is None:
+        return None
+    uvi = record.get("uvi")
+    return None if uvi is None else float(uvi)
+
+
+def _v4_parse_alert_ids(payload: dict) -> list[str]:
+    """Extract active alert IDs from a ``/onecall/current`` response.
+
+    4.0 reports alerts as bare ID strings; each one needs its own request to
+    ``/onecall/alert/{id}`` before it has a name worth displaying.
+    """
+    record = _v4_first_record(payload)
+    if record is None:
+        return []
+    return [str(a).strip() for a in record.get("alerts") or [] if str(a).strip()]
+
+
+def _v4_parse_alert_detail(payload: dict) -> WeatherAlert | None:
+    """Build a WeatherAlert from an ``/onecall/alert/{id}`` response.
+
+    Returns None for an alert with no usable event name, matching how the 3.0
+    path drops nameless alerts rather than rendering a blank banner row.
+    """
+    event = str(payload.get("event") or "").strip()
+    return WeatherAlert(event=event) if event else None
