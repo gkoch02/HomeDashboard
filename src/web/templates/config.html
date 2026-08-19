@@ -277,6 +277,23 @@
         </select>
       </div>
     </div>
+    <div class="field-row">
+      <label class="field-label" for="cfg-onecall">One Call version</label>
+      <div class="field-input-wrap" style="max-width:140px;">
+        <select id="cfg-onecall" data-field="weather.one_call_version">
+          {% for v in ["3.0", "4.0", "off"] %}
+            <option value="{{ v }}"
+              {{ "selected" if cfg.weather.one_call_version == v }}>{{ v }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+    <div class="field-hint">
+      Source for weather alerts and the UV index. Must match the One Call
+      subscription your OpenWeather account holds &mdash; an account can only have
+      one, and the wrong choice fails exactly like having none. Use
+      <code>off</code> if you have no subscription.
+    </div>
   </div>
 
   {# ------------------------------------------------------------------ #}

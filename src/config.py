@@ -41,6 +41,11 @@ class WeatherConfig:
     latitude: float = 0.0
     longitude: float = 0.0
     units: str = "imperial"
+    # Which One Call product supplies alerts + the UV index: "3.0", "4.0", or
+    # "off" to skip the request entirely. An account can hold only one
+    # One Call subscription, so this cannot be auto-detected — calling the
+    # version you are not subscribed to 401s exactly like having none.
+    one_call_version: str = "3.0"
 
 
 @dataclass
@@ -254,6 +259,29 @@ def resolve_tz(tz_name: str) -> tzinfo:
     return zoneinfo.ZoneInfo(tz_name)
 
 
+def _normalise_one_call_version(value: object) -> str:
+    """Coerce a raw weather.one_call_version YAML value to its canonical string.
+
+    Unquoted YAML is full of traps here: ``one_call_version: 3.0`` parses as a
+    float, ``one_call_version: 3`` as an int, and ``one_call_version: off`` as
+    the *boolean* ``False`` (YAML 1.1 spells booleans ``off``/``on``).  None of
+    those compare equal to the strings the dispatcher looks for.  Coerce to
+    text and fold each onto the version it obviously means.
+
+    An absent or empty value is the default, not a typo: ``one_call_version:``
+    with nothing after it parses as None, and warning about ``'None'`` would be
+    noise on every run.  Values that are merely unrecognised *are* returned
+    unchanged, so validate_config() can name the actual typo while the
+    dispatcher falls back to the default.
+    """
+    if value is None:
+        return "3.0"
+    text = str(value).strip()
+    if not text:
+        return "3.0"
+    return {"3": "3.0", "4": "4.0", "False": "off"}.get(text, text)
+
+
 def load_config(path: str = "config/config.yaml") -> Config:
     config_path = Path(path)
     if not config_path.exists():
@@ -300,6 +328,7 @@ def load_config(path: str = "config/config.yaml") -> Config:
             latitude=w.get("latitude", 0.0),
             longitude=w.get("longitude", 0.0),
             units=w.get("units", "imperial"),
+            one_call_version=_normalise_one_call_version(w.get("one_call_version", "3.0")),
         )
 
     if "birthdays" in raw:

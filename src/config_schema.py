@@ -47,6 +47,12 @@ class SectionSpec:
     fields: tuple[FieldSpec, ...]
 
 
+# Accepted values for weather.one_call_version.  Canonical here rather than in
+# the fetcher so config validation and the web editor cannot drift apart from
+# each other or from the dispatcher.
+ONE_CALL_VERSIONS = ("3.0", "4.0", "off")
+
+
 def _f(
     path: str,
     yaml_path: tuple[str, ...],
@@ -177,6 +183,18 @@ def schema() -> tuple[SectionSpec, ...]:
                     "enum",
                     "Units",
                     choices=("imperial", "metric", "standard"),
+                ),
+                _f(
+                    "weather.one_call_version",
+                    ("weather", "one_call_version"),
+                    "enum",
+                    "One Call API version",
+                    description=(
+                        "Which One Call product supplies weather alerts and the UV "
+                        "index. Must match the subscription your OpenWeather account "
+                        "actually holds; 'off' skips the request entirely."
+                    ),
+                    choices=ONE_CALL_VERSIONS,
                 ),
             ),
         ),

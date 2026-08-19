@@ -579,6 +579,7 @@ function collectConfigPatch() {
   if ($("cfg-lat"))   patch["weather.latitude"]  = f("cfg-lat");
   if ($("cfg-lon"))   patch["weather.longitude"] = f("cfg-lon");
   if ($("cfg-units")) patch["weather.units"]     = v("cfg-units");
+  if ($("cfg-onecall")) patch["weather.one_call_version"] = v("cfg-onecall");
 
   // Birthdays
   if ($("cfg-bday-source"))    patch["birthdays.source"]           = v("cfg-bday-source");

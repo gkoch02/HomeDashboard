@@ -101,7 +101,10 @@ src/
 │   ├── calendar_google.py     # Google Calendar API — full sync, incremental sync, sync state
 │   ├── calendar_ical.py       # ICS feed fetching and parsing
 │   ├── calendar_caldav.py     # CalDAV server fetching (Nextcloud / Radicale / iCloud / etc.)
-│   ├── weather.py             # OpenWeatherMap (current + forecast + alerts); registry adapter
+│   ├── weather.py             # OpenWeatherMap current + forecast (free /data/2.5/ endpoints);
+│   │                          #   registry adapter; owns the One Call degradation boundary
+│   ├── weather_onecall.py     # One Call transport for alerts + UV only — 3.0 / 4.0 / off,
+│   │                          #   selected by weather.one_call_version
 │   ├── purpleair.py           # PurpleAir sensor → PM1 / PM2.5 / PM10 / AQI + ambient readings; registry adapter
 │   ├── host.py                # System metrics via /proc (sync, no caching, no breaker — outside the registry)
 │   ├── cache.py               # Multi-source JSON cache with per-source TTL; ser/deser delegated through registry
@@ -406,6 +409,8 @@ default to `None` and fall back gracefully so adding a new field never breaks ex
 - `make install` (remote deploy) uses `__INSTALL_DIR__` and `__USER__` placeholders in `dashboard.service` — these are substituted via `sed` during install, so no manual editing is needed for standard setups
 - Service account credentials are cached for the process lifetime; tokens auto-refresh via google-auth (safe for the hourly cron use case)
 - Weather forecast parsing skips malformed OWM slots (missing `"main"` key or empty `"weather"` array) rather than crashing
+- **One Call is the only paid part of the weather fetch, and its version is a config choice.** Current conditions + forecast come from the free `/data/2.5/weather` and `/data/2.5/forecast` endpoints; alerts and `uv_index` are the only two values sourced from One Call, via `src/fetchers/weather_onecall.py`. `weather.one_call_version` selects `"3.0"` (default), `"4.0"`, or `"off"`. OpenWeather sells 3.0 and 4.0 as separate products and **an account can hold only one subscription**, so calling the wrong one returns 401 — indistinguishable from having none, which is why this cannot be auto-detected. The parser (`_normalise_one_call_version` in `config.py`) folds the YAML traps back onto the canonical strings: unquoted `3.0` is a float, `3` is an int, and `off` is the YAML 1.1 boolean `False`.
+- **The v4 shape differs from v3 in two ways that matter.** `/onecall/current` wraps its single record in a `data` array (so `uvi` is at `data[0].uvi`), and `data[0].alerts` holds bare alert **ID strings**, not alert objects — each needs a separate `/onecall/alert/{id}` request to get the `event` name `WeatherAlert` carries. That fan-out is capped by `_V4_MAX_ALERT_DETAILS` (3), so a quiet day costs one request (same as v3) and a stormy one at most four. All shape knowledge lives in the pure `_v4_parse_*` functions; `weather._fetch_alerts_and_uv` remains the single degradation boundary that turns any failure into `([], None)`.
 - `fuzzyclock` theme: time phrases snap to the nearest 5-minute bucket; the default systemd timer runs every 5 minutes; the image-hash check prevents eInk refreshes when the phrase hasn't changed
 - `fuzzyclock` component uses `style.font_bold` / `style.font_medium` for the phrase / date — font-agnostic so the theme can be re-skinned by swapping the style callables
 - `qotd_invert` and `fuzzyclock_invert` are inverted-color variants of their base themes; they are included in the random rotation pool by default

@@ -98,6 +98,23 @@ Search for your city at [latlong.net](https://www.latlong.net/) or use Google Ma
 The free tier allows 1,000 calls/day -- more than enough for the default
 30-minute fetch interval.
 
+### Why are weather alerts and the UV index always empty?
+
+Those two values are the only ones that don't come from the free endpoints --
+they need a One Call subscription, which is a separate opt-in on your
+OpenWeather account. Two things go wrong here:
+
+1. **No One Call subscription at all.** Set `weather.one_call_version: "off"`
+   to stop firing a request that can only fail.
+2. **Subscribed to the version the dashboard isn't calling.** One Call 3.0 and
+   4.0 are separate products and an account can only hold one; calling the
+   other returns 401, indistinguishable from having no subscription. Set
+   `weather.one_call_version` to match what you actually subscribed to.
+
+Raise `logging.level` to `DEBUG` to confirm -- the skipped fetch is logged
+there. For the step-by-step fix, see
+[Enabling One Call, or switching between 3.0 and 4.0](configuration.md#enabling-one-call-or-switching-between-30-and-40).
+
 ## Themes
 
 ### How do I add a new theme?

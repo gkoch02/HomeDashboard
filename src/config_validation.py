@@ -19,6 +19,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from src.config_schema import ONE_CALL_VERSIONS
+
 if TYPE_CHECKING:
     # Annotation-only: importing src.config at runtime would deadlock the
     # circular bottom-of-module re-export in config.py when this module is
@@ -415,6 +417,19 @@ def validate_config(
                 field="weather.units",
                 message=f"Unknown weather units: '{cfg.weather.units}'",
                 hint="Must be one of: imperial, metric, standard",
+            )
+        )
+
+    # --- One Call version ---
+    if cfg.weather.one_call_version not in ONE_CALL_VERSIONS:
+        warnings.append(
+            ConfigWarning(
+                field="weather.one_call_version",
+                message=f"Unknown One Call version: '{cfg.weather.one_call_version}'",
+                hint=(
+                    f"Must be one of: {', '.join(ONE_CALL_VERSIONS)}. "
+                    "Falling back to 3.0 for this run."
+                ),
             )
         )
 

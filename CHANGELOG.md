@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added
+
+- **One Call 4.0 support for weather alerts and the UV index**, selected by the
+  new `weather.one_call_version` setting (`"3.0"` default / `"4.0"` / `"off"`).
+  OpenWeather sells One Call 3.0 and 4.0 as separate products and an account can
+  hold only one subscription, so calling the version you are not subscribed to
+  401s exactly like having none — which the dashboard could not previously work
+  around. Current conditions and the forecast are unaffected; they stay on the
+  free `/data/2.5/` endpoints. `"off"` skips the request entirely for users with
+  no One Call subscription, who were paying a guaranteed-401 round trip on every
+  fetch. On 4.0 a quiet day costs the same single request as 3.0; active alerts
+  cost one extra lookup each (capped at three) because 4.0 reports alerts as
+  bare IDs. The setting is editable from the web UI's config page. See
+  [Weather API tiers](docs/configuration.md#weather-api-tiers).
+
 ### Changed
 
 - **The Google API client stack is no longer imported on every tick.**

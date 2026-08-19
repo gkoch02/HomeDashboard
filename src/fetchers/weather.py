@@ -9,12 +9,12 @@ import requests  # type: ignore[import-untyped]
 
 from src.config import WeatherConfig
 from src.data.models import DayForecast, WeatherAlert, WeatherData
+from src.fetchers import weather_onecall
 
 logger = logging.getLogger(__name__)
 
 _OWM_CURRENT_URL = "https://api.openweathermap.org/data/2.5/weather"
 _OWM_FORECAST_URL = "https://api.openweathermap.org/data/2.5/forecast"
-_OWM_ONECALL_URL = "https://api.openweathermap.org/data/3.0/onecall"
 _TIMEOUT = 10  # seconds
 
 
@@ -46,7 +46,7 @@ def fetch_weather(cfg: WeatherConfig, tz: tzinfo | None = None) -> WeatherData:
     with requests.Session() as session:
         current = _fetch_current(session, params)
         today_high, today_low, forecast = _fetch_forecast(session, params, tz=tz)
-        alerts, uv_index = _fetch_alerts_and_uv(session, params)
+        alerts, uv_index = _fetch_alerts_and_uv(session, params, cfg.one_call_version)
 
     # Extract sunrise/sunset as timezone-aware datetimes when available
     slot_tz = tz if tz is not None else timezone.utc
@@ -157,41 +157,25 @@ def _fetch_forecast(
 def _fetch_alerts_and_uv(
     session: requests.Session,
     params: dict,
+    version: str = weather_onecall.DEFAULT_VERSION,
 ) -> tuple[list[WeatherAlert], float | None]:
-    """Fetch active weather alerts and UV index from OWM One Call 3.0.
+    """Fetch active weather alerts and the UV index from OpenWeatherMap One Call.
 
-    One Call 3.0 requires the (free-tier) "One Call by Call" subscription;
-    keys without it get a 401 and fall into the graceful-degradation branch.
-    The 2.5 endpoint this used to call was retired by OWM in mid-2024 and
-    now fails for every key, which silently disabled alerts and UV.
+    ``version`` selects the One Call product — ``"3.0"``, ``"4.0"``, or
+    ``"off"`` — and comes from ``weather.one_call_version`` in config.  An
+    account can only hold one One Call subscription, so calling the version you
+    are not subscribed to 401s exactly like having no subscription at all.
 
-    Returns ``(alerts, uv_index)`` — both are best-effort.  On any failure
-    (network error, unsupported API tier) returns ``([], None)``.
+    This is the sole degradation boundary for One Call: the transport in
+    :mod:`src.fetchers.weather_onecall` is free to raise, and any failure here
+    (network error, unsupported API tier, unexpected payload) returns
+    ``([], None)`` so a render can never be broken by alerts or UV.
     """
-    onecall_params = {
-        **params,
-        "exclude": "minutely,hourly,daily",
-    }
     try:
-        resp = session.get(_OWM_ONECALL_URL, params=onecall_params, timeout=_TIMEOUT)
-        resp.raise_for_status()
-        data = resp.json()
+        return weather_onecall.fetch_alerts_and_uv(session, params, version=version)
     except Exception as exc:
         logger.debug("Weather alerts/UV fetch skipped: %s", exc)
         return [], None
-
-    alerts: list[WeatherAlert] = []
-    for a in data.get("alerts", []):
-        event = a.get("event", "").strip()
-        if event:
-            alerts.append(WeatherAlert(event=event))
-
-    uv_index: float | None = None
-    current = data.get("current", {})
-    if "uvi" in current:
-        uv_index = float(current["uvi"])
-
-    return alerts, uv_index
 
 
 def _pick_midday(slots: list[dict], tz: tzinfo | None = None) -> dict | None:
