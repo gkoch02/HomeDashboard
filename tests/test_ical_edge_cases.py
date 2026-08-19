@@ -487,8 +487,9 @@ class TestRecurrenceExpansion:
         )
         mock_get.return_value = _mock_response(_make_ical_response(ical_text))
         # Window: Mon 2026-04-06 .. Mon 2026-04-13 (a year after DTSTART).
-        events = fetch_from_ical(["https://example.com/cal.ics"], days=7,
-                                 start_date=date(2026, 4, 6))
+        events = fetch_from_ical(
+            ["https://example.com/cal.ics"], days=7, start_date=date(2026, 4, 6)
+        )
         standups = [e for e in events if e.summary == "Weekly Standup"]
         assert len(standups) == 1
         assert standups[0].start.date() == date(2026, 4, 6)
@@ -508,8 +509,9 @@ class TestRecurrenceExpansion:
         mock_get.return_value = _mock_response(_make_ical_response(ical_text))
         # Window covers 04-06 through 04-20 inclusive (the end bound is
         # exclusive at midnight, so 15 days reaches the 04-20 occurrence).
-        events = fetch_from_ical(["https://example.com/cal.ics"], days=15,
-                                 start_date=date(2026, 4, 6))
+        events = fetch_from_ical(
+            ["https://example.com/cal.ics"], days=15, start_date=date(2026, 4, 6)
+        )
         starts = sorted(e.start.date() for e in events if e.summary == "Weekly Standup")
         assert date(2026, 4, 6) in starts
         assert date(2026, 4, 13) not in starts  # EXDATEd occurrence dropped
@@ -527,8 +529,9 @@ class TestRecurrenceExpansion:
             "END:VEVENT\r\n"
         )
         mock_get.return_value = _mock_response(_make_ical_response(ical_text))
-        events = fetch_from_ical(["https://example.com/cal.ics"], days=7,
-                                 start_date=date(2026, 4, 6))
+        events = fetch_from_ical(
+            ["https://example.com/cal.ics"], days=7, start_date=date(2026, 4, 6)
+        )
         walks = [e for e in events if e.summary == "Daily Walk"]
         assert len(walks) == 7
 
@@ -543,8 +546,9 @@ class TestRecurrenceExpansion:
             "END:VEVENT\r\n"
         )
         mock_get.return_value = _mock_response(_make_ical_response(ical_text))
-        events = fetch_from_ical(["https://example.com/cal.ics"], days=7,
-                                 start_date=date(2026, 4, 6))
+        events = fetch_from_ical(
+            ["https://example.com/cal.ics"], days=7, start_date=date(2026, 4, 6)
+        )
         assert [e.summary for e in events] == ["One Off"]
 
     @patch("src.fetchers.calendar_ical.requests.get")
@@ -564,7 +568,8 @@ class TestRecurrenceExpansion:
 
         with patch.dict(sys.modules, {"recurring_ical_events": None}):
             with caplog.at_level(logging.WARNING, logger="src.fetchers.calendar_ical"):
-                events = fetch_from_ical(["https://example.com/cal.ics"], days=7,
-                                         start_date=date(2026, 4, 6))
+                events = fetch_from_ical(
+                    ["https://example.com/cal.ics"], days=7, start_date=date(2026, 4, 6)
+                )
         assert [e.summary for e in events] == ["One Off"]
         assert "recurring-ical-events not installed" in caplog.text

@@ -6,17 +6,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
-### Added
-
-- **ICS feeds expand recurring events.** The ICS path walked raw VEVENTs, so
-  a weekly standup exported from Google/Outlook appeared only in the week of
-  its original `DTSTART` and never again — while the CalDAV backend expanded
-  server-side, so the two backends disagreed on the same calendar. RRULE /
-  RDATE / EXDATE / RECURRENCE-ID are now expanded per-occurrence inside the
-  fetch window via the new `recurring-ical-events` core dependency, with a
-  graceful raw-walk fallback (plus warning) when the package is missing.
-  (#212)
-
 ### Changed
 
 - **The Google API client stack is no longer imported on every tick.**
@@ -120,6 +109,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
+- **ICS feeds expand recurring events.** The ICS path walked raw VEVENTs, so
+  a weekly standup exported from Google/Outlook appeared only in the week of
+  its original `DTSTART` and never again — while the CalDAV backend expanded
+  server-side, so the two backends disagreed on the same calendar. RRULE /
+  RDATE / EXDATE / RECURRENCE-ID are now expanded per-occurrence inside the
+  fetch window via the new `recurring-ical-events` core dependency, with a
+  graceful raw-walk fallback (plus warning) when the package is missing.
+  (#212)
 - **`halftone_agenda`'s weather band reads larger.** The temperature numeral
   goes 64 → 78 pt with the condition and high/low sized to match (16 → 19 and
   18 → 21). The column reservation was over-sized for the numeral it held, so
