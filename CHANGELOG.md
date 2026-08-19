@@ -21,6 +21,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   bare IDs. The setting is editable from the web UI's config page. See
   [Weather API tiers](docs/configuration.md#weather-api-tiers).
 
+- **`halftone_agenda` encodes event state again.** Elapsed rows are perforated
+  on a Bayer lattice, the event in progress inverts into a solid bar, the next
+  one up carries an accented tick, and a rolled-over agenda sits behind an
+  inverted `TOMORROW` chip. All four were dropped to buy partial-refresh
+  compatibility the plate never had; they come back now that the theme takes
+  the full waveform every time. On Inky the accent is red, which puts colour
+  back on the calendar side of the plate. State is the only thing in the pane
+  reading the clock, and only at event boundaries, so a tick that crosses none
+  still renders identically and writes nothing to the panel. (#222)
+
 ### Changed
 
 - **The Google API client stack is no longer imported on every tick.**
@@ -47,6 +57,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   `weatherglass` — and every other theme keeps partial refresh and its speed.
   `make check` names the configured themes that opt out, so the setting never
   quietly means less than it says. (#222)
+
 - **One malformed VEVENT no longer disables ICS recurrence expansion for the
   whole feed.** `recurring_ical_events` raises on a VEVENT with no `DTSTART`
   and on an unparseable `RRULE`; the expander caught that and fell back to the

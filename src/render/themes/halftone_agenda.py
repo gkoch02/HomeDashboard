@@ -13,11 +13,12 @@ nearly-square pane, with a typeset band beneath it holding the temperature
 numeral, condition, high/low, sunrise, sunset, date and feels-like reading.
 
 The right pane is the calendar, at the size a dedicated column allows: as many
-of today's events as fit at a legible type size, every row set identically and
-carrying its start and end time, and an "updated" caption in the bottom corner.
-It carries no state treatment — see the panel module for why the inverted "now"
-bar and the screened elapsed rows were taken out, and why that reasoning no
-longer holds now that the theme declines partial refresh outright (#222).
+of today's events as fit at a legible type size, each row carrying its start
+and end time, and an "updated" caption in the bottom corner. Rows are rendered
+in the treatment their state calls for — elapsed ones perforated, the event in
+progress inverted, the next one up accented. Those need a full-waveform refresh
+to survive the panel; the theme declines partial refresh outright (#222) so
+they get one. See the panel module for the history.
 
 Typography follows the split. Righteous, halftone's single display voice,
 carries the weather pane and the agenda's chrome; DM Sans sets the event rows,
@@ -31,8 +32,9 @@ sets ~4.4 px stems while DM Sans SemiBold sets ~3.7 px, so matching the roles
 one-for-one left the calendar side visibly greyer than the weather side.
 
 On Inky the canvas is RGB (``prefer_color_on_inky=True``): yellow rings the
-sun and moon. The calendar side is entirely black on paper — the red accent
-went with the state treatments — so the engraving still reads as one.
+sun and moon, and the red accent marks the running event's bar and the
+next-up tick. On Waveshare both accents collapse to ink, so the plate reads
+the same either way.
 """
 
 from __future__ import annotations
@@ -62,9 +64,10 @@ def halftone_agenda_theme() -> Theme:
             # a solid paper underlay, and FS only diffuses intermediate values.
             preferred_quantization_mode="floyd_steinberg",
             prefer_color_on_inky=True,
-            # The engraving is dithered ink, and on this split plate the fade runs
-            # horizontally across the agenda sharing its rows (#222). The pane gave
-            # up its state encoding for a partial compatibility it never had.
+            # The engraving is dithered ink, and on this split plate the fade
+            # runs horizontally across the agenda sharing its rows (#222). This
+            # is also what lets the agenda encode state again: the treatments
+            # need the full waveform, and now they always get it.
             supports_partial_refresh=False,
             halftone_agenda=ComponentRegion(0, 0, 800, 480),
             # Hide all standard regions — this theme is full-canvas.

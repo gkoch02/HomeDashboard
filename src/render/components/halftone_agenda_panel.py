@@ -23,25 +23,29 @@ width. ``draw_weather_scene`` maps its placements onto whatever rect it is
 handed and takes element sizes from that scale separately, so the composition
 survives the narrower, nearly-square pane instead of simply shrinking.
 
-The agenda is a plain list: every row is set the same way and carries its
-event's start and end time. It began with ``day_arc``'s state encoding —
-elapsed rows Bayer-perforated, the event in progress inverted into a solid
-bar, the next one up accented — and all three were removed, because each
-depends on a large or dithered area of ink surviving the panel and none of
-them does under partial refresh: Waveshare's fast waveform leaves a filled bar
-reading as charcoal and a screened row as mud.
+The agenda encodes each event's state in its rendering, the way ``day_arc``
+does: elapsed rows are perforated on a Bayer lattice, the event in progress
+inverts into a solid bar, the next one up carries an accented tick, and
+everything else is crisp. Rows still carry both ends of their event's time,
+stacked, and a rolled-over agenda sits behind an inverted TOMORROW chip.
 
-That trade bought nothing (#222). The engraving in the left pane is dithered
-ink too, and the fast waveform faded it in bands that ran straight across the
-agenda's rows — the plate needs the full waveform whatever the calendar side
-does. The theme now says so itself
-(``ThemeLayout.supports_partial_refresh = False``) and
-``OutputService.publish`` gives it a full refresh regardless of
-``display.enable_partial_refresh``, which leaves the state treatments free to
-come back. The pane is still the plain list until they do.
+All four treatments were taken out at one point and put back (#222). They were
+removed because a filled bar reads as charcoal and a screened row as mud under
+Waveshare's fast waveform, and partial refresh looked worth keeping. It was
+not: the engraving in the left pane is dithered ink too, and the fast waveform
+faded it in bands that ran straight across the agenda beside it, so the plate
+was never going to survive a partial refresh whatever the calendar side did.
+The theme now declares that (``ThemeLayout.supports_partial_refresh = False``)
+and ``OutputService.publish`` gives it the full waveform regardless of
+``display.enable_partial_refresh`` — which is the condition these treatments
+needed all along.
 
-After dark, once every timed event has ended, the pane rolls over to tomorrow
-behind a plain TOMORROW dateline.
+Encoding state does mean the pane's pixels depend on the clock, but only at
+event boundaries: a tick that crosses no start or end renders byte-identically
+and is suppressed by the image-hash check, so this costs a handful of extra
+hardware writes a day rather than one per tick.
+
+After dark, once every timed event has ended, the pane rolls over to tomorrow.
 
 No external assets — every illustration is generated from PIL primitives.
 """
@@ -53,13 +57,14 @@ from datetime import date, datetime, tzinfo
 from PIL import Image, ImageDraw, ImageFont
 
 from src.data.models import CalendarEvent, DashboardData, WeatherData
+from src.render.artkit import accent_red as _accent_red
 from src.render.artkit import ink as _ink
 from src.render.artkit import to_local_naive
 
-# The after-dark rollover is shared with ``day_arc`` rather than re-derived:
-# both themes decide "is today spent?" against the same clock, and a second
-# copy of the rule would be free to drift out of agreement with the first.
-from src.render.components.day_arc_panel import agenda_day
+# Calendar semantics are shared with ``day_arc`` rather than re-derived: both
+# themes classify the same events against the same clock, and a second copy of
+# either rule would be free to drift out of agreement with the first.
+from src.render.components.day_arc_panel import agenda_day, event_state
 from src.render.fonts import weather_icon
 from src.render.primitives import (
     content_time,
@@ -71,7 +76,12 @@ from src.render.primitives import (
     wrap_lines,
 )
 from src.render.quantize import _BAYER_4X4
-from src.render.skyart import draw_bayer_rule, draw_weather_scene, harden_typeset
+from src.render.skyart import (
+    draw_bayer_rule,
+    draw_weather_scene,
+    harden_typeset,
+    screened_paste,
+)
 from src.render.theme import ComponentRegion, ThemeStyle
 
 # Weather Icons glyphs — Righteous has no sunrise/sunset marks of its own.
@@ -128,6 +138,26 @@ TEMP_COL_GAP = 10
 # Condition and high/low, sized to match the numeral they sit beside.
 COND_PT = 19
 HIGH_LOW_PT = 21
+
+# Bayer cut for elapsed rows. Higher keeps more ink (see
+# ``skyart.screened_paste``). One fixed cut across every tier doesn't work
+# here: perforating a 30 px title at 38% still reads across the room, while the
+# same cut on the 17 px type the packed tiers set leaves a row of dots. The cut
+# rises as the type shrinks so a past row reads as spent at every density
+# rather than as damage.
+_PAST_SCREEN_DISPLAY = 96  # ≈38% of the coverage, for the roomy tiers
+_PAST_SCREEN_BODY = 128  # 50%
+_PAST_SCREEN_DENSE = 160  # ≈62%, for the smallest type on the plate
+
+
+def past_screen(title_pt: int) -> int:
+    """Bayer cut for an elapsed row set at *title_pt*."""
+    if title_pt >= 26:
+        return _PAST_SCREEN_DISPLAY
+    if title_pt >= 20:
+        return _PAST_SCREEN_BODY
+    return _PAST_SCREEN_DENSE
+
 
 # Density tiers for the agenda column: (max_rows, row_h, time_w, time_pt,
 # title_pt, show_location). Tuned for this pane — 382 px of content width and
@@ -544,10 +574,33 @@ def _draw_time_cell(
     draw.text((x0, y + 5 + time_pt), end, font=time_font, fill=fill)
 
 
+def _row_content_heights(
+    style: ThemeStyle,
+    *,
+    time_pt: int,
+    title_pt: int,
+    show_location: bool,
+    two_line_time: bool,
+) -> tuple[int, int]:
+    """Return ``(title_column_h, time_column_h)`` for one row's content.
+
+    The two columns are set independently — a stacked start/end pair can run
+    deeper than a single-line title, and a title with a location under it can
+    run deeper than the times — so anything bracketing the row (the tick, the
+    in-progress bar) has to bracket whichever is taller.
+    """
+    title_font = style.font_bold(title_pt)
+    loc_font = style.font_medium(max(12, time_pt - 2))
+    title_h = text_height(title_font) + (text_height(loc_font) + 2 if show_location else 0)
+    time_h = (5 + 2 * time_pt) if two_line_time else (4 + time_pt)
+    return (title_h, time_h)
+
+
 def _draw_event_row(
     image: Image.Image,
     draw: ImageDraw.ImageDraw,
     event: CalendarEvent,
+    state: str,
     style: ThemeStyle,
     *,
     x0: int,
@@ -558,17 +611,20 @@ def _draw_event_row(
     time_pt: int,
     title_pt: int,
     show_location: bool,
+    is_next: bool = False,
 ) -> None:
-    """Draw one agenda row. Every row is set identically.
+    """Draw one agenda row in the treatment its *state* calls for.
 
-    The pane used to encode event state in the rendering — the event in
-    progress inverted into a solid bar, elapsed rows perforated on a Bayer
-    lattice, the next one up accented. All three depended on large or dithered
-    areas of ink surviving the panel, and under partial refresh they don't:
-    Waveshare's fast waveform leaves a filled bar reading as charcoal and a
-    screened row as mud. The theme no longer runs under partial refresh at all
-    (see the module docstring and #222), so this is now a plain list by
-    inheritance rather than by necessity.
+    ``"past"`` is typeset solid and then perforated on a Bayer lattice, ``"now"``
+    inverts into a filled bar with paper type, and ``"next"`` is crisp. *is_next*
+    marks the soonest timed event still to come; it only changes the tick's
+    colour, which is the accent on Inky and plain ink on Waveshare — so the mark
+    carries a real reading on the colour panel without becoming an
+    indistinguishable second bar on the monochrome one.
+
+    All of this needs a full-waveform refresh to survive the panel, which the
+    theme now guarantees by declining partial refresh (see the module
+    docstring).
     """
     mode = image.mode
     ink = _ink(mode)
@@ -580,14 +636,89 @@ def _draw_event_row(
     loc_font = style.font_medium(max(12, time_pt - 2))
 
     start_str, end_str = event_times(event)
+    two_line_time = end_str is not None and two_line_time_fits(time_pt, row_h)
     title_x = x0 + time_w + 12
     title_w = max(20, w - (time_w + 12))
-    # The tick brackets the row's *type*, not its pitch: the roomiest tier sets
+    loc_y = 4 + text_height(title_font)
+    # The marks bracket the row's *type*, not its pitch: the roomiest tier sets
     # 76-px rows so a two-event day breathes, and a rule drawn to the full row
     # height there would read as a column divider rather than an event mark.
-    content_h = text_height(title_font) + (text_height(loc_font) + 2 if show_location else 0)
-    tick = (x0 + time_w, y + 2, x0 + time_w + 3, y + 2 + content_h + 4)
+    title_h, time_h = _row_content_heights(
+        style,
+        time_pt=time_pt,
+        title_pt=title_pt,
+        show_location=show_location,
+        two_line_time=two_line_time,
+    )
+    content_h = max(title_h + 4, time_h)
+    bar_top = y + 2
+    bar_bot = min(y + row_h - 3, bar_top + content_h)
 
+    if state == "now":
+        # The event happening right now is the one thing on the plate that
+        # inverts — solid field, paper type. The bar runs the full width of the
+        # pane and past its left edge so it reads as a band across the list
+        # rather than as a box around one row's words.
+        draw.rectangle((x0 - 6, bar_top - 2, x0 + w, bar_bot + 2), fill=_accent_red(mode))
+        paper = style.bg
+        _draw_time_cell(
+            draw,
+            start_str,
+            end_str,
+            style,
+            x0=x0,
+            y=y,
+            time_pt=time_pt,
+            row_h=row_h,
+            fill=paper,
+        )
+        used = draw_text_truncated(
+            draw, (title_x, y + 2), event.summary, title_font, title_w, fill=paper
+        )
+        if show_location and used:
+            location = _location_text(event)
+            if location:
+                draw_text_truncated(
+                    draw, (title_x, y + loc_y), location, loc_font, title_w, fill=paper
+                )
+        return
+
+    if state == "past":
+        # Typeset offscreen, then perforate: spent from across the room, still
+        # legible up close. See ``skyart.screened_paste`` for why it isn't
+        # simply drawn in mid-grey. The tile is the whole row minus a 2-px
+        # gutter — a stacked time pair runs deeper than the title beside it,
+        # and a tile cut to the title's height clipped its second line.
+        def _render(d: ImageDraw.ImageDraw) -> None:
+            _draw_time_cell(
+                d,
+                start_str,
+                end_str,
+                style,
+                x0=0,
+                y=0,
+                time_pt=time_pt,
+                row_h=row_h,
+                fill=0,
+            )
+            used_ = draw_text_truncated(
+                d, (time_w + 12, 2), event.summary, title_font, title_w, fill=0
+            )
+            if show_location and used_:
+                location = _location_text(event)
+                if location:
+                    draw_text_truncated(
+                        d, (time_w + 12, loc_y), location, loc_font, title_w, fill=0
+                    )
+
+        screened_paste(
+            image, (x0, y, w, max(1, row_h - 2)), _render, threshold=past_screen(title_pt)
+        )
+        return
+
+    # Upcoming: crisp, with a tick of rule between the time and the title —
+    # filled for a timed event, outlined for an all-day one, accented when this
+    # is the next one up.
     _draw_time_cell(
         draw,
         start_str,
@@ -599,19 +730,19 @@ def _draw_event_row(
         row_h=row_h,
         fill=ink,
     )
-    # Filled for a timed event, outlined for an all-day one — a property of the
-    # event, not of where the clock happens to be.
+    tick = (x0 + time_w, bar_top, x0 + time_w + 3, bar_bot)
+    mark = _accent_red(mode) if is_next else ink
     if event.is_all_day:
-        draw.rectangle(tick, outline=ink)
+        draw.rectangle(tick, outline=mark)
     else:
-        draw.rectangle(tick, fill=ink)
+        draw.rectangle(tick, fill=mark)
     used = draw_text_truncated(draw, (title_x, y + 2), event.summary, title_font, title_w, fill=ink)
     if show_location and used:
         location = _location_text(event)
         if location:
             draw_text_truncated(
                 draw,
-                (title_x, y + 4 + text_height(title_font)),
+                (title_x, y + loc_y),
                 location,
                 loc_font,
                 title_w,
@@ -643,14 +774,14 @@ def _draw_agenda_pane(
 
     # Header. A rolled-over agenda gets an inverted TOMORROW chip so it can
     # never be misread as today's.
-    # Plain type, not an inverted chip: a filled block is the first thing a
-    # fast-waveform refresh washes out, and the pane no longer uses fills.
-    draw.text(
-        (x0, y0 + 3),
-        "TOMORROW" if is_tomorrow else "TODAY",
-        font=title_font,
-        fill=ink,
-    )
+    if is_tomorrow:
+        chip = "TOMORROW"
+        cw = text_width(draw, chip, title_font)
+        ch = text_height(title_font)
+        draw.rectangle((x0 - 4, y0 - 2, x0 + cw + 12, y0 + ch + 10), fill=ink)
+        draw.text((x0 + 4, y0 + 3), chip, font=title_font, fill=style.bg)
+    else:
+        draw.text((x0, y0 + 3), "TODAY", font=title_font, fill=ink)
 
     count = f"{len(day_events)} EVENT" + ("S" if len(day_events) != 1 else "")
     draw.text(
@@ -699,11 +830,16 @@ def _draw_agenda_pane(
     # it — centring it instead left two events floating in the middle of the
     # pane with gaps above and below that looked like a layout fault.
     y = rows_y
+    # The soonest timed event still ahead carries the accent tick. All-day rows
+    # are skipped: they sort to the top of the day and have no "next" about
+    # them, so accenting one would point at the wrong row all morning.
+    next_up = next((e for e in visible if not e.is_all_day and event_state(e, now) == "next"), None)
     for event in visible:
         _draw_event_row(
             image,
             draw,
             event,
+            event_state(event, now),
             style,
             x0=x0,
             y=y,
@@ -713,6 +849,7 @@ def _draw_agenda_pane(
             time_pt=time_pt,
             title_pt=title_pt,
             show_location=show_loc,
+            is_next=event is next_up,
         )
         y += row_h
 
