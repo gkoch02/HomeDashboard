@@ -164,6 +164,7 @@ def get_config_for_web(config_path: str) -> dict:
             "latitude": cfg.weather.latitude,
             "longitude": cfg.weather.longitude,
             "units": cfg.weather.units,
+            "one_call_version": cfg.weather.one_call_version,
         },
         "birthdays": {
             "source": cfg.birthdays.source,

@@ -268,10 +268,17 @@ def _normalise_one_call_version(value: object) -> str:
     those compare equal to the strings the dispatcher looks for.  Coerce to
     text and fold each onto the version it obviously means.
 
-    Values that aren't recognised are returned unchanged so validate_config()
-    can name the actual typo, and the dispatcher falls back to the default.
+    An absent or empty value is the default, not a typo: ``one_call_version:``
+    with nothing after it parses as None, and warning about ``'None'`` would be
+    noise on every run.  Values that are merely unrecognised *are* returned
+    unchanged, so validate_config() can name the actual typo while the
+    dispatcher falls back to the default.
     """
+    if value is None:
+        return "3.0"
     text = str(value).strip()
+    if not text:
+        return "3.0"
     return {"3": "3.0", "4": "4.0", "False": "off"}.get(text, text)
 
 

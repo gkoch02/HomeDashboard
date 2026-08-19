@@ -51,8 +51,9 @@ _TIMEOUT = 10  # seconds
 # there is nothing to gain from resolving a fourth.
 _V4_MAX_ALERT_DETAILS = 3
 
+# Fallback for an unrecognised version string.  The accepted set lives in
+# src.config_schema.ONE_CALL_VERSIONS, alongside the rest of the enum metadata.
 DEFAULT_VERSION = "3.0"
-SUPPORTED_VERSIONS = ("3.0", "4.0", "off")
 
 
 def fetch_alerts_and_uv(
@@ -153,11 +154,22 @@ def _v4_parse_alert_ids(payload: dict) -> list[str]:
 def _v4_parse_alert_detail(payload: dict) -> WeatherAlert | None:
     """Build a WeatherAlert from an ``/onecall/alert/{id}`` response.
 
+    Unlike ``/onecall/current`` this endpoint is *not* wrapped in a ``data``
+    array — the docs list its fields bare (``id``, ``sender_name``, ``event``)
+    where the current endpoint prefixes every one with ``data.`` — so ``event``
+    is read from the top level.
+
     Returns None for an alert with no usable event name, matching how the 3.0
-    path drops nameless alerts rather than rendering a blank banner row.
+    path drops nameless alerts rather than rendering a blank banner row.  That
+    is logged, because a nameless alert is the one failure here that produces
+    no exception: were the envelope ever to change, every alert would resolve
+    to None and the banner would stay empty with nothing else to go on.
     """
     event = str(payload.get("event") or "").strip()
-    return WeatherAlert(event=event) if event else None
+    if not event:
+        logger.debug("Weather alert detail carried no event name: keys=%s", sorted(payload))
+        return None
+    return WeatherAlert(event=event)
 
 
 def _fetch_v4(

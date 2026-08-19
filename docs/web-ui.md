@@ -176,7 +176,7 @@ A browser editor for `config/config.yaml`. Changes are validated server-side bef
 | **Theme** | Dropdown + visual thumbnail grid |
 | **Display Appearance** | Show/hide panels, week days, partial refresh settings |
 | **Sleep / Quiet Hours** | Start and end hour |
-| **Weather & Location** | Latitude, longitude, units |
+| **Weather & Location** | Latitude, longitude, units, One Call version |
 | **Birthdays** | Source, lookahead days, calendar keyword |
 | **Calendar & Event Filters** | Exclude calendars, exclude keywords, exclude all-day |
 | **Advanced: Cache & Intervals** | TTLs, fetch intervals, circuit breaker settings, quote refresh |
@@ -202,7 +202,9 @@ Additional config-page behavior:
 - **Theme schedule**: duplicate times are detected client-side and flagged before the form is submitted.
 - **Latitude / Longitude**: HTML5 `min`/`max` constraints enforce valid ranges (−90–90 / −180–180) directly in the browser.
 
-**Sensitive fields** (API keys, credential file paths) are never sent to the browser. The credentials section shows only whether each credential is set or missing. The allowlist of editable fields and the secret/editable flags are derived from the v5 schema in `src/config_schema.py` — adding a new editable knob is a single `FieldSpec` entry, not a multi-file edit.
+**Sensitive fields** (API keys, credential file paths) are never sent to the browser. The credentials section shows only whether each credential is set or missing. The allowlist of editable fields and the secret/editable flags are derived from the v5 schema in `src/config_schema.py`, so a new `FieldSpec` entry is all it takes to make a field *patchable* via `POST /api/config`.
+
+Putting a control on the page is a separate step, though: `config.html` is a hand-written template rather than a schema-driven form, so a new knob also needs its row there, its value in `get_config_for_web()`, and its key in the patch that `dashboard.js` submits. Miss any of the three and the field is quietly absent from the page — or worse, present but never saved.
 
 ### v5 JSON APIs (for advanced/custom UIs)
 

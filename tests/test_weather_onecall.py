@@ -225,6 +225,9 @@ class TestVersionNormalisation:
             (False, "off"),  # unquoted YAML 1.1 boolean
             ("  3.0  ", "3.0"),
             ("nonsense", "nonsense"),  # preserved so validation can name it
+            (None, "3.0"),  # "one_call_version:" with nothing after it
+            ("", "3.0"),
+            ("   ", "3.0"),
         ],
     )
     def test_normalisation(self, raw, expected):
@@ -245,6 +248,20 @@ class TestVersionNormalisation:
         p.write_text("weather:\n  api_key: 'k'\n")
 
         assert load_config(str(p)).weather.one_call_version == "3.0"
+
+    def test_empty_key_defaults_without_warning(self, tmp_path):
+        """`one_call_version:` with no value is "unset", not a typo."""
+        from src.config import load_config
+        from src.config_validation import validate_config
+
+        p = tmp_path / "config.yaml"
+        p.write_text("weather:\n  api_key: 'k'\n  one_call_version:\n")
+
+        cfg = load_config(str(p))
+        assert cfg.weather.one_call_version == "3.0"
+
+        _errors, warnings = validate_config(cfg)
+        assert not [w for w in warnings if w.field == "weather.one_call_version"]
 
 
 class TestValidation:
@@ -433,3 +450,81 @@ class TestV4Transport:
 
         detail_call = next(c for c in session.get.call_args_list if "/onecall/alert/" in c[0][0])
         assert detail_call[0][0].endswith("/onecall/alert/a%2Fb%3Fc")
+
+
+class TestEnumStaysConsistent:
+    """The accepted set is declared once; nothing may drift from it."""
+
+    def test_schema_choices_are_the_canonical_tuple(self):
+        from src.config_schema import ONE_CALL_VERSIONS, schema
+
+        field = next(
+            f
+            for section in schema()
+            for f in section.fields
+            if f.path == "weather.one_call_version"
+        )
+        assert field.choices == ONE_CALL_VERSIONS
+
+    def test_every_accepted_value_validates_and_dispatches(self):
+        """Nothing in the enum may be rejected by validation or unroutable."""
+        from src.config import Config
+        from src.config_schema import ONE_CALL_VERSIONS
+
+        for version in ONE_CALL_VERSIONS:
+            cfg = Config()
+            cfg.weather = WeatherConfig(api_key="a" * 32, latitude=1.0, one_call_version=version)
+            _errors, warnings = validate_config(cfg)
+            assert not [w for w in warnings if w.field == "weather.one_call_version"], version
+
+    def test_template_offers_exactly_the_canonical_values(self):
+        """The hand-written config page must not drift from the schema."""
+        import re
+        from pathlib import Path
+
+        from src.config_schema import ONE_CALL_VERSIONS
+
+        html = Path("src/web/templates/config.html").read_text()
+        block = re.search(r'data-field="weather\.one_call_version".*?\{% endfor %\}', html, re.S)
+        assert block, "no one_call_version select in config.html"
+        offered = re.search(r"\{% for v in (\[[^\]]*\]) %\}", block.group(0))
+        assert offered
+        assert [x.strip().strip("\"'") for x in offered.group(1)[1:-1].split(",")] == list(
+            ONE_CALL_VERSIONS
+        )
+
+
+class TestWebEditorExposesTheField:
+    def test_get_config_for_web_returns_the_current_value(self, tmp_path):
+        from src.web.config_editor import get_config_for_web
+
+        p = tmp_path / "config.yaml"
+        p.write_text("weather:\n  api_key: 'k'\n  one_call_version: '4.0'\n")
+
+        assert get_config_for_web(str(p))["weather"]["one_call_version"] == "4.0"
+
+    def test_schema_endpoint_carries_a_value_not_null(self, tmp_path):
+        """A schema-driven save must not write back a null it was handed."""
+        from src.config_schema import to_json
+        from src.web.config_editor import get_config_for_web
+        from src.web.routes.config import _flatten_for_schema
+
+        p = tmp_path / "config.yaml"
+        p.write_text("weather:\n  api_key: 'k'\n  one_call_version: '4.0'\n")
+
+        values = _flatten_for_schema(get_config_for_web(str(p)))
+        field = next(
+            f
+            for section in to_json(values=values)["sections"]
+            for f in section["fields"]
+            if f["path"] == "weather.one_call_version"
+        )
+        assert field["value"] == "4.0"
+
+    def test_the_save_patch_includes_the_field(self):
+        """dashboard.js must send it, or the dropdown silently does nothing."""
+        from pathlib import Path
+
+        js = Path("src/web/static/dashboard.js").read_text()
+        assert 'patch["weather.one_call_version"]' in js
+        assert 'v("cfg-onecall")' in js

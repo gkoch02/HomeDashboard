@@ -18,7 +18,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   no One Call subscription, who were paying a guaranteed-401 round trip on every
   fetch. On 4.0 a quiet day costs the same single request as 3.0; active alerts
   cost one extra lookup each (capped at three) because 4.0 reports alerts as
-  bare IDs. See [Weather API tiers](docs/configuration.md#weather-api-tiers).
+  bare IDs. The setting is editable from the web UI's config page. See
+  [Weather API tiers](docs/configuration.md#weather-api-tiers).
 
 ### Changed
 
