@@ -11,10 +11,11 @@ from __future__ import annotations
 import json
 import logging
 import re
-from datetime import date, datetime, timedelta, timezone, tzinfo
+from datetime import date, timedelta, tzinfo
 from pathlib import Path
 from typing import Any
 
+from src._time import day_start_utc
 from src.config import BirthdayConfig, GoogleConfig
 from src.data.models import Birthday, CalendarEvent
 
@@ -233,7 +234,7 @@ def _birthdays_from_calendar(
 ) -> list[Birthday]:
     service = _build_service(google_cfg)
     today = _today(tz)
-    time_min = datetime.combine(today, datetime.min.time()).astimezone(timezone.utc)
+    time_min = day_start_utc(today, tz)
     time_max = time_min + timedelta(days=birthday_cfg.lookahead_days)
 
     # API errors (DNS/auth/network/HTTP) propagate so the data pipeline can fall

@@ -13,7 +13,7 @@ comparisons against config strings, test fallbacks).
 
 from __future__ import annotations
 
-from datetime import datetime, timezone, tzinfo
+from datetime import date, datetime, time, timezone, tzinfo
 
 
 def now_utc() -> datetime:
@@ -35,6 +35,25 @@ def to_aware(value: datetime, tz: tzinfo | None = None) -> datetime:
     if value.tzinfo is None:
         return value.replace(tzinfo=tz or timezone.utc)
     return value
+
+
+def day_start_utc(day: date, tz: tzinfo | None = None) -> datetime:
+    """Return midnight at the start of *day* in *tz*, expressed in UTC.
+
+    This is the sanctioned way to build fetch-window boundaries from a local
+    calendar date. ``datetime.combine(day, time.min).astimezone(timezone.utc)``
+    interprets the naive midnight in the *host machine's* timezone — on the
+    default Pi setup (system tz UTC, configured tz local) that shifts the
+    window by the UTC offset and silently drops events at the window edges.
+
+    When *tz* is None, midnight is interpreted in the host timezone — the
+    calendar fetchers derive *day* from the host clock in that case
+    (``date.today()``), so host-tz interpretation keeps the pair consistent
+    and preserves the historical behaviour for unconfigured-timezone installs.
+    """
+    if tz is None:
+        return datetime.combine(day, time.min).astimezone(timezone.utc)
+    return datetime.combine(day, time.min, tzinfo=tz).astimezone(timezone.utc)
 
 
 def assert_aware(value: datetime, name: str = "datetime") -> datetime:

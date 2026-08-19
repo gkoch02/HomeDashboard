@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import date, datetime, timedelta, timezone, tzinfo
+from datetime import date, datetime, timedelta, tzinfo
 from pathlib import Path
 from typing import Any
 
@@ -21,6 +21,7 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
 from src._io import atomic_write_json
+from src._time import day_start_utc
 from src.config import GoogleConfig
 from src.data.models import CalendarEvent
 
@@ -130,7 +131,7 @@ def fetch_google_events(
     today = _today(tz)
     # Start from Monday of the current week by default to match the standard week view.
     window_start = start_date if start_date is not None else today - timedelta(days=today.weekday())
-    time_min = datetime.combine(window_start, datetime.min.time()).astimezone(timezone.utc)
+    time_min = day_start_utc(window_start, tz)
     time_max = time_min + timedelta(days=days)
 
     sync_state = _load_sync_state(cache_dir) if cache_dir else {}

@@ -8,6 +8,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Fixed
 
+- **Weather alerts and UV work again.** The alerts/UV fetch still called
+  OpenWeatherMap's One Call **2.5** endpoint, which OWM retired in mid-2024 —
+  and because the helper is best-effort, every run silently returned no
+  alerts and no UV. The `weather_alert_present` theme rule could never fire,
+  the weather theme's alert banner never showed, and weatherglass's UV bar
+  stayed empty. The fetch now targets One Call 3.0; keys without the (free
+  opt-in) "One Call by Call" subscription degrade exactly as before. (#202)
+- **Calendar fetch windows are built in the configured timezone.** All four
+  window builders (Google API, ICS, CalDAV, birthday-calendar) combined the
+  local window date with a *naive* midnight and let `astimezone()` interpret
+  it in the **host machine's** timezone. On the default Pi setup (system tz
+  UTC, `timezone:` local) the 7-day window shifted by the UTC offset and
+  events at the end of the displayed week were silently dropped; the CalDAV
+  variant stamped local midnight as UTC outright and has no client-side
+  filter to mask it. Boundaries now go through the new
+  `src._time.day_start_utc(day, tz)` helper, which anchors midnight in the
+  configured zone (host zone only when no timezone is configured, matching
+  how `today` is derived in that case). (#203)
+
 - **An idle tick no longer redraws the panel.** Every "updated" caption was
   rendered from the run's own clock, so the image differed on every tick even
   when nothing had been fetched — around 12 hardware writes an hour on the

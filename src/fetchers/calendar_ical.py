@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta, timezone, tzinfo
+from datetime import datetime, timedelta, tzinfo
 from typing import Any
 from urllib.parse import urlparse
 
 import requests  # type: ignore[import-untyped]
 
+from src._time import day_start_utc
 from src.data.models import CalendarEvent
 from src.fetchers.calendar_google import _today
 
@@ -38,7 +39,7 @@ def fetch_from_ical(
 
     today = _today(tz)
     window_start = start_date if start_date is not None else today - timedelta(days=today.weekday())
-    time_min = datetime.combine(window_start, datetime.min.time()).astimezone(timezone.utc)
+    time_min = day_start_utc(window_start, tz)
     time_max = time_min + timedelta(days=days)
 
     all_events: list[CalendarEvent] = []
