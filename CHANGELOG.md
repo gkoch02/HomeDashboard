@@ -54,6 +54,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   raised `TypeError` on every publish until the state file was deleted by
   hand. The reader now applies the repo-wide "naive ISO timestamps are UTC"
   convention. (#208)
+- **Registry-added fetchers honour their skip decisions.** The pipeline
+  computed cache/interval/breaker decisions for every registered fetcher but
+  only forwarded the four built-ins' to the launch step — anything added via
+  the documented "New fetcher" recipe was fetched on every 5-minute run
+  regardless of its configured interval, and its breaker never actually
+  paused it. (#209)
+- **Daily random theme rotates at configured-timezone midnight.** The daily
+  pick fell back to the system clock's `date.today()`, so the "new theme
+  after midnight" flip landed at host-tz midnight and `--dry-run --date`
+  previews ignored the date override for the daily variant (the hourly
+  variant already honoured it). (#210)
 
 - **An idle tick no longer redraws the panel.** Every "updated" caption was
   rendered from the run's own clock, so the image differed on every tick even

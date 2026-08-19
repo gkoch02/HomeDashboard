@@ -61,6 +61,11 @@ def resolve_theme_name(
             include=cfg.random_theme.include,
             exclude=cfg.random_theme.exclude,
             output_dir=cfg.state_dir,
+            # Rotate on the configured-timezone date, not the system clock's
+            # (#210) — without this the "new theme after midnight" flip lands
+            # at the host-tz midnight, and --dry-run --date previews ignore
+            # the date override for the daily variant.
+            today=now.date() if now is not None else None,
         )
     elif theme_name == "random_hourly":
         from src.render.random_theme import pick_random_theme_hourly

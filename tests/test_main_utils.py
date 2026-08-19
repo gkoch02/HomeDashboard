@@ -213,6 +213,44 @@ class TestResolveThemeName:
         assert result == "minimalist"
         mock_pick.assert_called_once()
 
+    def test_daily_random_rotates_on_configured_tz_date(self, tmp_path):
+        """Regression (#210): the daily pick must use now.date() (configured
+        tz / --date override), not the system clock's date.today()."""
+        from datetime import datetime, timezone
+        from unittest.mock import patch
+
+        from src.config import Config
+        from src.services.theme import resolve_theme_name
+
+        cfg = Config()
+        cfg.theme = "random_daily"
+        cfg.random_theme.include = []
+        cfg.random_theme.exclude = []
+        cfg.output_dir = str(tmp_path)
+        now = datetime(2026, 7, 4, 10, 30, tzinfo=timezone.utc)
+        with patch(
+            "src.render.random_theme.pick_random_theme", return_value="minimalist"
+        ) as mock_pick:
+            resolve_theme_name(cfg, override_theme=None, now=now)
+        assert mock_pick.call_args.kwargs["today"] == now.date()
+
+    def test_daily_random_without_now_passes_none(self, tmp_path):
+        from unittest.mock import patch
+
+        from src.config import Config
+        from src.services.theme import resolve_theme_name
+
+        cfg = Config()
+        cfg.theme = "random"
+        cfg.random_theme.include = []
+        cfg.random_theme.exclude = []
+        cfg.output_dir = str(tmp_path)
+        with patch(
+            "src.render.random_theme.pick_random_theme", return_value="minimalist"
+        ) as mock_pick:
+            resolve_theme_name(cfg, override_theme=None)
+        assert mock_pick.call_args.kwargs["today"] is None
+
 
 class TestShouldSkipRefresh:
     def _dt(self, hour: int) -> datetime:

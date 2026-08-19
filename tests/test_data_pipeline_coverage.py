@@ -601,3 +601,67 @@ class TestMergeAirQualityWithWeatherFallback:
         assert "temperature" not in result.fallback_fields
         assert "humidity" in result.fallback_fields
         assert "pressure" not in result.fallback_fields  # weather.pressure is None
+
+
+# ---------------------------------------------------------------------------
+# Regression (#209): registry-added fetchers must honour phase-1 skip
+# decisions — the legacy five-param _launch_fetches signature only carries
+# the built-in sources, and defaulting everything else to "never skip"
+# bypassed their interval, cache, and breaker entirely.
+# ---------------------------------------------------------------------------
+
+
+class TestRegistryFetcherSkipDecisions:
+    def test_skip_decision_honoured_for_registry_fetcher(self, tmp_path):
+        from unittest.mock import MagicMock
+
+        cfg = Config()
+        cfg.purpleair = PurpleAirConfig()
+        fetch_fn = MagicMock(name="fetch")
+        register_fetcher(
+            Fetcher(
+                name="__review_209__",
+                fetch=fetch_fn,
+                serialize=lambda d: d,
+                deserialize=lambda b: b,
+                ttl_minutes=lambda cfg: 60,
+                interval_minutes=lambda cfg: 60,
+            )
+        )
+        try:
+            pipeline = DataPipeline(cfg, cache_dir=str(tmp_path))
+            # Phase 1 says "skip everything" (fresh cache / open breaker).
+            with patch.object(pipeline, "_should_skip", side_effect=lambda source: (None, True)):
+                pipeline.fetch()
+            fetch_fn.assert_not_called()
+        finally:
+            unregister_fetcher("__review_209__")
+
+    def test_non_skipped_registry_fetcher_still_runs(self, tmp_path):
+        from unittest.mock import MagicMock
+
+        cfg = Config()
+        cfg.purpleair = PurpleAirConfig()
+        fetch_fn = MagicMock(name="fetch", return_value={"ok": True})
+        register_fetcher(
+            Fetcher(
+                name="__review_209b__",
+                fetch=fetch_fn,
+                serialize=lambda d: d,
+                deserialize=lambda b: b,
+                ttl_minutes=lambda cfg: 60,
+                interval_minutes=lambda cfg: 60,
+            )
+        )
+        try:
+            pipeline = DataPipeline(cfg, cache_dir=str(tmp_path))
+
+            def decide(source):
+                # Only the synthetic fetcher is due; built-ins skip.
+                return (None, source != "__review_209b__")
+
+            with patch.object(pipeline, "_should_skip", side_effect=decide):
+                pipeline.fetch()
+            fetch_fn.assert_called_once()
+        finally:
+            unregister_fetcher("__review_209b__")
