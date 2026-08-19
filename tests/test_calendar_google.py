@@ -270,13 +270,15 @@ class TestBuildService:
         fake_creds = MagicMock(name="Credentials")
         fake_service = MagicMock(name="CalendarService")
 
+        from google.oauth2 import service_account
+
         with (
             patch.object(
-                calendar_google.service_account.Credentials,
+                service_account.Credentials,
                 "from_service_account_file",
                 return_value=fake_creds,
             ) as from_file,
-            patch.object(calendar_google, "build", return_value=fake_service) as build_mock,
+            patch("googleapiclient.discovery.build", return_value=fake_service) as build_mock,
         ):
             svc1 = calendar_google._build_service(cfg)
             svc2 = calendar_google._build_service(cfg)
@@ -298,7 +300,10 @@ class TestBuildService:
         cfg = _google_cfg(service_account_path="/fake/creds.json")
         captured: dict = {}
 
-        original_http = calendar_google.httplib2.Http
+        import httplib2
+        from google.oauth2 import service_account
+
+        original_http = httplib2.Http
 
         def _capture_http(*args, **kwargs):
             captured["timeout"] = kwargs.get("timeout")
@@ -306,12 +311,12 @@ class TestBuildService:
 
         with (
             patch.object(
-                calendar_google.service_account.Credentials,
+                service_account.Credentials,
                 "from_service_account_file",
                 return_value=MagicMock(),
             ),
-            patch.object(calendar_google, "build", return_value=MagicMock()),
-            patch.object(calendar_google.httplib2, "Http", side_effect=_capture_http),
+            patch("googleapiclient.discovery.build", return_value=MagicMock()),
+            patch.object(httplib2, "Http", side_effect=_capture_http),
         ):
             calendar_google._build_service(cfg)
 
@@ -319,11 +324,13 @@ class TestBuildService:
         assert captured["timeout"] == 30
 
     def test_missing_credentials_raises_runtime_error(self):
+        from google.oauth2 import service_account
+
         from src.fetchers import calendar_google
 
         cfg = _google_cfg(service_account_path="/does/not/exist.json")
         with patch.object(
-            calendar_google.service_account.Credentials,
+            service_account.Credentials,
             "from_service_account_file",
             side_effect=FileNotFoundError("no such file"),
         ):
@@ -338,12 +345,14 @@ class TestBuildService:
 
     def test_build_failure_does_not_poison_cache(self):
         """A failed load must not leave a cache entry that masks a later successful load."""
+        from google.oauth2 import service_account
+
         from src.fetchers import calendar_google
 
         cfg = _google_cfg(service_account_path="/fake/creds.json")
 
         with patch.object(
-            calendar_google.service_account.Credentials,
+            service_account.Credentials,
             "from_service_account_file",
             side_effect=ValueError("malformed json"),
         ):
@@ -354,11 +363,11 @@ class TestBuildService:
         fake_service = MagicMock(name="CalendarService")
         with (
             patch.object(
-                calendar_google.service_account.Credentials,
+                service_account.Credentials,
                 "from_service_account_file",
                 return_value=MagicMock(),
             ),
-            patch.object(calendar_google, "build", return_value=fake_service),
+            patch("googleapiclient.discovery.build", return_value=fake_service),
         ):
             svc = calendar_google._build_service(cfg)
 

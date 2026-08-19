@@ -14,12 +14,14 @@ from datetime import date, datetime, timedelta, tzinfo
 from pathlib import Path
 from typing import Any
 
-import httplib2
-from google.oauth2 import service_account
-from google_auth_httplib2 import AuthorizedHttp
-from googleapiclient.discovery import build
-from googleapiclient.errors import HttpError
-
+# NOTE (#211): the googleapiclient stack (httplib2, google.oauth2,
+# google_auth_httplib2, googleapiclient) is deliberately NOT imported at
+# module top. It costs 1-2 s to import on a Pi, and this module is reached
+# by every run — including ICS-only, CalDAV-only, and --dummy ticks, plus
+# the web server via state_reader — through src.fetchers' registry
+# side-effect imports. The imports live inside _build_service /
+# _fetch_incremental so only runs that actually talk to the Google API pay
+# for them (same discipline as calendar_caldav's local `import caldav`).
 from src._io import atomic_write_json
 from src._time import day_start_utc
 from src.config import GoogleConfig
@@ -66,6 +68,12 @@ def clear_service_caches() -> None:
 
 
 def _build_service(cfg: GoogleConfig):
+    # Deferred heavy imports — see the module-top note (#211).
+    import httplib2
+    from google.oauth2 import service_account
+    from google_auth_httplib2 import AuthorizedHttp
+    from googleapiclient.discovery import build
+
     key = cfg.service_account_path
     if key not in _service_cache:
         try:
@@ -308,6 +316,10 @@ def _fetch_incremental(
     *delta_items* are raw Google Calendar API event dicts (not ``CalendarEvent``
     objects) so that ``status="cancelled"`` items can be used for deletion.
     """
+    # Deferred import (#211): free at this point — the caller already built
+    # ``service``, so googleapiclient is loaded.
+    from googleapiclient.errors import HttpError
+
     params: dict = dict(
         calendarId=calendar_id,
         syncToken=sync_token,
