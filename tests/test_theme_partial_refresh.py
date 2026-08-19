@@ -24,10 +24,12 @@ from src.render.theme import (
 PSEUDO = {"random", "random_daily", "random_hourly"}
 CONCRETE_THEMES = sorted(set(AVAILABLE_THEMES) - PSEUDO)
 
-# Themes whose image depends on ink the fast waveform will not lay down.
+# Themes whose image depends on ink the fast waveform will not lay down —
+# either dithered greyscale or a plate whose ground is solid ink.
 DECLINES_PARTIAL = {
     "constellation_map",
     "day_arc",
+    "fantasy",
     "halftone",
     "halftone_agenda",
     "moonphase",
@@ -36,9 +38,18 @@ DECLINES_PARTIAL = {
     "naturalist",
     "photo",
     "postcard",
+    "qotd_invert",
+    "terminal",
     "trends",
     "weatherglass",
 }
+
+# The one dark-canvas theme that keeps partial refresh, by choice rather than by
+# oversight. Its phrase changes every five minutes, so declining would mean ~200
+# full-waveform refreshes a day — the panel flashing on every tick — to avoid ink
+# that reads charcoal. For a clock face that trade goes the other way, and the
+# light `fuzzyclock` covers anyone who wants the cadence with true black.
+SOLID_INK_BY_CHOICE = {"fuzzyclock_invert"}
 
 
 class TestDeclaration:
@@ -67,6 +78,32 @@ class TestDeclaration:
             layout = load_theme(name).layout
             if layout.canvas_mode == "L":
                 assert layout.supports_partial_refresh is False, name
+
+    def test_dark_canvas_themes_decline_unless_exempted_on_purpose(self):
+        """``bg`` set to ink means the whole plate is one solid fill.
+
+        That is the other half of what the fast waveform cannot hold, and it is
+        easy to miss because such a theme can still be ``canvas_mode="1"``. A new
+        dark-canvas theme must either decline partial refresh or be added to
+        SOLID_INK_BY_CHOICE with a reason — silence is the bug this catches.
+        """
+        for name in CONCRETE_THEMES:
+            theme = load_theme(name)
+            if theme.style.bg != 0:
+                continue
+            if name in SOLID_INK_BY_CHOICE:
+                assert theme.layout.supports_partial_refresh is True, (
+                    f"{name} is listed as keeping partials by choice but declines them"
+                )
+                continue
+            assert theme.layout.supports_partial_refresh is False, name
+
+    def test_the_exemption_list_names_only_dark_canvas_themes(self):
+        """A theme that lightens its canvas should leave the list, not linger."""
+        for name in SOLID_INK_BY_CHOICE:
+            assert load_theme(name).style.bg == 0, (
+                f"{name} is no longer a dark-canvas theme — drop it from SOLID_INK_BY_CHOICE"
+            )
 
 
 class TestPredicate:

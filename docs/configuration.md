@@ -400,13 +400,21 @@ of dithered greyscale or large solid ink fades under it — on the split-plate
 [`halftone_agenda`](themes.md#halftone_agenda) the fade tracked the engraving's rows
 straight across the agenda beside it.
 
+The same is true of a plate whose canvas ground is ink rather than paper — an inverted
+full-screen theme is one large solid fill, which the fast waveform returns as charcoal.
+
 Themes declare the requirement themselves (`ThemeLayout.supports_partial_refresh`), and
 the output service uses the full waveform for them whatever the config says. These themes
 always refresh fully:
 
-`constellation_map`, `day_arc`, `halftone`, `halftone_agenda`, `moonphase`,
-`moonphase_invert`, `moonphase_photo`, `naturalist`, `photo`, `postcard`, `trends`,
-`weatherglass`
+`constellation_map`, `day_arc`, `fantasy`, `halftone`, `halftone_agenda`, `moonphase`,
+`moonphase_invert`, `moonphase_photo`, `naturalist`, `photo`, `postcard`, `qotd_invert`,
+`terminal`, `trends`, `weatherglass`
+
+`fuzzyclock_invert` is the deliberate exception. Its plate is the heaviest solid fill of
+any theme, but the phrase changes every five minutes, so declining partial refresh would
+mean the panel visibly flashing on every tick. For a clock face that trade goes the other
+way; if you want the cadence *and* true black, use the light `fuzzyclock`.
 
 Every other theme honours the setting as before, so a schedule or rotation that mixes the
 two gets partial refreshes on the type-and-rule themes and full ones on the artwork.

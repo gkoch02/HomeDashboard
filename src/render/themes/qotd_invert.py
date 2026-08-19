@@ -54,6 +54,11 @@ def qotd_invert_theme() -> Theme:
             # Weather banner: full width at the bottom
             weather=ComponentRegion(0, quote_h, 800, BANNER_H),
             draw_order=["qotd", "qotd_weather"],
+            # The canvas ground is ink, not paper: the whole plate is one solid fill,
+            # and Waveshare's fast waveform cannot drive that to black — it comes back
+            # charcoal and drifts further between full refreshes (#222). The theme
+            # redraws a few times a day, so the full waveform costs nothing here.
+            supports_partial_refresh=False,
         ),
         style=ThemeStyle(
             fg=1,  # white text on black canvas

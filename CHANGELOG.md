@@ -51,10 +51,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   declare whether their plate survives a partial refresh
   (`ThemeLayout.supports_partial_refresh`), and `OutputService.publish` uses
   the full waveform for those that say no, whatever
-  `display.enable_partial_refresh` is set to. Twelve themes opt out —
-  `constellation_map`, `day_arc`, `halftone`, `halftone_agenda`, the three
-  `moonphase` variants, `naturalist`, `photo`, `postcard`, `trends` and
-  `weatherglass` — and every other theme keeps partial refresh and its speed.
+  `display.enable_partial_refresh` is set to. Fifteen themes opt out — the
+  dithered set (`constellation_map`, `day_arc`, the `halftone` pair, the three
+  `moonphase` variants, `naturalist`, `photo`, `postcard`, `trends`,
+  `weatherglass`) and the dark-canvas set, whose ground is one solid fill
+  (`fantasy`, `qotd_invert`, `terminal`). `fuzzyclock_invert` keeps partial
+  refresh deliberately: its phrase changes every five minutes, so declining
+  would flash the panel on every tick to avoid ink reading charcoal, and the
+  light `fuzzyclock` covers anyone who wants the cadence with true black.
+  Every other theme keeps partial refresh and its speed.
   `make check` names the configured themes that opt out, so the setting never
   quietly means less than it says. (#222)
 

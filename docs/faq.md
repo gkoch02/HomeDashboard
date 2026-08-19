@@ -223,10 +223,12 @@ closer to charcoal than to ink, and fine type reads grey.
 Note that this is cumulative: the panel drifts further from black the longer it goes between full refreshes, so the effect appears an hour or two in and resets when the full refresh fires. Set it to `false` for a full-waveform refresh every time, which is the code
 default and what the shipped example config now uses.
 
-Themes whose plate is dithered artwork — `halftone`, `halftone_agenda`, `day_arc`,
+Themes whose plate is dithered artwork or solid ink — the `halftone` pair, `day_arc`,
 `postcard`, `naturalist`, `weatherglass`, `trends`, the `moonphase` family,
-`constellation_map` and `photo` — opt out of partial refresh entirely and always take the
-full waveform, so this cannot be the explanation for those. See
+`constellation_map`, `photo`, and the dark-canvas `terminal`, `fantasy` and `qotd_invert`
+— opt out of partial refresh entirely and always take the full waveform, so this cannot
+be the explanation for those. `fuzzyclock_invert` is the one dark theme that keeps
+partial refresh, deliberately, and *is* subject to this. See
 [Themes that always refresh fully](configuration.md#themes-that-always-refresh-fully). To confirm the cause
 before changing anything, render once with `--force-full-refresh` and compare
 the same plate:
