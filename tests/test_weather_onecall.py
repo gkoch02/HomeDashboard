@@ -190,6 +190,28 @@ class TestKnobReachesTheFetch:
         assert result.uv_index is None
         assert result.alerts == []
 
+    @patch("src.fetchers.weather.requests.Session")
+    def test_v4_reaches_the_fetch_and_populates_uv_and_alerts(self, mock_session_cls):
+        session = _dispatch_session(
+            {
+                "/data/2.5/weather": {
+                    "main": {"temp": 42.0, "temp_max": 48.0, "temp_min": 35.0, "humidity": 65},
+                    "weather": [{"icon": "02d", "description": "partly cloudy"}],
+                },
+                "/data/2.5/forecast": {"list": []},
+                **_v4_routes(["ID-1"]),
+            }
+        )
+        mock_session_cls.return_value.__enter__ = MagicMock(return_value=session)
+        mock_session_cls.return_value.__exit__ = MagicMock(return_value=False)
+
+        cfg = WeatherConfig(api_key="test-key", one_call_version="4.0")
+        result = fetch_weather(cfg)
+
+        assert result.uv_index == 1.55
+        assert [a.event for a in result.alerts] == ["Event ID-1"]
+        assert not any("/data/3.0/" in u for u in _urls(session))
+
 
 class TestVersionNormalisation:
     @pytest.mark.parametrize(

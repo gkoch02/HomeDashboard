@@ -65,10 +65,11 @@ google:
   # caldav_calendar_url: ""          # optional specific calendar; default = first in principal
 
 weather:
-  api_key: ""                      # alerts + UV also need a One Call 3.0 subscription
+  api_key: ""                      # alerts + UV also need a One Call subscription
   latitude: 0.0
   longitude: 0.0
   units: "imperial"                # "imperial", "metric", or "standard"
+  one_call_version: "3.0"          # "3.0", "4.0", or "off" — see Weather API tiers
 
 purpleair:                         # optional — adds AQI card to the weather theme
   api_key: ""                      # get a free key at develop.purpleair.com
@@ -160,34 +161,50 @@ every weather reading the dashboard shows by default.
 **Weather alerts and the UV index are separate**, and this is the fiddliest part
 of setting up OpenWeather. They come from the One Call product family, which is a
 paid-tier opt-in (free for the first 1,000 calls a day, but you must subscribe on
-your OWM account before the endpoint will answer). The dashboard calls
-**One Call 3.0** (`/data/3.0/onecall`).
+your OWM account before the endpoint will answer). The dashboard supports both
+One Call versions; pick the one your account is actually subscribed to with
+`weather.one_call_version`.
 
-> **Subscribe to One Call 3.0 specifically — not 4.0.** OpenWeather now offers
-> One Call 4.0 as a *separate product* with its own endpoint
-> (`/data/4.0/onecall`), its own subscription, and a restructured, modular
-> response. Per OpenWeather support, **a single account cannot hold both a 3.0
-> and a 4.0 subscription** — you pick one. A 4.0-only subscriber calling the 3.0
-> endpoint gets HTTP 401, exactly like someone with no subscription at all, so
-> subscribing to the newer product will leave alerts and UV *just as dead* as not
-> subscribing. One Call 3.0 remains live and is not being switched off; the
-> dashboard does not support 4.0 yet.
+> **You get one One Call subscription, so tell the dashboard which one you have.**
+> OpenWeather sells One Call 3.0 (`/data/3.0/onecall`) and One Call 4.0
+> (`/data/4.0/onecall`) as *separate products*, and per OpenWeather support **a
+> single account cannot hold both** — you pick one. Calling the version you are
+> not subscribed to returns HTTP 401, exactly like someone with no subscription
+> at all, so a mismatch here leaves alerts and UV *just as dead* as never
+> subscribing. Both versions remain live; neither is being switched off.
 
-Without a working One Call 3.0 subscription the request 401s and the fetch
-degrades silently by design: the run still succeeds, but
+| `one_call_version` | Endpoints used | Calls per fetch | Use when |
+|---|---|---|---|
+| `"3.0"` (default) | `/data/3.0/onecall` | 1 | Your account holds the One Call 3.0 subscription |
+| `"4.0"` | `/data/4.0/onecall/current`, then `/data/4.0/onecall/alert/{id}` per active alert | 1, plus 1 per active alert (capped at 3) | Your account holds the One Call 4.0 subscription |
+| `"off"` | none | 0 | You hold no One Call subscription and would rather not fire a request that can only 401 |
+
+**Quote the value.** Unquoted YAML mangles every spelling you would reach for:
+`3.0` parses as a float, `3` as an integer, and `off` as the boolean `false`.
+The config parser folds all three back onto the right string, but quoting is
+clearer than relying on that.
+
+Without a matching subscription the request 401s and the fetch degrades silently
+by design: the run still succeeds, but
 
 - the `weather` theme's alert banner never appears,
 - the `weather_alert_present` theme rule can never fire, and
 - the `weatherglass` UV bar stays empty.
 
-The failure is logged at `DEBUG`, so raise `logging.level` to `DEBUG` if you want
-to confirm this is what you're hitting rather than a genuinely quiet weather day.
-Everything else on those themes keeps working normally — a key without the
-subscription is a supported configuration, not a broken one.
+Setting `"off"` produces those same three outcomes deliberately, and skips the
+doomed request. The failure is logged at `DEBUG`, so raise `logging.level` to
+`DEBUG` if you want to confirm this is what you're hitting rather than a
+genuinely quiet weather day. Everything else on those themes keeps working
+normally — a key without the subscription is a supported configuration, not a
+broken one.
 
-Each weather fetch makes exactly one One Call request, so at the default
-30-minute `weather_fetch_interval` that is at most 48 a day — fewer once quiet
-hours are subtracted, and comfortably inside the free allowance.
+On `"3.0"`, each weather fetch makes exactly one One Call request, so at the
+default 30-minute `weather_fetch_interval` that is at most 48 a day. On `"4.0"`
+a quiet day costs the same one request; days with active alerts cost up to four,
+because 4.0 reports alerts as bare IDs that each need resolving to a name — so
+at most ~192 a day. Both sit comfortably inside the free allowance. If you
+shorten `weather_fetch_interval`, keep it at 15 minutes or more on `"4.0"` to
+stay inside 1,000 calls a day.
 
 ---
 
