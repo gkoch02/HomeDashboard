@@ -122,6 +122,7 @@ _SAMPLE_VALUES: dict[str, object] = {
     "weather.latitude": 37.7749,
     "weather.longitude": -122.4194,
     "weather.units": "metric",
+    "weather.one_call_version": "off",
     "birthdays.source": "calendar",
     "birthdays.lookahead_days": 60,
     "birthdays.calendar_keyword": "ZZZ-Birthday-Marker",

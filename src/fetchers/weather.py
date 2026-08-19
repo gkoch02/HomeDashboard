@@ -46,7 +46,7 @@ def fetch_weather(cfg: WeatherConfig, tz: tzinfo | None = None) -> WeatherData:
     with requests.Session() as session:
         current = _fetch_current(session, params)
         today_high, today_low, forecast = _fetch_forecast(session, params, tz=tz)
-        alerts, uv_index = _fetch_alerts_and_uv(session, params)
+        alerts, uv_index = _fetch_alerts_and_uv(session, params, cfg.one_call_version)
 
     # Extract sunrise/sunset as timezone-aware datetimes when available
     slot_tz = tz if tz is not None else timezone.utc

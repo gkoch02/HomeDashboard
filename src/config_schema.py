@@ -178,6 +178,18 @@ def schema() -> tuple[SectionSpec, ...]:
                     "Units",
                     choices=("imperial", "metric", "standard"),
                 ),
+                _f(
+                    "weather.one_call_version",
+                    ("weather", "one_call_version"),
+                    "enum",
+                    "One Call API version",
+                    description=(
+                        "Which One Call product supplies weather alerts and the UV "
+                        "index. Must match the subscription your OpenWeather account "
+                        "actually holds; 'off' skips the request entirely."
+                    ),
+                    choices=("3.0", "off"),
+                ),
             ),
         ),
         SectionSpec(

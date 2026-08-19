@@ -73,6 +73,12 @@ weather:
   latitude: 40.7128
   longitude: -74.0060
   units: "imperial"  # "imperial" or "metric"
+  # Which One Call product supplies weather alerts and the UV index.
+  # Keep the quotes — unquoted 3.0 is a YAML float, not this string.
+  #   "3.0" — One Call 3.0 (default; needs the "One Call by Call" subscription)
+  #   "off" — skip the request entirely if you hold no One Call subscription
+  # See docs/configuration.md § Weather API tiers.
+  one_call_version: "3.0"
 
 # PurpleAir air quality (optional).
 # When configured, an AQI metric card appears in the weather theme.

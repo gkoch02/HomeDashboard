@@ -418,6 +418,16 @@ def validate_config(
             )
         )
 
+    # --- One Call version ---
+    if cfg.weather.one_call_version not in ("3.0", "off"):
+        warnings.append(
+            ConfigWarning(
+                field="weather.one_call_version",
+                message=f"Unknown One Call version: '{cfg.weather.one_call_version}'",
+                hint="Must be one of: 3.0, off. Falling back to 3.0 for this run.",
+            )
+        )
+
     # --- Theme rules ---
     _VALID_DAYPARTS = {"dawn", "day", "dusk", "night"}
     _VALID_SEASONS = {"spring", "summer", "fall", "autumn", "winter"}
