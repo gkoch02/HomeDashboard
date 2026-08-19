@@ -18,6 +18,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Fixed
 
+- **One malformed VEVENT no longer disables ICS recurrence expansion for the
+  whole feed.** `recurring_ical_events` raises on a VEVENT with no `DTSTART`
+  and on an unparseable `RRULE`; the expander caught that and fell back to the
+  raw walk for the *entire* calendar, so a single bad component silently
+  reverted every recurring series in the feed to first-week-only — reinstating
+  the bug the expansion was added to fix. DTSTART-less VEVENTs are now pruned
+  before expansion (`_parse_ical_event` already skipped them), and a failure
+  that still escapes retries event by event, so a bad `RRULE` costs only its
+  own series and that series survives unexpanded rather than vanishing.
+- **Floating-time ICS events at the start of the window are no longer
+  dropped.** `between()` resolves a floating `DTSTART` (no `TZID`, no `Z`)
+  against UTC while the caller's filter resolves it against the configured
+  zone, so a western-zone install lost short floating events in the first
+  `|utcoffset|` hours of day one — everything before 07:00 on
+  `America/Los_Angeles`, before 04:00 on `America/New_York` — which the raw
+  walk used to keep. The expansion span is padded a day either side; the
+  caller's per-event filter still decides what is in window.
 - **Weather alerts and UV work again.** The alerts/UV fetch still called
   OpenWeatherMap's One Call **2.5** endpoint, which OWM retired in mid-2024 —
   and because the helper is best-effort, every run silently returned no
@@ -75,7 +92,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   after midnight" flip landed at host-tz midnight and `--dry-run --date`
   previews ignored the date override for the daily variant (the hourly
   variant already honoured it). (#210)
-
 - **An idle tick no longer redraws the panel.** Every "updated" caption was
   rendered from the run's own clock, so the image differed on every tick even
   when nothing had been fetched — around 12 hardware writes an hour on the

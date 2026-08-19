@@ -2,7 +2,7 @@
 
 import sys
 import zoneinfo
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -573,3 +573,147 @@ class TestRecurrenceExpansion:
                 )
         assert [e.summary for e in events] == ["One Off"]
         assert "recurring-ical-events not installed" in caplog.text
+
+
+# ---------------------------------------------------------------------------
+# Recurrence expansion robustness
+# ---------------------------------------------------------------------------
+
+_WEEKLY_SERIES = (
+    "BEGIN:VEVENT\r\n"
+    "SUMMARY:Weekly Standup\r\n"
+    "DTSTART:20250106T140000Z\r\n"
+    "DTEND:20250106T143000Z\r\n"
+    "RRULE:FREQ=WEEKLY;BYDAY=MO\r\n"
+    "UID:standup-robust\r\n"
+    "END:VEVENT\r\n"
+)
+
+
+class TestExpansionSurvivesMalformedComponents:
+    """One bad component must not disable expansion for the whole feed.
+
+    ``recurring_ical_events`` raises on a DTSTART-less VEVENT and on an
+    unparseable RRULE. Falling back to the raw walk for the entire calendar
+    reinstates the very bug #212 fixed — every recurring series in the feed
+    silently reverts to first-week-only, which for a series that started in a
+    past window means it disappears completely.
+    """
+
+    @patch("src.fetchers.calendar_ical.requests.get")
+    def test_dtstart_less_vevent_does_not_suppress_expansion(self, mock_get):
+        broken = "BEGIN:VEVENT\r\nSUMMARY:Broken\r\nUID:broken-1\r\nEND:VEVENT\r\n"
+        mock_get.return_value = _mock_response(_make_ical_response(broken + _WEEKLY_SERIES))
+        events = fetch_from_ical(
+            ["https://example.com/cal.ics"], days=7, start_date=date(2026, 4, 6)
+        )
+        # The series still expands into the window; the broken component is dropped.
+        assert [e.summary for e in events] == ["Weekly Standup"]
+        assert events[0].start.date() == date(2026, 4, 6)
+
+    @patch("src.fetchers.calendar_ical.requests.get")
+    def test_unparseable_rrule_costs_only_its_own_series(self, mock_get):
+        bad_rule = (
+            "BEGIN:VEVENT\r\n"
+            "SUMMARY:Bad Rule\r\n"
+            "DTSTART:20260407T150000Z\r\n"
+            "DTEND:20260407T160000Z\r\n"
+            "RRULE:FREQ=BOGUS\r\n"
+            "UID:badrule-1\r\n"
+            "END:VEVENT\r\n"
+        )
+        mock_get.return_value = _mock_response(_make_ical_response(bad_rule + _WEEKLY_SERIES))
+        events = fetch_from_ical(
+            ["https://example.com/cal.ics"], days=7, start_date=date(2026, 4, 6)
+        )
+        summaries = sorted(e.summary for e in events)
+        # The healthy series still expands, and the bad one survives unexpanded
+        # rather than vanishing.
+        assert summaries == ["Bad Rule", "Weekly Standup"]
+
+    @patch("src.fetchers.calendar_ical.requests.get")
+    def test_vtimezone_survives_pruning(self, mock_get):
+        """Dropping bad VEVENTs must not take VTIMEZONE with it — the expander
+        needs it to resolve TZID references."""
+        body = (
+            "BEGIN:VTIMEZONE\r\n"
+            "TZID:America/New_York\r\n"
+            "BEGIN:STANDARD\r\n"
+            "DTSTART:20241103T020000\r\n"
+            "TZOFFSETFROM:-0400\r\n"
+            "TZOFFSETTO:-0500\r\n"
+            "END:STANDARD\r\n"
+            "END:VTIMEZONE\r\n"
+            "BEGIN:VEVENT\r\nSUMMARY:Broken\r\nUID:broken-2\r\nEND:VEVENT\r\n"
+            "BEGIN:VEVENT\r\n"
+            "SUMMARY:Zoned Weekly\r\n"
+            "DTSTART;TZID=America/New_York:20250106T090000\r\n"
+            "DTEND;TZID=America/New_York:20250106T093000\r\n"
+            "RRULE:FREQ=WEEKLY;BYDAY=MO\r\n"
+            "UID:zoned-1\r\n"
+            "END:VEVENT\r\n"
+        )
+        mock_get.return_value = _mock_response(_make_ical_response(body))
+        events = fetch_from_ical(
+            ["https://example.com/cal.ics"], days=7, tz=ET, start_date=date(2026, 4, 6)
+        )
+        assert [e.summary for e in events] == ["Zoned Weekly"]
+        assert events[0].start == datetime(2026, 4, 6, 9, 0)
+
+
+class TestFloatingTimesAtWindowStart:
+    """Floating DTSTARTs (no TZID, no Z) must keep the raw walk's boundaries.
+
+    ``recurring_ical_events.between()`` resolves a floating time against UTC
+    while the caller's window filter resolves it against the configured zone.
+    Without padding the expansion span, a western-zone install silently lost
+    short floating events in the first ``|utcoffset|`` hours of day one —
+    07:00 for America/Los_Angeles, 04:00 for America/New_York.
+    """
+
+    @staticmethod
+    def _floating_feed() -> str:
+        def ev(uid: str, summary: str, day: str, h1: str, h2: str) -> str:
+            return (
+                f"BEGIN:VEVENT\r\nUID:{uid}\r\nSUMMARY:{summary}\r\n"
+                f"DTSTART:{day}T{h1}0000\r\nDTEND:{day}T{h2}0000\r\nEND:VEVENT\r\n"
+            )
+
+        return (
+            ev("f1", "Early", "20260406", "01", "02")
+            + ev("f2", "Mid", "20260406", "06", "07")
+            + ev("f3", "Late", "20260406", "08", "09")
+        )
+
+    @pytest.mark.parametrize(
+        "zone",
+        ["America/Los_Angeles", "America/New_York", "Europe/Berlin", "Pacific/Kiritimati"],
+    )
+    @patch("src.fetchers.calendar_ical.requests.get")
+    def test_floating_first_day_events_are_kept(self, mock_get, zone):
+        mock_get.return_value = _mock_response(_make_ical_response(self._floating_feed()))
+        events = fetch_from_ical(
+            ["https://example.com/cal.ics"],
+            days=7,
+            tz=zoneinfo.ZoneInfo(zone),
+            start_date=date(2026, 4, 6),
+        )
+        assert sorted(e.summary for e in events) == ["Early", "Late", "Mid"]
+
+    @patch("src.fetchers.calendar_ical.requests.get")
+    def test_padding_does_not_widen_the_window(self, mock_get):
+        """The span is padded, but the caller's filter still decides what is in
+        window — events just outside it must not leak in."""
+        body = (
+            "BEGIN:VEVENT\r\nUID:b\r\nSUMMARY:Day Before\r\n"
+            "DTSTART:20260405T100000Z\r\nDTEND:20260405T110000Z\r\nEND:VEVENT\r\n"
+            "BEGIN:VEVENT\r\nUID:a\r\nSUMMARY:Day After\r\n"
+            "DTSTART:20260413T100000Z\r\nDTEND:20260413T110000Z\r\nEND:VEVENT\r\n"
+            "BEGIN:VEVENT\r\nUID:i\r\nSUMMARY:Inside\r\n"
+            "DTSTART:20260407T100000Z\r\nDTEND:20260407T110000Z\r\nEND:VEVENT\r\n"
+        )
+        mock_get.return_value = _mock_response(_make_ical_response(body))
+        events = fetch_from_ical(
+            ["https://example.com/cal.ics"], days=7, start_date=date(2026, 4, 6)
+        )
+        assert [e.summary for e in events] == ["Inside"]

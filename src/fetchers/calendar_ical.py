@@ -15,6 +15,10 @@ from src.fetchers.calendar_google import _today
 
 logger = logging.getLogger(__name__)
 
+# Padding applied to the recurrence-expansion span (see _expand_components).
+# One day comfortably exceeds the largest real UTC offset (+14:00).
+_EXPAND_PAD = timedelta(days=1)
+
 
 def fetch_from_ical(
     urls: list[str],
@@ -91,6 +95,64 @@ def fetch_from_ical(
     return all_events
 
 
+def _drop_unusable_vevents(cal, url: str) -> None:
+    """Remove VEVENTs with no DTSTART from *cal*, in place.
+
+    ``recurring_ical_events`` raises ``KeyError('DTSTART')`` on such a
+    component and takes the whole feed down with it — one malformed VEVENT
+    would disable recurrence expansion for every series in the calendar,
+    reinstating the exact bug #212 fixed. ``_parse_ical_event`` already skips
+    these (they carry no usable time), so dropping them here costs nothing and
+    keeps one bad component from becoming a feed-wide outage.
+
+    Mutates in place: *cal* is parsed fresh per fetch and is not shared.
+    Non-VEVENT subcomponents (notably VTIMEZONE) are preserved — the expander
+    needs them to resolve TZIDs.
+    """
+    bad_ids = {
+        id(c)
+        for c in cal.subcomponents
+        if getattr(c, "name", None) == "VEVENT" and c.get("DTSTART") is None
+    }
+    if not bad_ids:
+        return
+    cal.subcomponents = [c for c in cal.subcomponents if id(c) not in bad_ids]
+    logger.warning("Skipping %d VEVENT(s) with no DTSTART in %s", len(bad_ids), url)
+
+
+def _raw_vevents(cal) -> list:
+    """The pre-#212 behaviour: one component per series, no expansion."""
+    return [c for c in cal.walk() if c.name == "VEVENT"]
+
+
+def _expand_one_by_one(cal, module, time_min, time_max, url: str) -> list:
+    """Expand each VEVENT in its own calendar so one bad series can't sink the rest.
+
+    Slow path, reached only after a whole-calendar expansion raised. A single
+    unparseable RRULE (``FREQ=BOGUS`` and friends) otherwise costs every
+    recurring event in the feed; here it costs only itself, and that series
+    still appears unexpanded rather than vanishing.
+    """
+    shared = [c for c in cal.subcomponents if getattr(c, "name", None) != "VEVENT"]
+    out: list = []
+    for vevent in cal.subcomponents:
+        if getattr(vevent, "name", None) != "VEVENT":
+            continue
+        single = cal.__class__(cal)
+        single.subcomponents = [*shared, vevent]
+        try:
+            out.extend(module.of(single).between(time_min, time_max))
+        except Exception as exc:
+            logger.warning(
+                "Could not expand %r in %s: %s — using it unexpanded",
+                str(vevent.get("SUMMARY", "(no title)")),
+                url,
+                exc,
+            )
+            out.append(vevent)
+    return out
+
+
 def _expand_components(cal, time_min, time_max, url: str) -> list:
     """Yield VEVENT components with recurrence rules expanded to occurrences.
 
@@ -104,6 +166,13 @@ def _expand_components(cal, time_min, time_max, url: str) -> list:
     the existing per-event window filter, so boundary semantics for
     non-recurring events are unchanged.
 
+    The expansion span is padded a day either side of the fetch window.
+    ``between()`` resolves a *floating* DTSTART (no TZID, no ``Z``) against
+    UTC, while the caller's filter resolves it against the configured zone —
+    so in a western zone an unpadded span cut short events in the first
+    ``|utcoffset|`` hours of day one, which the raw walk used to keep. The pad
+    covers any offset; the caller's filter still decides what is in window.
+
     Falls back to the raw walk with a warning if the library is unavailable
     (an old deployment whose requirements weren't refreshed) — recurring
     events degrade to the old behaviour rather than dropping the feed.
@@ -116,12 +185,21 @@ def _expand_components(cal, time_min, time_max, url: str) -> list:
             "only appear in their first week (pip install recurring-ical-events)",
             url,
         )
-        return [c for c in cal.walk() if c.name == "VEVENT"]
+        return _raw_vevents(cal)
+
+    _drop_unusable_vevents(cal, url)
+    span_min = time_min - _EXPAND_PAD
+    span_max = time_max + _EXPAND_PAD
     try:
-        return list(recurring_ical_events.of(cal).between(time_min, time_max))
+        return list(recurring_ical_events.of(cal).between(span_min, span_max))
     except Exception as exc:
-        logger.warning("Recurrence expansion failed for %s: %s — using raw events", url, exc)
-        return [c for c in cal.walk() if c.name == "VEVENT"]
+        logger.warning("Recurrence expansion failed for %s: %s — retrying event by event", url, exc)
+
+    try:
+        return _expand_one_by_one(cal, recurring_ical_events, span_min, span_max, url)
+    except Exception as exc:
+        logger.warning("Per-event expansion failed for %s: %s — using raw events", url, exc)
+        return _raw_vevents(cal)
 
 
 def _parse_ical_event(
