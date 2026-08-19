@@ -92,11 +92,14 @@ def image_hash(image: Image.Image) -> str:
 
 
 def image_changed(new_image: Image.Image, output_dir: str) -> bool:
-    """Return True if the image differs from the last rendered image.
+    """Return True if the image differs from the last *displayed* image.
 
-    Compares SHA-256 hashes of the raw pixel bytes.  The previous hash is
-    persisted to ``<output_dir>/last_image_hash.txt`` so comparisons work
-    across process invocations.
+    Compares SHA-256 hashes of the raw pixel bytes against
+    ``<output_dir>/last_image_hash.txt``. Pure comparison — the hash is
+    persisted separately via :func:`persist_image_hash`, only after the
+    hardware write succeeds. Persisting here recorded frames the panel never
+    actually showed, so one transient display failure pinned the panel on
+    stale content until the data changed again (issue #207).
     """
     hash_path = Path(output_dir) / _HASH_FILENAME
     new_hash = image_hash(new_image)
@@ -109,14 +112,20 @@ def image_changed(new_image: Image.Image, output_dir: str) -> bool:
         except Exception:
             pass  # treat read failure as "changed"
 
-    # Persist the new hash for next comparison
+    return True
+
+
+def persist_image_hash(image: Image.Image, output_dir: str) -> None:
+    """Record *image* as the currently-displayed frame for future comparisons.
+
+    Call only after a successful hardware write — see :func:`image_changed`.
+    """
+    hash_path = Path(output_dir) / _HASH_FILENAME
     try:
         hash_path.parent.mkdir(parents=True, exist_ok=True)
-        hash_path.write_text(new_hash + "\n")
+        hash_path.write_text(image_hash(image) + "\n")
     except Exception as exc:
         logger.warning("Could not write image hash: %s", exc)
-
-    return True
 
 
 class DisplayDriver(ABC):

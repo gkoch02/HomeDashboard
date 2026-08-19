@@ -65,6 +65,10 @@ _AQI_CATEGORIES = [
 
 def _pm25_to_aqi(pm25: float) -> tuple[int, str]:
     """Compute EPA AQI integer and category string from a PM2.5 µg/m³ reading."""
+    # PurpleAir sensors report small negative concentrations in clean air
+    # (baseline drift). A negative value matches no breakpoint bracket and
+    # used to fall through to the ≥500.4 "Hazardous" clamp (issue #206).
+    pm25 = max(0.0, pm25)
     pm25 = math.floor(pm25 * 10) / 10  # EPA truncates to 1 decimal place before lookup
     for c_lo, c_hi, i_lo, i_hi in _PM25_BP:
         if c_lo <= pm25 <= c_hi:

@@ -26,6 +26,34 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   `src._time.day_start_utc(day, tz)` helper, which anchors midnight in the
   configured zone (host zone only when no timezone is configured, matching
   how `today` is derived in that case). (#203)
+- **A Feb-29 birthday no longer crashes the contacts source for the whole
+  year.** `date(today.year, 2, 29)` raised `ValueError` in non-leap years,
+  `retry_fetch` classified it as permanent, and once the cache expired the
+  birthday panel stayed blank with the breaker open. Both the contacts and
+  file parsers now roll Feb 29 → Feb 28 in non-leap years (the convention
+  `birthday_bar.py` already renders with), and one malformed contact is
+  logged and skipped instead of aborting the whole fetch. (#204)
+- **Google incremental sync actually activates now.** The Calendar API omits
+  `nextSyncToken` from responses when `orderBy` is set, so `_fetch_full`'s
+  `orderBy="startTime"` meant the token was always `None` and every run was
+  a full re-download — the entire incremental-sync machinery was dead code.
+  The parameter is gone; events were already sorted client-side. (#205)
+- **Negative PurpleAir readings no longer display as AQI 500 "Hazardous".**
+  Sensors report small negative PM2.5 values in clean air (baseline drift);
+  those matched no EPA breakpoint bracket and fell through to the ≥500.4
+  clamp. Readings are clamped to 0 before lookup. (#206)
+- **A failed display write no longer pins the panel on stale content.** The
+  image hash was persisted as a side effect of the *comparison*, before the
+  hardware write ran — one transient SPI/eInk error and the next run saw
+  "image unchanged" and skipped the retry until the content itself changed.
+  `image_changed()` is now a pure comparison and the hash is recorded via
+  `persist_image_hash()` only after `show()` succeeds. (#207)
+- **A legacy naive refresh-throttle timestamp no longer wedges publishing.**
+  v4's `inky_refresh_state.json` was written with naive `utcnow()`
+  timestamps and migrated bit-for-bit; subtracting one from the aware `now`
+  raised `TypeError` on every publish until the state file was deleted by
+  hand. The reader now applies the repo-wide "naive ISO timestamps are UTC"
+  convention. (#208)
 
 - **An idle tick no longer redraws the panel.** Every "updated" caption was
   rendered from the run's own clock, so the image differed on every tick even

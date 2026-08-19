@@ -1437,3 +1437,113 @@ class TestBuildPeopleService:
         ):
             with pytest.raises(RuntimeError, match="/tmp/missing.json"):
                 _build_people_service(cfg)
+
+
+# ---------------------------------------------------------------------------
+# Regression: issue #204 — Feb-29 birthdays
+# ---------------------------------------------------------------------------
+
+
+class TestLeapDayBirthdays:
+    """Feb-29 birthdays must roll to Feb 28 in non-leap years — the same
+    convention birthday_bar.py renders with — instead of crashing the
+    contacts fetch (ValueError classified as permanent → blank panel all
+    year) or being silently dropped by the file source."""
+
+    def setup_method(self):
+        # 2026 is not a leap year.
+        self.today = date(2026, 2, 20)
+        self.lookahead = self.today + timedelta(days=30)
+
+    def _leap_person(self, year: int = 0) -> dict:
+        bday_date: dict = {"month": 2, "day": 29}
+        if year:
+            bday_date["year"] = year
+        return {
+            "names": [{"displayName": "Leap"}],
+            "birthdays": [{"date": bday_date}],
+        }
+
+    def test_file_full_date_non_leap_year(self):
+        entry = {"name": "Leap", "date": "1992-02-29"}
+        result = _parse_birthday_entry(entry, self.today, self.lookahead)
+        assert result is not None
+        assert result.date == date(2026, 2, 28)
+        assert result.age == 34
+
+    def test_file_short_date_non_leap_year(self):
+        entry = {"name": "Leap", "date": "02-29"}
+        result = _parse_birthday_entry(entry, self.today, self.lookahead)
+        assert result is not None
+        assert result.date == date(2026, 2, 28)
+
+    def test_file_rollforward_lands_back_on_feb_29_in_leap_year(self):
+        # Feb 28 2027 has passed → rolls to 2028, a leap year, where the
+        # anniversary is the real Feb 29 again.
+        today = date(2027, 3, 15)
+        lookahead = today + timedelta(days=400)
+        entry = {"name": "Leap", "date": "1992-02-29"}
+        result = _parse_birthday_entry(entry, today, lookahead)
+        assert result is not None
+        assert result.date == date(2028, 2, 29)
+
+    def test_contact_non_leap_year(self):
+        result = _parse_contact_birthday(self._leap_person(year=1992), self.today, self.lookahead)
+        assert result is not None
+        assert result.date == date(2026, 2, 28)
+        assert result.age == 34
+
+    def test_contact_rollforward_past_leap_day(self):
+        # Feb 29 2028 (a real leap day) has passed → next-year construction
+        # used to raise ValueError; must roll to Feb 28 2029.
+        today = date(2028, 3, 15)
+        lookahead = today + timedelta(days=400)
+        result = _parse_contact_birthday(self._leap_person(year=1992), today, lookahead)
+        assert result is not None
+        assert result.date == date(2029, 2, 28)
+
+    @patch("src.fetchers.calendar._build_people_service")
+    def test_one_malformed_contact_does_not_abort_fetch(self, mock_build):
+        # A person whose birthday payload raises during parsing must be
+        # logged and skipped — not abort the whole contacts fetch.
+        today = date.today()
+        upcoming = today + timedelta(days=5)
+        bad = {
+            "names": [{"displayName": "Broken"}],
+            "birthdays": [{"date": {"month": "not-a-month", "day": 12}}],
+        }
+        good = {
+            "names": [{"displayName": "Alice"}],
+            "birthdays": [{"date": {"month": upcoming.month, "day": upcoming.day}}],
+        }
+        mock_service = MagicMock()
+        mock_build.return_value = mock_service
+        mock_service.people().connections().list().execute.return_value = {
+            "connections": [bad, good],
+        }
+        cfg_google = GoogleConfig(contacts_email="user@example.com")
+        cfg_bday = BirthdayConfig(source="contacts", lookahead_days=30)
+        results = fetch_birthdays(cfg_google, cfg_bday)
+        assert [b.name for b in results] == ["Alice"]
+
+
+# ---------------------------------------------------------------------------
+# Regression: issue #205 — orderBy suppresses nextSyncToken
+# ---------------------------------------------------------------------------
+
+
+class TestFetchFullOmitsOrderBy:
+    def test_full_sync_request_has_no_order_by(self):
+        """The Calendar API omits nextSyncToken from responses when orderBy is
+        set, which silently disabled incremental sync entirely — every run was
+        a full re-download. Events are sorted client-side by the caller, so
+        the parameter is redundant."""
+        page = {"summary": "Work", "items": [], "nextSyncToken": "tok1"}
+        svc = MagicMock()
+        svc.events().list().execute.side_effect = [page]
+        time_min = datetime(2024, 3, 11, tzinfo=timezone.utc)
+        time_max = datetime(2024, 3, 18, tzinfo=timezone.utc)
+        events, cal_name, token = _fetch_full(svc, "primary", time_min, time_max)
+        assert token == "tok1"
+        _, kwargs = svc.events().list.call_args
+        assert "orderBy" not in kwargs

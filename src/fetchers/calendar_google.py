@@ -252,12 +252,14 @@ def _fetch_full(
     a failed fetch and fall back to cached data rather than overwriting it
     with an empty list.
     """
+    # NOTE: no orderBy here — the Calendar API omits nextSyncToken from
+    # responses when orderBy is set, which silently disabled incremental sync
+    # entirely (issue #205). Events are sorted client-side by the caller.
     params: dict = dict(
         calendarId=calendar_id,
         timeMin=time_min.isoformat(),
         timeMax=time_max.isoformat(),
         singleEvents=True,
-        orderBy="startTime",
         maxResults=250,
     )
 
