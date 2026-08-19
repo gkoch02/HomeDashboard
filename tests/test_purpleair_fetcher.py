@@ -335,3 +335,15 @@ class TestSensorPayloadShape:
             result = fetch_air_quality(cfg)
         assert result.pm25 == 15.0
         assert result.temperature is None
+
+
+class TestNegativePm25Readings:
+    """Regression tests for issue #206 — PurpleAir sensors report small
+    negative PM2.5 values in clean air (baseline drift); those matched no
+    breakpoint bracket and fell through to the >=500.4 'Hazardous' clamp."""
+
+    @pytest.mark.parametrize("pm25", [-0.1, -0.3, -5.0])
+    def test_negative_reading_reports_good(self, pm25):
+        aqi, cat = _pm25_to_aqi(pm25)
+        assert aqi == 0
+        assert cat == "Good"

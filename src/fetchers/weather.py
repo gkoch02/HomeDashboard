@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 _OWM_CURRENT_URL = "https://api.openweathermap.org/data/2.5/weather"
 _OWM_FORECAST_URL = "https://api.openweathermap.org/data/2.5/forecast"
-_OWM_ONECALL_URL = "https://api.openweathermap.org/data/2.5/onecall"
+_OWM_ONECALL_URL = "https://api.openweathermap.org/data/3.0/onecall"
 _TIMEOUT = 10  # seconds
 
 
@@ -158,7 +158,12 @@ def _fetch_alerts_and_uv(
     session: requests.Session,
     params: dict,
 ) -> tuple[list[WeatherAlert], float | None]:
-    """Fetch active weather alerts and UV index from OWM OneCall 2.5.
+    """Fetch active weather alerts and UV index from OWM One Call 3.0.
+
+    One Call 3.0 requires the (free-tier) "One Call by Call" subscription;
+    keys without it get a 401 and fall into the graceful-degradation branch.
+    The 2.5 endpoint this used to call was retired by OWM in mid-2024 and
+    now fails for every key, which silently disabled alerts and UV.
 
     Returns ``(alerts, uv_index)`` — both are best-effort.  On any failure
     (network error, unsupported API tier) returns ``([], None)``.

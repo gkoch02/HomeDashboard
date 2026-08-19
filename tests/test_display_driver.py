@@ -15,6 +15,7 @@ from src.display.driver import (
     build_display_driver,
     get_display_spec,
     image_changed,
+    persist_image_hash,
     supported_display_models,
 )
 
@@ -437,21 +438,31 @@ class TestImageChanged:
 
     def test_returns_false_when_image_unchanged(self, tmp_path):
         image = Image.new("1", (100, 100), 1)
-        image_changed(image, str(tmp_path))  # write hash
+        persist_image_hash(image, str(tmp_path))  # record as displayed
         assert image_changed(image, str(tmp_path)) is False
 
     def test_returns_true_when_image_differs(self, tmp_path):
         img1 = Image.new("1", (100, 100), 1)
         img2 = Image.new("1", (100, 100), 0)
-        image_changed(img1, str(tmp_path))  # write hash for img1
+        persist_image_hash(img1, str(tmp_path))  # record img1 as displayed
         assert image_changed(img2, str(tmp_path)) is True
 
-    def test_hash_file_written_after_change(self, tmp_path):
+    def test_persist_writes_hash_file(self, tmp_path):
         image = Image.new("1", (100, 100), 1)
-        image_changed(image, str(tmp_path))
+        persist_image_hash(image, str(tmp_path))
         hash_file = tmp_path / "last_image_hash.txt"
         assert hash_file.exists()
         assert len(hash_file.read_text().strip()) == 64  # SHA-256 hex digest
+
+    def test_compare_does_not_persist(self, tmp_path):
+        """Regression (#207): image_changed must be a pure comparison — the
+        hash is only recorded via persist_image_hash after a successful
+        hardware write, so a failed show() retries instead of skipping."""
+        image = Image.new("1", (100, 100), 1)
+        assert image_changed(image, str(tmp_path)) is True
+        assert not (tmp_path / "last_image_hash.txt").exists()
+        # Still "changed" until something persists it.
+        assert image_changed(image, str(tmp_path)) is True
 
     def test_treats_corrupt_hash_file_as_changed(self, tmp_path):
         image = Image.new("1", (100, 100), 1)
@@ -469,9 +480,8 @@ class TestImageChanged:
             result = image_changed(image, str(tmp_path))
         assert result is True
 
-    def test_continues_when_hash_write_fails(self, tmp_path):
-        """Even if the hash can't be written, image_changed should return True."""
+    def test_persist_swallows_write_failure(self, tmp_path):
+        """A failed hash write must log, not raise, so publish() completes."""
         image = Image.new("1", (100, 100), 1)
         with patch("pathlib.Path.write_text", side_effect=OSError("read-only")):
-            result = image_changed(image, str(tmp_path))
-        assert result is True
+            persist_image_hash(image, str(tmp_path))  # must not raise

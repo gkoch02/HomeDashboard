@@ -65,7 +65,7 @@ google:
   # caldav_calendar_url: ""          # optional specific calendar; default = first in principal
 
 weather:
-  api_key: ""
+  api_key: ""                      # alerts + UV also need a One Call 3.0 subscription
   latitude: 0.0
   longitude: 0.0
   units: "imperial"                # "imperial", "metric", or "standard"
@@ -148,6 +148,46 @@ output:
 logging:
   level: "INFO"
 ```
+
+---
+
+## Weather API tiers
+
+Current conditions and the forecast come from OpenWeatherMap's `/data/2.5/weather`
+and `/data/2.5/forecast` endpoints, which any free API key can call. Those drive
+every weather reading the dashboard shows by default.
+
+**Weather alerts and the UV index are separate**, and this is the fiddliest part
+of setting up OpenWeather. They come from the One Call product family, which is a
+paid-tier opt-in (free for the first 1,000 calls a day, but you must subscribe on
+your OWM account before the endpoint will answer). The dashboard calls
+**One Call 3.0** (`/data/3.0/onecall`).
+
+> **Subscribe to One Call 3.0 specifically — not 4.0.** OpenWeather now offers
+> One Call 4.0 as a *separate product* with its own endpoint
+> (`/data/4.0/onecall`), its own subscription, and a restructured, modular
+> response. Per OpenWeather support, **a single account cannot hold both a 3.0
+> and a 4.0 subscription** — you pick one. A 4.0-only subscriber calling the 3.0
+> endpoint gets HTTP 401, exactly like someone with no subscription at all, so
+> subscribing to the newer product will leave alerts and UV *just as dead* as not
+> subscribing. One Call 3.0 remains live and is not being switched off; the
+> dashboard does not support 4.0 yet.
+
+Without a working One Call 3.0 subscription the request 401s and the fetch
+degrades silently by design: the run still succeeds, but
+
+- the `weather` theme's alert banner never appears,
+- the `weather_alert_present` theme rule can never fire, and
+- the `weatherglass` UV bar stays empty.
+
+The failure is logged at `DEBUG`, so raise `logging.level` to `DEBUG` if you want
+to confirm this is what you're hitting rather than a genuinely quiet weather day.
+Everything else on those themes keeps working normally — a key without the
+subscription is a supported configuration, not a broken one.
+
+Each weather fetch makes exactly one One Call request, so at the default
+30-minute `weather_fetch_interval` that is at most 48 a day — fewer once quiet
+hours are subtracted, and comfortably inside the free allowance.
 
 ---
 

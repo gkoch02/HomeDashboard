@@ -18,8 +18,13 @@ from datetime import datetime
 from pathlib import Path
 
 from src._io import atomic_write_json
-from src._time import now_local
-from src.display.driver import DryRunDisplay, build_display_driver, image_changed
+from src._time import now_local, to_aware
+from src.display.driver import (
+    DryRunDisplay,
+    build_display_driver,
+    image_changed,
+    persist_image_hash,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +77,12 @@ def _load_last_refresh(state_dir: str) -> datetime | None:
             legacy.replace(path)
         except OSError as exc:
             logger.debug("Could not migrate legacy inky refresh state: %s", exc)
-        return ts
+        # Legacy v4 files were written via datetime.utcnow().isoformat() —
+        # naive. Readers treat naive ISO timestamps as UTC (repo convention);
+        # returning them raw made the aware-now subtraction in
+        # should_throttle_display_refresh raise TypeError on every publish,
+        # a permanent crash loop until the state file was deleted (#208).
+        return to_aware(ts)
 
     try:
         raw = json.loads(path.read_text())
@@ -84,7 +94,9 @@ def _load_last_refresh(state_dir: str) -> datetime | None:
     if not isinstance(value, str):
         return None
     try:
-        return datetime.fromisoformat(value)
+        # Naive timestamps (legacy writers) are treated as UTC — see the
+        # migration branch above (#208).
+        return to_aware(datetime.fromisoformat(value))
     except ValueError:
         return None
 
@@ -175,6 +187,11 @@ class OutputService:
             max_partials=self.cfg.display.max_partials_before_full,
             state_dir=self.cfg.state_dir,
         ).show(image, force_full=force_full)
+
+        # Persist the hash only now that the hardware write succeeded — a
+        # failed show() must leave the old hash in place so the next run
+        # retries the write instead of skipping it as "unchanged" (#207).
+        persist_image_hash(image, self.cfg.output_dir)
 
         # Record the refresh so the next tick can apply the cooldown. The
         # marker is provider-agnostic now — a Waveshare user who sets

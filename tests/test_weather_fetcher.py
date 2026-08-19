@@ -481,3 +481,36 @@ class TestSunriseSunset:
 
         result = fetch_weather(cfg)
         assert result.forecast == []
+
+
+class TestAlertsAndUvEndpoint:
+    """Regression tests for issue #202 — One Call 2.5 was retired by OWM in
+    mid-2024, silently disabling alerts and UV for every current key."""
+
+    def test_uses_onecall_v3_endpoint(self):
+        from src.fetchers.weather import _fetch_alerts_and_uv
+
+        session = MagicMock()
+        resp = MagicMock()
+        resp.json.return_value = {"current": {"uvi": 3.2}, "alerts": []}
+        session.get.return_value = resp
+
+        alerts, uv = _fetch_alerts_and_uv(session, {"appid": "k"})
+
+        url = session.get.call_args[0][0]
+        assert "/data/3.0/onecall" in url
+        assert "/data/2.5/" not in url
+        assert alerts == []
+        assert uv == 3.2
+
+    def test_unsubscribed_key_degrades_gracefully(self):
+        """Keys without the One Call 3.0 subscription 401 — must fall back to
+        ([], None) rather than raising."""
+        from src.fetchers.weather import _fetch_alerts_and_uv
+
+        session = MagicMock()
+        session.get.side_effect = Exception("401 Unauthorized")
+
+        alerts, uv = _fetch_alerts_and_uv(session, {"appid": "k"})
+        assert alerts == []
+        assert uv is None

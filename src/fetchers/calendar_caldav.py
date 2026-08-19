@@ -18,10 +18,11 @@ users on Google API / ICS only paths don't need the wheel installed.
 from __future__ import annotations
 
 import logging
-from datetime import date, datetime, timedelta, timezone, tzinfo
+from datetime import date, datetime, timedelta, tzinfo
 from pathlib import Path
 from typing import Any, cast
 
+from src._time import day_start_utc
 from src.data.models import CalendarEvent
 
 logger = logging.getLogger(__name__)
@@ -94,7 +95,7 @@ def fetch_from_caldav(
     if tz is not None:
         today = datetime.now(tz).date()
     window_start = start_date if start_date is not None else today - timedelta(days=today.weekday())
-    time_min = datetime.combine(window_start, datetime.min.time(), tzinfo=timezone.utc)
+    time_min = day_start_utc(window_start, tz)
     time_max = time_min + timedelta(days=days)
 
     password = _read_password(password_file)

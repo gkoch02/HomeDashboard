@@ -11,10 +11,11 @@ from __future__ import annotations
 import json
 import logging
 import re
-from datetime import date, datetime, timedelta, timezone, tzinfo
+from datetime import date, timedelta, tzinfo
 from pathlib import Path
 from typing import Any
 
+from src._time import day_start_utc
 from src.config import BirthdayConfig, GoogleConfig
 from src.data.models import Birthday, CalendarEvent
 
@@ -201,6 +202,21 @@ def _birthdays_from_file(cfg: BirthdayConfig, tz: tzinfo | None = None) -> list[
     return birthdays
 
 
+def _anniversary_in_year(month: int, day: int, year: int) -> date:
+    """Return the anniversary of (*month*, *day*) in *year*.
+
+    Feb 29 rolls to Feb 28 in non-leap years — the same convention
+    ``birthday_bar.py`` renders with, so a leap-day birthday neither drops
+    nor crashes the fetch (issue #204).
+    """
+    try:
+        return date(year, month, day)
+    except ValueError:
+        if month == 2 and day == 29:
+            return date(year, 2, 28)
+        raise
+
+
 def _parse_birthday_entry(entry: dict, today: date, lookahead: date) -> Birthday | None:
     name = entry["name"]
     # Accept "MM-DD" or "YYYY-MM-DD"
@@ -208,17 +224,20 @@ def _parse_birthday_entry(entry: dict, today: date, lookahead: date) -> Birthday
     if _DATE_FULL_RE.match(raw):
         birth_date = date.fromisoformat(raw)
         age = today.year - birth_date.year
-        this_year = birth_date.replace(year=today.year)
+        month, day = birth_date.month, birth_date.day
+        this_year = _anniversary_in_year(month, day, today.year)
     elif _DATE_SHORT_RE.match(raw):
         month, day = (int(p) for p in raw.split("-"))
-        this_year = date(today.year, month, day)
+        this_year = _anniversary_in_year(month, day, today.year)
         age = None
     else:
         raise ValueError(f"Unrecognised date format: {raw!r}")
 
-    # Roll forward to next year if already passed
+    # Roll forward to next year if already passed. Re-derive from (month, day)
+    # rather than replace()-ing this_year: a Feb-29 birthday may have rolled to
+    # Feb 28 this year but lands back on Feb 29 in a leap next-year.
     if this_year < today:
-        this_year = this_year.replace(year=today.year + 1)
+        this_year = _anniversary_in_year(month, day, today.year + 1)
         if age is not None:
             age += 1
 
@@ -233,7 +252,7 @@ def _birthdays_from_calendar(
 ) -> list[Birthday]:
     service = _build_service(google_cfg)
     today = _today(tz)
-    time_min = datetime.combine(today, datetime.min.time()).astimezone(timezone.utc)
+    time_min = day_start_utc(today, tz)
     time_max = time_min + timedelta(days=birthday_cfg.lookahead_days)
 
     # API errors (DNS/auth/network/HTTP) propagate so the data pipeline can fall
@@ -308,7 +327,13 @@ def _birthdays_from_contacts(
             raise
 
         for person in result.get("connections", []):
-            bday = _parse_contact_birthday(person, today, lookahead)
+            # One malformed contact must not abort the whole fetch — log and
+            # keep parsing the rest (issue #204).
+            try:
+                bday = _parse_contact_birthday(person, today, lookahead)
+            except (KeyError, ValueError, TypeError) as exc:
+                logger.warning("Skipping invalid contact birthday: %s", exc)
+                continue
             if bday is not None:
                 birthdays.append(bday)
 
@@ -340,15 +365,14 @@ def _parse_contact_birthday(person: dict, today: date, lookahead: date) -> Birth
         return None
 
     year: int = bday_date_raw.get("year") or 0
-    if year:
-        age = today.year - year
-        this_year = date(today.year, month, day)
-    else:
-        age = None
-        this_year = date(today.year, month, day)
+    age = today.year - year if year else None
+    # Feb 29 rolls to Feb 28 in non-leap years (issue #204) — a bare
+    # date(today.year, month, day) raises ValueError and used to abort the
+    # entire contacts fetch for the whole year.
+    this_year = _anniversary_in_year(month, day, today.year)
 
     if this_year < today:
-        this_year = this_year.replace(year=today.year + 1)
+        this_year = _anniversary_in_year(month, day, today.year + 1)
         if age is not None:
             age += 1
 

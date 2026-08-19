@@ -15,7 +15,7 @@ from src.data.models import (
     DayForecast,
     WeatherData,
 )
-from src.display.driver import image_changed, image_hash
+from src.display.driver import image_changed, image_hash, persist_image_hash
 from src.render.components.week_view import (
     _collect_spanning_events,
     _events_for_day,
@@ -96,20 +96,20 @@ class TestImageDiffing:
     def test_image_changed_same_image_returns_false(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             img = Image.new("1", (10, 10), 1)
-            image_changed(img, tmpdir)  # first call writes hash
+            persist_image_hash(img, tmpdir)  # record as displayed
             assert image_changed(img, tmpdir) is False
 
     def test_image_changed_different_image_returns_true(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             img1 = Image.new("1", (10, 10), 1)
-            image_changed(img1, tmpdir)
+            persist_image_hash(img1, tmpdir)
             img2 = Image.new("1", (10, 10), 0)
             assert image_changed(img2, tmpdir) is True
 
     def test_hash_file_persisted(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             img = Image.new("1", (10, 10), 1)
-            image_changed(img, tmpdir)
+            persist_image_hash(img, tmpdir)
             hash_path = Path(tmpdir) / "last_image_hash.txt"
             assert hash_path.exists()
             stored = hash_path.read_text().strip()

@@ -10,17 +10,20 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import date, datetime, timedelta, timezone, tzinfo
+from datetime import date, datetime, timedelta, tzinfo
 from pathlib import Path
 from typing import Any
 
-import httplib2
-from google.oauth2 import service_account
-from google_auth_httplib2 import AuthorizedHttp
-from googleapiclient.discovery import build
-from googleapiclient.errors import HttpError
-
+# NOTE (#211): the googleapiclient stack (httplib2, google.oauth2,
+# google_auth_httplib2, googleapiclient) is deliberately NOT imported at
+# module top. It costs 1-2 s to import on a Pi, and this module is reached
+# by every run — including ICS-only, CalDAV-only, and --dummy ticks, plus
+# the web server via state_reader — through src.fetchers' registry
+# side-effect imports. The imports live inside _build_service /
+# _fetch_incremental so only runs that actually talk to the Google API pay
+# for them (same discipline as calendar_caldav's local `import caldav`).
 from src._io import atomic_write_json
+from src._time import day_start_utc
 from src.config import GoogleConfig
 from src.data.models import CalendarEvent
 
@@ -65,6 +68,12 @@ def clear_service_caches() -> None:
 
 
 def _build_service(cfg: GoogleConfig):
+    # Deferred heavy imports — see the module-top note (#211).
+    import httplib2
+    from google.oauth2 import service_account
+    from google_auth_httplib2 import AuthorizedHttp
+    from googleapiclient.discovery import build
+
     key = cfg.service_account_path
     if key not in _service_cache:
         try:
@@ -130,7 +139,7 @@ def fetch_google_events(
     today = _today(tz)
     # Start from Monday of the current week by default to match the standard week view.
     window_start = start_date if start_date is not None else today - timedelta(days=today.weekday())
-    time_min = datetime.combine(window_start, datetime.min.time()).astimezone(timezone.utc)
+    time_min = day_start_utc(window_start, tz)
     time_max = time_min + timedelta(days=days)
 
     sync_state = _load_sync_state(cache_dir) if cache_dir else {}
@@ -251,12 +260,14 @@ def _fetch_full(
     a failed fetch and fall back to cached data rather than overwriting it
     with an empty list.
     """
+    # NOTE: no orderBy here — the Calendar API omits nextSyncToken from
+    # responses when orderBy is set, which silently disabled incremental sync
+    # entirely (issue #205). Events are sorted client-side by the caller.
     params: dict = dict(
         calendarId=calendar_id,
         timeMin=time_min.isoformat(),
         timeMax=time_max.isoformat(),
         singleEvents=True,
-        orderBy="startTime",
         maxResults=250,
     )
 
@@ -305,6 +316,10 @@ def _fetch_incremental(
     *delta_items* are raw Google Calendar API event dicts (not ``CalendarEvent``
     objects) so that ``status="cancelled"`` items can be used for deletion.
     """
+    # Deferred import (#211): free at this point — the caller already built
+    # ``service``, so googleapiclient is loaded.
+    from googleapiclient.errors import HttpError
+
     params: dict = dict(
         calendarId=calendar_id,
         syncToken=sync_token,

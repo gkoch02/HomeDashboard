@@ -186,6 +186,11 @@ class DataPipeline:
             skip_decisions[f.name] = (cached, skip)
             if skip:
                 cached_values[f.name] = cached
+        # Stash for _launch_fetches: the preserved v4 five-param signature only
+        # carries the built-in sources' decisions, and defaulting everything
+        # else to "never skip" bypassed registry-added fetchers' interval,
+        # cache, and breaker entirely (#209).
+        self._skip_decisions = skip_decisions
 
         # Phase 2: launch concurrent fetches for the rest. Old-style five-param
         # signature is preserved for tests that exercise this method directly.
@@ -354,13 +359,18 @@ class DataPipeline:
             "birthdays": birthdays_skip,
             "air_quality": aq_skip if purpleair_enabled else True,
         }
+        # Registry-added fetchers aren't in the legacy five-param signature —
+        # fall back to the phase-1 decisions instead of "never skip" (#209).
+        # getattr default keeps direct _launch_fetches test calls (no prior
+        # fetch()) working.
+        phase1: dict[str, tuple] = getattr(self, "_skip_decisions", {})
         ctx = self._fetch_context()
         fetchers = all_fetchers()
         runnable: list = []
         for f in fetchers:
             if not f.enabled(self.cfg):
                 continue
-            if skip_by_name.get(f.name, False):
+            if skip_by_name.get(f.name, phase1.get(f.name, (None, False))[1]):
                 continue
             runnable.append(f)
 

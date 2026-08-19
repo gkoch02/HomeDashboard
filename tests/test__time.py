@@ -81,3 +81,58 @@ class TestAssertAware:
         naive = datetime(2026, 5, 5, 12, 0)
         with pytest.raises(ValueError, match="fetched_at"):
             assert_aware(naive, name="fetched_at")
+
+
+class TestDayStartUtc:
+    """Regression tests for issue #203 — fetch-window boundaries must be built
+    in the *configured* timezone, not the host machine's."""
+
+    def test_configured_tz_midnight_ignores_host_tz(self, monkeypatch):
+        import time as _time_mod
+        from datetime import date
+
+        from src._time import day_start_utc
+
+        # Host tz pinned to UTC (the default Pi setup); configured tz is Eastern.
+        monkeypatch.setenv("TZ", "UTC")
+        _time_mod.tzset()
+        ny = zoneinfo.ZoneInfo("America/New_York")
+        result = day_start_utc(date(2026, 6, 15), ny)
+        # Midnight EDT (UTC-4) on Jun 15 is 04:00 UTC — NOT 00:00 UTC.
+        assert result == datetime(2026, 6, 15, 4, 0, tzinfo=timezone.utc)
+
+    def test_configured_tz_midnight_in_winter_offset(self, monkeypatch):
+        import time as _time_mod
+        from datetime import date
+
+        from src._time import day_start_utc
+
+        monkeypatch.setenv("TZ", "UTC")
+        _time_mod.tzset()
+        ny = zoneinfo.ZoneInfo("America/New_York")
+        result = day_start_utc(date(2026, 1, 15), ny)
+        # Midnight EST (UTC-5) on Jan 15 is 05:00 UTC.
+        assert result == datetime(2026, 1, 15, 5, 0, tzinfo=timezone.utc)
+
+    def test_none_tz_uses_host_timezone(self, monkeypatch):
+        import time as _time_mod
+        from datetime import date
+
+        from src._time import day_start_utc
+
+        # With no configured tz the fetchers derive `today` from the host clock,
+        # so the boundary must stay host-tz-consistent (historical behaviour).
+        monkeypatch.setenv("TZ", "America/Los_Angeles")
+        _time_mod.tzset()
+        result = day_start_utc(date(2026, 6, 15), None)
+        # Midnight PDT (UTC-7) on Jun 15 is 07:00 UTC.
+        assert result == datetime(2026, 6, 15, 7, 0, tzinfo=timezone.utc)
+
+    def test_result_is_aware_utc(self):
+        from datetime import date
+
+        from src._time import day_start_utc
+
+        result = day_start_utc(date(2026, 3, 1), timezone.utc)
+        assert result.tzinfo is timezone.utc
+        assert result == datetime(2026, 3, 1, 0, 0, tzinfo=timezone.utc)

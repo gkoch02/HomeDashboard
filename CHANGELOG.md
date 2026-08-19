@@ -6,8 +6,115 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Changed
+
+- **The Google API client stack is no longer imported on every tick.**
+  `calendar_google` pulled googleapiclient + friends at module top, and every
+  run reaches that module through the fetcher registry — including ICS-only,
+  CalDAV-only, and `--dummy` runs, and the web server via `state_reader`.
+  That import costs 1–2 s on a Pi. The imports are now deferred into
+  `_build_service`, so only runs that actually talk to the Google API pay
+  for them; a subprocess guard test fences the boundary. (#211)
+
 ### Fixed
 
+- **One malformed VEVENT no longer disables ICS recurrence expansion for the
+  whole feed.** `recurring_ical_events` raises on a VEVENT with no `DTSTART`
+  and on an unparseable `RRULE`; the expander caught that and fell back to the
+  raw walk for the *entire* calendar, so a single bad component silently
+  reverted every recurring series in the feed to first-week-only — reinstating
+  the bug the expansion was added to fix. DTSTART-less VEVENTs are now pruned
+  before expansion (`_parse_ical_event` already skipped them), and a failure
+  that still escapes retries event by event, so a bad `RRULE` costs only its
+  own series and that series survives unexpanded rather than vanishing.
+- **An unbounded ICS recurrence rule can no longer swamp the fetch.** A
+  `FREQ=MINUTELY` series with no COUNT/UNTIL (broken exporter or hostile feed)
+  expands to five figures inside a one-week window, and every occurrence was
+  then parsed, written to the cache, sorted, and handed to a renderer sized
+  for a normal week. Occurrences are now capped per series at 500 with a
+  warning naming the UID. The cap is per series rather than per feed because
+  `between()` groups occurrences by series instead of sorting them — a flat
+  cap would keep the whole runaway series and drop the real events behind it.
+  A dense but legitimate `FREQ=HOURLY` series (168 a week) is unaffected.
+- **Floating-time ICS events at the start of the window are no longer
+  dropped.** `between()` resolves a floating `DTSTART` (no `TZID`, no `Z`)
+  against UTC while the caller's filter resolves it against the configured
+  zone, so a western-zone install lost short floating events in the first
+  `|utcoffset|` hours of day one — everything before 07:00 on
+  `America/Los_Angeles`, before 04:00 on `America/New_York` — which the raw
+  walk used to keep. The expansion span is padded a day either side; the
+  caller's per-event filter still decides what is in window.
+- **Weather alerts and UV work again.** The alerts/UV fetch still called
+  OpenWeatherMap's One Call **2.5** endpoint, which OWM retired in mid-2024 —
+  and because the helper is best-effort, every run silently returned no
+  alerts and no UV. The `weather_alert_present` theme rule could never fire,
+  the weather theme's alert banner never showed, and weatherglass's UV bar
+  stayed empty. The fetch now targets One Call 3.0; keys without that
+  subscription degrade exactly as before. Note that OpenWeather has since
+  released One Call 4.0 as a separate product on its own endpoint, and an
+  account cannot hold both subscriptions — a 4.0 subscriber calling the 3.0
+  endpoint gets the same 401 as an unsubscribed key, so alerts and UV need a
+  One Call *3.0* subscription specifically. 3.0 remains live; 4.0 support is
+  not implemented. See "Weather API tiers" in docs/configuration.md. (#202)
+- **Calendar fetch windows are built in the configured timezone.** All four
+  window builders (Google API, ICS, CalDAV, birthday-calendar) combined the
+  local window date with a *naive* midnight and let `astimezone()` interpret
+  it in the **host machine's** timezone. On the default Pi setup (system tz
+  UTC, `timezone:` local) the 7-day window shifted by the UTC offset and
+  events at the end of the displayed week were silently dropped; the CalDAV
+  variant stamped local midnight as UTC outright and has no client-side
+  filter to mask it. Boundaries now go through the new
+  `src._time.day_start_utc(day, tz)` helper, which anchors midnight in the
+  configured zone (host zone only when no timezone is configured, matching
+  how `today` is derived in that case).
+
+  Note for CalDAV users with **no** `timezone:` configured: this is a
+  behaviour change, not only a fix. That path previously stamped the window
+  date as UTC midnight outright, and it now resolves to host-zone midnight —
+  so the window moves by the host's UTC offset. This matches how `today` is
+  derived on that path (`date.today()`, host clock), which is what makes the
+  pair consistent, but a tz-unconfigured CalDAV install will see its week
+  boundary shift once on upgrade. Setting `timezone:` explicitly pins it.
+  (#203)
+- **A Feb-29 birthday no longer crashes the contacts source for the whole
+  year.** `date(today.year, 2, 29)` raised `ValueError` in non-leap years,
+  `retry_fetch` classified it as permanent, and once the cache expired the
+  birthday panel stayed blank with the breaker open. Both the contacts and
+  file parsers now roll Feb 29 → Feb 28 in non-leap years (the convention
+  `birthday_bar.py` already renders with), and one malformed contact is
+  logged and skipped instead of aborting the whole fetch. (#204)
+- **Google incremental sync actually activates now.** The Calendar API omits
+  `nextSyncToken` from responses when `orderBy` is set, so `_fetch_full`'s
+  `orderBy="startTime"` meant the token was always `None` and every run was
+  a full re-download — the entire incremental-sync machinery was dead code.
+  The parameter is gone; events were already sorted client-side. (#205)
+- **Negative PurpleAir readings no longer display as AQI 500 "Hazardous".**
+  Sensors report small negative PM2.5 values in clean air (baseline drift);
+  those matched no EPA breakpoint bracket and fell through to the ≥500.4
+  clamp. Readings are clamped to 0 before lookup. (#206)
+- **A failed display write no longer pins the panel on stale content.** The
+  image hash was persisted as a side effect of the *comparison*, before the
+  hardware write ran — one transient SPI/eInk error and the next run saw
+  "image unchanged" and skipped the retry until the content itself changed.
+  `image_changed()` is now a pure comparison and the hash is recorded via
+  `persist_image_hash()` only after `show()` succeeds. (#207)
+- **A legacy naive refresh-throttle timestamp no longer wedges publishing.**
+  v4's `inky_refresh_state.json` was written with naive `utcnow()`
+  timestamps and migrated bit-for-bit; subtracting one from the aware `now`
+  raised `TypeError` on every publish until the state file was deleted by
+  hand. The reader now applies the repo-wide "naive ISO timestamps are UTC"
+  convention. (#208)
+- **Registry-added fetchers honour their skip decisions.** The pipeline
+  computed cache/interval/breaker decisions for every registered fetcher but
+  only forwarded the four built-ins' to the launch step — anything added via
+  the documented "New fetcher" recipe was fetched on every 5-minute run
+  regardless of its configured interval, and its breaker never actually
+  paused it. (#209)
+- **Daily random theme rotates at configured-timezone midnight.** The daily
+  pick fell back to the system clock's `date.today()`, so the "new theme
+  after midnight" flip landed at host-tz midnight and `--dry-run --date`
+  previews ignored the date override for the daily variant (the hourly
+  variant already honoured it). (#210)
 - **An idle tick no longer redraws the panel.** Every "updated" caption was
   rendered from the run's own clock, so the image differed on every tick even
   when nothing had been fetched — around 12 hardware writes an hour on the
@@ -41,6 +148,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
+- **ICS feeds expand recurring events.** The ICS path walked raw VEVENTs, so
+  a weekly standup exported from Google/Outlook appeared only in the week of
+  its original `DTSTART` and never again — while the CalDAV backend expanded
+  server-side, so the two backends disagreed on the same calendar. RRULE /
+  RDATE / EXDATE / RECURRENCE-ID are now expanded per-occurrence inside the
+  fetch window via the new `recurring-ical-events` core dependency, with a
+  graceful raw-walk fallback (plus warning) when the package is missing.
+  (#212)
 - **`halftone_agenda`'s weather band reads larger.** The temperature numeral
   goes 64 → 78 pt with the condition and high/low sized to match (16 → 19 and
   18 → 21). The column reservation was over-sized for the numeral it held, so

@@ -2,10 +2,11 @@
 
 import json
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
 from PIL import Image
 
 from src.services.output import (
@@ -40,7 +41,10 @@ def _make_tz():
 
 
 def _now() -> datetime:
-    return datetime(2026, 4, 8, 12, 0)
+    # Aware, matching production: publish() receives now_local(tz). Repo
+    # convention: tests comparing against persisted timestamps must construct
+    # aware values (naive-legacy parsing is pinned separately below).
+    return datetime(2026, 4, 8, 12, 0, tzinfo=timezone.utc)
 
 
 # ---------------------------------------------------------------------------
@@ -531,7 +535,10 @@ class TestLegacyInkyMigration:
         legacy = tmp_path / "inky_refresh_state.json"
         legacy.write_text('{"last_refresh_at": "2026-04-08T11:30:00"}')
         ts = _load_last_refresh(str(tmp_path))
-        assert ts == datetime(2026, 4, 8, 11, 30)
+        # Regression (#208): legacy v4 files hold naive UTC timestamps; the
+        # reader must attach UTC so the aware-now subtraction in
+        # should_throttle_display_refresh can't raise TypeError.
+        assert ts == datetime(2026, 4, 8, 11, 30, tzinfo=timezone.utc)
         # Migration deleted the legacy file and wrote the new one.
         assert not legacy.exists()
         assert (tmp_path / "refresh_throttle_state.json").exists()
@@ -560,7 +567,7 @@ class TestLegacyInkyMigration:
             ts = _load_last_refresh(str(tmp_path))
 
         # Timestamp was still parsed and returned even though rename failed.
-        assert ts == datetime(2026, 4, 8, 11, 30)
+        assert ts == datetime(2026, 4, 8, 11, 30, tzinfo=timezone.utc)
 
 
 class TestThrottleNoStateFile:
@@ -607,3 +614,77 @@ class TestWriteErrorMarker:
                 svc.write_error_marker(RuntimeError("oops"))
 
         assert "last_error.txt" in caplog.text
+
+
+# ---------------------------------------------------------------------------
+# Regression: issue #207 — hash persisted only after a successful show()
+# ---------------------------------------------------------------------------
+
+
+class TestFailedShowDoesNotPinHash:
+    def test_failed_show_leaves_hash_absent_so_next_run_retries(self, tmp_path):
+        """A transient hardware failure must not record the frame as displayed —
+        the next run with identical content has to retry the write instead of
+        skipping it as 'unchanged' and pinning the panel on stale content."""
+        svc = OutputService(_make_cfg(tmp_path), _make_tz())
+        image = _make_image()
+        failing = MagicMock()
+        failing.show.side_effect = RuntimeError("SPI glitch")
+
+        with (
+            patch("src.services.output.build_display_driver", return_value=failing),
+            pytest.raises(RuntimeError),
+        ):
+            svc.publish(image, dry_run=False, force_full=False, now=_now(), theme_name="default")
+
+        assert not (tmp_path / "last_image_hash.txt").exists()
+
+        # Same content, working hardware: the write happens this time.
+        working = MagicMock()
+        with patch("src.services.output.build_display_driver", return_value=working):
+            svc.publish(image, dry_run=False, force_full=False, now=_now(), theme_name="default")
+        working.show.assert_called_once()
+        assert (tmp_path / "last_image_hash.txt").exists()
+
+    def test_successful_show_persists_hash_and_dedupes_next_run(self, tmp_path):
+        svc = OutputService(_make_cfg(tmp_path), _make_tz())
+        image = _make_image()
+        driver = MagicMock()
+
+        with patch("src.services.output.build_display_driver", return_value=driver):
+            svc.publish(image, dry_run=False, force_full=False, now=_now(), theme_name="default")
+            svc.publish(image, dry_run=False, force_full=False, now=_now(), theme_name="default")
+
+        # Second publish with identical content skipped the hardware write.
+        assert driver.show.call_count == 1
+
+
+# ---------------------------------------------------------------------------
+# Regression: issue #208 — naive legacy timestamp must not wedge publishing
+# ---------------------------------------------------------------------------
+
+
+class TestNaiveThrottleTimestamp:
+    def test_naive_state_timestamp_does_not_raise_in_throttle(self, tmp_path):
+        """A migrated v4 state file holds a naive ISO timestamp; the cooldown
+        subtraction against an aware now must work (naive = UTC convention),
+        not raise TypeError on every publish until the file is deleted."""
+        (tmp_path / "refresh_throttle_state.json").write_text(
+            '{"last_refresh_at": "2026-04-08T11:59:30"}'
+        )
+        assert (
+            should_throttle_display_refresh(
+                provider="inky",
+                now=datetime(2026, 4, 8, 12, 0, tzinfo=timezone.utc),
+                state_dir=str(tmp_path),
+                force_full=False,
+                min_interval_seconds=60,
+            )
+            is True
+        )
+
+    def test_naive_legacy_file_round_trips_through_publish_cooldown(self, tmp_path):
+        legacy = tmp_path / "inky_refresh_state.json"
+        legacy.write_text('{"last_refresh_at": "2026-04-08T11:30:00"}')
+        ts = _load_last_refresh(str(tmp_path))
+        assert ts is not None and ts.tzinfo is not None
