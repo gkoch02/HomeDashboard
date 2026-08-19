@@ -206,6 +206,50 @@ at most ~192 a day. Both sit comfortably inside the free allowance. If you
 shorten `weather_fetch_interval`, keep it at 15 minutes or more on `"4.0"` to
 stay inside 1,000 calls a day.
 
+### Enabling One Call, or switching between 3.0 and 4.0
+
+**1. Check which subscription you actually hold.** Sign in to your
+[OpenWeather account](https://home.openweathermap.org/) and open the "Billing
+plans" tab. One Call is sold as the **"One Call by Call"** subscription, listed
+separately from the Free / Startup / Developer tiers — and 3.0 and 4.0 appear
+as two distinct products. Whichever one shows an active subscription is the
+value you want. If neither does, you have no One Call access and should set
+`one_call_version: "off"`.
+
+**2. Subscribe, if you haven't.** Pick 3.0 *or* 4.0 and subscribe.
+It is free for the first 1,000 calls a day, but a card must be on file before
+the endpoint will answer. Note that OpenWeather then defaults your account to a
+2,000 calls/day ceiling — well above what this dashboard uses either way.
+
+**3. Set the version in config.** Edit `config/config.yaml`:
+
+```yaml
+weather:
+  one_call_version: "4.0"        # keep the quotes
+```
+
+or set it from the web UI's config page, where it appears as a dropdown under
+**Weather**. No other field changes — the same API key works for both versions.
+
+**4. Verify.** Alerts only appear when your area actually has one, so the UV
+index is the reliable signal. Pass `--force-full-refresh` — without it the run
+may reuse the weather it already cached, from before the switch:
+
+```bash
+python -m src.main --dry-run --force-full-refresh --theme weatherglass
+```
+
+The UV bar on the rendered `output/latest.png` should now be populated. If it
+is still empty, set `logging.level: "DEBUG"` in your config and re-run: a line
+reading `Weather alerts/UV fetch skipped: ... 401` means the version does not
+match your subscription.
+
+**Switching between versions** is just step 3 — change the value and the next
+fetch uses the other endpoint. No state file needs clearing; the only lag is
+the normal `cache.weather_fetch_interval` (30 minutes by default), which is why
+step 4 forces a refresh. Because a mismatch degrades silently rather than
+failing the run, it is worth verifying after any switch.
+
 ---
 
 ## Theme selection priority

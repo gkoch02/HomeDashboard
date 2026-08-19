@@ -112,7 +112,8 @@ OpenWeather account. Two things go wrong here:
    `weather.one_call_version` to match what you actually subscribed to.
 
 Raise `logging.level` to `DEBUG` to confirm -- the skipped fetch is logged
-there. See [Weather API tiers](configuration.md#weather-api-tiers).
+there. For the step-by-step fix, see
+[Enabling One Call, or switching between 3.0 and 4.0](configuration.md#enabling-one-call-or-switching-between-30-and-40).
 
 ## Themes
 

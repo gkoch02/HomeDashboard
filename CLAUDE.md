@@ -101,7 +101,10 @@ src/
 │   ├── calendar_google.py     # Google Calendar API — full sync, incremental sync, sync state
 │   ├── calendar_ical.py       # ICS feed fetching and parsing
 │   ├── calendar_caldav.py     # CalDAV server fetching (Nextcloud / Radicale / iCloud / etc.)
-│   ├── weather.py             # OpenWeatherMap (current + forecast + alerts); registry adapter
+│   ├── weather.py             # OpenWeatherMap current + forecast (free /data/2.5/ endpoints);
+│   │                          #   registry adapter; owns the One Call degradation boundary
+│   ├── weather_onecall.py     # One Call transport for alerts + UV only — 3.0 / 4.0 / off,
+│   │                          #   selected by weather.one_call_version
 │   ├── purpleair.py           # PurpleAir sensor → PM1 / PM2.5 / PM10 / AQI + ambient readings; registry adapter
 │   ├── host.py                # System metrics via /proc (sync, no caching, no breaker — outside the registry)
 │   ├── cache.py               # Multi-source JSON cache with per-source TTL; ser/deser delegated through registry
