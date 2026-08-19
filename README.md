@@ -69,6 +69,15 @@ sudo reboot
 - [Architecture](docs/architecture.md) for internals and design decisions
 - [Contributing](CONTRIBUTING.md) for contribution-specific guidance
 
+### Elsewhere
+
+There's also a project landing page at
+[plumpbug.dev/homedashboard](https://plumpbug.dev/homedashboard/home.html), maintained in
+the separate [`gkoch02/plumpbug-site`](https://github.com/gkoch02/plumpbug-site) repo
+alongside the other Plumpbug-family projects. This repo stays the source of truth for the
+theme preview PNGs that page embeds (`assets/previews/theme_<name>.png`); re-copy them
+there if the themes are re-rendered.
+
 ## Quick Checks
 
 After setup, these are the main operator commands:
