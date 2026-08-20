@@ -409,3 +409,188 @@ class TestCrossProcessSafety:
         monkeypatch.undo()
 
         assert es.read_recent_events(str(tmp_path))[0]["message"] == "still recorded"
+
+
+# ---------------------------------------------------------------------------
+# Cross-process safety
+# ---------------------------------------------------------------------------
+
+
+def _append_burst(state_dir: str, tag: str, count: int, payload: str = "") -> None:
+    """Module-level so it is picklable by multiprocessing's spawn start method."""
+    from src.web.event_store import append_event
+
+    for i in range(count):
+        append_event(state_dir, "run_completed", f"{tag}-{i}", filler=payload)
+
+
+class TestCrossProcessAppends:
+    """The stream has two writers in production and they are separate processes.
+
+    Since #218 the renderer records run events here alongside the long-running
+    web service. The module-level ``threading.Lock`` orders writers inside one
+    process; only the ``fcntl`` sidecar lock orders them across two. These
+    tests exercise the real thing with real processes — the existing coverage
+    only tests the *fallback* taken when ``fcntl`` is unavailable.
+    """
+
+    @staticmethod
+    def _run(procs):
+        for p in procs:
+            p.start()
+        for p in procs:
+            p.join(timeout=60)
+        for p in procs:
+            assert p.exitcode == 0, f"worker failed with exit code {p.exitcode}"
+
+    def test_concurrent_appends_lose_no_records(self, tmp_path):
+        import multiprocessing as mp
+
+        ctx = mp.get_context("spawn")
+        per_proc = 40
+        writers = 4
+        self._run(
+            [
+                ctx.Process(target=_append_burst, args=(str(tmp_path), f"p{n}", per_proc))
+                for n in range(writers)
+            ]
+        )
+
+        lines = (tmp_path / _EVENT_FILE).read_text().splitlines()
+        assert len(lines) == writers * per_proc
+
+    def test_concurrent_appends_produce_no_torn_lines(self, tmp_path):
+        """Every line must still parse as JSON.
+
+        Python's buffered I/O can split one record across several write()
+        syscalls, so without the lock two processes can interleave bytes inside
+        a single record. A long filler payload makes that far more likely.
+        """
+        import multiprocessing as mp
+
+        ctx = mp.get_context("spawn")
+        filler = "x" * 4096
+        self._run(
+            [
+                ctx.Process(target=_append_burst, args=(str(tmp_path), f"p{n}", 30, filler))
+                for n in range(4)
+            ]
+        )
+
+        lines = (tmp_path / _EVENT_FILE).read_text().splitlines()
+        assert len(lines) == 120
+        for line in lines:
+            record = json.loads(line)  # raises on a torn record
+            assert record["details"]["filler"] == filler
+
+    def test_appends_during_a_trim_are_not_dropped(self, tmp_path, monkeypatch):
+        """The trim is read-all → tempfile → rename.
+
+        Anything another process appends inside that window is lost to the
+        rename unless the lock covers the whole critical section. Seed the
+        stream past the trim threshold so every worker's first append triggers
+        a trim, then assert the newest records all survived.
+        """
+        import multiprocessing as mp
+
+        import src.web.event_store as es
+
+        seed = (
+            json.dumps(
+                {
+                    "timestamp": "2026-01-01T00:00:00+00:00",
+                    "kind": "seed",
+                    "message": "x" * 512,
+                    "details": {},
+                }
+            )
+            + "\n"
+        )
+        target = es._TRIM_THRESHOLD_BYTES // len(seed) + 50
+        (tmp_path / _EVENT_FILE).write_text(seed * target)
+        assert (tmp_path / _EVENT_FILE).stat().st_size > es._TRIM_THRESHOLD_BYTES
+
+        ctx = mp.get_context("spawn")
+        per_proc = 20
+        writers = 3
+        self._run(
+            [
+                ctx.Process(target=_append_burst, args=(str(tmp_path), f"p{n}", per_proc))
+                for n in range(writers)
+            ]
+        )
+
+        lines = (tmp_path / _EVENT_FILE).read_text().splitlines()
+        # The trim caps the stream: it keeps the newest _KEEP_EVENTS and each
+        # append that follows a trim adds one more on top.
+        assert len(lines) <= es._KEEP_EVENTS + writers * per_proc
+        records = [json.loads(line) for line in lines]
+        seeds = sum(1 for r in records if r["kind"] == "seed")
+        assert seeds < target, "the trim must actually have dropped old records"
+        # No writer's records may be swallowed by another writer's rename.
+        messages = {r["message"] for r in records}
+        for n in range(writers):
+            for i in range(per_proc):
+                assert f"p{n}-{i}" in messages
+
+    def test_trim_leaves_no_temp_files_behind(self, tmp_path):
+        """Two processes trimming at once must not orphan their tempfiles."""
+        import multiprocessing as mp
+
+        import src.web.event_store as es
+
+        seed = (
+            json.dumps(
+                {
+                    "timestamp": "2026-01-01T00:00:00+00:00",
+                    "kind": "seed",
+                    "message": "x" * 512,
+                    "details": {},
+                }
+            )
+            + "\n"
+        )
+        target = es._TRIM_THRESHOLD_BYTES // len(seed) + 50
+        (tmp_path / _EVENT_FILE).write_text(seed * target)
+
+        ctx = mp.get_context("spawn")
+        self._run(
+            [ctx.Process(target=_append_burst, args=(str(tmp_path), f"p{n}", 10)) for n in range(3)]
+        )
+
+        leftovers = [p.name for p in tmp_path.iterdir() if p.name.endswith(".tmp")]
+        assert leftovers == []
+
+
+class TestTrimFailureHandling:
+    def test_failed_rename_cleans_up_and_does_not_break_the_append(self, tmp_path, monkeypatch):
+        """A stream that cannot be trimmed is still a stream that logs.
+
+        The trim re-raises so the caller can log it; the temp file must not be
+        left behind either way.
+        """
+        import src.web.event_store as es
+
+        seed = (
+            json.dumps(
+                {
+                    "timestamp": "2026-01-01T00:00:00+00:00",
+                    "kind": "seed",
+                    "message": "x" * 512,
+                    "details": {},
+                }
+            )
+            + "\n"
+        )
+        target = es._TRIM_THRESHOLD_BYTES // len(seed) + 50
+        path = tmp_path / _EVENT_FILE
+        path.write_text(seed * target)
+
+        def _boom(*args, **kwargs):
+            raise OSError("rename failed")
+
+        monkeypatch.setattr(es.os, "replace", _boom)
+        append_event(str(tmp_path), "run_completed", "trim exploded")  # must not raise
+
+        leftovers = [p.name for p in tmp_path.iterdir() if p.name.endswith(".tmp")]
+        assert leftovers == [], "a failed trim must not orphan its temp file"

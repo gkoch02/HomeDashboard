@@ -773,3 +773,135 @@ class TestRunawaySeriesCap:
             "RRULE:FREQ=HOURLY\r\nEND:VEVENT\r\n"
         )
         assert len(self._fetch(mock_get, hourly)) == 168
+
+
+class TestExpansionFallbackTiers:
+    """The expansion has three tiers; the deepest one had no test.
+
+    1. ``recurring_ical_events.of(cal).between(...)`` for the whole feed.
+    2. On failure, ``_expand_one_by_one`` retries each component alone so one
+       poisoned series costs only itself.
+    3. If that *also* raises, the raw walk returns the unexpanded VEVENTs.
+
+    Tier 3 is the one with the worst blast radius — every recurring series in
+    the feed silently reverts to first-week-only — so it is worth pinning that
+    it recovers the events rather than raising or returning nothing.
+
+    Note tier 2 swallows per-component failures internally and appends the
+    offending VEVENT unexpanded, so a broken *series* never reaches tier 3.
+    Only a failure in tier 2's own scaffolding does.
+    """
+
+    @patch("src.fetchers.calendar_ical.requests.get")
+    def test_feed_wide_failure_falls_through_to_per_event(self, mock_get):
+        """Tier 1 → tier 2: the series still expands."""
+        mock_get.return_value = _mock_response(_make_ical_response(_WEEKLY_SERIES))
+
+        real_module = sys.modules.get("recurring_ical_events")
+        assert real_module is not None, "recurring-ical-events must be installed"
+
+        class FeedWideBoom:
+            """Fails the whole-feed call, delegates per-component calls."""
+
+            calls = 0
+
+            @staticmethod
+            def of(cal, *args, **kwargs):
+                FeedWideBoom.calls += 1
+                if FeedWideBoom.calls == 1:
+                    raise RuntimeError("feed-wide expansion exploded")
+                return real_module.of(cal, *args, **kwargs)
+
+        with patch.dict(sys.modules, {"recurring_ical_events": FeedWideBoom}):
+            events = fetch_from_ical(
+                ["https://example.com/cal.ics"], days=7, start_date=date(2026, 4, 6)
+            )
+
+        assert [e.summary for e in events] == ["Weekly Standup"]
+        assert events[0].start.date() == date(2026, 4, 6)
+        assert FeedWideBoom.calls > 1, "tier 2 must have been attempted"
+
+    @patch("src.fetchers.calendar_ical.requests.get")
+    def test_per_event_tier_keeps_a_broken_series_unexpanded(self, mock_get):
+        """Tier 2 absorbs a component that cannot expand at all.
+
+        It appends the raw VEVENT instead of propagating, which is why a
+        malformed series alone never reaches tier 3.
+        """
+        mock_get.return_value = _mock_response(_make_ical_response(_WEEKLY_SERIES))
+
+        class AlwaysBoom:
+            @staticmethod
+            def of(cal, *args, **kwargs):
+                raise RuntimeError("expansion exploded")
+
+        with patch.dict(sys.modules, {"recurring_ical_events": AlwaysBoom}):
+            events = fetch_from_ical(
+                ["https://example.com/cal.ics"], days=7, start_date=date(2025, 1, 6)
+            )
+
+        # Unexpanded, so only the series' own DTSTART week survives filtering.
+        assert [e.summary for e in events] == ["Weekly Standup"]
+        assert events[0].start.date() == date(2025, 1, 6)
+
+    @patch("src.fetchers.calendar_ical._expand_one_by_one")
+    @patch("src.fetchers.calendar_ical.requests.get")
+    def test_tier_three_raw_walk_recovers_the_events(self, mock_get, mock_one_by_one):
+        """Tier 3: tier 2's scaffolding itself fails, so fall back to the raw walk."""
+        mock_get.return_value = _mock_response(_make_ical_response(_WEEKLY_SERIES))
+        mock_one_by_one.side_effect = RuntimeError("per-event scaffolding exploded")
+
+        class AlwaysBoom:
+            @staticmethod
+            def of(cal, *args, **kwargs):
+                raise RuntimeError("feed-wide expansion exploded")
+
+        with patch.dict(sys.modules, {"recurring_ical_events": AlwaysBoom}):
+            events = fetch_from_ical(
+                ["https://example.com/cal.ics"], days=7, start_date=date(2025, 1, 6)
+            )
+
+        assert mock_one_by_one.called
+        assert [e.summary for e in events] == ["Weekly Standup"]
+        assert events[0].start.date() == date(2025, 1, 6)
+
+    @patch("src.fetchers.calendar_ical._expand_one_by_one")
+    @patch("src.fetchers.calendar_ical.requests.get")
+    def test_tier_three_logs_the_reason(self, mock_get, mock_one_by_one, caplog):
+        """A silent revert to first-week-only is the failure mode #212 fixed;
+        the log line is how an operator notices it happened."""
+        mock_get.return_value = _mock_response(_make_ical_response(_WEEKLY_SERIES))
+        mock_one_by_one.side_effect = RuntimeError("per-event scaffolding exploded")
+
+        class AlwaysBoom:
+            @staticmethod
+            def of(cal, *args, **kwargs):
+                raise RuntimeError("feed-wide expansion exploded")
+
+        with patch.dict(sys.modules, {"recurring_ical_events": AlwaysBoom}):
+            with caplog.at_level("WARNING"):
+                fetch_from_ical(
+                    ["https://example.com/cal.ics"], days=7, start_date=date(2025, 1, 6)
+                )
+
+        assert any("using raw events" in r.getMessage() for r in caplog.records)
+
+    @patch("src.fetchers.calendar_ical._expand_one_by_one")
+    @patch("src.fetchers.calendar_ical.requests.get")
+    def test_tier_three_never_raises_out_of_the_fetch(self, mock_get, mock_one_by_one):
+        """Whatever happens in expansion, a fetch degrades — it never crashes
+        the render."""
+        mock_get.return_value = _mock_response(_make_ical_response(_WEEKLY_SERIES))
+        mock_one_by_one.side_effect = RuntimeError("per-event scaffolding exploded")
+
+        class AlwaysBoom:
+            @staticmethod
+            def of(cal, *args, **kwargs):
+                raise RuntimeError("feed-wide expansion exploded")
+
+        with patch.dict(sys.modules, {"recurring_ical_events": AlwaysBoom}):
+            events = fetch_from_ical(
+                ["https://example.com/cal.ics"], days=7, start_date=date(2026, 4, 6)
+            )
+        # Out-of-window raw events are filtered out, leaving an empty list.
+        assert events == []

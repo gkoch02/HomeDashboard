@@ -30,13 +30,12 @@ from __future__ import annotations
 
 import json
 import math
-import os
-import tempfile
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 from PIL import Image, ImageDraw
 
+from src._io import atomic_write_json
 from src.astronomy import sun_times
 from src.data.models import AirQualityData, DashboardData, WeatherAlert, WeatherData
 from src.render.artkit import grey as _grey
@@ -203,20 +202,11 @@ def _save_pressure_sample(state_dir: str | None, current_hpa: float | None, now:
                 pass
     samples.append({"ts": now_utc.isoformat(), "hPa": float(current_hpa)})
     samples = samples[-_MAX_SAMPLES:]
-    payload = json.dumps({"samples": samples})
     try:
-        fd, tmp_name = tempfile.mkstemp(
-            prefix=".weatherglass_pressure_", suffix=".tmp", dir=str(path.parent)
-        )
-        try:
-            with os.fdopen(fd, "w") as fh:
-                fh.write(payload)
-            os.replace(tmp_name, path)
-        except OSError:
-            try:
-                os.unlink(tmp_name)
-            except OSError:
-                pass
+        # The shared helper is the only sanctioned way to persist JSON state
+        # here; it cleans up its own tempfile and re-raises, so the swallow
+        # stays local — history bookkeeping must never break a render.
+        atomic_write_json(path, {"samples": samples})
     except OSError:
         return
 
