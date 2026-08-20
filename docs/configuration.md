@@ -126,6 +126,10 @@ random_theme:                      # only used when theme: random_daily or rando
 #     theme: "weather"
 #   - when: { daypart: "night", weather: "clear" }
 #     theme: "moonphase"
+#   - when: { aqi_at_least: 100 }   # EPA AQI floor; needs PurpleAir configured
+#     theme: "air_quality"
+#   - when: { temp_at_most: 32 }    # in your weather.units (°F imperial / °C metric)
+#     theme: "weatherglass"
 #   # See themes.md → Context-aware theme rules for the full condition reference.
 
 cache:

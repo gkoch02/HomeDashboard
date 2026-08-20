@@ -109,6 +109,16 @@ class ThemeRuleCondition:
     # Rules using this condition skip when calendar data is unavailable
     # (e.g. pre-fetch theme resolution).
     calendar: str | list[str] | None = None
+    # Current temperature bounds, in the configured ``weather.units`` (so °F
+    # for imperial, °C for metric — the same number the dashboard shows).
+    # Both are inclusive; setting both makes a band.  Rules using either skip
+    # when weather data is unavailable, same as ``weather``.
+    temp_at_least: float | None = None
+    temp_at_most: float | None = None
+    # Minimum EPA AQI (inclusive).  Rules using it skip when air-quality data
+    # is unavailable — which includes every install without PurpleAir
+    # configured, since the source is then never fetched.
+    aqi_at_least: int | None = None
 
 
 @dataclass
@@ -257,6 +267,22 @@ def resolve_tz(tz_name: str) -> tzinfo:
             return zoneinfo.ZoneInfo("UTC")
         return tz
     return zoneinfo.ZoneInfo(tz_name)
+
+
+def _optional_number(block: dict, key: str, cast):
+    """Read an optional numeric ``when:`` threshold, or ``None`` when absent.
+
+    Raises ``ValueError`` for a present-but-unreadable value so the caller can
+    drop the rule rather than silently widen it. Booleans are rejected outright:
+    YAML 1.1 reads ``yes``/``on`` as ``True``, and ``int(True)`` is a perfectly
+    valid 1 that would read as a real threshold.
+    """
+    value = block.get(key)
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        raise ValueError(f"{key} must be a number, got {value!r}")
+    return cast(value)
 
 
 def _normalise_one_call_version(value: object) -> str:
@@ -438,6 +464,18 @@ def load_config(path: str = "config/config.yaml") -> Config:
                 when_raw = item.get("when", {}) or {}
                 if not isinstance(when_raw, dict):
                     when_raw = {}
+                try:
+                    numeric = {
+                        "temp_at_least": _optional_number(when_raw, "temp_at_least", float),
+                        "temp_at_most": _optional_number(when_raw, "temp_at_most", float),
+                        "aqi_at_least": _optional_number(when_raw, "aqi_at_least", int),
+                    }
+                except ValueError:
+                    # A threshold we cannot read would otherwise become "no
+                    # constraint", turning a narrow rule into one that fires on
+                    # everything below it.  Drop the rule instead, matching how
+                    # malformed entries are already handled here.
+                    continue
                 cond = ThemeRuleCondition(
                     weather=when_raw.get("weather"),
                     weather_alert_present=when_raw.get("weather_alert_present"),
@@ -445,6 +483,7 @@ def load_config(path: str = "config/config.yaml") -> Config:
                     season=when_raw.get("season"),
                     weekday=when_raw.get("weekday"),
                     calendar=when_raw.get("calendar"),
+                    **numeric,
                 )
                 rules.append(ThemeRule(when=cond, theme=str(item.get("theme", ""))))
         cfg.theme_rules = ThemeRulesConfig(rules=rules)

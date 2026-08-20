@@ -1099,3 +1099,63 @@ class TestOneCallVersionInTheEditor:
             if f["path"] == "weather.one_call_version"
         )
         assert field["value"] == "4.0"
+
+
+# ---------------------------------------------------------------------------
+# theme_rules — numeric conditions (#215)
+# ---------------------------------------------------------------------------
+
+
+def test_theme_rules_numeric_conditions_round_trip(tmp_path):
+    from src.config import load_config
+    from src.web.config_editor import _normalise_patch
+
+    yaml_text = "- when:\n    temp_at_most: 32\n    aqi_at_least: 101\n  theme: weatherglass\n"
+    patch, errors = _normalise_patch({"theme_rules": yaml_text})
+    assert errors == []
+
+    p = tmp_path / "config.yaml"
+    p.write_text(yaml.safe_dump(_apply_to_raw({}, patch)))
+    rules = load_config(str(p)).theme_rules.rules
+    assert rules[0].when.temp_at_most == 32.0
+    assert rules[0].when.aqi_at_least == 101
+
+
+def test_theme_rules_float_threshold_is_accepted():
+    from src.web.config_editor import _normalise_patch
+
+    patch, errors = _normalise_patch(
+        {"theme_rules": "- when: {temp_at_least: 89.6}\n  theme: weather\n"}
+    )
+    assert errors == []
+    assert patch["theme_rules"][0]["when"]["temp_at_least"] == 89.6
+
+
+def test_theme_rules_non_numeric_threshold_is_a_structured_error():
+    """load_config() would drop the rule, so accepting the save would lose it."""
+    from src.web.config_editor import _normalise_patch
+
+    patch, errors = _normalise_patch(
+        {"theme_rules": "- when: {temp_at_most: chilly}\n  theme: weatherglass\n"}
+    )
+    assert "theme_rules" not in patch
+    assert len(errors) == 1
+    assert "temp_at_most" in errors[0]["message"]
+
+
+def test_theme_rules_boolean_threshold_is_a_structured_error():
+    from src.web.config_editor import _normalise_patch
+
+    patch, errors = _normalise_patch(
+        {"theme_rules": "- when: {aqi_at_least: yes}\n  theme: air_quality\n"}
+    )
+    assert "theme_rules" not in patch
+    assert "aqi_at_least" in errors[0]["message"]
+
+
+def test_theme_rules_without_numeric_conditions_still_save():
+    from src.web.config_editor import _normalise_patch
+
+    patch, errors = _normalise_patch({"theme_rules": _RULES_YAML})
+    assert errors == []
+    assert patch["theme_rules"]

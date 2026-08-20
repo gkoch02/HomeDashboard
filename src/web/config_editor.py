@@ -220,6 +220,11 @@ def _theme_rules_yaml(config_path: str) -> str:
     return yaml.dump(rules, default_flow_style=False, allow_unicode=True, sort_keys=False)
 
 
+# ``when:`` conditions that must parse as plain numbers. YAML 1.1 turns
+# ``yes``/``on`` into booleans, which would otherwise sail through as 1/0.
+_NUMERIC_RULE_CONDITIONS = ("temp_at_least", "temp_at_most", "aqi_at_least")
+
+
 def _normalise_patch(patch: dict) -> tuple[dict, list[dict]]:
     """Pre-parse and shape-check patch values that arrive as YAML text.
 
@@ -255,6 +260,14 @@ def _normalise_patch(patch: dict) -> tuple[dict, list[dict]]:
             return _reject(f"Rule {i} is missing a 'theme: <name>' value.")
         if "when" in entry and not isinstance(entry["when"], dict):
             return _reject(f"Rule {i} has a 'when:' that is not a mapping.")
+        # load_config() drops a rule whose numeric threshold it cannot read, so
+        # a save that accepted one would silently discard the rule on load.
+        for key in _NUMERIC_RULE_CONDITIONS:
+            threshold = (entry.get("when") or {}).get(key)
+            if threshold is None:
+                continue
+            if isinstance(threshold, bool) or not isinstance(threshold, (int, float)):
+                return _reject(f"Rule {i}: '{key}' must be a number, got {threshold!r}.")
 
     patch = dict(patch)
     patch["theme_rules"] = value
