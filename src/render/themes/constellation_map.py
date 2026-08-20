@@ -44,9 +44,6 @@ def constellation_map_theme() -> Theme:
             # Light up on Inky as a real colour piece (yellow accents on
             # black, blue constellation lines) — Waveshare stays bilevel.
             prefer_color_on_inky=True,
-            # A near-black sky covering the whole plate is exactly what the fast
-            # waveform cannot hold — it lifts to charcoal and the stars go with it.
-            supports_partial_refresh=False,
         ),
         style=ThemeStyle(
             # Dark canvas: white stars on a black sky.  L-mode invariant

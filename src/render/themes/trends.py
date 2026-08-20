@@ -42,8 +42,6 @@ def trends_theme() -> Theme:
             # noise would look like a scratched chart rather than a halftone.
             preferred_quantization_mode="ordered",
             prefer_color_on_inky=True,
-            # The ordered-dither fills are the chart; a fast waveform greys them.
-            supports_partial_refresh=False,
             trends=ComponentRegion(0, 0, 800, 480),
             header=ComponentRegion(0, 0, 800, 40, visible=False),
             week_view=ComponentRegion(0, 40, 800, 320, visible=False),

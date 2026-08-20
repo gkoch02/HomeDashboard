@@ -102,24 +102,30 @@ venv/bin/python -m src.main --dry-run --dummy --theme my_theme
 
 For greyscale custom themes, set `ThemeLayout.canvas_mode = "L"` and use `fg=0, bg=255` in `ThemeStyle` (or `fg=255, bg=0` for a dark canvas — `bg=1` is near-black in L mode).
 
-### Declare whether your plate survives a partial refresh
+### Partial refresh: you don't have to declare anything
 
-`ThemeLayout.supports_partial_refresh` defaults to `True`, and **nothing derives it** —
-`OutputService.publish` honours exactly what you declare. Set it to `False` when any of
-these is true of your plate, because Waveshare's fast waveform will not lay the ink down:
+Waveshare's fast waveform will not lay down a plate built out of dithered ink or large
+solid fills, so such themes have to take the full waveform. **This is derived, not
+declared** — `Theme.allows_partial_refresh` works it out from your theme, and a plate is
+put in that class when any of these is true:
 
 - `preferred_quantization_mode` is `"floyd_steinberg"` or `"ordered"` (these diffuse ink
   across the plate; `"threshold"` is a hard cut and does not, so an `"L"` canvas is *not*
-  on its own a reason to decline)
+  on its own a reason)
 - `background_fn` paints a dithered image across the canvas, as `photo` does
 - `ThemeStyle.bg` is ink rather than paper, so the whole plate is one solid fill
 
-Because the default is `True`, a theme that should decline and says nothing fails open on
-real hardware. `tests/test_theme_partial_refresh.py` encodes the rules above and fails CI
-naming your theme, so the mistake is caught before merge — but the enforcement is the test,
-not the runtime. If your theme meets one of the criteria and you still want the fast path
-(a clock face that redraws every five minutes, say), list it in that module's
-`SOLID_INK_BY_CHOICE` with the reason rather than leaving the flag silently `True`.
+So a normal theme needs no thought here at all: write the theme, and the right thing
+happens on the panel.
+
+`ThemeLayout.supports_partial_refresh` exists only to **overrule** that derivation, and
+defaults to `None` meaning "derive". Set it when you know something the plate does not
+show — `fuzzyclock_invert` sets `True` on a 95%-ink plate because it redraws every five
+minutes and declining would flash the panel on every tick. An override is a judgement
+call, so leave a comment saying why, and add the theme to `OVERRIDES` in
+`tests/test_theme_partial_refresh.py`. Setting it to what the derivation already says is
+rejected by that same module: a declaration that agrees with the plate reads as a decision
+when it is noise, and goes stale silently if the plate later changes.
 
 ## Adding a Fetcher or Data Source
 

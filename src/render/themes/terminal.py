@@ -25,11 +25,6 @@ def terminal_theme() -> Theme:
             weather=ComponentRegion(0, bottom_y, 340, bottom_h),
             birthdays=ComponentRegion(340, bottom_y, 200, bottom_h),
             info=ComponentRegion(540, bottom_y, 260, bottom_h),
-            # The canvas ground is ink, not paper: the whole plate is one solid fill,
-            # and Waveshare's fast waveform cannot drive that to black — it comes back
-            # charcoal and drifts further between full refreshes (#222). The theme
-            # redraws a few times a day, so the full waveform costs nothing here.
-            supports_partial_refresh=False,
         ),
         style=ThemeStyle(
             fg=1,  # white text / lines on black canvas

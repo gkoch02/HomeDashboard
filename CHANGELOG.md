@@ -6,6 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Changed
+
+- **Partial-refresh capability is now derived from the plate rather than
+  declared per theme.** `Theme.allows_partial_refresh` works it out — a theme
+  declines the fast waveform when it dithers (`preferred_quantization_mode` of
+  `floyd_steinberg`/`ordered`, or a dithered `background_fn`) or its
+  `ThemeStyle.bg` is ink, so the whole plate is one solid fill. Previously
+  every theme hand-set a flag that defaulted to "partials are fine", which
+  meant a new dithered theme that declared nothing failed open on hardware and
+  was caught only by a CI test. Now it gets the right answer from the code.
+  `ThemeLayout.supports_partial_refresh` defaults to `None` and remains as the
+  override for the three themes that overrule the derivation on purpose
+  (`fuzzyclock_invert`, `moonphase`, `moonphase_photo`); a declaration that
+  merely agrees with the derivation is now rejected by the test suite, so the
+  only flags left in the tree are real decisions. No change to which themes
+  take a full refresh, and no pixel change. (#222)
+
 ### Added
 
 - **One Call 4.0 support for weather alerts and the UV index**, selected by the
