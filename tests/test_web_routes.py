@@ -514,3 +514,78 @@ google:
             assert "OpenWeather" in rows
             assert "Birthdays source" in rows
             assert "PurpleAir" in rows
+
+
+# ---------------------------------------------------------------------------
+# One Call health on the status page (#223)
+# ---------------------------------------------------------------------------
+
+
+def _record_one_call(app, outcome: str, version: str = "3.0", status: int | None = 401):
+    from src.fetchers.one_call_health import STATE_FILENAME
+
+    payload = {"outcome": outcome, "version": version, "checked_at": "2026-08-19T12:00:00+00:00"}
+    if outcome == "auth_failed":
+        payload["http_status"] = status
+        payload["message"] = f"One Call {version} returned {status} — check one_call_version."
+    path = Path(app.config["STATE_DIR"]) / STATE_FILENAME
+    path.write_text(json.dumps(payload))
+
+
+class TestOneCallStatus:
+    def test_no_recorded_state_reports_nothing(self, client):
+        data = json.loads(client.get("/api/status").data)
+        assert data["one_call"] is None
+
+    def test_healthy_state_reports_nothing(self, app, client):
+        _record_one_call(app, "ok")
+        data = json.loads(client.get("/api/status").data)
+        assert data["one_call"] is None
+
+    def test_transient_failure_reports_nothing(self, app, client):
+        """A timeout is not actionable, so it must not colour the status page."""
+        _record_one_call(app, "transient", status=None)
+        data = json.loads(client.get("/api/status").data)
+        assert data["one_call"] is None
+
+    def test_auth_failure_is_surfaced(self, app, client):
+        _record_one_call(app, "auth_failed", version="4.0", status=401)
+        data = json.loads(client.get("/api/status").data)
+        assert data["one_call"] is not None
+        assert data["one_call"]["http_status"] == 401
+        assert data["one_call"]["version"] == "4.0"
+
+    def test_auth_failure_degrades_overall_health(self, app, client):
+        _record_one_call(app, "auth_failed")
+        data = json.loads(client.get("/api/status").data)
+        assert data["overall"]["status"] in ("degraded", "needs_attention")
+        assert any(i["kind"] == "one_call" for i in data["overall"]["issues"])
+
+    def test_auth_failure_message_names_the_config_knob(self, app, client):
+        _record_one_call(app, "auth_failed")
+        data = json.loads(client.get("/api/status").data)
+        assert "one_call_version" in data["one_call"]["message"]
+
+    def test_auth_failure_says_the_rest_of_weather_is_fine(self, app, client):
+        _record_one_call(app, "auth_failed")
+        data = json.loads(client.get("/api/status").data)
+        assert "unaffected" in data["one_call"]["detail"]
+
+    def test_integrations_row_flags_the_failure(self, app, client):
+        _record_one_call(app, "auth_failed", version="3.0")
+        data = json.loads(client.get("/api/status").data)
+        row = next(r for r in data["integrations"] if r["name"].startswith("OpenWeather One Call"))
+        assert row["status"] == "warn"
+
+    def test_integrations_row_is_ok_when_healthy(self, client):
+        data = json.loads(client.get("/api/status").data)
+        row = next(r for r in data["integrations"] if r["name"].startswith("OpenWeather One Call"))
+        assert row["status"] == "ok"
+
+    def test_no_row_when_one_call_is_turned_off(self, app, client):
+        Path(app.config["APP_CONFIG_PATH"]).write_text('weather:\n  one_call_version: "off"\n')
+        from src.config import load_config
+
+        app.config["DASH_CFG"] = load_config(app.config["APP_CONFIG_PATH"])
+        data = json.loads(client.get("/api/status").data)
+        assert not any(r["name"].startswith("OpenWeather One Call") for r in data["integrations"])

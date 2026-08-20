@@ -12,6 +12,7 @@ from pathlib import Path
 
 from flask import Blueprint, current_app, jsonify, render_template, request
 
+from src.fetchers import one_call_health
 from src.services.theme import resolve_theme_name
 from src.web.event_store import read_recent_events
 from src.web.sources import source_names
@@ -82,8 +83,35 @@ def _source_summary(source: str, source_state: dict) -> dict:
     }
 
 
+def _one_call_summary(health: dict) -> dict | None:
+    """Summarise One Call health, or ``None`` when there is nothing to report.
+
+    Only a recorded authentication failure is worth surfacing: it is permanent
+    and actionable, and it silently removes weather alerts and the UV index
+    from every render until someone fixes the subscription. A transient failure
+    and an empty record are both normal.
+    """
+    if health.get("outcome") != one_call_health.AUTH_FAILED:
+        return None
+    return {
+        "severity": "warn",
+        "status": "degraded",
+        "message": health.get("message") or "One Call requests are being rejected.",
+        "detail": (
+            "Weather alerts and the UV index are unavailable until this is resolved. "
+            "The rest of the weather data is unaffected."
+        ),
+        "version": health.get("version"),
+        "http_status": health.get("http_status"),
+        "checked_at": health.get("checked_at"),
+    }
+
+
 def _overall_health(
-    last_run_seconds: int | None, quiet_hours_active: bool, sources: dict[str, dict]
+    last_run_seconds: int | None,
+    quiet_hours_active: bool,
+    sources: dict[str, dict],
+    one_call: dict | None = None,
 ) -> dict:
     issues: list[dict] = []
     status = "healthy"
@@ -109,6 +137,17 @@ def _overall_health(
         title = "Dashboard may be behind"
         detail = "Last successful run was over 2 hours ago."
         issues.append({"kind": "last_run", "severity": "warn", "message": detail})
+
+    # Ahead of the per-source loop deliberately: `issues` is truncated below,
+    # and a permanent, actionable misconfiguration should not be crowded out by
+    # routine per-source notices.
+    if one_call is not None:
+        if status == "healthy":
+            status = "degraded"
+            severity = "warn"
+            title = "Dashboard degraded"
+            detail = "One or more data sources need a look."
+        issues.append({"kind": "one_call", "severity": "warn", "message": one_call["message"]})
 
     for name, source in sources.items():
         summary = _source_summary(name, source)
@@ -211,7 +250,7 @@ def _calendar_integration(cfg, backend: str) -> dict:
     }
 
 
-def _build_integrations(cfg) -> list[dict]:
+def _build_integrations(cfg, one_call: dict | None = None) -> list[dict]:
     backend = _calendar_backend(cfg)
     birthdays_path = Path(cfg.birthdays.file_path)
     # The service account is only reached on the Google API path — or by the
@@ -228,6 +267,20 @@ def _build_integrations(cfg) -> list[dict]:
             else "Weather API key is missing.",
         },
     ]
+
+    # One Call is the only paid part of the weather fetch and the only one that
+    # can fail without breaking anything visible, so it gets its own row.
+    version = cfg.weather.one_call_version
+    if version != "off":
+        items.append(
+            {
+                "name": f"OpenWeather One Call {version}",
+                "status": "warn" if one_call is not None else "ok",
+                "detail": one_call["message"]
+                if one_call is not None
+                else "Supplies weather alerts and the UV index.",
+            }
+        )
 
     if needs_service_account:
         google_path = Path(cfg.google.service_account_path)
@@ -301,7 +354,8 @@ def _build_status() -> dict:
             "quota_today": quota.get(source, quota.get(_quota_key(source), 0)),
         }
 
-    overall = _overall_health(last_run["seconds_since"], quiet_hours_active, sources)
+    one_call = _one_call_summary(one_call_health.read_health(state_dir))
+    overall = _overall_health(last_run["seconds_since"], quiet_hours_active, sources, one_call)
     effective_theme = resolve_theme_name(cfg, override_theme=None, now=now)
     theme_info = _describe_theme_mode(cfg, effective_theme, now)
 
@@ -315,7 +369,8 @@ def _build_status() -> dict:
         "web_auth_enabled": bool(current_app.config.get("WEB_AUTH_ENABLED")),
         "overall": overall,
         "theme_info": theme_info,
-        "integrations": _build_integrations(cfg),
+        "integrations": _build_integrations(cfg, one_call=one_call),
+        "one_call": one_call,
         "recent_events": read_recent_events(state_dir, limit=10),
         "host": read_host_metrics(),
         "sources": sources,

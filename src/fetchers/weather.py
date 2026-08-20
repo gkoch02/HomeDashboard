@@ -9,7 +9,7 @@ import requests  # type: ignore[import-untyped]
 
 from src.config import WeatherConfig
 from src.data.models import DayForecast, WeatherAlert, WeatherData
-from src.fetchers import weather_onecall
+from src.fetchers import one_call_health, weather_onecall
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +24,9 @@ def _today(tz: tzinfo | None) -> date:
     return datetime.now(tz).date()
 
 
-def fetch_weather(cfg: WeatherConfig, tz: tzinfo | None = None) -> WeatherData:
+def fetch_weather(
+    cfg: WeatherConfig, tz: tzinfo | None = None, state_dir: str | None = None
+) -> WeatherData:
     """Fetch current weather, extended forecast, and active alerts from OpenWeatherMap.
 
     Returns up to 6 days of forecast data (all future days available from the
@@ -46,7 +48,9 @@ def fetch_weather(cfg: WeatherConfig, tz: tzinfo | None = None) -> WeatherData:
     with requests.Session() as session:
         current = _fetch_current(session, params)
         today_high, today_low, forecast = _fetch_forecast(session, params, tz=tz)
-        alerts, uv_index = _fetch_alerts_and_uv(session, params, cfg.one_call_version)
+        alerts, uv_index = _fetch_alerts_and_uv(
+            session, params, cfg.one_call_version, state_dir=state_dir
+        )
 
     # Extract sunrise/sunset as timezone-aware datetimes when available
     slot_tz = tz if tz is not None else timezone.utc
@@ -158,6 +162,7 @@ def _fetch_alerts_and_uv(
     session: requests.Session,
     params: dict,
     version: str = weather_onecall.DEFAULT_VERSION,
+    state_dir: str | None = None,
 ) -> tuple[list[WeatherAlert], float | None]:
     """Fetch active weather alerts and the UV index from OpenWeatherMap One Call.
 
@@ -170,12 +175,25 @@ def _fetch_alerts_and_uv(
     :mod:`src.fetchers.weather_onecall` is free to raise, and any failure here
     (network error, unsupported API tier, unexpected payload) returns
     ``([], None)`` so a render can never be broken by alerts or UV.
+
+    Failing silently is the contract; failing *invisibly* is not.  Outcomes go
+    to :mod:`src.fetchers.one_call_health`, which logs a permanent 401/403 at
+    WARNING once per healthy→failing transition and records it for the status
+    page.  ``state_dir`` is where that record lives; ``None`` (dry runs,
+    previews, direct unit calls) keeps the classification and logging and skips
+    only the persistence.
     """
-    try:
-        return weather_onecall.fetch_alerts_and_uv(session, params, version=version)
-    except Exception as exc:
-        logger.debug("Weather alerts/UV fetch skipped: %s", exc)
+    # Short-circuited here as well as in the transport so a deliberately
+    # disabled One Call is not recorded as a healthy fetch.
+    if version == "off":
         return [], None
+    try:
+        result = weather_onecall.fetch_alerts_and_uv(session, params, version=version)
+    except Exception as exc:
+        one_call_health.record_failure(state_dir, version, exc)
+        return [], None
+    one_call_health.record_success(state_dir, version)
+    return result
 
 
 def _pick_midday(slots: list[dict], tz: tzinfo | None = None) -> dict | None:
@@ -196,7 +214,7 @@ def _pick_midday(slots: list[dict], tz: tzinfo | None = None) -> dict | None:
 def _weather_fetch(ctx) -> WeatherData:
     from src import data_pipeline
 
-    return data_pipeline.fetch_weather(ctx.cfg.weather, tz=ctx.tz)
+    return data_pipeline.fetch_weather(ctx.cfg.weather, tz=ctx.tz, state_dir=ctx.cache_dir or None)
 
 
 def _weather_log(w: WeatherData) -> str:

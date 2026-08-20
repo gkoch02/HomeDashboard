@@ -198,6 +198,27 @@ by design: the run still succeeds, but
 - the `weather_alert_present` theme rule can never fire, and
 - the `weatherglass` UV bar stays empty.
 
+**Silent, but not invisible.** The render is never broken by a One Call failure,
+and that contract is unconditional. But a 401 is permanent and actionable in a
+way a read timeout is not, so the two are handled differently:
+
+| Failure | Log level | Status page |
+|---|---|---|
+| HTTP 401 / 403 — key not subscribed to this version | `WARNING`, once when the failure first appears | **degraded**, naming `weather.one_call_version` |
+| Timeout, connection error, 5xx, unexpected payload | `DEBUG` | unchanged |
+
+The permanent case warns only on the healthy→failing transition, so a
+misconfiguration left in place does not emit a line every
+`cache.weather_fetch_interval`. The outcome is recorded in
+`state/one_call_health.json`, which is what makes the deduplication survive
+across runs (the renderer is a short-lived timer job) and what the status page
+reads. Delete the file to re-arm the warning.
+
+This matters most for the failure that arrives *after* a working install — a
+lapsed subscription, an account migrated between One Call products, or a key
+rotated to one without the entitlement. Alerts and UV stop appearing, the run
+still succeeds, and nothing else would prompt you to go looking.
+
 Setting `"off"` produces those same three outcomes deliberately, and skips the
 doomed request. The failure is logged at `DEBUG`, so raise `logging.level` to
 `DEBUG` if you want to confirm this is what you're hitting rather than a
@@ -247,12 +268,15 @@ python -m src.main --dry-run --force-full-refresh --theme weatherglass
 ```
 
 The UV bar on the rendered `output/latest.png` should now be populated. If it
-is still empty, set `logging.level: "DEBUG"` in your config and re-run: a line
-reading `Weather alerts/UV fetch skipped: ... 401` means the version does not
-match your subscription.
+is still empty, check the status page — a subscription mismatch shows there as a
+degraded One Call row naming the version it tried. The same thing appears in the
+log at `WARNING` on the first failing run. For a transient failure, which stays
+at `DEBUG` by design, set `logging.level: "DEBUG"` and look for a line reading
+`Weather alerts/UV fetch skipped`.
 
 **Switching between versions** is just step 3 — change the value and the next
-fetch uses the other endpoint. No state file needs clearing; the only lag is
+fetch uses the other endpoint. No state file needs clearing — the recorded One
+Call health is overwritten by the next fetch either way; the only lag is
 the normal `cache.weather_fetch_interval` (30 minutes by default), which is why
 step 4 forces a refresh. Because a mismatch degrades silently rather than
 failing the run, it is worth verifying after any switch.
