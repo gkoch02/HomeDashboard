@@ -44,6 +44,25 @@ That renders the standard preview PNGs:
 assets/previews/theme_<theme>.png
 ```
 
+The target runs `scripts/build_previews.py`, which enumerates the theme
+registry and renders every theme in **one process** — adding a theme needs no
+edit to the script or the Makefile. Exclusions, if a theme ever needs one, are
+the single `EXCLUDED` set at the top of the script.
+
+The render date is pinned (`2026-04-06`, matching the pixel-snapshot fixture)
+so re-running the batch does not churn every committed PNG through a moved
+dateline. Useful flags:
+
+```bash
+python3 scripts/build_previews.py --theme moonphase --theme qotd   # a subset
+python3 scripts/build_previews.py --date 2026-12-21                # another date
+python3 scripts/build_previews.py --config config/config.yaml      # your config
+python3 scripts/build_previews.py --out-dir /tmp/previews          # elsewhere
+```
+
+A theme that fails to render is reported and the batch continues, exiting
+non-zero at the end — one broken theme does not cost you the other 36.
+
 Example single-theme dry run:
 
 ```bash
@@ -62,7 +81,18 @@ python3 -m src.main --config config/config.example.yaml --dry-run --dummy --them
 
 ## Inky color preview set
 
-To generate Inky-specific color previews, render against a config that sets:
+The same script renders the Inky set:
+
+```bash
+make previews-inky
+# or: python3 scripts/build_previews.py --provider inky
+```
+
+That writes `assets/previews/theme_<theme>_inky.png` for every registered
+theme, overriding `display.provider` / `display.model` in memory so no config
+file needs editing.
+
+To do it by hand instead, render against a config that sets:
 
 ```yaml
 display:
@@ -178,12 +208,13 @@ Timestamped dry runs are also written automatically:
 
 ## Notes and limitations
 
-- `make previews` currently targets the normal dry-run path only. It does not generate a separate
-  Inky batch on its own.
-- The `message` theme requires `--message TEXT` during preview generation.
-- The `countdown` theme renders an empty "No countdowns configured" placeholder when
-  `countdown.events` is empty — configure at least one upcoming date in the active
-  config for a meaningful preview.
+- `make previews` renders the Waveshare set; `make previews-inky` renders the Inky set.
+  Run both, then `make previews-split`, to refresh everything [Themes](themes.md) embeds.
+- The `message` and `countdown` themes need extra input to render anything but an
+  empty-state placeholder. The script supplies both: a fixed preview message, and a
+  pair of sample countdown targets when `countdown.events` is empty in the config.
+  Rendering them through `python -m src.main` by hand still needs `--message TEXT`
+  and configured `countdown.events`.
 - The `astronomy` theme uses `weather.latitude` / `weather.longitude` for twilight math;
   the preview degrades gracefully without them (OWM sunrise/sunset only, no twilight).
 - The `photo` theme will still render in dry-run mode even if no custom photo path is configured,
