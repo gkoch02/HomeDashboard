@@ -25,31 +25,39 @@ PSEUDO = {"random", "random_daily", "random_hourly"}
 CONCRETE_THEMES = sorted(set(AVAILABLE_THEMES) - PSEUDO)
 
 # Themes whose image depends on ink the fast waveform will not lay down —
-# either dithered greyscale or a plate whose ground is solid ink.
+# either an actual dither or a plate whose ground is solid ink.
 DECLINES_PARTIAL = {
     "constellation_map",
     "day_arc",
     "fantasy",
     "halftone",
     "halftone_agenda",
-    "moonphase",
-    "moonphase_invert",
-    "moonphase_photo",
     "naturalist",
     "photo",
     "postcard",
     "qotd_invert",
     "terminal",
     "trends",
-    "weatherglass",
 }
 
-# The one dark-canvas theme that keeps partial refresh, by choice rather than by
-# oversight. Its phrase changes every five minutes, so declining would mean ~200
-# full-waveform refreshes a day — the panel flashing on every tick — to avoid ink
-# that reads charcoal. For a clock face that trade goes the other way, and the
-# light `fuzzyclock` covers anyone who wants the cadence with true black.
-SOLID_INK_BY_CHOICE = {"fuzzyclock_invert"}
+# Dark-canvas themes that keep partial refresh by choice rather than by
+# oversight. Each would decline under the rule below, and each has a reason
+# recorded at the theme:
+#
+#   fuzzyclock_invert — its phrase changes every five minutes, so declining
+#     would mean ~200 full-waveform refreshes a day to avoid ink that reads
+#     charcoal; the light `fuzzyclock` covers anyone wanting cadence and tone.
+#   moonphase / moonphase_photo — field evidence: no fade observed on real
+#     hardware. The plate has no fine detail to band and an evenly greying black
+#     ground gives the eye nothing to read the drift against, while a
+#     full-waveform flash is at its most intrusive on a theme left up at night.
+SOLID_INK_BY_CHOICE = {"fuzzyclock_invert", "moonphase", "moonphase_photo"}
+
+# Quantizers that actually diffuse ink across the plate. `threshold` is a hard
+# cut and produces none, which is why an `"L"` canvas is not by itself a reason
+# to decline — `moonphase_invert` and `weatherglass` are both L-mode, both
+# threshold-quantized, and both lighter than `default`.
+DITHERING_QUANTIZERS = {"floyd_steinberg", "ordered"}
 
 
 class TestDeclaration:
@@ -70,14 +78,38 @@ class TestDeclaration:
         }
         assert allowed == set(CONCRETE_THEMES) - DECLINES_PARTIAL
 
-    def test_greyscale_themes_never_claim_partial_support(self):
-        """An ``L``-mode canvas is greyscale by definition, and greyscale is
-        exactly what the fast waveform washes out. New L-mode themes must
-        declare the opt-out; this is the guard that says so."""
+    def test_dithered_themes_never_claim_partial_support(self):
+        """A declared dither is ink spread thin across the plate, which is what
+        the fast waveform fails to lay down. Any theme choosing a diffusing
+        quantizer must decline; this is the guard that says so.
+
+        Note this keys off the quantizer, not ``canvas_mode``. An ``"L"`` canvas
+        quantized with ``threshold`` is a hard cut with no dither in it at all.
+        """
         for name in CONCRETE_THEMES:
             layout = load_theme(name).layout
-            if layout.canvas_mode == "L":
+            if layout.preferred_quantization_mode in DITHERING_QUANTIZERS:
                 assert layout.supports_partial_refresh is False, name
+
+    def test_a_dithered_background_also_declines(self):
+        """``photo`` dithers a photograph across the whole canvas via
+        ``background_fn`` rather than through the quantizer, so the rule above
+        cannot see it."""
+        for name in CONCRETE_THEMES:
+            layout = load_theme(name).layout
+            if layout.background_fn is not None:
+                assert layout.supports_partial_refresh is False, name
+
+    def test_threshold_quantized_light_themes_keep_partials(self):
+        """The counterpart to the dither rule, pinned so the L-mode proxy does
+        not creep back: a light plate that snaps to a hard cut has nothing to
+        fade, and should keep the fast path."""
+        for name in ("moonphase_invert", "weatherglass"):
+            theme = load_theme(name)
+            assert theme.layout.canvas_mode == "L", name
+            assert theme.layout.preferred_quantization_mode == "threshold", name
+            assert theme.style.bg != 0, name
+            assert theme.layout.supports_partial_refresh is True, name
 
     def test_dark_canvas_themes_decline_unless_exempted_on_purpose(self):
         """``bg`` set to ink means the whole plate is one solid fill.

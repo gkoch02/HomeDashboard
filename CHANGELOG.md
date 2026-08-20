@@ -51,15 +51,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   declare whether their plate survives a partial refresh
   (`ThemeLayout.supports_partial_refresh`), and `OutputService.publish` uses
   the full waveform for those that say no, whatever
-  `display.enable_partial_refresh` is set to. Fifteen themes opt out — the
-  dithered set (`constellation_map`, `day_arc`, the `halftone` pair, the three
-  `moonphase` variants, `naturalist`, `photo`, `postcard`, `trends`,
-  `weatherglass`) and the dark-canvas set, whose ground is one solid fill
-  (`fantasy`, `qotd_invert`, `terminal`). `fuzzyclock_invert` keeps partial
-  refresh deliberately: its phrase changes every five minutes, so declining
-  would flash the panel on every tick to avoid ink reading charcoal, and the
-  light `fuzzyclock` covers anyone who wants the cadence with true black.
-  Every other theme keeps partial refresh and its speed.
+  `display.enable_partial_refresh` is set to. Eleven themes opt out — the ones
+  that dither (`day_arc`, the `halftone` pair, `naturalist`, `photo`,
+  `postcard`, `trends`) and the ones whose canvas ground is solid ink
+  (`constellation_map`, `fantasy`, `qotd_invert`, `terminal`). What counts is
+  the dither and not the greyscale: `moonphase_invert` and `weatherglass`
+  render on an `"L"` canvas but quantize with `threshold`, a hard cut that
+  diffuses nothing, and are lighter than `default` — they keep the fast path.
+  So do `fuzzyclock_invert`, `moonphase` and `moonphase_photo`, which are solid
+  plates that keep it deliberately: the clock face because declining would
+  flash the panel every five minutes, and the moon pair because no fade shows
+  on real hardware — an evenly greying black ground has nothing to read the
+  drift against, and the flash is most intrusive on a theme left up at night.
+  Each reason is recorded at the theme and pinned by a guard test.
   `make check` names the configured themes that opt out, so the setting never
   quietly means less than it says. (#222)
 

@@ -54,9 +54,11 @@ def weatherglass_theme() -> Theme:
             canvas_mode="L",
             preferred_quantization_mode="threshold",
             prefer_color_on_inky=True,
-            # Every instrument is hand-stippled shading — the first thing to go
-            # when black is not driven fully.
-            supports_partial_refresh=False,
+            # Keeps partial refresh. The `threshold` mode above is chosen
+            # precisely so the shaded zones snap to solid black instead of
+            # dithering into speckle, which leaves ~8% ink of crisp line-work on
+            # paper — nothing for the fast waveform to fade. It also redraws every
+            # tick, so it is the theme that gains most from the fast path.
             weatherglass=ComponentRegion(0, 0, 1600, 960),
             # Hide all standard regions — this theme owns the full canvas.
             header=ComponentRegion(0, 0, 1600, 80, visible=False),

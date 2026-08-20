@@ -224,11 +224,11 @@ Note that this is cumulative: the panel drifts further from black the longer it 
 default and what the shipped example config now uses.
 
 Themes whose plate is dithered artwork or solid ink — the `halftone` pair, `day_arc`,
-`postcard`, `naturalist`, `weatherglass`, `trends`, the `moonphase` family,
-`constellation_map`, `photo`, and the dark-canvas `terminal`, `fantasy` and `qotd_invert`
-— opt out of partial refresh entirely and always take the full waveform, so this cannot
-be the explanation for those. `fuzzyclock_invert` is the one dark theme that keeps
-partial refresh, deliberately, and *is* subject to this. See
+`postcard`, `naturalist`, `trends`, `constellation_map`, `photo`, and the dark-canvas
+`terminal`, `fantasy` and `qotd_invert` — opt out of partial refresh entirely and always
+take the full waveform, so this cannot be the explanation for those. `fuzzyclock_invert`,
+`moonphase` and `moonphase_photo` are dark plates that keep partial refresh deliberately,
+and *are* subject to this. See
 [Themes that always refresh fully](configuration.md#themes-that-always-refresh-fully). To confirm the cause
 before changing anything, render once with `--force-full-refresh` and compare
 the same plate:

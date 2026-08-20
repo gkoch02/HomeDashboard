@@ -300,11 +300,11 @@ class TestPartialRefreshThemeWarning:
 
         cfg = self._cfg("default")
         cfg.theme_schedule = ThemeScheduleConfig(
-            entries=[ThemeScheduleEntry(time="22:00", theme="moonphase")]
+            entries=[ThemeScheduleEntry(time="22:00", theme="terminal")]
         )
         warning = self._warning(cfg)
         assert warning is not None
-        assert "moonphase" in warning.message
+        assert "terminal" in warning.message
 
     def test_theme_rule_target_counts(self):
         from src.config import ThemeRule, ThemeRuleCondition, ThemeRulesConfig
@@ -316,6 +316,17 @@ class TestPartialRefreshThemeWarning:
         warning = self._warning(cfg)
         assert warning is not None
         assert "postcard" in warning.message
+
+    def test_a_theme_that_keeps_partials_by_choice_is_not_named(self):
+        """`moonphase` is a dark plate but keeps the fast path deliberately, so
+        scheduling it must not produce a warning about full refreshes."""
+        from src.config import ThemeScheduleConfig, ThemeScheduleEntry
+
+        cfg = self._cfg("default")
+        cfg.theme_schedule = ThemeScheduleConfig(
+            entries=[ThemeScheduleEntry(time="22:00", theme="moonphase")]
+        )
+        assert self._warning(cfg) is None
 
     def test_random_rotation_reports_the_pool(self):
         """The whole rotation is in play, so the whole rotation is checked."""

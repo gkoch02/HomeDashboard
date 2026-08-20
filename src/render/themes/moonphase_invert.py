@@ -43,8 +43,11 @@ def moonphase_invert_theme() -> Theme:
             canvas_mode="L",
             preferred_quantization_mode="threshold",
             prefer_color_on_inky=True,
-            # Same shaded disc as ``moonphase``: the fast waveform washes it out.
-            supports_partial_refresh=False,
+            # Keeps partial refresh, and the parchment polarity is why: unlike
+            # `moonphase` this is a light canvas at ~12% ink, less than `default`,
+            # and `threshold` quantization is a hard cut that lays down no dither
+            # for the fast waveform to wash out. `canvas_mode="L"` alone is not a
+            # reason to decline — it is the dithering quantizers that are.
         ),
         style=ThemeStyle(
             fg=0,  # black on white — parchment / fairy-tale book (L mode)

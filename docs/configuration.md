@@ -407,14 +407,25 @@ Themes declare the requirement themselves (`ThemeLayout.supports_partial_refresh
 the output service uses the full waveform for them whatever the config says. These themes
 always refresh fully:
 
-`constellation_map`, `day_arc`, `fantasy`, `halftone`, `halftone_agenda`, `moonphase`,
-`moonphase_invert`, `moonphase_photo`, `naturalist`, `photo`, `postcard`, `qotd_invert`,
-`terminal`, `trends`, `weatherglass`
+`constellation_map`, `day_arc`, `fantasy`, `halftone`, `halftone_agenda`, `naturalist`,
+`photo`, `postcard`, `qotd_invert`, `terminal`, `trends`
 
-`fuzzyclock_invert` is the deliberate exception. Its plate is the heaviest solid fill of
-any theme, but the phrase changes every five minutes, so declining partial refresh would
-mean the panel visibly flashing on every tick. For a clock face that trade goes the other
-way; if you want the cadence *and* true black, use the light `fuzzyclock`.
+What counts is the dither, not the greyscale: a theme can render on an `"L"` canvas and
+still be crisp if it quantizes with `threshold`, which is a hard cut rather than a
+diffusion. `moonphase_invert` and `weatherglass` are both L-mode, both threshold, and both
+lighter than `default` — they keep partial refresh and are none the worse for it.
+
+Three dark-canvas themes keep partial refresh despite the solid fill, deliberately:
+
+- **`fuzzyclock_invert`** — the heaviest ink plate of any theme, but the phrase changes
+  every five minutes, so declining would mean the panel visibly flashing on every tick.
+  For a clock face that trade goes the other way; if you want the cadence *and* true
+  black, use the light `fuzzyclock`.
+- **`moonphase` and `moonphase_photo`** — no fade observed on real hardware. The plate is
+  a large disc and small type on an even field, with no fine detail to band, and a
+  uniformly greying black ground gives the eye nothing to read the drift against.
+  A full-waveform flash, meanwhile, is at its most intrusive on the theme people are
+  most likely to leave up at night.
 
 Every other theme honours the setting as before, so a schedule or rotation that mixes the
 two gets partial refreshes on the type-and-rule themes and full ones on the artwork.
