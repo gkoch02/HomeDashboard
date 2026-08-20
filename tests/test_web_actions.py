@@ -412,6 +412,80 @@ class TestSourcesDeriveFromRegistry:
         assert resp.status_code == 200
         assert synthetic_source in json.loads(resp.data)["sources"]
 
+    def test_ttls_come_from_the_registry(self, synthetic_source):
+        """A plugin's own TTL, not read_cache_ages' 60-minute fallback."""
+        from src.config import Config
+        from src.web.sources import source_ttls
+
+        ttls = source_ttls(Config())
+        assert ttls[synthetic_source] == 60  # the synthetic fetcher declares 60
+
+    def test_every_registered_source_has_a_ttl(self, synthetic_source):
+        from src.config import Config
+        from src.fetchers.registry import registered_names
+        from src.web.sources import source_ttls
+
+        assert set(source_ttls(Config())) == set(registered_names())
+
+    def test_builtin_ttls_match_the_config(self):
+        from src.config import Config
+        from src.web.sources import source_ttls
+
+        cfg = Config()
+        cfg.cache.weather_ttl_minutes = 123
+        cfg.cache.events_ttl_minutes = 456
+        ttls = source_ttls(cfg)
+        assert ttls["weather"] == 123
+        assert ttls["events"] == 456
+
+    def test_a_plugin_with_a_distinct_ttl_is_reported_with_it(self, client):
+        """The status page must not call a source stale that the pipeline calls fresh."""
+        from src.fetchers.registry import Fetcher, register_fetcher, unregister_fetcher
+
+        register_fetcher(
+            Fetcher(
+                name="slow_source",
+                fetch=lambda ctx: None,
+                serialize=lambda v: {},
+                deserialize=lambda b: None,
+                ttl_minutes=lambda cfg: 10_080,  # a week
+                interval_minutes=lambda cfg: 60,
+            )
+        )
+        try:
+            from src.config import Config
+            from src.web.sources import source_ttls
+
+            assert source_ttls(Config())["slow_source"] == 10_080
+        finally:
+            unregister_fetcher("slow_source")
+
+    def test_a_plugin_whose_ttl_lookup_raises_is_skipped(self):
+        """A broken plugin must not take down the status page."""
+        from src.config import Config
+        from src.fetchers.registry import Fetcher, register_fetcher, unregister_fetcher
+        from src.web.sources import source_ttls
+
+        def _boom(cfg):
+            raise AttributeError("no such config section")
+
+        register_fetcher(
+            Fetcher(
+                name="broken_source",
+                fetch=lambda ctx: None,
+                serialize=lambda v: {},
+                deserialize=lambda b: None,
+                ttl_minutes=_boom,
+                interval_minutes=lambda cfg: 60,
+            )
+        )
+        try:
+            ttls = source_ttls(Config())
+            assert "broken_source" not in ttls
+            assert "weather" in ttls
+        finally:
+            unregister_fetcher("broken_source")
+
     def test_unknown_source_still_rejected_by_actions(self, client):
         headers = _csrf_headers(client)
         resp = client.post(

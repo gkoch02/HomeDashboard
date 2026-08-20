@@ -1160,3 +1160,53 @@ def test_theme_rules_without_numeric_conditions_still_save():
     patch, errors = _normalise_patch({"theme_rules": _RULES_YAML})
     assert errors == []
     assert patch["theme_rules"]
+
+
+# ---------------------------------------------------------------------------
+# quotes.path is reachable from the web UI, not just the API (#217)
+# ---------------------------------------------------------------------------
+
+
+def test_quotes_path_is_served_back(tmp_path):
+    """Schema-inlined values come from get_config_for_web; an omitted block reads null."""
+    from src.web.config_editor import get_config_for_web
+
+    p = tmp_path / "config.yaml"
+    p.write_text('quotes:\n  path: "/srv/q.json"\n')
+    assert get_config_for_web(str(p))["quotes"]["path"] == "/srv/q.json"
+
+
+def test_quotes_path_defaults_to_empty(tmp_path):
+    from src.web.config_editor import get_config_for_web
+
+    p = tmp_path / "config.yaml"
+    p.write_text("")
+    assert get_config_for_web(str(p))["quotes"]["path"] == ""
+
+
+def test_quotes_path_reaches_the_schema_endpoint_with_its_value(tmp_path):
+    from src.web.config_editor import get_config_for_web
+    from src.web.routes.config import _flatten_for_schema
+
+    p = tmp_path / "config.yaml"
+    p.write_text('quotes:\n  path: "/srv/q.json"\n')
+    flat = _flatten_for_schema(get_config_for_web(str(p)))
+    assert flat["quotes.path"] == "/srv/q.json"
+
+
+def test_quotes_path_round_trips_through_a_patch(tmp_path):
+    from src.config import load_config
+
+    p = tmp_path / "config.yaml"
+    p.write_text("")
+    raw = _apply_to_raw({}, {"quotes.path": "/srv/q.json"})
+    p.write_text(yaml.safe_dump(raw))
+    assert load_config(str(p)).quotes.path == "/srv/q.json"
+
+
+def test_config_page_renders_a_quotes_path_control(tmp_path):
+    """A schema entry alone does not put a field on the hand-written form."""
+    template = (
+        Path(__file__).resolve().parent.parent / "src" / "web" / "templates" / "config.html"
+    ).read_text()
+    assert 'data-field="quotes.path"' in template

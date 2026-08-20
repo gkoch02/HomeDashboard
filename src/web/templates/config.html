@@ -396,6 +396,20 @@
         </select>
       </div>
     </div>
+
+    <div class="field-row">
+      <label class="field-label" for="cfg-quotes-path">Quotes file</label>
+      <div class="field-input-wrap">
+        <input type="text" id="cfg-quotes-path" data-field="quotes.path"
+               value="{{ cfg.quotes.path }}"
+               placeholder="empty = bundled config/quotes.json">
+      </div>
+    </div>
+    <div class="field-hint">
+      JSON list of <code>{"text": ..., "author": ...}</code> objects. Leave empty for the
+      bundled store. <code>make deploy</code> overwrites anything inside the repository,
+      so point this at a path outside it to keep a customised file.
+    </div>
   </div>
 
   {# ------------------------------------------------------------------ #}

@@ -43,6 +43,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   permanent "check `one_call_version`" banner against a config that no longer
   calls One Call — and switching 3.0 → 4.0 left the banner naming 3.0. The
   status page now reconciles the record against the configured version. (#223)
+- **A malformed custom quote store no longer breaks the render.** Panels index
+  `["text"]` and `["author"]` directly, so a store containing `[{}]`, a bare
+  string, or an entry missing either key raised out of whichever panel selected
+  it — making a hand-edited quotes file the one config mistake that took down
+  the whole dashboard. Unusable entries are now skipped with a warning, and a
+  store with none left falls back to the bundled list. (#217)
+- **`quotes.path` is actually editable on the config page.** The schema entry
+  made it patchable through the API, but `get_config_for_web()` omitted the
+  block and the hand-written form had no control, so the page never showed it
+  and `GET /api/config/schema` reported a null value even when it was set.
+  (#217)
+- **The status page's TTL map derives from the fetcher registry.** #213 moved
+  the source *names* to the registry but left the TTLs naming the four
+  built-ins, so a newly registered fetcher was classified against an unrelated
+  60-minute fallback — the status page could call a cache stale while the
+  pipeline still considered it fresh. (#213)
 - **The web event stream is safe against its second writer.** #218 made the
   renderer a writer of a file the web service also appends to, from a separate
   process, where the trim's read-all → rename window silently discarded the

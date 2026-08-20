@@ -182,9 +182,12 @@ If you would rather keep it in the tree, exclude it from the deploy explicitly:
 make deploy QUOTES_FILE=config/quotes.json
 ```
 
-A missing, malformed, or empty file falls back to a small bundled list and
+A missing, malformed, or empty file falls back to the bundled list and
 `make check` warns about the path — the dashboard never fails to render over a
-quote store.
+quote store. Individual entries are checked too: anything without a string
+`text` and `author` is skipped with a warning, and a store with no usable
+entries left falls back wholesale. A single typo costs you that one quote, not
+the file.
 
 Each panel selects from the store under its own key prefix, so two panels on
 the same plate do not show the same quote on the same day. Selection is a

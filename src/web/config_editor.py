@@ -198,6 +198,9 @@ def get_config_for_web(config_path: str) -> dict:
             "cooldown_minutes": cfg.cache.cooldown_minutes,
             "quote_refresh": cfg.cache.quote_refresh,
         },
+        "quotes": {
+            "path": cfg.quotes.path,
+        },
         "random_theme": {
             "include": cfg.random_theme.include,
             "exclude": cfg.random_theme.exclude,

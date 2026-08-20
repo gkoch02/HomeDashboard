@@ -28,6 +28,7 @@ from flask import Flask
 
 from src.config import load_config
 from src.web.auth import make_auth_middleware
+from src.web.sources import source_ttls
 
 logger = logging.getLogger(__name__)
 
@@ -96,13 +97,9 @@ def create_app(
         web_cfg.get("auth", {}).get("username") and web_cfg.get("auth", {}).get("password_hash")
     )
 
-    # Derived TTL map for staleness calculations.
-    app.config["SOURCE_TTLS"] = {
-        "events": dash_cfg.cache.events_ttl_minutes,
-        "weather": dash_cfg.cache.weather_ttl_minutes,
-        "birthdays": dash_cfg.cache.birthdays_ttl_minutes,
-        "air_quality": dash_cfg.cache.air_quality_ttl_minutes,
-    }
+    # Derived TTL map for staleness calculations — from the fetcher registry,
+    # so a newly registered source is reported with its own TTL.
+    app.config["SOURCE_TTLS"] = source_ttls(dash_cfg)
 
     # --- Auth ---
     # Register auth FIRST so unauthenticated mutating requests are rejected with 401

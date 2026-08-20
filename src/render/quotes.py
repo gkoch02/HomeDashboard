@@ -101,11 +101,32 @@ def bucket_key(
     return f"{prefix}{today.isoformat()}"
 
 
+def _usable(entry: object) -> bool:
+    """True when *entry* is a quote the panels can actually draw.
+
+    Panels index ``["text"]`` and ``["author"]`` directly, so a bare string or
+    a mapping missing either key raises out of the render — which would make a
+    hand-edited quote store the one config mistake that takes down the whole
+    dashboard. Both keys must be present and stringy.
+    """
+    return (
+        isinstance(entry, dict)
+        and isinstance(entry.get("text"), str)
+        and isinstance(entry.get("author"), str)
+    )
+
+
 def load_quotes(path: Path) -> list[dict]:
     """Read the quote store at *path*, falling back to the bundled list.
 
-    A missing file, malformed JSON, or a valid-but-empty list all fall back:
-    an empty store would make the modulo in :func:`select_quote` divide by zero.
+    A missing file, malformed JSON, a valid-but-empty list, or a list with no
+    usable entries all fall back: an empty store would make the modulo in
+    :func:`_select` divide by zero, and an unusable entry would raise out of
+    whichever panel happened to select it.
+
+    Usable entries are kept even when some of their neighbours are dropped —
+    a single typo in a long hand-written store should cost that one quote, not
+    the whole file.
     """
     if not path.exists():
         return DEFAULT_QUOTES
@@ -117,7 +138,21 @@ def load_quotes(path: Path) -> list[dict]:
     if not isinstance(quotes, list) or not quotes:
         logger.warning("Quote store at %s is empty or not a list; using defaults", path)
         return DEFAULT_QUOTES
-    return quotes
+
+    usable = [entry for entry in quotes if _usable(entry)]
+    if not usable:
+        logger.warning(
+            "Quote store at %s has no usable {text, author} entries; using defaults", path
+        )
+        return DEFAULT_QUOTES
+    if len(usable) != len(quotes):
+        logger.warning(
+            "Quote store at %s: skipped %d entr%s without a string 'text' and 'author'",
+            path,
+            len(quotes) - len(usable),
+            "y" if len(quotes) - len(usable) == 1 else "ies",
+        )
+    return usable
 
 
 @lru_cache(maxsize=128)

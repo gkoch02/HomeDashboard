@@ -8,6 +8,7 @@ the bucket-hash selection. These pin the consolidated behaviour and the new
 from __future__ import annotations
 
 import json
+import pathlib
 from datetime import date, datetime
 
 import pytest
@@ -101,6 +102,45 @@ class TestStoreLoading:
 
     def test_non_list_store_falls_back(self, tmp_path):
         assert Q.quote_for(TODAY, path=_store(tmp_path, {"a": 1})) in Q.DEFAULT_QUOTES
+
+    def test_entries_missing_text_fall_back(self):
+        """Panels index ["text"] directly, so an entry without it kills a render."""
+        import tempfile
+
+        tmp = pathlib.Path(tempfile.mkdtemp())
+        assert Q.quote_for(TODAY, path=_store(tmp, [{}])) in Q.DEFAULT_QUOTES
+
+    def test_entries_missing_author_fall_back(self, tmp_path):
+        path = _store(tmp_path, [{"text": "orphan"}])
+        assert Q.quote_for(TODAY, path=path) in Q.DEFAULT_QUOTES
+
+    def test_bare_string_entries_fall_back(self, tmp_path):
+        path = _store(tmp_path, ["just a string"])
+        assert Q.quote_for(TODAY, path=path) in Q.DEFAULT_QUOTES
+
+    def test_non_string_text_falls_back(self, tmp_path):
+        path = _store(tmp_path, [{"text": 5, "author": "A"}])
+        assert Q.quote_for(TODAY, path=path) in Q.DEFAULT_QUOTES
+
+    def test_usable_entries_survive_a_bad_neighbour(self, tmp_path):
+        """One typo in a long store should cost that quote, not the whole file."""
+        path = _store(tmp_path, [{"text": "good", "author": "A"}, {}, "junk"])
+        for _ in range(10):
+            Q.cache_clear()
+            assert Q.quote_for(TODAY, path=path)["text"] == "good"
+
+    def test_every_selectable_quote_is_drawable(self, tmp_path):
+        """The property the panels actually depend on, across many buckets."""
+        import datetime as _dt
+
+        path = _store(
+            tmp_path,
+            [{"text": "ok", "author": "A"}, {}, ["nope"], {"author": "no text"}, 7],
+        )
+        for i in range(40):
+            Q.cache_clear()
+            q = Q.quote_for(TODAY + _dt.timedelta(days=i), path=path)
+            assert isinstance(q["text"], str) and isinstance(q["author"], str)
 
     def test_empty_path_uses_the_bundled_store(self):
         assert Q.quote_for(TODAY, path="") == Q.quote_for(TODAY)

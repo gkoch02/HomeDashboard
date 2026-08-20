@@ -22,6 +22,7 @@ from src.web.config_editor import (
     restore_latest_backup,
 )
 from src.web.event_store import append_event
+from src.web.sources import source_ttls
 
 logger = logging.getLogger(__name__)
 
@@ -42,12 +43,7 @@ def _refresh_in_memory_config(config_path: str) -> bool:
     """
     try:
         new_cfg = load_config(config_path)
-        new_ttls = {
-            "events": new_cfg.cache.events_ttl_minutes,
-            "weather": new_cfg.cache.weather_ttl_minutes,
-            "birthdays": new_cfg.cache.birthdays_ttl_minutes,
-            "air_quality": new_cfg.cache.air_quality_ttl_minutes,
-        }
+        new_ttls = source_ttls(new_cfg)
     except Exception as exc:
         logger.warning("Config reload after save failed; in-memory config is stale: %s", exc)
         return False
