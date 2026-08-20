@@ -6,7 +6,72 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added
+
+- **`theme_rules` gained numeric conditions.** `temp_at_least` / `temp_at_most`
+  (inclusive, in your configured `weather.units`) and `aqi_at_least` (inclusive
+  EPA AQI floor) make the obvious operator wants reachable — "`air_quality`
+  when AQI is over 100", "`weatherglass` on freezing mornings". They follow the
+  existing weather condition's contract: a rule silently skips when the backing
+  source is unavailable, including the pre-fetch resolution pass and, for AQI,
+  any install without PurpleAir configured. (#215)
+- **`quotes.path` config option.** Points the daily-quote store anywhere.
+  `make deploy` rsyncs the tree over the Pi install and spares only
+  `config/config.yaml`, so a customised `config/quotes.json` used to be
+  clobbered by the next deploy; a store outside the tree survives, and
+  `make deploy QUOTES_FILE=...` covers keeping it inside. Web-editable. (#217)
+- **Renderer runs are recorded in the web event stream.** The status page's
+  Recent Events card showed manual button presses but never the renders
+  themselves. It now carries `run_completed` / `run_failed` with duration,
+  theme, and which sources were live versus served from cache. A quiet-hours
+  skip records nothing. The stream also self-trims now (newest 500 records
+  past 256 KB) rather than growing forever — it needed a ceiling before adding
+  ~288 records a day to it. (#218)
+- **`make previews-inky`** renders the Inky preview batch, which the docs
+  previously described as a hand-run shell loop. (#219)
+
 ### Changed
+
+- **A lapsed One Call subscription is now visible.** A 401/403 from an
+  unsubscribed One Call version was handled identically to a read timeout:
+  one `DEBUG` line and no other trace. The degradation contract is unchanged —
+  a One Call failure still never breaks a render — but the permanent case now
+  logs at `WARNING` once on the healthy→failing transition and shows on the
+  status page as a degraded row naming `weather.one_call_version`. This is the
+  failure that arrives *after* a working install (subscription lapses, account
+  migrated between products, key rotated), where alerts and UV silently stop
+  appearing while everything else stays green. (#223)
+- **Quote loading is one loader instead of four.** `src/render/quotes.py`
+  replaces the copy of the path, the fallback list, and the bucket-hash
+  selection that `info_panel`, `tides_panel`, `scorecard_panel`, and
+  `moonphase_panel` each carried. Selection is unchanged — every panel keeps
+  its own key prefix, and all theme pixel-snapshot hashes are identical. The
+  one behaviour change is in the degraded path: the per-panel two-entry
+  fallback lists are gone in favour of the single bundled one, reached only
+  when the store is missing, malformed, or empty. (#217)
+- **The web UI follows the fetcher registry.** The breaker/cache actions, the
+  cache-age reads, and the status payload each named the four built-in sources
+  inline, so a fetcher added per the documented recipe cached and rendered
+  correctly while staying invisible in the UI and unresettable from it. All
+  three now derive from the registry. `web/routes/actions.py`'s private
+  `_atomic_write_json` copy is gone in favour of the shared `src/_io` helper.
+  (#213)
+- **The status page's integrations panel is CalDAV-aware.** A CalDAV-only
+  install — the highest-precedence calendar backend — reported a missing
+  Google service account and a Google calendar warning on an otherwise healthy
+  dashboard. The panel now mirrors the dispatch precedence in `fetch_events`
+  and names the backend actually in use. The service-account row survives on
+  CalDAV when birthdays come from contacts, the one case that still reaches
+  Google. (#214)
+- **`theme` is an enum in the config schema**, so `GET /api/config/schema`
+  serves the full list of theme names and the field renders as a dropdown
+  rather than free text. Looked up lazily, so importing the schema still does
+  not pull in PIL. (#216)
+- **`make previews` is registry-driven.** It hardcoded 24 of the 36 concrete
+  themes and spawned a full interpreter per theme; twelve themes had silently
+  fallen out of the list. `scripts/build_previews.py` enumerates the registry
+  and renders everything in one process against a pinned date. Adding a theme
+  needs no Makefile edit. (#219)
 
 - **Partial-refresh capability is now derived from the plate rather than
   declared per theme.** `Theme.allows_partial_refresh` works it out — a theme
