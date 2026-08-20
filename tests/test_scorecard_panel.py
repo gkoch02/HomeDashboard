@@ -105,9 +105,7 @@ class TestQuoteForPanel:
     def test_fallback_quotes_used_when_no_file(self, monkeypatch, tmp_path):
         from src.render.quotes import DEFAULT_QUOTES
 
-        monkeypatch.setattr(
-            "src.render.quotes.DEFAULT_QUOTES_PATH", tmp_path / "nonexistent.json"
-        )
+        monkeypatch.setattr("src.render.quotes.DEFAULT_QUOTES_PATH", tmp_path / "nonexistent.json")
         q = _quote_for_panel(FIXED_TODAY)
         assert q in DEFAULT_QUOTES
 
