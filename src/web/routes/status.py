@@ -14,6 +14,7 @@ from flask import Blueprint, current_app, jsonify, render_template, request
 
 from src.services.theme import resolve_theme_name
 from src.web.event_store import read_recent_events
+from src.web.sources import source_names
 from src.web.state_reader import (
     is_quiet_hours_now,
     read_breakers,
@@ -171,9 +172,53 @@ def _describe_theme_mode(cfg, effective_theme: str, now: datetime) -> dict:
     }
 
 
+def _calendar_backend(cfg) -> str:
+    """Name the calendar backend that will actually be used.
+
+    Mirrors the dispatch precedence in ``src.fetchers.calendar.fetch_events``:
+    CalDAV wins over ICS, which wins over the Google Calendar API. Keeping the
+    two in step is what stops the panel from reporting a Google problem to an
+    install that never calls Google.
+    """
+    if cfg.google.caldav_url:
+        return "caldav"
+    if cfg.google.ical_url:
+        return "ics"
+    return "google"
+
+
+def _calendar_integration(cfg, backend: str) -> dict:
+    """One row describing the active calendar source."""
+    if backend == "caldav":
+        target = cfg.google.caldav_calendar_url or cfg.google.caldav_url
+        detail = f"Using CalDAV: {target}"
+        if cfg.google.caldav_username:
+            detail += f" (as {cfg.google.caldav_username})"
+        return {"name": "Calendar (CalDAV)", "status": "ok", "detail": detail}
+
+    if backend == "ics":
+        extra = len(cfg.google.additional_ical_urls)
+        detail = f"Using ICS feed: {cfg.google.ical_url}"
+        if extra:
+            detail += f" (+{extra} additional feed{'s' if extra != 1 else ''})"
+        return {"name": "Calendar (ICS)", "status": "ok", "detail": detail}
+
+    named = bool(cfg.google.calendar_id) and cfg.google.calendar_id != "primary"
+    return {
+        "name": "Calendar (Google API)",
+        "status": "ok" if named else "warn",
+        "detail": f"Calendar id: {cfg.google.calendar_id}",
+    }
+
+
 def _build_integrations(cfg) -> list[dict]:
-    google_path = Path(cfg.google.service_account_path)
+    backend = _calendar_backend(cfg)
     birthdays_path = Path(cfg.birthdays.file_path)
+    # The service account is only reached on the Google API path — or by the
+    # People API when birthdays come from contacts, whatever the calendar
+    # backend. Reporting it as missing otherwise is the bug in #214.
+    needs_service_account = backend == "google" or cfg.birthdays.source == "contacts"
+
     items = [
         {
             "name": "OpenWeather",
@@ -182,48 +227,47 @@ def _build_integrations(cfg) -> list[dict]:
             if cfg.weather.api_key
             else "Weather API key is missing.",
         },
-        {
-            "name": "Google service account",
-            "status": "ok" if google_path.exists() else "missing",
-            "detail": f"Found at {google_path}"
-            if google_path.exists()
-            else f"Expected at {google_path}",
-        },
-        {
-            "name": "Google calendar / ICS",
-            "status": "ok"
-            if (cfg.google.calendar_id and cfg.google.calendar_id != "primary")
-            or cfg.google.ical_url
-            else "warn",
-            "detail": (
-                "Using ICS feed"
-                if cfg.google.ical_url
-                else f"Calendar id: {cfg.google.calendar_id}"
-            ),
-        },
-        {
-            "name": "Birthdays source",
-            "status": "ok"
-            if (cfg.birthdays.source != "file" or birthdays_path.exists())
-            else "missing",
-            "detail": (
-                f"Source: {cfg.birthdays.source}"
-                if cfg.birthdays.source != "file"
-                else f"File expected at {birthdays_path}"
-            ),
-        },
-        {
-            "name": "PurpleAir",
-            "status": "ok"
-            if (bool(cfg.purpleair.api_key) and bool(cfg.purpleair.sensor_id))
-            else "warn",
-            "detail": (
-                f"Sensor {cfg.purpleair.sensor_id} configured"
-                if (cfg.purpleair.api_key and cfg.purpleair.sensor_id)
-                else "API key or sensor id missing."
-            ),
-        },
     ]
+
+    if needs_service_account:
+        google_path = Path(cfg.google.service_account_path)
+        items.append(
+            {
+                "name": "Google service account",
+                "status": "ok" if google_path.exists() else "missing",
+                "detail": f"Found at {google_path}"
+                if google_path.exists()
+                else f"Expected at {google_path}",
+            }
+        )
+
+    items.append(_calendar_integration(cfg, backend))
+    items.extend(
+        [
+            {
+                "name": "Birthdays source",
+                "status": "ok"
+                if (cfg.birthdays.source != "file" or birthdays_path.exists())
+                else "missing",
+                "detail": (
+                    f"Source: {cfg.birthdays.source}"
+                    if cfg.birthdays.source != "file"
+                    else f"File expected at {birthdays_path}"
+                ),
+            },
+            {
+                "name": "PurpleAir",
+                "status": "ok"
+                if (bool(cfg.purpleair.api_key) and bool(cfg.purpleair.sensor_id))
+                else "warn",
+                "detail": (
+                    f"Sensor {cfg.purpleair.sensor_id} configured"
+                    if (cfg.purpleair.api_key and cfg.purpleair.sensor_id)
+                    else "API key or sensor id missing."
+                ),
+            },
+        ]
+    )
     return items
 
 
@@ -244,7 +288,7 @@ def _build_status() -> dict:
     now = datetime.now()  # allow-naive-datetime — local wall clock for status display
 
     sources: dict = {}
-    for source in ("events", "weather", "birthdays", "air_quality"):
+    for source in source_names():
         b = breakers.get(source, {})
         c = cache_ages.get(source, {})
         sources[source] = {

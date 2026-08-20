@@ -17,10 +17,9 @@ from src._time import now_utc as _now_utc
 from src.fetchers.cache import check_staleness
 from src.fetchers.host import fetch_host_data
 from src.services.run_policy import in_quiet_hours
+from src.web.sources import source_names
 
 logger = logging.getLogger(__name__)
-
-_SOURCES = ("events", "weather", "birthdays", "air_quality")
 
 
 def read_last_success(output_dir: str) -> dict:
@@ -129,7 +128,7 @@ def read_breakers(state_dir: str) -> dict[str, dict]:
             logger.debug("Could not read breaker state: %s", exc)
 
     result = {}
-    for source in _SOURCES:
+    for source in source_names():
         entry = raw.get(source, {})
         result[source] = {
             "state": entry.get("state", "closed"),
@@ -167,7 +166,7 @@ def read_cache_ages(state_dir: str, ttls: dict[str, int]) -> dict[str, dict]:
     now_local = datetime.now()  # allow-naive-datetime — naive local for cache age display
     now_utc = datetime.now(timezone.utc)
     result: dict[str, dict] = {}
-    for source in _SOURCES:
+    for source in source_names():
         block = raw.get(source)
         if not block or not block.get("fetched_at"):
             result[source] = {"cache_age_minutes": None, "staleness": "unknown", "fetched_at": None}

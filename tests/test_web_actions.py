@@ -269,7 +269,7 @@ def test_trigger_refresh_returns_500_on_io_error(client):
 def test_reset_breaker_returns_500_on_write_failure(client):
     headers = _csrf_headers(client)
     with patch(
-        "src.web.routes.actions._atomic_write_json",
+        "src.web.routes.actions.atomic_write_json",
         side_effect=OSError("no space left"),
     ):
         resp = client.post(
@@ -287,7 +287,7 @@ def test_reset_breaker_returns_500_on_write_failure(client):
 def test_clear_cache_returns_500_on_write_failure(client):
     headers = _csrf_headers(client)
     with patch(
-        "src.web.routes.actions._atomic_write_json",
+        "src.web.routes.actions.atomic_write_json",
         side_effect=OSError("io broke"),
     ):
         resp = client.post(
@@ -302,17 +302,122 @@ def test_clear_cache_returns_500_on_write_failure(client):
     assert "io broke" in body["error"]
 
 
+def test_actions_uses_the_shared_atomic_write_helper():
+    """One implementation of the atomic write, not a private web-layer copy (#213)."""
+    from src import _io
+    from src.web.routes import actions
+
+    assert actions.atomic_write_json is _io.atomic_write_json
+    assert not hasattr(actions, "_atomic_write_json")
+
+
 def test_atomic_write_json_cleans_up_tempfile_on_failure(tmp_path):
     """If json.dump raises, the tempfile should be unlinked and the exception re-raised."""
-    from src.web.routes.actions import _atomic_write_json
+    from src._io import atomic_write_json
 
     target = tmp_path / "out.json"
 
     # Something that json can't serialise should trigger cleanup.
     unserialisable = {"bad": {object()}}
     with pytest.raises(TypeError):
-        _atomic_write_json(target, unserialisable)
+        atomic_write_json(target, unserialisable)
 
     # No .tmp leftovers in the directory.
     assert not any(p.suffix == ".tmp" for p in tmp_path.iterdir())
     assert not target.exists()
+
+
+# ---------------------------------------------------------------------------
+# Registry-derived source lists (#213)
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture()
+def synthetic_source():
+    """Register a throwaway fetcher for the duration of one test."""
+    from src.fetchers.registry import Fetcher, register_fetcher, unregister_fetcher
+
+    name = "synthetic_source"
+    register_fetcher(
+        Fetcher(
+            name=name,
+            fetch=lambda ctx: None,
+            serialize=lambda v: {},
+            deserialize=lambda b: None,
+            ttl_minutes=lambda cfg: 60,
+            interval_minutes=lambda cfg: 60,
+        )
+    )
+    try:
+        yield name
+    finally:
+        unregister_fetcher(name)
+
+
+class TestSourcesDeriveFromRegistry:
+    def test_source_names_cover_every_registered_fetcher(self):
+        from src.fetchers.registry import registered_names
+        from src.web.sources import source_names
+
+        assert set(registered_names()) == set(source_names())
+
+    def test_builtin_sources_keep_their_familiar_order(self):
+        from src.web.sources import source_names
+
+        assert source_names()[:4] == ("events", "weather", "birthdays", "air_quality")
+
+    def test_new_fetcher_appears_without_web_layer_edits(self, synthetic_source):
+        from src.web.sources import is_known_source, source_names
+
+        assert synthetic_source in source_names()
+        assert is_known_source(synthetic_source)
+
+    def test_new_fetcher_sorts_after_the_builtins(self, synthetic_source):
+        from src.web.sources import source_names
+
+        names = source_names()
+        assert names[:4] == ("events", "weather", "birthdays", "air_quality")
+        assert names[-1] == synthetic_source
+
+    def test_unregistered_source_is_still_rejected(self):
+        from src.web.sources import is_known_source
+
+        assert not is_known_source("not_a_source")
+        assert not is_known_source("")
+
+    def test_new_fetcher_is_accepted_by_reset_breaker(self, client, synthetic_source):
+        headers = _csrf_headers(client)
+        resp = client.post(
+            "/api/reset-breaker",
+            data=json.dumps({"source": synthetic_source}),
+            content_type="application/json",
+            headers=headers,
+        )
+        assert resp.status_code == 200
+        assert json.loads(resp.data)["ok"] is True
+
+    def test_new_fetcher_is_accepted_by_clear_cache(self, client, synthetic_source):
+        headers = _csrf_headers(client)
+        resp = client.post(
+            "/api/clear-cache",
+            data=json.dumps({"source": synthetic_source}),
+            content_type="application/json",
+            headers=headers,
+        )
+        assert resp.status_code == 200
+        assert json.loads(resp.data)["ok"] is True
+
+    def test_new_fetcher_appears_in_api_status(self, client, synthetic_source):
+        resp = client.get("/api/status")
+        assert resp.status_code == 200
+        assert synthetic_source in json.loads(resp.data)["sources"]
+
+    def test_unknown_source_still_rejected_by_actions(self, client):
+        headers = _csrf_headers(client)
+        resp = client.post(
+            "/api/reset-breaker",
+            data=json.dumps({"source": "nope"}),
+            content_type="application/json",
+            headers=headers,
+        )
+        assert resp.status_code == 400

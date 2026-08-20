@@ -395,3 +395,122 @@ def test_health_max_age_satisfied_is_healthy(app, client, monkeypatch):
     _write_success(app, now_utc().isoformat())
     resp = client.get("/api/health?max_age=600")
     assert resp.status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# Integrations panel — calendar backend awareness (#214)
+# ---------------------------------------------------------------------------
+
+
+def _integrations_for(tmp_path, yaml_text: str) -> dict[str, dict]:
+    """Build the integrations panel for a config, keyed by row name."""
+    from src.config import load_config
+    from src.web.routes.status import _build_integrations
+
+    cfg_path = tmp_path / "integrations.yaml"
+    cfg_path.write_text(yaml_text)
+    rows = _build_integrations(load_config(str(cfg_path)))
+    return {row["name"]: row for row in rows}
+
+
+_CALDAV_YAML = """
+google:
+  caldav_url: "https://cloud.example.com/remote.php/dav"
+  caldav_username: "alice"
+  caldav_password_file: "/etc/dashboard/caldav.pass"
+"""
+
+_ICS_YAML = """
+google:
+  ical_url: "https://example.com/feed.ics"
+"""
+
+_GOOGLE_YAML = """
+google:
+  calendar_id: "team@example.com"
+"""
+
+
+class TestIntegrationsCalendarBackend:
+    def test_caldav_reports_caldav_as_the_active_backend(self, tmp_path):
+        rows = _integrations_for(tmp_path, _CALDAV_YAML)
+        assert "Calendar (CalDAV)" in rows
+        assert rows["Calendar (CalDAV)"]["status"] == "ok"
+        assert "cloud.example.com" in rows["Calendar (CalDAV)"]["detail"]
+
+    def test_caldav_suppresses_the_google_service_account_row(self, tmp_path):
+        rows = _integrations_for(tmp_path, _CALDAV_YAML)
+        assert "Google service account" not in rows
+
+    def test_caldav_install_raises_no_warnings(self, tmp_path):
+        """The whole point of #214: a healthy CalDAV install looks healthy."""
+        rows = _integrations_for(tmp_path, _CALDAV_YAML)
+        calendar_rows = {n: r for n, r in rows.items() if n.startswith("Calendar")}
+        assert len(calendar_rows) == 1
+        assert all(r["status"] == "ok" for r in calendar_rows.values())
+
+    def test_caldav_detail_names_the_specific_calendar_when_set(self, tmp_path):
+        rows = _integrations_for(
+            tmp_path,
+            _CALDAV_YAML + '  caldav_calendar_url: "https://cloud.example.com/cal/home"\n',
+        )
+        assert "cal/home" in rows["Calendar (CalDAV)"]["detail"]
+
+    def test_caldav_detail_names_the_user(self, tmp_path):
+        rows = _integrations_for(tmp_path, _CALDAV_YAML)
+        assert "alice" in rows["Calendar (CalDAV)"]["detail"]
+
+    def test_caldav_wins_over_ics_matching_fetch_dispatch(self, tmp_path):
+        rows = _integrations_for(
+            tmp_path,
+            """
+google:
+  caldav_url: "https://cloud.example.com/remote.php/dav"
+  caldav_username: "alice"
+  caldav_password_file: "/etc/dashboard/caldav.pass"
+  ical_url: "https://example.com/feed.ics"
+""",
+        )
+        assert "Calendar (CalDAV)" in rows
+        assert "Calendar (ICS)" not in rows
+
+    def test_ics_reports_ics_and_suppresses_service_account(self, tmp_path):
+        rows = _integrations_for(tmp_path, _ICS_YAML)
+        assert rows["Calendar (ICS)"]["status"] == "ok"
+        assert "feed.ics" in rows["Calendar (ICS)"]["detail"]
+        assert "Google service account" not in rows
+
+    def test_ics_detail_counts_additional_feeds(self, tmp_path):
+        rows = _integrations_for(
+            tmp_path,
+            _ICS_YAML
+            + '  additional_ical_urls:\n    - "https://example.com/b.ics"\n'
+            + '    - "https://example.com/c.ics"\n',
+        )
+        assert "+2 additional feeds" in rows["Calendar (ICS)"]["detail"]
+
+    def test_google_api_path_still_reports_the_service_account(self, tmp_path):
+        rows = _integrations_for(tmp_path, _GOOGLE_YAML)
+        assert "Google service account" in rows
+        assert rows["Calendar (Google API)"]["status"] == "ok"
+        assert "team@example.com" in rows["Calendar (Google API)"]["detail"]
+
+    def test_google_api_default_calendar_id_still_warns(self, tmp_path):
+        rows = _integrations_for(tmp_path, "google:\n  calendar_id: primary\n")
+        assert rows["Calendar (Google API)"]["status"] == "warn"
+
+    def test_contacts_birthdays_keep_the_service_account_row_on_caldav(self, tmp_path):
+        """The People API needs the service account whatever the calendar backend."""
+        rows = _integrations_for(
+            tmp_path,
+            _CALDAV_YAML + "\nbirthdays:\n  source: contacts\n",
+        )
+        assert "Google service account" in rows
+        assert "Calendar (CalDAV)" in rows
+
+    def test_unrelated_rows_are_unchanged_across_backends(self, tmp_path):
+        for yaml_text in (_CALDAV_YAML, _ICS_YAML, _GOOGLE_YAML):
+            rows = _integrations_for(tmp_path, yaml_text)
+            assert "OpenWeather" in rows
+            assert "Birthdays source" in rows
+            assert "PurpleAir" in rows
