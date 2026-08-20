@@ -685,16 +685,42 @@ class TestPanelPressureIntegration:
 
     def test_rising_and_falling_trends_differ(self, tmp_path):
         """Rising is drawn green / falling blue on Inky — they must not
-        collapse to the same plate."""
+        collapse to the same plate.
+
+        Both plates render at the *same* current pressure, so the primary
+        needle is identical and only the trend needle can account for the
+        difference. Seeding different current pressures would let this pass
+        on the primary needle alone, even with the trend needle removed.
+        """
+        current = 1013.0
         rising_dir = tmp_path / "rising"
         falling_dir = tmp_path / "falling"
         for d in (rising_dir, falling_dir):
             d.mkdir()
-        self._draw_at(rising_dir, 1000.0, NOW_UTC - timedelta(hours=6))
-        self._draw_at(falling_dir, 1030.0, NOW_UTC - timedelta(hours=6))
-        rising = self._draw_at(rising_dir, 1020.0, NOW_UTC)
-        falling = self._draw_at(falling_dir, 1000.0, NOW_UTC)
+
+        # Histories on opposite sides of the same current reading.
+        self._draw_at(rising_dir, current - 20.0, NOW_UTC - timedelta(hours=6))
+        self._draw_at(falling_dir, current + 20.0, NOW_UTC - timedelta(hours=6))
+
+        rising = self._draw_at(rising_dir, current, NOW_UTC)
+        falling = self._draw_at(falling_dir, current, NOW_UTC)
         assert rising.tobytes() != falling.tobytes()
+
+    def test_steady_trend_differs_from_a_moving_one(self, tmp_path):
+        """A delta inside ±1.0 hPa reads as steady and takes the ink colour
+        rather than the rising/falling accent."""
+        current = 1013.0
+        steady_dir = tmp_path / "steady"
+        moving_dir = tmp_path / "moving"
+        for d in (steady_dir, moving_dir):
+            d.mkdir()
+
+        self._draw_at(steady_dir, current - 0.5, NOW_UTC - timedelta(hours=6))
+        self._draw_at(moving_dir, current - 20.0, NOW_UTC - timedelta(hours=6))
+
+        steady = self._draw_at(steady_dir, current, NOW_UTC)
+        moving = self._draw_at(moving_dir, current, NOW_UTC)
+        assert steady.tobytes() != moving.tobytes()
 
     def test_repeated_ticks_do_not_grow_the_history(self, tmp_path):
         """The default timer fires every 5 minutes."""

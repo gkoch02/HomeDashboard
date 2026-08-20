@@ -314,22 +314,52 @@ class TestDrawWeek:
         borderless_ink = sum(1 for px in flatten_pixels(borderless.crop(band)) if px == 0)
         assert bordered_ink > borderless_ink, "the underline must add ink under today"
 
-    def test_long_month_name_triggers_font_scale_down(self):
-        """A long month name (SEPTEMBER) in the terminal theme forces the scale-down loop."""
+    @staticmethod
+    def _unscaled_month_width(theme, name):
+        """Width of *name* at the band's starting 33px size, before any shrink."""
+        probe = ImageDraw.Draw(Image.new("1", (10, 10), 1))
+        bbox = probe.textbbox((0, 0), name, font=theme.style.font_month_title(33))
+        return bbox[2] - bbox[0]
+
+    def test_long_month_name_is_scaled_down_to_fit_the_cell(self):
+        """SEPTEMBER overflows the combined Sat/Sun date cell at the starting
+        33px size, so week_view's shrink loop must bring it back inside.
+
+        Measured against the cell, not against a short month: SEPTEMBER has
+        three times MAY's letters and is legitimately wider on the plate even
+        after shrinking. The property that matters is that it *fits*.
+        """
         from src.render.theme import load_theme
 
-        img, draw = self._make_draw()
         theme = load_theme("terminal")
-        # September in the combined Sat/Sun date cell is wider than the default
-        # 33px uesc_display glyph run — forces week_view's month-font shrink loop.
-        long_month = self._month_band(theme, date(2026, 9, 16))  # SEPTEMBER
-        short_month = self._month_band(theme, date(2026, 5, 13))  # MAY
+        cell_w = theme.layout.week_view.w // 7 * 2  # last two columns, merged
 
-        # The band is redrawn at a smaller size rather than overflowing, so the
-        # long name must still fit inside the cell the short one occupies.
-        assert long_month is not None and short_month is not None
-        assert long_month[2] <= short_month[2], (
-            "SEPTEMBER must be scaled down to fit the combined date cell, not drawn wider than MAY"
+        assert self._unscaled_month_width(theme, "SEPTEMBER") > cell_w, (
+            "fixture no longer exercises the shrink loop — pick a longer month"
+        )
+
+        band = self._month_band(theme, date(2026, 9, 16))
+        assert band is not None, "the month band must actually be drawn"
+        assert band[2] <= cell_w, (
+            f"SEPTEMBER renders {band[2]}px wide in a {cell_w}px cell — "
+            f"the font shrink loop did not bring it inside"
+        )
+
+    def test_short_month_name_is_not_scaled_down(self):
+        """MAY already fits, so the shrink loop must leave it at full size."""
+        from src.render.theme import load_theme
+
+        theme = load_theme("terminal")
+        unscaled = self._unscaled_month_width(theme, "MAY")
+        cell_w = theme.layout.week_view.w // 7 * 2
+        assert unscaled <= cell_w, "MAY should fit without shrinking"
+
+        band = self._month_band(theme, date(2026, 5, 13))
+        assert band is not None
+        # Drawn ink is a few px narrower than the advance-width probe.
+        assert band[2] >= unscaled - 8, (
+            f"MAY renders {band[2]}px against a {unscaled}px unscaled width — "
+            f"it was shrunk when it did not need to be"
         )
 
     @staticmethod
@@ -351,7 +381,11 @@ class TestDrawWeek:
             region.x + region.w,
             region.y + region.h,
         )
-        bbox = img.crop(band).getbbox()
+        # getbbox() finds *non-zero* pixels, and in mode "1" the blank canvas
+        # is all 1s — so it would return the full crop even with nothing drawn.
+        # Invert first so the measurement tracks ink.
+        ink = img.crop(band).point(lambda v: 0 if v else 1, mode="1")
+        bbox = ink.getbbox()
         if bbox is None:
             return None
         return (bbox[0], bbox[1], bbox[2] - bbox[0])
