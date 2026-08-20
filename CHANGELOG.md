@@ -68,6 +68,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- **The weatherglass pressure history goes through `atomic_write_json`.**
+  `_save_pressure_sample` hand-rolled its own `mkstemp` + `os.replace` instead
+  of the shared helper in `src/_io.py`, which is documented as the only
+  sanctioned way to persist JSON state from the renderer. The helper re-raises
+  where this call site must swallow, so the `try`/`except` stays local and the
+  contract is unchanged: history bookkeeping never breaks a render. The
+  rendered plate is byte-identical, so no snapshot baselines moved.
+- **The four largest test-coverage gaps are closed.** Overall coverage was
+  96%, but the misses were concentrated rather than diffuse:
+  `weatherglass_panel` sat at 70% with 60% of every missed statement in the
+  repo and was the only substantive module never referenced by name from a
+  test — its rolling pressure history and every metric/standard unit branch
+  had no protection at all. Also covered now: the deepest tier of the ICS
+  recurrence-expansion fallback, and the event stream's cross-process `fcntl`
+  lock, which had only ever been tested through the fallback taken when
+  `fcntl` is absent. Three `week_view` tests that named a visual behaviour and
+  then asserted only that the plate was non-blank now measure the thing they
+  describe. Coverage is ~98%.
+
 - **A lapsed One Call subscription is now visible.** A 401/403 from an
   unsubscribed One Call version was handled identically to a read timeout:
   one `DEBUG` line and no other trace. The degradation contract is unchanged —

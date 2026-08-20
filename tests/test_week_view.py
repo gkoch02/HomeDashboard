@@ -13,6 +13,7 @@ from src.render.components.week_view import (
     _fonts_for_tier,
     draw_week,
 )
+from src.render.quantize import flatten_pixels
 
 # ---------------------------------------------------------------------------
 # _fmt_time
@@ -204,14 +205,61 @@ class TestDrawWeek:
         draw_week(draw, events, today)
         assert img.getbbox() is not None
 
-    def test_today_column_highlighted(self):
-        """Today's column uses an inverted header — verify black pixels exist."""
-        today = date(2024, 3, 15)
+    @staticmethod
+    def _header_ink_by_column(img, region=None):
+        """Ink fraction of each of the 7 day-header cells.
+
+        ``img.getbbox() is not None`` is true of any non-blank plate, so it
+        cannot tell an inverted today column from a missing one. Measuring the
+        header band per column can.
+        """
+        from src.render.layout import WEEK_H, WEEK_W, WEEK_X, WEEK_Y
+
+        x0, y0, w, h = region or (WEEK_X, WEEK_Y, WEEK_W, WEEK_H)
+        header_h = max(24, h * 32 // 320)
+        col_w = w // 7
+        fractions = []
+        for col in range(7):
+            cell = img.crop((x0 + col * col_w, y0, x0 + col * col_w + col_w, y0 + header_h))
+            pixels = flatten_pixels(cell)
+            fractions.append(sum(1 for px in pixels if px == 0) / len(pixels))
+        return fractions
+
+    def test_today_column_header_is_inverted(self):
+        """Today's header cell is filled with fg, so it is mostly ink.
+
+        Asserted against the other six columns rather than in absolute terms,
+        so the test survives font and padding changes.
+        """
+        today = date(2024, 3, 15)  # a Friday → column index 4 (Monday-first)
         img, draw = self._make_draw()
         draw_week(draw, [], today)
-        # There must be at least one black pixel (inverted today header)
-        bbox = img.getbbox()
-        assert bbox is not None
+
+        ink = self._header_ink_by_column(img)
+        assert ink[4] == max(ink), "today's header must be the most-inked column"
+        others = [v for i, v in enumerate(ink) if i != 4]
+        assert ink[4] > 0.5, "an inverted cell should be more than half ink"
+        assert ink[4] > 2 * max(others), "today must stand out from the other days"
+
+    def test_today_highlight_tracks_the_date(self):
+        """The highlight follows today rather than being drawn at a fixed column."""
+        for offset, expected_col in ((0, 0), (2, 2), (6, 6)):
+            img, draw = self._make_draw()
+            monday = date(2024, 3, 11)
+            draw_week(draw, [], monday + timedelta(days=offset))
+            ink = self._header_ink_by_column(img)
+            assert ink.index(max(ink)) == expected_col
+
+    def test_invert_today_col_false_leaves_the_header_light(self):
+        """Turning the inversion off must actually remove the filled cell."""
+        from src.render.theme import ThemeStyle
+
+        today = date(2024, 3, 15)
+        img, draw = self._make_draw()
+        draw_week(draw, [], today, style=ThemeStyle(invert_today_col=False))
+
+        ink = self._header_ink_by_column(img)
+        assert ink[4] < 0.5, "the today cell must not be filled when inversion is off"
 
     def test_smoke_with_forecast_icons(self):
         """draw_week with forecast data should not crash."""
@@ -232,37 +280,115 @@ class TestDrawWeek:
         assert img.getbbox() is not None
 
     def test_today_bordered_not_inverted_draws_underline(self):
-        """invert_today_col=False + show_borders=True → thick accent underline under today."""
+        """invert_today_col=False + show_borders=True → thick accent underline under today.
+
+        Compared against the borderless variant of the same plate, so the
+        assertion is about the underline itself and not about the plate merely
+        being non-blank.
+        """
         from src.render.theme import ComponentRegion, ThemeStyle
 
-        img, draw = self._make_draw()
-        today = date(2026, 4, 22)  # a Wednesday
-        style = ThemeStyle(invert_today_col=False, show_borders=True)
-        draw_week(
-            draw,
-            [],
-            today,
-            region=ComponentRegion(0, 40, 800, 400),
-            style=style,
-        )
-        assert img.getbbox() is not None
+        today = date(2026, 4, 22)  # a Wednesday → column index 2
+        region = ComponentRegion(0, 40, 800, 400)
 
-    def test_long_month_name_triggers_font_scale_down(self):
-        """A long month name (SEPTEMBER) in the terminal theme forces the scale-down loop."""
+        def _render(show_borders):
+            img, draw = self._make_draw()
+            draw_week(
+                draw,
+                [],
+                today,
+                region=region,
+                style=ThemeStyle(invert_today_col=False, show_borders=show_borders),
+            )
+            return img
+
+        bordered = _render(True)
+        borderless = _render(False)
+        assert bordered.tobytes() != borderless.tobytes()
+
+        # The extra ink lands in today's column, in the band just under the header.
+        header_h = max(24, region.h * 32 // 320)
+        col_w = region.w // 7
+        band = (2 * col_w, region.y + header_h - 6, 3 * col_w, region.y + header_h + 6)
+        bordered_ink = sum(1 for px in flatten_pixels(bordered.crop(band)) if px == 0)
+        borderless_ink = sum(1 for px in flatten_pixels(borderless.crop(band)) if px == 0)
+        assert bordered_ink > borderless_ink, "the underline must add ink under today"
+
+    @staticmethod
+    def _unscaled_month_width(theme, name):
+        """Width of *name* at the band's starting 33px size, before any shrink."""
+        probe = ImageDraw.Draw(Image.new("1", (10, 10), 1))
+        bbox = probe.textbbox((0, 0), name, font=theme.style.font_month_title(33))
+        return bbox[2] - bbox[0]
+
+    def test_long_month_name_is_scaled_down_to_fit_the_cell(self):
+        """SEPTEMBER overflows the combined Sat/Sun date cell at the starting
+        33px size, so week_view's shrink loop must bring it back inside.
+
+        Measured against the cell, not against a short month: SEPTEMBER has
+        three times MAY's letters and is legitimately wider on the plate even
+        after shrinking. The property that matters is that it *fits*.
+        """
         from src.render.theme import load_theme
 
-        img, draw = self._make_draw()
         theme = load_theme("terminal")
-        # September in the combined Sat/Sun date cell is wider than the default
-        # 33px uesc_display glyph run — forces week_view's month-font shrink loop.
-        draw_week(
-            draw,
-            [],
-            date(2026, 9, 16),
-            region=theme.layout.week_view,
-            style=theme.style,
+        cell_w = theme.layout.week_view.w // 7 * 2  # last two columns, merged
+
+        assert self._unscaled_month_width(theme, "SEPTEMBER") > cell_w, (
+            "fixture no longer exercises the shrink loop — pick a longer month"
         )
-        assert img.getbbox() is not None
+
+        band = self._month_band(theme, date(2026, 9, 16))
+        assert band is not None, "the month band must actually be drawn"
+        assert band[2] <= cell_w, (
+            f"SEPTEMBER renders {band[2]}px wide in a {cell_w}px cell — "
+            f"the font shrink loop did not bring it inside"
+        )
+
+    def test_short_month_name_is_not_scaled_down(self):
+        """MAY already fits, so the shrink loop must leave it at full size."""
+        from src.render.theme import load_theme
+
+        theme = load_theme("terminal")
+        unscaled = self._unscaled_month_width(theme, "MAY")
+        cell_w = theme.layout.week_view.w // 7 * 2
+        assert unscaled <= cell_w, "MAY should fit without shrinking"
+
+        band = self._month_band(theme, date(2026, 5, 13))
+        assert band is not None
+        # Drawn ink is a few px narrower than the advance-width probe.
+        assert band[2] >= unscaled - 8, (
+            f"MAY renders {band[2]}px against a {unscaled}px unscaled width — "
+            f"it was shrunk when it did not need to be"
+        )
+
+    @staticmethod
+    def _month_band(theme, day):
+        """Bounding box of the ink in the month band, as (x0, y0, width)."""
+        img = Image.new("1", (800, 480), 1)
+        draw = ImageDraw.Draw(img)
+        region = theme.layout.week_view
+        draw_week(draw, [], day, region=region, style=theme.style)
+
+        header_h = max(24, region.h * 32 // 320)
+        body_h = region.h - header_h
+        date_section_h = body_h // 2
+        col_w = region.w // 7
+        # Combined Sat/Sun date cell: the last two columns, lower half of body.
+        band = (
+            5 * col_w,
+            region.y + header_h + body_h - date_section_h,
+            region.x + region.w,
+            region.y + region.h,
+        )
+        # getbbox() finds *non-zero* pixels, and in mode "1" the blank canvas
+        # is all 1s — so it would return the full crop even with nothing drawn.
+        # Invert first so the measurement tracks ink.
+        ink = img.crop(band).point(lambda v: 0 if v else 1, mode="1")
+        bbox = ink.getbbox()
+        if bbox is None:
+            return None
+        return (bbox[0], bbox[1], bbox[2] - bbox[0])
 
     def test_smoke_spanning_event_excludes_from_per_day(self):
         """Multi-day spanning events don't crash and render as bars."""
