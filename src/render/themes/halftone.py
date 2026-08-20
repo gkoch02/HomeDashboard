@@ -50,8 +50,6 @@ def halftone_theme() -> Theme:
             # Yellow sun/moon accents come through on Inky; Waveshare stays
             # bilevel via the final L→1 quantize step.
             prefer_color_on_inky=True,
-            # The engraving is dithered ink end to end; the fast waveform fades it.
-            supports_partial_refresh=False,
             halftone=ComponentRegion(0, 0, 800, 480),
             # Hide all standard regions — this theme is full-canvas.
             header=ComponentRegion(0, 0, 800, 40, visible=False),

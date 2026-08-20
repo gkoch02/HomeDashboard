@@ -54,8 +54,6 @@ def naturalist_theme() -> Theme:
             canvas_mode="L",
             preferred_quantization_mode="floyd_steinberg",
             prefer_color_on_inky=True,
-            # The specimen plate is dithered engraving; the fast waveform fades it.
-            supports_partial_refresh=False,
             naturalist=ComponentRegion(0, 0, 1600, 960),
             # Hide all standard regions — this theme is full-canvas.
             header=ComponentRegion(0, 0, 1600, 80, visible=False),

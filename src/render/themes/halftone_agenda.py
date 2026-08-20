@@ -64,11 +64,6 @@ def halftone_agenda_theme() -> Theme:
             # a solid paper underlay, and FS only diffuses intermediate values.
             preferred_quantization_mode="floyd_steinberg",
             prefer_color_on_inky=True,
-            # The engraving is dithered ink, and on this split plate the fade
-            # runs horizontally across the agenda sharing its rows (#222). This
-            # is also what lets the agenda encode state again: the treatments
-            # need the full waveform, and now they always get it.
-            supports_partial_refresh=False,
             halftone_agenda=ComponentRegion(0, 0, 800, 480),
             # Hide all standard regions — this theme is full-canvas.
             header=ComponentRegion(0, 0, 800, 40, visible=False),

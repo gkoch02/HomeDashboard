@@ -9,9 +9,10 @@ Inky, 0s on Waveshare).
 State persists in ``state/refresh_throttle_state.json``. The legacy
 ``inky_refresh_state.json`` is migrated transparently on read.
 
-Separately, a theme can decline the Waveshare fast waveform outright via
-``ThemeLayout.supports_partial_refresh``; :meth:`OutputService.publish` then
-builds the driver with partials off no matter what the config asked for.
+Separately, a theme can decline the Waveshare fast waveform outright —
+``Theme.allows_partial_refresh``, derived from the plate — and
+:meth:`OutputService.publish` then builds the driver with partials off no
+matter what the config asked for.
 """
 
 from __future__ import annotations
@@ -185,7 +186,7 @@ class OutputService:
             logger.info("Image unchanged — skipping display refresh")
             return
 
-        # A theme can decline the fast waveform (ThemeLayout.supports_partial_refresh).
+        # A theme can decline the fast waveform (Theme.allows_partial_refresh).
         # Waveshare's init_fast() does not drive black as deeply as a full init, so a
         # plate built from dithered greyscale fades in bands aligned with its artwork;
         # for those themes the config's opt-in is overridden rather than obeyed (#222).

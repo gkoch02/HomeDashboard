@@ -205,35 +205,19 @@ class ThemeLayout:
     preferred_quantization_mode: QuantizationMode | None = None
     # Whether this theme's plate survives a partial (fast-waveform) refresh.
     #
+    # ``None`` (the default) means **derive it** from the plate — see
+    # :func:`plate_needs_full_waveform`. Set it explicitly only to overrule that
+    # derivation, which is a judgement call and wants a comment saying why:
+    # ``fuzzyclock_invert``, ``moonphase`` and ``moonphase_photo`` all set
+    # ``True`` on plates the derivation would decline.
+    #
     # Waveshare's ``epd.init_fast()`` does not drive black as deeply as a full
     # init, so a plate built out of dithered ink or large solid fills fades —
-    # visibly, and in bands aligned with the artwork. Themes whose image
-    # depends on either declare ``False`` here; ``OutputService.publish`` then
-    # forces the full waveform for them regardless of
-    # ``display.enable_partial_refresh``. Crisp type-and-rule themes leave it
-    # ``True`` and keep the speed.
-    #
-    # DECLARE IT YOURSELF — nothing derives this. A new theme should set
-    # ``False`` when any of the following is true of its plate:
-    #
-    #   * ``preferred_quantization_mode`` is ``"floyd_steinberg"`` or
-    #     ``"ordered"`` — those diffuse ink across the plate. (``"threshold"``
-    #     is a hard cut and does not, which is why ``canvas_mode == "L"`` on
-    #     its own is *not* a reason: ``moonphase_invert`` and ``weatherglass``
-    #     are both L-mode, both threshold, and both keep partial refresh.)
-    #   * ``background_fn`` paints a dithered image across the canvas (``photo``).
-    #   * ``ThemeStyle.bg`` is ink rather than paper, so the whole plate is one
-    #     solid fill (``terminal``, ``fantasy``, ``qotd_invert``).
-    #
-    # The default is ``True``, which means a theme that *should* decline and
-    # says nothing FAILS OPEN at runtime: the panel takes the fast waveform on
-    # a plate that cannot hold it. What catches that is
-    # ``tests/test_theme_partial_refresh.py``, which encodes the rules above
-    # and fails CI naming the theme — so the mistake is caught before merge,
-    # but only if the tests run. A theme may keep partial refresh against the
-    # rules (``fuzzyclock_invert``, ``moonphase``, ``moonphase_photo`` all do)
-    # by being listed in that module's ``SOLID_INK_BY_CHOICE`` with a reason.
-    supports_partial_refresh: bool = True
+    # visibly, and in bands aligned with the artwork. ``OutputService.publish``
+    # forces the full waveform for any theme that resolves to ``False``,
+    # regardless of ``display.enable_partial_refresh``; the resolution can only
+    # remove partial refresh, never add it.
+    supports_partial_refresh: bool | None = None
 
 
 @dataclass
@@ -352,6 +336,54 @@ class ThemeStyle:
         return self.fg if self.accent_secondary is None else self.accent_secondary
 
 
+# Quantizers that diffuse ink across the plate. ``threshold`` is a hard cut and
+# produces no dither at all, which is why ``canvas_mode == "L"`` is not itself a
+# reason to decline partial refresh — ``moonphase_invert`` and ``weatherglass``
+# are both L-mode, both threshold, and both lighter than ``default``.
+DITHERING_QUANTIZERS: frozenset[str] = frozenset({"floyd_steinberg", "ordered"})
+
+
+def _is_ink(value: int | tuple[int, int, int]) -> bool:
+    """Whether a ``fg``/``bg`` value is black in whatever mode it is written for.
+
+    ``0`` is black in both ``"1"`` and ``"L"``, and ``ThemeStyle`` also allows an
+    RGB triple for the themes that opt into a colour canvas on Inky.
+    """
+    if isinstance(value, tuple):
+        return all(channel == 0 for channel in value)
+    return value == 0
+
+
+def plate_needs_full_waveform(layout: ThemeLayout, style: ThemeStyle) -> bool:
+    """Whether this plate has more ink on it than a fast waveform can lay down.
+
+    Three things put it in that class, and each is visible in the theme's own
+    declaration rather than in the rendered pixels:
+
+    * a **diffusing quantizer** — Floyd-Steinberg or ordered dither spreads ink
+      across the plate as fine detail, which is the first thing to fade;
+    * a **dithered background** — ``photo`` dithers a photograph across the
+      whole canvas through ``background_fn``, bypassing the quantizer;
+    * an **ink ground** — ``bg`` set to black makes the entire plate one solid
+      fill, and ``init_fast()`` returns that as charcoal.
+
+    Known boundary: this reads the theme, never the config. An ``"L"``-mode
+    theme that declares no ``preferred_quantization_mode`` inherits
+    ``display.quantization_mode`` at publish time, so a user who sets that to
+    ``floyd_steinberg`` globally gets a dithered plate this function cannot see.
+    Every L-mode theme in the tree declares its own mode except
+    ``constellation_map``, which declines on the ink rule regardless — so the
+    gap is currently unreachable. A new L-mode theme should declare a mode
+    rather than rely on the config, which is good practice anyway: it is what
+    makes the plate's appearance a property of the theme.
+    """
+    if layout.preferred_quantization_mode in DITHERING_QUANTIZERS:
+        return True
+    if layout.background_fn is not None:
+        return True
+    return _is_ink(style.bg)
+
+
 @dataclass
 class Theme:
     """A complete theme: visual style + structural layout."""
@@ -359,6 +391,21 @@ class Theme:
     name: str
     style: ThemeStyle
     layout: ThemeLayout
+
+    @property
+    def allows_partial_refresh(self) -> bool:
+        """Resolved answer to "may this theme take the fast waveform?".
+
+        The theme's own ``ThemeLayout.supports_partial_refresh`` wins when it is
+        set; otherwise the plate decides via :func:`plate_needs_full_waveform`.
+        Deriving rather than defaulting is deliberate: a new theme that dithers
+        and declares nothing gets the right answer instead of failing open onto
+        a panel that cannot hold its ink.
+        """
+        declared = self.layout.supports_partial_refresh
+        if declared is not None:
+            return declared
+        return not plate_needs_full_waveform(self.layout, self.style)
 
 
 # ---------------------------------------------------------------------------
@@ -554,9 +601,9 @@ def load_theme(name: str) -> Theme:
 def theme_supports_partial_refresh(name: str) -> bool:
     """Return whether *name*'s plate survives a partial (fast-waveform) refresh.
 
-    A thin read of ``ThemeLayout.supports_partial_refresh`` so callers outside
-    the render package (config validation, the web UI) can ask the question
-    without building a theme themselves.
+    Resolves ``Theme.allows_partial_refresh`` by name, so callers outside the
+    render package (config validation, the web UI) can ask the question without
+    building a theme themselves.
 
     Unknown names answer ``True``: whoever passes one already has an "unknown
     theme" error to report, and a second complaint about the same typo helps
@@ -566,4 +613,4 @@ def theme_supports_partial_refresh(name: str) -> bool:
         theme = load_theme(name)
     except ValueError:
         return True
-    return theme.layout.supports_partial_refresh
+    return theme.allows_partial_refresh

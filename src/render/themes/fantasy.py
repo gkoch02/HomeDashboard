@@ -204,11 +204,6 @@ def fantasy_theme() -> Theme:
         today_view=ComponentRegion(0, 0, 0, 0, visible=False),
         draw_order=["header", "weather", "birthdays", "info", "week_view"],
         overlay_fn=_draw_fantasy_overlay,
-        # The canvas ground is ink, not paper: the whole plate is one solid fill,
-        # and Waveshare's fast waveform cannot drive that to black — it comes back
-        # charcoal and drifts further between full refreshes (#222). The theme
-        # redraws a few times a day, so the full waveform costs nothing here.
-        supports_partial_refresh=False,
     )
 
     style = ThemeStyle(

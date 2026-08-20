@@ -35,7 +35,7 @@ Waveshare's fast waveform, and partial refresh looked worth keeping. It was
 not: the engraving in the left pane is dithered ink too, and the fast waveform
 faded it in bands that ran straight across the agenda beside it, so the plate
 was never going to survive a partial refresh whatever the calendar side did.
-The theme now declares that (``ThemeLayout.supports_partial_refresh = False``)
+The plate's own dithering settles that (``Theme.allows_partial_refresh``)
 and ``OutputService.publish`` gives it the full waveform regardless of
 ``display.enable_partial_refresh`` — which is the condition these treatments
 needed all along.
