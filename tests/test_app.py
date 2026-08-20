@@ -1093,3 +1093,111 @@ class TestRunIntegration:
 
         # App completed and attempted to publish — it didn't crash on fetcher failures.
         mock_publish.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# Run events in the web event stream (#218)
+# ---------------------------------------------------------------------------
+
+
+def _real_app(tmp_path: Path, **arg_overrides) -> DashboardApp:
+    """A DashboardApp on a real Config — run() renders, so the mock cfg won't do."""
+    from src.config import load_config
+
+    cfg_path = tmp_path / "config.yaml"
+    cfg_path.write_text("")
+    cfg = load_config(str(cfg_path))
+    cfg.output_dir = str(tmp_path / "output")
+    cfg.state_dir = str(tmp_path / "state")
+    Path(cfg.output_dir).mkdir(parents=True, exist_ok=True)
+    Path(cfg.state_dir).mkdir(parents=True, exist_ok=True)
+    return DashboardApp(cfg, _make_args(**arg_overrides))
+
+
+def _events(app: DashboardApp) -> list[dict]:
+    from src.web.event_store import read_recent_events
+
+    return read_recent_events(app.cfg.state_dir, limit=50)
+
+
+class TestRunEvents:
+    """The status page showed manual clicks but never the renders themselves."""
+
+    def test_successful_run_is_recorded(self, tmp_path):
+        app = _real_app(tmp_path)
+        app.run()
+
+        kinds = [e["kind"] for e in _events(app)]
+        assert "run_completed" in kinds
+
+    def test_recorded_run_carries_duration_and_theme(self, tmp_path):
+        app = _real_app(tmp_path)
+        app.run()
+
+        event = next(e for e in _events(app) if e["kind"] == "run_completed")
+        assert isinstance(event["details"]["duration_seconds"], (int, float))
+        assert event["details"]["duration_seconds"] >= 0
+        assert event["details"]["theme"]
+
+    def test_recorded_run_splits_live_from_cached_sources(self, tmp_path):
+        app = _real_app(tmp_path)
+        app.run()
+
+        details = next(e for e in _events(app) if e["kind"] == "run_completed")["details"]
+        assert "live_sources" in details
+        assert "cached_sources" in details
+        assert isinstance(details["live_sources"], list)
+
+    def test_theme_override_is_recorded(self, tmp_path):
+        app = _real_app(tmp_path, theme="minimalist")
+        app.run()
+
+        event = next(e for e in _events(app) if e["kind"] == "run_completed")
+        assert event["details"]["theme"] == "minimalist"
+
+    def test_failed_run_is_recorded_with_the_exception_type(self, tmp_path):
+        app = _real_app(tmp_path)
+        with patch.object(app, "_run", side_effect=ValueError("boom")):
+            with pytest.raises(ValueError):
+                app.run()
+
+        event = next(e for e in _events(app) if e["kind"] == "run_failed")
+        assert event["details"]["exception_type"] == "ValueError"
+        assert "duration_seconds" in event["details"]
+
+    def test_failed_run_still_writes_the_error_marker(self, tmp_path):
+        """The event is additive — it must not displace the existing marker."""
+        app = _real_app(tmp_path)
+        with patch.object(app, "_run", side_effect=ValueError("boom")):
+            with pytest.raises(ValueError):
+                app.run()
+
+        assert (Path(app.cfg.output_dir) / "last_error.txt").exists()
+
+    def test_quiet_hours_skip_records_nothing(self, tmp_path):
+        """A 5-minute timer would otherwise bury the stream in 'skipped' rows."""
+        app = _real_app(tmp_path)
+        with patch("src.app.should_skip_refresh", return_value=True):
+            app.run()
+
+        assert _events(app) == []
+
+    def test_a_failing_event_store_does_not_break_the_run(self, tmp_path):
+        app = _real_app(tmp_path)
+        with patch("src.web.event_store.append_event", side_effect=OSError("read-only filesystem")):
+            app.run()  # must not raise
+
+    def test_run_still_succeeds_when_the_web_package_is_unavailable(self, tmp_path):
+        import builtins
+
+        app = _real_app(tmp_path)
+        real_import = builtins.__import__
+
+        def _boom(name, *args, **kwargs):
+            if name == "src.web.event_store":
+                raise ImportError("no web package")
+            return real_import(name, *args, **kwargs)
+
+        with patch.object(builtins, "__import__", _boom):
+            app.run()  # must not raise
+        assert _events(app) == []

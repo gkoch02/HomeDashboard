@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import threading
 from collections import deque
 from pathlib import Path
@@ -19,6 +20,15 @@ from src._time import now_utc
 logger = logging.getLogger(__name__)
 
 _EVENT_FILE = "web_events.jsonl"
+
+# The stream used to carry only manual web actions, which are rare. Renderer
+# runs land here too now (#218), and the default systemd timer ticks every five
+# minutes — roughly 288 records a day — so the file needs a ceiling. When it
+# grows past _TRIM_THRESHOLD_BYTES the oldest records are dropped and the
+# newest _KEEP_EVENTS are rewritten in place. The status page never asks for
+# more than a couple of dozen, so nothing useful is lost.
+_KEEP_EVENTS = 500
+_TRIM_THRESHOLD_BYTES = 256 * 1024
 
 # Serialise concurrent appends within the web service process. POSIX O_APPEND
 # is atomic only up to PIPE_BUF; Python's buffered I/O can split a long line
@@ -39,10 +49,37 @@ def append_event(state_dir: str, kind: str, message: str, **details) -> None:
     line = json.dumps(payload, sort_keys=True) + "\n"
     try:
         with _append_lock:
+            _trim_if_oversized(path)
             with open(path, "a", encoding="utf-8") as f:
                 f.write(line)
     except Exception as exc:
         logger.debug("Could not append web event: %s", exc)
+
+
+def _trim_if_oversized(path: Path) -> None:
+    """Drop the oldest records once the file grows past its ceiling.
+
+    Called with ``_append_lock`` held. A stat is cheap enough to do on every
+    append; the rewrite itself happens rarely. The rewrite goes through a
+    tempfile + rename so a kill mid-trim cannot leave a half-written stream —
+    the same discipline every other state file here uses. Failures are
+    swallowed by the caller: a stream that cannot be trimmed is still a stream
+    that can be appended to.
+    """
+    try:
+        if path.stat().st_size <= _TRIM_THRESHOLD_BYTES:
+            return
+    except OSError:
+        return
+
+    with open(path, encoding="utf-8", errors="replace") as f:
+        keep = deque(f, maxlen=_KEEP_EVENTS)
+
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    with open(tmp, "w", encoding="utf-8") as f:
+        f.writelines(keep)
+    os.replace(tmp, path)
+    logger.debug("Trimmed web event stream to the most recent %d records", len(keep))
 
 
 def read_recent_events(state_dir: str, limit: int = 20) -> list[dict]:

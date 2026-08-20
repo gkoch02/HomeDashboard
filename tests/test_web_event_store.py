@@ -202,3 +202,94 @@ class TestReadRecentEvents:
 
         monkeypatch.setattr(builtins, "open", bad_open)
         assert read_recent_events(str(tmp_path)) == []
+
+
+# ---------------------------------------------------------------------------
+# Bounded growth (#218)
+# ---------------------------------------------------------------------------
+
+
+class TestTrimming:
+    """Renderer runs land here now, so the stream needs a ceiling."""
+
+    def _fill(self, tmp_path, count: int) -> None:
+        from src.web.event_store import _EVENT_FILE
+
+        path = tmp_path / _EVENT_FILE
+        path.write_text(
+            "".join(
+                json.dumps({"timestamp": "2026-08-19T00:00:00+00:00", "kind": "old", "n": i}) + "\n"
+                for i in range(count)
+            )
+        )
+
+    def test_small_streams_are_left_alone(self, tmp_path):
+        from src.web.event_store import _EVENT_FILE, append_event
+
+        self._fill(tmp_path, 10)
+        append_event(str(tmp_path), "run_completed", "fresh")
+        assert len((tmp_path / _EVENT_FILE).read_text().splitlines()) == 11
+
+    def _fill_oversized(self, tmp_path) -> Path:
+        """Write more records than the keep count, past the byte threshold."""
+        from src.web.event_store import _EVENT_FILE, _KEEP_EVENTS
+
+        path = tmp_path / _EVENT_FILE
+        path.write_text(
+            "".join(
+                json.dumps({"kind": "old", "n": i, "pad": "x" * 1000}) + "\n"
+                for i in range(_KEEP_EVENTS + 200)
+            )
+        )
+        return path
+
+    def test_oversized_stream_is_trimmed(self, tmp_path):
+        from src.web.event_store import _KEEP_EVENTS, append_event
+
+        path = self._fill_oversized(tmp_path)
+        append_event(str(tmp_path), "run_completed", "fresh")
+
+        assert len(path.read_text().splitlines()) == _KEEP_EVENTS + 1
+
+    def test_trimming_keeps_the_newest_records(self, tmp_path):
+        from src.web.event_store import _KEEP_EVENTS, append_event, read_recent_events
+
+        self._fill_oversized(tmp_path)
+        append_event(str(tmp_path), "run_completed", "newest")
+
+        rows = read_recent_events(str(tmp_path), limit=5)
+        assert rows[0]["message"] == "newest"
+        assert rows[1]["n"] == _KEEP_EVENTS + 199
+
+    def test_trimming_drops_the_oldest_records(self, tmp_path):
+        from src.web.event_store import _KEEP_EVENTS, append_event, read_recent_events
+
+        self._fill_oversized(tmp_path)
+        append_event(str(tmp_path), "run_completed", "newest")
+
+        kept = {r.get("n") for r in read_recent_events(str(tmp_path), limit=_KEEP_EVENTS + 10)}
+        assert 0 not in kept
+        assert 199 not in kept
+
+    def test_trimming_leaves_no_tempfile_behind(self, tmp_path):
+        from src.web.event_store import _EVENT_FILE, append_event
+
+        self._fill_oversized(tmp_path)
+        append_event(str(tmp_path), "run_completed", "fresh")
+
+        assert [p.name for p in tmp_path.iterdir()] == [_EVENT_FILE]
+
+    def test_repeated_appends_stay_bounded(self, tmp_path):
+        from src.web.event_store import _EVENT_FILE, _TRIM_THRESHOLD_BYTES, append_event
+
+        path = tmp_path / _EVENT_FILE
+        for i in range(50):
+            append_event(str(tmp_path), "run_completed", "x" * 2000, n=i)
+        # A few appends can land between trims; the point is it never runs away.
+        assert path.stat().st_size < _TRIM_THRESHOLD_BYTES * 2
+
+    def test_a_missing_file_is_not_a_trim_error(self, tmp_path):
+        from src.web.event_store import append_event, read_recent_events
+
+        append_event(str(tmp_path / "fresh"), "run_completed", "first")
+        assert len(read_recent_events(str(tmp_path / "fresh"))) == 1

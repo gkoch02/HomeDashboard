@@ -304,23 +304,31 @@ make web-status         # systemd status + recent log tail
 
 ### Event store (`state/web_events.jsonl`)
 
-> **Retention is unbounded — rotate manually.** The file only grows. On small Pi installs
-> a runaway log can eventually fill the SD card; truncate or `logrotate` it on a schedule
-> if it becomes unwieldy:
->
-> ```bash
-> # quick truncate
-> : > ~/home-dashboard/state/web_events.jsonl
-> ```
-
 `state/web_events.jsonl` is an append-only audit log written by `src/web/event_store.py`.
-It records every UI-initiated action — manual refresh requests, config saves, breaker
-resets, cache clears, and config restores — one JSON object per line.
+It records both UI-initiated actions — manual refresh requests, config saves, breaker
+resets, cache clears, config restores — and the renderer runs themselves, one JSON
+object per line.
 
 ```json
 {"timestamp": "2026-04-20T15:32:11+00:00", "kind": "config_saved",
  "message": "Saved 3 changes from /config", "details": {"fields": ["theme", "title"]}}
+{"timestamp": "2026-04-20T15:35:02+00:00", "kind": "run_completed",
+ "message": "Rendered 'agenda' in 2.4s (3 live, 1 cached: birthdays)",
+ "details": {"duration_seconds": 2.4, "theme": "agenda", "dry_run": false,
+             "live_sources": ["air_quality", "events", "weather"],
+             "cached_sources": ["birthdays"]}}
 ```
+
+Renderer events are what turn the Recent Events card from a record of button
+presses into a record of whether the dashboard is actually working:
+
+| Kind | Written when | Notable details |
+|---|---|---|
+| `run_completed` | A run rendered and published | `duration_seconds`, `theme`, `live_sources`, `cached_sources`, `dry_run` |
+| `run_failed` | A run raised | `duration_seconds`, `exception_type` |
+
+A run skipped by quiet hours records nothing — the default timer ticks every five
+minutes, and a night of "skipped" rows would bury everything else.
 
 A few operator notes:
 
@@ -333,7 +341,12 @@ A few operator notes:
 - **Best-effort.** Write failures are logged at DEBUG level and silently swallowed
   so a missing/unwritable `state/` directory never breaks the UI.
 - **Read-truncated.** The status page's "Recent Events" card only loads the most
-  recent ~20 entries; the full file is preserved untouched.
+  recent ~20 entries.
+- **Bounded.** Once the file passes 256 KB the oldest records are dropped and the
+  most recent 500 are rewritten in place (through a tempfile + rename, so an
+  interrupted trim cannot leave a half-written stream). With renderer runs in the
+  stream the file would otherwise grow by roughly 288 records a day. No manual
+  rotation needed.
 
 ---
 
@@ -367,7 +380,7 @@ venv/bin/python -m src.web --port 9000
 - **The Refresh Now button triggers a dashboard run.** It cannot execute arbitrary commands.
 - **No HTTPS.** Traffic is unencrypted. For remote access outside your LAN, use an SSH tunnel or a reverse proxy with TLS (for example nginx + Let's Encrypt).
 - **`config/web.yaml` contains your password hash and possibly your session secret.** The file is git-ignored. Do not commit it.
-- **`state/web_events.jsonl` is an unbounded audit log.** It records every UI action and grows forever; rotate it manually if it gets large. Treat it as sensitive — see [Event store](#event-store-stateweb_eventsjsonl).
+- **`state/web_events.jsonl` is an audit log.** It records every UI action and every renderer run. It self-trims, so it will not fill the SD card, but treat it as sensitive — see [Event store](#event-store-stateweb_eventsjsonl).
 
 ---
 
