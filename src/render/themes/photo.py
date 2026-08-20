@@ -118,6 +118,9 @@ def photo_theme() -> Theme:
         header=None,
         draw_order=[],
         background_fn=_draw_photo_background,
+        # The photo is Floyd-Steinberg dither over the whole canvas, and the
+        # fast waveform reads that as a grey wash rather than as a picture.
+        supports_partial_refresh=False,
     )
     style = ThemeStyle(
         fg=0,

@@ -340,6 +340,33 @@ def validate_config(
                 )
             )
 
+    # A theme whose plate is dithered greyscale or large solid ink declares
+    # ThemeLayout.supports_partial_refresh = False, and OutputService renders it
+    # with the full waveform whatever this setting says (#222). Say so here
+    # rather than leave the user reading a config value their runs ignore.
+    if cfg.display.enable_partial_refresh and cfg.display.provider == "waveshare":
+        declined = _themes_declining_partial_refresh(cfg)
+        if declined:
+            shown = ", ".join(declined[:3])
+            if len(declined) > 3:
+                shown += f", and {len(declined) - 3} more"
+            subject = (
+                "1 configured theme always uses"
+                if len(declined) == 1
+                else f"{len(declined)} configured themes always use"
+            )
+            warnings.append(
+                ConfigWarning(
+                    field="display.enable_partial_refresh",
+                    message=f"{subject} a full refresh: {shown}.",
+                    hint=(
+                        "Their artwork is dithered or solid ink, which the fast "
+                        "waveform fades. Partial refresh still applies to any other "
+                        "theme you use."
+                    ),
+                )
+            )
+
     # --- Birthdays ---
     if cfg.birthdays.source == "file":
         bday_path = Path(cfg.birthdays.file_path)
@@ -581,3 +608,29 @@ def print_validation_report(errors: list[ConfigError], warnings: list[ConfigWarn
                 print(f"    -> {w.hint}", file=sys.stderr)
 
     print(file=sys.stderr)
+
+
+def _themes_declining_partial_refresh(cfg) -> list[str]:
+    """Return the configured theme names that opt out of partial refresh.
+
+    Covers every theme a run could land on: the configured theme (or the whole
+    random pool when it is a pseudo-name), plus anything a ``theme_schedule``
+    row or a ``theme_rules`` entry can select.
+    """
+    from src.render.theme import AVAILABLE_THEMES, theme_supports_partial_refresh
+
+    pseudo = {"random", "random_daily", "random_hourly"}
+    candidates: set[str] = set()
+    if cfg.theme in pseudo:
+        from src.render.random_theme import eligible_themes
+
+        candidates.update(eligible_themes(cfg.random_theme.include, cfg.random_theme.exclude))
+    else:
+        candidates.add(cfg.theme)
+    candidates.update(entry.theme for entry in cfg.theme_schedule.entries)
+    candidates.update(rule.theme for rule in cfg.theme_rules.rules)
+    return sorted(
+        name
+        for name in candidates - pseudo
+        if name in AVAILABLE_THEMES and not theme_supports_partial_refresh(name)
+    )

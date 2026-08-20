@@ -202,7 +202,14 @@ See `src/fetchers/calendar_caldav.py` plus the `_register()` block at the bottom
 
 New themes are automatically eligible for the random rotation pool. To exclude one
 (utility / diagnostic views), add its name to `_EXCLUDED_FROM_POOL` in
-`src/render/random_theme.py`. To author a greyscale theme, set `canvas_mode="L"` in
+`src/render/random_theme.py`.
+
+Declare `ThemeLayout.supports_partial_refresh=False` if the plate dithers
+(`preferred_quantization_mode` of `floyd_steinberg` / `ordered`, or a dithered
+`background_fn`) or its `ThemeStyle.bg` is ink. The field defaults to `True` and nothing
+derives it, so a theme that should decline and says nothing fails open on hardware;
+`tests/test_theme_partial_refresh.py` is what catches it, at CI time rather than at
+runtime. See [Adding a Theme](../CONTRIBUTING.md#adding-a-theme) for the full rule. To author a greyscale theme, set `canvas_mode="L"` in
 `ThemeLayout` and use `fg=0, bg=255` in `ThemeStyle` (or invert that polarity to
 `fg=255, bg=0` for a dark canvas — see `constellation_map` for the white-on-black
 reference).

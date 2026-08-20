@@ -21,6 +21,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   bare IDs. The setting is editable from the web UI's config page. See
   [Weather API tiers](docs/configuration.md#weather-api-tiers).
 
+- **`halftone_agenda` encodes event state again.** Elapsed rows are perforated
+  on a Bayer lattice, the event in progress inverts into a solid bar, the next
+  one up carries an accented tick, and a rolled-over agenda sits behind an
+  inverted `TOMORROW` chip. All four were dropped to buy partial-refresh
+  compatibility the plate never had; they come back now that the theme takes
+  the full waveform every time. On Inky the accent is red, which puts colour
+  back on the calendar side of the plate. State is the only thing in the pane
+  reading the clock, and only at event boundaries, so a tick that crosses none
+  still renders identically and writes nothing to the panel. (#222)
+
 ### Changed
 
 - **The Google API client stack is no longer imported on every tick.**
@@ -32,6 +42,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   for them; a subprocess guard test fences the boundary. (#211)
 
 ### Fixed
+
+- **`halftone_agenda` no longer fades in bands under partial refresh.** The
+  theme's plate is dithered ink, and Waveshare's fast waveform does not drive
+  black deeply enough to hold it: every partial update lightened the engraving
+  and everything sharing its rows, including the agenda beside it. Lowering
+  `display.max_partials_before_full` only shortened the drift. Themes now
+  declare whether their plate survives a partial refresh
+  (`ThemeLayout.supports_partial_refresh`), and `OutputService.publish` uses
+  the full waveform for those that say no, whatever
+  `display.enable_partial_refresh` is set to. Eleven themes opt out — the ones
+  that dither (`day_arc`, the `halftone` pair, `naturalist`, `photo`,
+  `postcard`, `trends`) and the ones whose canvas ground is solid ink
+  (`constellation_map`, `fantasy`, `qotd_invert`, `terminal`). What counts is
+  the dither and not the greyscale: `moonphase_invert` and `weatherglass`
+  render on an `"L"` canvas but quantize with `threshold`, a hard cut that
+  diffuses nothing, and are lighter than `default` — they keep the fast path.
+  So do `fuzzyclock_invert`, `moonphase` and `moonphase_photo`, which are solid
+  plates that keep it deliberately: the clock face because declining would
+  flash the panel every five minutes, and the moon pair because no fade shows
+  on real hardware — an evenly greying black ground has nothing to read the
+  drift against, and the flash is most intrusive on a theme left up at night.
+  Each reason is recorded at the theme and pinned by a guard test.
+  `make check` names the configured themes that opt out, so the setting never
+  quietly means less than it says. (#222)
 
 - **One malformed VEVENT no longer disables ICS recurrence expansion for the
   whole feed.** `recurring_ical_events` raises on a VEVENT with no `DTSTART`

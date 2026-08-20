@@ -207,6 +207,17 @@ def moonphase_theme() -> Theme:
             canvas_mode="L",
             preferred_quantization_mode="threshold",
             prefer_color_on_inky=True,
+            # NOT an oversight: this plate is ~88% ink on a dark canvas (and
+            # ~93% for the `moonphase_photo` variant that shares this layout), so
+            # by the rule the other dark-canvas themes follow it would decline
+            # partial refresh. It keeps it deliberately, on field evidence: the
+            # maintainer runs these and has never seen the fade. The plate has no
+            # fine detail to band — a large disc and small type on an even field —
+            # and a uniformly greying black ground gives the eye nothing to read
+            # the drift against. Set against that, a full-waveform flash is at its
+            # most intrusive on exactly this theme, which is the one people leave
+            # up at night in a dark room.
+            supports_partial_refresh=True,
         ),
         style=ThemeStyle(
             fg=255,  # white on black — night sky (L mode)

@@ -161,6 +161,7 @@ class DashboardApp:
             force_full=force_full,
             now=now,
             theme_name=theme_name,
+            theme_supports_partial=theme.layout.supports_partial_refresh,
         )
         if force_full_from_morning and not self.args.dry_run:
             record_morning_refresh(now, self.cfg.state_dir)

@@ -8,6 +8,10 @@ Inky, 0s on Waveshare).
 
 State persists in ``state/refresh_throttle_state.json``. The legacy
 ``inky_refresh_state.json`` is migrated transparently on read.
+
+Separately, a theme can decline the Waveshare fast waveform outright via
+``ThemeLayout.supports_partial_refresh``; :meth:`OutputService.publish` then
+builds the driver with partials off no matter what the config asked for.
 """
 
 from __future__ import annotations
@@ -146,6 +150,7 @@ class OutputService:
         force_full: bool,
         now: datetime,
         theme_name: str,
+        theme_supports_partial: bool = True,
     ) -> None:
         if dry_run:
             DryRunDisplay(output_dir=self.cfg.output_dir).show(image)
@@ -180,10 +185,21 @@ class OutputService:
             logger.info("Image unchanged — skipping display refresh")
             return
 
+        # A theme can decline the fast waveform (ThemeLayout.supports_partial_refresh).
+        # Waveshare's init_fast() does not drive black as deeply as a full init, so a
+        # plate built from dithered greyscale fades in bands aligned with its artwork;
+        # for those themes the config's opt-in is overridden rather than obeyed (#222).
+        enable_partial = self.cfg.display.enable_partial_refresh and theme_supports_partial
+        if self.cfg.display.enable_partial_refresh and not theme_supports_partial:
+            logger.info(
+                "Theme '%s' does not support partial refresh — using the full waveform",
+                theme_name,
+            )
+
         build_display_driver(
             provider=self.cfg.display.provider,
             model=self.cfg.display.model,
-            enable_partial=self.cfg.display.enable_partial_refresh,
+            enable_partial=enable_partial,
             max_partials=self.cfg.display.max_partials_before_full,
             state_dir=self.cfg.state_dir,
         ).show(image, force_full=force_full)

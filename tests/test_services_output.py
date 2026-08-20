@@ -364,6 +364,106 @@ class TestPublishHardware:
         assert (state_dir / "refresh_throttle_state.json").exists()
 
 
+class TestThemePartialRefreshOptOut:
+    """A theme that declines the fast waveform overrides the config opt-in (#222)."""
+
+    def _publish(self, cfg, tmp_path, **kwargs):
+        svc = OutputService(cfg, _make_tz())
+        mock_display = MagicMock()
+        with (
+            patch("src.services.output.image_changed", return_value=True),
+            patch(
+                "src.services.output.build_display_driver", return_value=mock_display
+            ) as mock_build,
+        ):
+            svc.publish(
+                _make_image(),
+                dry_run=False,
+                force_full=False,
+                now=_now(),
+                **kwargs,
+            )
+        return mock_build
+
+    def test_theme_opt_out_forces_full_waveform(self, tmp_path):
+        cfg = _make_cfg(tmp_path)
+        cfg.display.enable_partial_refresh = True
+
+        mock_build = self._publish(
+            cfg,
+            tmp_path,
+            theme_name="halftone_agenda",
+            theme_supports_partial=False,
+        )
+
+        assert mock_build.call_args.kwargs["enable_partial"] is False
+
+    def test_theme_that_supports_partials_keeps_the_config_value(self, tmp_path):
+        cfg = _make_cfg(tmp_path)
+        cfg.display.enable_partial_refresh = True
+
+        mock_build = self._publish(
+            cfg,
+            tmp_path,
+            theme_name="default",
+            theme_supports_partial=True,
+        )
+
+        assert mock_build.call_args.kwargs["enable_partial"] is True
+
+    def test_opt_out_does_not_switch_partials_on(self, tmp_path):
+        """The theme flag can only remove partial refresh, never add it."""
+        cfg = _make_cfg(tmp_path)
+        cfg.display.enable_partial_refresh = False
+
+        mock_build = self._publish(
+            cfg,
+            tmp_path,
+            theme_name="default",
+            theme_supports_partial=True,
+        )
+
+        assert mock_build.call_args.kwargs["enable_partial"] is False
+
+    def test_default_is_partial_capable(self, tmp_path):
+        """Callers that don't pass the flag are unaffected."""
+        cfg = _make_cfg(tmp_path)
+        cfg.display.enable_partial_refresh = True
+
+        mock_build = self._publish(cfg, tmp_path, theme_name="default")
+
+        assert mock_build.call_args.kwargs["enable_partial"] is True
+
+    def test_override_is_logged(self, tmp_path, caplog):
+        cfg = _make_cfg(tmp_path)
+        cfg.display.enable_partial_refresh = True
+
+        with caplog.at_level(logging.INFO, logger="src.services.output"):
+            self._publish(
+                cfg,
+                tmp_path,
+                theme_name="halftone_agenda",
+                theme_supports_partial=False,
+            )
+
+        assert "halftone_agenda" in caplog.text
+        assert "partial refresh" in caplog.text
+
+    def test_no_log_when_partials_were_off_anyway(self, tmp_path, caplog):
+        cfg = _make_cfg(tmp_path)
+        cfg.display.enable_partial_refresh = False
+
+        with caplog.at_level(logging.INFO, logger="src.services.output"):
+            self._publish(
+                cfg,
+                tmp_path,
+                theme_name="halftone_agenda",
+                theme_supports_partial=False,
+            )
+
+        assert "does not support partial refresh" not in caplog.text
+
+
 class TestThrottleHelper:
     def test_zero_min_interval_never_throttles(self, tmp_path):
         (tmp_path / "refresh_throttle_state.json").write_text(
