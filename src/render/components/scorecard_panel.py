@@ -8,10 +8,7 @@ hero number with a label and context line.  Introduces computed metrics like
 from __future__ import annotations
 
 import calendar
-import hashlib
-import json
 from datetime import date, datetime, timedelta
-from pathlib import Path
 
 from PIL import ImageDraw
 
@@ -29,9 +26,8 @@ from src.render.primitives import (
     text_width,
     vline,
 )
+from src.render.quotes import quote_for
 from src.render.theme import ComponentRegion, ThemeStyle
-
-QUOTES_FILE = Path(__file__).parent.parent.parent.parent / "config" / "quotes.json"
 
 # Layout
 _HEADER_H = 40
@@ -41,36 +37,15 @@ _ROW2_H = 130
 _ROW3_H = 480 - _HEADER_H - _ROW1_H - _ROW2_H  # 180
 _PAD = 10
 
-_DEFAULT_QUOTES = [
-    {"text": "Not all those who wander are lost.", "author": "J.R.R. Tolkien"},
-    {"text": "Dwell on the beauty of life.", "author": "Marcus Aurelius"},
-]
 
-
-def _quote_for_panel(today: date, refresh: str = "daily", now: datetime | None = None) -> dict:
-    """Pick a quote deterministically."""
-    if refresh == "hourly":
-        dt = now if now is not None else datetime.now()  # allow-naive-datetime — hour bucket only
-        key = f"scorecard-{today.isoformat()}T{dt.hour:02d}"
-    elif refresh == "twice_daily":
-        dt = now if now is not None else datetime.now()  # allow-naive-datetime — am/pm bucket only
-        period = "am" if dt.hour < 12 else "pm"
-        key = f"scorecard-{today.isoformat()}-{period}"
-    else:
-        key = f"scorecard-{today.isoformat()}"
-    if QUOTES_FILE.exists():
-        try:
-            quotes = json.loads(QUOTES_FILE.read_text())
-        except (json.JSONDecodeError, KeyError):
-            quotes = _DEFAULT_QUOTES
-    else:
-        quotes = _DEFAULT_QUOTES
-    # A valid-but-empty quotes file (``[]``) decodes fine but would make the
-    # modulo below divide by zero — fall back to the bundled defaults.
-    if not quotes:
-        quotes = _DEFAULT_QUOTES
-    day_hash = int(hashlib.md5(key.encode()).hexdigest(), 16)
-    return quotes[day_hash % len(quotes)]
+def _quote_for_panel(
+    today: date,
+    refresh: str = "daily",
+    now: datetime | None = None,
+    quotes_path: str | None = None,
+) -> dict:
+    """Pick this panel's quote under its own key prefix (see src.render.quotes)."""
+    return quote_for(today, refresh=refresh, now=now, prefix="scorecard-", path=quotes_path)
 
 
 def _draw_tile(
@@ -127,6 +102,7 @@ def draw_scorecard(
     region: ComponentRegion | None = None,
     style: ThemeStyle | None = None,
     quote_refresh: str = "daily",
+    quotes_path: str | None = None,
 ) -> None:
     """Draw the scorecard KPI grid."""
     if region is None:
@@ -416,7 +392,7 @@ def draw_scorecard(
     )
 
     # Quote tile
-    quote = _quote_for_panel(today, refresh=quote_refresh, now=now)
+    quote = _quote_for_panel(today, refresh=quote_refresh, now=now, quotes_path=quotes_path)
     qx = x0 + moon_w + _PAD
     qy = row3_y + 14
     q_font = (style.font_regular)(13)

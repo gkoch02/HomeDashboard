@@ -10,19 +10,17 @@ from __future__ import annotations
 
 import json
 import logging
-import os
-import tempfile
 from pathlib import Path
 
 from flask import Blueprint, current_app, jsonify, request
 
+from src._io import atomic_write_json
 from src.web.event_store import append_event
+from src.web.sources import is_known_source
 
 actions_bp = Blueprint("actions", __name__)
 
 logger = logging.getLogger(__name__)
-
-_VALID_SOURCES = frozenset({"events", "weather", "birthdays", "air_quality"})
 
 
 @actions_bp.route("/api/trigger-refresh", methods=["POST"])
@@ -47,7 +45,7 @@ def reset_breaker():
     """Reset a named circuit breaker to closed state."""
     body = request.get_json(silent=True) or {}
     source = body.get("source", "")
-    if source not in _VALID_SOURCES:
+    if not is_known_source(source):
         return jsonify({"ok": False, "error": f"Unknown source: {source!r}"}), 400
 
     state_path = Path(current_app.config["STATE_DIR"]) / "dashboard_breaker_state.json"
@@ -62,7 +60,7 @@ def reset_breaker():
             "last_failure_at": None,
             "state": "closed",
         }
-        _atomic_write_json(state_path, raw)
+        atomic_write_json(state_path, raw, indent=2)
         logger.info("Breaker reset via web UI: source=%s", source)
         append_event(
             current_app.config["STATE_DIR"],
@@ -82,7 +80,7 @@ def clear_cache():
     body = request.get_json(silent=True) or {}
     source = body.get("source", "")
 
-    if source != "all" and source not in _VALID_SOURCES:
+    if source != "all" and not is_known_source(source):
         return jsonify({"ok": False, "error": f"Unknown source: {source!r}"}), 400
 
     cache_path = Path(current_app.config["STATE_DIR"]) / "dashboard_cache.json"
@@ -97,7 +95,7 @@ def clear_cache():
         else:
             raw.pop(source, None)
 
-        _atomic_write_json(cache_path, raw)
+        atomic_write_json(cache_path, raw, indent=2)
         logger.info("Cache cleared via web UI: source=%s", source)
         append_event(
             current_app.config["STATE_DIR"],
@@ -109,23 +107,3 @@ def clear_cache():
     except Exception as exc:
         logger.error("Could not clear cache for %s: %s", source, exc)
         return jsonify({"ok": False, "error": str(exc)}), 500
-
-
-# ---------------------------------------------------------------------------
-# Internal
-# ---------------------------------------------------------------------------
-
-
-def _atomic_write_json(path: Path, data: dict) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    fd, tmp = tempfile.mkstemp(dir=path.parent, suffix=".tmp")
-    try:
-        with os.fdopen(fd, "w") as f:
-            json.dump(data, f, indent=2)
-        os.replace(tmp, path)
-    except BaseException:
-        try:
-            os.unlink(tmp)
-        except OSError:
-            pass
-        raise

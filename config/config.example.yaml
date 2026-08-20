@@ -132,6 +132,13 @@ logging:
 #   # hourly ≈ 6-day cycle. Hash-based (not sequential), so repeats can occur.
 #   quote_refresh: daily               # daily (default) | twice_daily | hourly
 
+# Daily-quote store. Leave unset for the bundled config/quotes.json.
+# `make deploy` rsyncs the repository over the Pi install and only spares
+# config/config.yaml, so a customised config/quotes.json is overwritten on the
+# next deploy — point this outside the tree to keep your own.
+# quotes:  # uncomment this line to enable section
+#   path: "/home/pi/dashboard-quotes.json"
+
 # Event filtering — hide events from the display without removing them from cache.
 # filters:  # uncomment this line to enable section
 #   exclude_calendars: ["Holidays", "Spam Calendar"]
@@ -213,6 +220,12 @@ logging:
 #     theme: "weather"
 #   - when: { daypart: "night", weather: "clear" }
 #     theme: "moonphase"
+#   # Numeric thresholds are inclusive. Temperatures are in weather.units
+#   # (°F for imperial, °C for metric); aqi_at_least needs PurpleAir configured.
+#   - when: { aqi_at_least: 100 }
+#     theme: "air_quality"
+#   - when: { temp_at_most: 32 }
+#     theme: "weatherglass"
 #   - when: { weekday: "weekend" }
 #     theme: "today"
 

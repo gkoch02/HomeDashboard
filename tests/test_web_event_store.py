@@ -202,3 +202,210 @@ class TestReadRecentEvents:
 
         monkeypatch.setattr(builtins, "open", bad_open)
         assert read_recent_events(str(tmp_path)) == []
+
+
+# ---------------------------------------------------------------------------
+# Bounded growth (#218)
+# ---------------------------------------------------------------------------
+
+
+class TestTrimming:
+    """Renderer runs land here now, so the stream needs a ceiling."""
+
+    def _fill(self, tmp_path, count: int) -> None:
+        from src.web.event_store import _EVENT_FILE
+
+        path = tmp_path / _EVENT_FILE
+        path.write_text(
+            "".join(
+                json.dumps({"timestamp": "2026-08-19T00:00:00+00:00", "kind": "old", "n": i}) + "\n"
+                for i in range(count)
+            )
+        )
+
+    def test_small_streams_are_left_alone(self, tmp_path):
+        from src.web.event_store import _EVENT_FILE, append_event
+
+        self._fill(tmp_path, 10)
+        append_event(str(tmp_path), "run_completed", "fresh")
+        assert len((tmp_path / _EVENT_FILE).read_text().splitlines()) == 11
+
+    def _fill_oversized(self, tmp_path) -> Path:
+        """Write more records than the keep count, past the byte threshold."""
+        from src.web.event_store import _EVENT_FILE, _KEEP_EVENTS
+
+        path = tmp_path / _EVENT_FILE
+        path.write_text(
+            "".join(
+                json.dumps({"kind": "old", "n": i, "pad": "x" * 1000}) + "\n"
+                for i in range(_KEEP_EVENTS + 200)
+            )
+        )
+        return path
+
+    def test_oversized_stream_is_trimmed(self, tmp_path):
+        from src.web.event_store import _KEEP_EVENTS, append_event
+
+        path = self._fill_oversized(tmp_path)
+        append_event(str(tmp_path), "run_completed", "fresh")
+
+        assert len(path.read_text().splitlines()) == _KEEP_EVENTS + 1
+
+    def test_trimming_keeps_the_newest_records(self, tmp_path):
+        from src.web.event_store import _KEEP_EVENTS, append_event, read_recent_events
+
+        self._fill_oversized(tmp_path)
+        append_event(str(tmp_path), "run_completed", "newest")
+
+        rows = read_recent_events(str(tmp_path), limit=5)
+        assert rows[0]["message"] == "newest"
+        assert rows[1]["n"] == _KEEP_EVENTS + 199
+
+    def test_trimming_drops_the_oldest_records(self, tmp_path):
+        from src.web.event_store import _KEEP_EVENTS, append_event, read_recent_events
+
+        self._fill_oversized(tmp_path)
+        append_event(str(tmp_path), "run_completed", "newest")
+
+        kept = {r.get("n") for r in read_recent_events(str(tmp_path), limit=_KEEP_EVENTS + 10)}
+        assert 0 not in kept
+        assert 199 not in kept
+
+    def test_trimming_leaves_no_tempfile_behind(self, tmp_path):
+        from src.web.event_store import _EVENT_FILE, append_event
+
+        self._fill_oversized(tmp_path)
+        append_event(str(tmp_path), "run_completed", "fresh")
+
+        names = {p.name for p in tmp_path.iterdir()}
+        assert _EVENT_FILE in names
+        assert not any(n.endswith(".tmp") for n in names)
+        # The advisory-lock sidecar is the only other file allowed here.
+        assert names <= {_EVENT_FILE, _EVENT_FILE + ".lock"}
+
+    def test_repeated_appends_stay_bounded(self, tmp_path):
+        from src.web.event_store import _EVENT_FILE, _TRIM_THRESHOLD_BYTES, append_event
+
+        path = tmp_path / _EVENT_FILE
+        for i in range(50):
+            append_event(str(tmp_path), "run_completed", "x" * 2000, n=i)
+        # A few appends can land between trims; the point is it never runs away.
+        assert path.stat().st_size < _TRIM_THRESHOLD_BYTES * 2
+
+    def test_a_missing_file_is_not_a_trim_error(self, tmp_path):
+        from src.web.event_store import append_event, read_recent_events
+
+        append_event(str(tmp_path / "fresh"), "run_completed", "first")
+        assert len(read_recent_events(str(tmp_path / "fresh"))) == 1
+
+
+class TestCrossProcessSafety:
+    """Since #218 the stream has two writers: the web service and the renderer."""
+
+    def test_trim_does_not_drop_a_concurrent_append(self, tmp_path):
+        """The read-all → rename window used to swallow the other writer's records."""
+        import subprocess
+        import sys
+
+        from src.web.event_store import _EVENT_FILE, _KEEP_EVENTS, read_recent_events
+
+        path = tmp_path / _EVENT_FILE
+        path.write_text(
+            "".join(
+                json.dumps({"kind": "old", "n": i, "pad": "x" * 1000}) + "\n"
+                for i in range(_KEEP_EVENTS + 200)
+            )
+        )
+
+        repo = Path(__file__).resolve().parent.parent
+        code = (
+            f"import sys; sys.path.insert(0, {str(repo)!r});"
+            "from src.web.event_store import append_event;"
+            f"append_event({str(tmp_path)!r}, 'run_completed', 'from-the-renderer')"
+        )
+
+        # Two processes appending (and therefore trimming) the same stream.
+        procs = [subprocess.Popen([sys.executable, "-c", code], cwd=str(repo)) for _ in range(4)]
+        for proc in procs:
+            assert proc.wait(timeout=60) == 0
+
+        messages = [
+            r.get("message") for r in read_recent_events(str(tmp_path), limit=_KEEP_EVENTS + 10)
+        ]
+        assert messages.count("from-the-renderer") == 4
+
+    def test_every_line_stays_valid_json_under_concurrency(self, tmp_path):
+        import subprocess
+        import sys
+
+        from src.web.event_store import _EVENT_FILE
+
+        repo = Path(__file__).resolve().parent.parent
+        code = (
+            f"import sys; sys.path.insert(0, {str(repo)!r});"
+            "from src.web.event_store import append_event;"
+            f"[append_event({str(tmp_path)!r}, 'run_completed', 'x' * 300, n=i) "
+            "for i in range(20)]"
+        )
+
+        procs = [subprocess.Popen([sys.executable, "-c", code], cwd=str(repo)) for _ in range(4)]
+        for proc in procs:
+            assert proc.wait(timeout=60) == 0
+
+        lines = (tmp_path / _EVENT_FILE).read_text().splitlines()
+        assert len(lines) == 80
+        for line in lines:
+            json.loads(line)  # must not raise
+
+    def test_a_unique_tempfile_is_used_per_trim(self, tmp_path, monkeypatch):
+        """A fixed .tmp name lets two trimming processes rename each other's half-file."""
+        import src.web.event_store as es
+
+        seen: list[str] = []
+        real_mkstemp = es.tempfile.mkstemp
+
+        def _spy(*args, **kwargs):
+            fd, name = real_mkstemp(*args, **kwargs)
+            seen.append(name)
+            return fd, name
+
+        monkeypatch.setattr(es.tempfile, "mkstemp", _spy)
+
+        for _ in range(2):
+            (tmp_path / es._EVENT_FILE).write_text(
+                "".join(
+                    json.dumps({"kind": "old", "n": i, "pad": "x" * 1000}) + "\n"
+                    for i in range(es._KEEP_EVENTS + 200)
+                )
+            )
+            es.append_event(str(tmp_path), "run_completed", "fresh")
+
+        assert len(seen) == 2
+        assert seen[0] != seen[1]
+
+    def test_append_still_works_without_fcntl(self, tmp_path, monkeypatch):
+        """Non-POSIX degrades to the in-process lock rather than failing."""
+        import src.web.event_store as es
+
+        monkeypatch.setattr(es, "fcntl", None)
+        es.append_event(str(tmp_path), "run_completed", "no fcntl here")
+
+        assert es.read_recent_events(str(tmp_path))[0]["message"] == "no fcntl here"
+
+    def test_an_unwritable_lock_path_does_not_break_the_append(self, tmp_path, monkeypatch):
+        import builtins
+
+        import src.web.event_store as es
+
+        real_open = builtins.open
+
+        def _fail_lock(path, *args, **kwargs):
+            if str(path).endswith(es._LOCK_SUFFIX):
+                raise OSError("read-only filesystem")
+            return real_open(path, *args, **kwargs)
+
+        monkeypatch.setattr(builtins, "open", _fail_lock)
+        es.append_event(str(tmp_path), "run_completed", "still recorded")
+        monkeypatch.undo()
+
+        assert es.read_recent_events(str(tmp_path))[0]["message"] == "still recorded"

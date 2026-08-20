@@ -10,10 +10,7 @@ quote, and host diagnostics in a single view.
 
 from __future__ import annotations
 
-import hashlib
-import json
 from datetime import date, datetime
-from pathlib import Path
 
 from PIL import ImageDraw
 
@@ -31,41 +28,20 @@ from src.render.primitives import (
     text_height,
     text_width,
 )
+from src.render.quotes import quote_for
 from src.render.theme import ComponentRegion, ThemeStyle
-
-QUOTES_FILE = Path(__file__).parent.parent.parent.parent / "config" / "quotes.json"
-_DEFAULT_QUOTES = [
-    {"text": "Not all those who wander are lost.", "author": "J.R.R. Tolkien"},
-    {"text": "Dwell on the beauty of life.", "author": "Marcus Aurelius"},
-]
 
 _PAD = 14  # horizontal padding inside each band
 
 
-def _quote_for_panel(today: date, refresh: str = "daily", now: datetime | None = None) -> dict:
-    """Pick a quote deterministically with a tides-specific key prefix."""
-    if refresh == "hourly":
-        dt = now if now is not None else datetime.now()  # allow-naive-datetime — hour bucket only
-        key = f"tides-{today.isoformat()}T{dt.hour:02d}"
-    elif refresh == "twice_daily":
-        dt = now if now is not None else datetime.now()  # allow-naive-datetime — am/pm bucket only
-        period = "am" if dt.hour < 12 else "pm"
-        key = f"tides-{today.isoformat()}-{period}"
-    else:
-        key = f"tides-{today.isoformat()}"
-    if QUOTES_FILE.exists():
-        try:
-            quotes = json.loads(QUOTES_FILE.read_text())
-        except (json.JSONDecodeError, KeyError):
-            quotes = _DEFAULT_QUOTES
-    else:
-        quotes = _DEFAULT_QUOTES
-    # A valid-but-empty quotes file (``[]``) decodes fine but would make the
-    # modulo below divide by zero — fall back to the bundled defaults.
-    if not quotes:
-        quotes = _DEFAULT_QUOTES
-    day_hash = int(hashlib.md5(key.encode()).hexdigest(), 16)
-    return quotes[day_hash % len(quotes)]
+def _quote_for_panel(
+    today: date,
+    refresh: str = "daily",
+    now: datetime | None = None,
+    quotes_path: str | None = None,
+) -> dict:
+    """Pick this panel's quote under its own key prefix (see src.render.quotes)."""
+    return quote_for(today, refresh=refresh, now=now, prefix="tides-", path=quotes_path)
 
 
 # ---------------------------------------------------------------------------
@@ -304,12 +280,13 @@ def _band_quote(
     now: datetime,
     style: ThemeStyle,
     quote_refresh: str,
+    quotes_path: str | None = None,
 ) -> None:
     """Band 7 (inverted): Daily quote."""
     fg, bg = style.fg, style.bg
     filled_rect(draw, (x0, y, x0 + w - 1, y + h - 1), fill=fg)
 
-    quote = _quote_for_panel(today, refresh=quote_refresh, now=now)
+    quote = _quote_for_panel(today, refresh=quote_refresh, now=now, quotes_path=quotes_path)
     q_text = f"\u201c{quote['text']}\u201d"
     author = quote.get("author", "")
 
@@ -384,6 +361,7 @@ def draw_tides(
     region: ComponentRegion | None = None,
     style: ThemeStyle | None = None,
     quote_refresh: str = "daily",
+    quotes_path: str | None = None,
 ) -> None:
     """Draw alternating inverted horizontal bands showing all data sources."""
     if region is None:
@@ -436,7 +414,9 @@ def draw_tides(
         "forecast": lambda y, bh: _band_forecast(draw, x0, y, w, bh, data, style),
         "environment": lambda y, bh: _band_environment(draw, x0, y, w, bh, data, today, style),
         "birthdays": lambda y, bh: _band_birthdays(draw, x0, y, w, bh, data, today, style),
-        "quote": lambda y, bh: _band_quote(draw, x0, y, w, bh, today, now, style, quote_refresh),
+        "quote": lambda y, bh: _band_quote(
+            draw, x0, y, w, bh, today, now, style, quote_refresh, quotes_path
+        ),
         "host": lambda y, bh: _band_host(draw, x0, y, w, bh, data, style),
     }
 

@@ -5,7 +5,9 @@ its ``when`` condition evaluates truthy against the current context.  Unset
 (None) fields don't constrain.  Rules whose conditions reference a data source
 that is unavailable (e.g. weather when no weather data was fetched) silently
 skip without matching — this is by design so that offline boots fall through to
-``theme_schedule`` / ``cfg.theme``.
+``theme_schedule`` / ``cfg.theme``.  That covers the numeric thresholds too:
+``temp_at_least`` / ``temp_at_most`` need weather and ``aqi_at_least`` needs air
+quality, and neither is available on the pre-fetch resolution pass.
 
 Kept as a small pure module so it's easy to test and easy to extend.
 """
@@ -201,6 +203,25 @@ def _rule_matches(rule, now: datetime, data: DashboardData | None) -> bool:
         day_name, weekend_key = _current_weekday(now)
         want = _listify(when.weekday)
         if not _match_weekday(want, day_name, weekend_key):
+            return False
+
+    # Temperature bounds — same skip-when-absent contract as ``weather``.
+    if when.temp_at_least is not None or when.temp_at_most is not None:
+        if weather is None or weather.current_temp is None:
+            return False
+        temp = weather.current_temp
+        if when.temp_at_least is not None and temp < when.temp_at_least:
+            return False
+        if when.temp_at_most is not None and temp > when.temp_at_most:
+            return False
+
+    # Air quality.  Absent for every install without PurpleAir configured, so
+    # the skip here is the common case rather than an outage.
+    if when.aqi_at_least is not None:
+        air_quality = data.air_quality if data is not None else None
+        if air_quality is None or air_quality.aqi is None:
+            return False
+        if air_quality.aqi < when.aqi_at_least:
             return False
 
     # Calendar

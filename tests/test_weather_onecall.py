@@ -142,13 +142,20 @@ class TestVersionRouting:
 
 class TestDegradation:
     def test_http_failure_returns_empty_and_logs_at_debug(self, caplog):
+        """An error carrying no HTTP status is transient, and stays at DEBUG.
+
+        The classification lives in src.fetchers.one_call_health, so that is
+        where the line is emitted from now. A "401" in an exception's *text* is
+        not evidence of a 401 response — only ``exc.response.status_code`` is.
+        """
         session = _dispatch_session({}, errors={"/data/3.0/": Exception("401 Unauthorized")})
 
-        with caplog.at_level(logging.DEBUG, logger="src.fetchers.weather"):
+        with caplog.at_level(logging.DEBUG):
             alerts, uv = _fetch_alerts_and_uv(session, {"appid": "k"}, "3.0")
 
         assert (alerts, uv) == ([], None)
         assert any("alerts/UV fetch skipped" in r.message for r in caplog.records)
+        assert not any(r.levelname == "WARNING" for r in caplog.records)
 
     def test_malformed_payload_returns_empty(self):
         """A list where a dict is expected must not escape the boundary."""
@@ -515,3 +522,67 @@ class TestWebAssetsOfferTheField:
         js = Path("src/web/static/dashboard.js").read_text()
         assert 'patch["weather.one_call_version"]' in js
         assert 'v("cfg-onecall")' in js
+
+
+class TestFailureClassificationReachesTheBoundary:
+    """The degradation contract holds, but a permanent failure is visible (#223)."""
+
+    def _auth_error(self):
+        from unittest.mock import MagicMock
+
+        import requests
+
+        return requests.HTTPError("401", response=MagicMock(status_code=401))
+
+    def test_a_401_still_degrades_to_empty(self, tmp_path):
+        session = _dispatch_session({}, errors={"/data/3.0/": self._auth_error()})
+
+        result = _fetch_alerts_and_uv(session, {"appid": "k"}, "3.0", state_dir=str(tmp_path))
+
+        assert result == ([], None)
+
+    def test_a_401_warns_and_is_recorded(self, tmp_path, caplog):
+        session = _dispatch_session({}, errors={"/data/3.0/": self._auth_error()})
+
+        with caplog.at_level(logging.DEBUG):
+            _fetch_alerts_and_uv(session, {"appid": "k"}, "3.0", state_dir=str(tmp_path))
+
+        from src.fetchers import one_call_health
+
+        assert [r for r in caplog.records if r.levelname == "WARNING"]
+        assert one_call_health.read_health(str(tmp_path))["outcome"] == "auth_failed"
+
+    def test_a_timeout_is_not_recorded_as_an_auth_failure(self, tmp_path):
+        import requests
+
+        session = _dispatch_session({}, errors={"/data/3.0/": requests.Timeout("slow")})
+
+        _fetch_alerts_and_uv(session, {"appid": "k"}, "3.0", state_dir=str(tmp_path))
+
+        from src.fetchers import one_call_health
+
+        assert one_call_health.read_health(str(tmp_path))["outcome"] == "transient"
+
+    def test_a_success_records_health(self, tmp_path):
+        session = _dispatch_session({"/data/3.0/onecall": _V3_SAMPLE})
+
+        _fetch_alerts_and_uv(session, {"appid": "k"}, "3.0", state_dir=str(tmp_path))
+
+        from src.fetchers import one_call_health
+
+        assert one_call_health.read_health(str(tmp_path))["outcome"] == "ok"
+
+    def test_off_records_nothing(self, tmp_path):
+        """A deliberately disabled One Call is not a healthy fetch."""
+        session = _dispatch_session({})
+
+        _fetch_alerts_and_uv(session, {"appid": "k"}, "off", state_dir=str(tmp_path))
+
+        from src.fetchers import one_call_health
+
+        assert one_call_health.read_health(str(tmp_path)) == {}
+
+    def test_no_state_dir_still_degrades_cleanly(self):
+        session = _dispatch_session({}, errors={"/data/3.0/": self._auth_error()})
+
+        assert _fetch_alerts_and_uv(session, {"appid": "k"}, "3.0") == ([], None)

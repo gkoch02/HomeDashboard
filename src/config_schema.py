@@ -52,6 +52,28 @@ class SectionSpec:
 # each other or from the dispatcher.
 ONE_CALL_VERSIONS = ("3.0", "4.0", "off")
 
+# Rotation pseudo-themes accepted by ``theme``.  ``AVAILABLE_THEMES`` already
+# carries them today, but it is derived from the registry and these three are
+# resolved before ``load_theme()`` ever sees them, so name them here rather
+# than trust that derivation to keep including them.
+RANDOM_THEME_NAMES = ("random", "random_daily", "random_hourly")
+
+
+def theme_choices() -> tuple[str, ...] | None:
+    """Return every accepted ``theme`` value, or ``None`` if unavailable.
+
+    The theme names live in the theme registry, and reaching it imports the
+    theme modules and therefore PIL.  This module is imported by config
+    loading and the web layer, both of which must stay importable without the
+    render stack, so the import is deferred to call time and a failure
+    degrades to ``None`` (a free-text field) rather than propagating.
+    """
+    try:
+        from src.render.theme import AVAILABLE_THEMES
+    except Exception:  # pragma: no cover - render stack unavailable
+        return None
+    return tuple(sorted(set(AVAILABLE_THEMES) | set(RANDOM_THEME_NAMES)))
+
 
 def _f(
     path: str,
@@ -82,13 +104,25 @@ def schema() -> tuple[SectionSpec, ...]:
     Sections are ordered to match the natural reading order in
     ``config.example.yaml``. Field order within each section is the same.
     """
+    # Free text when the registry is unreachable, a dropdown otherwise.
+    themes = theme_choices()
+
     return (
         SectionSpec(
             name="root",
             title="General",
             fields=(
                 _f("title", ("title",), "str", "Dashboard title"),
-                _f("theme", ("theme",), "str", "Theme"),
+                _f(
+                    "theme",
+                    ("theme",),
+                    "enum" if themes else "str",
+                    "Theme",
+                    description=(
+                        "Concrete theme name, or a random mode that rotates automatically."
+                    ),
+                    choices=themes,
+                ),
                 _f("timezone", ("timezone",), "str", "Timezone (IANA name or 'local')"),
                 _f(
                     "log_level",
@@ -383,6 +417,17 @@ def schema() -> tuple[SectionSpec, ...]:
                     "enum",
                     "Quote rotation cadence",
                     choices=("daily", "twice_daily", "hourly"),
+                ),
+                _f(
+                    "quotes.path",
+                    ("quotes", "path"),
+                    "str",
+                    "Quotes file path",
+                    description=(
+                        "Custom quote store (JSON list of {text, author}). Leave empty for "
+                        "the bundled config/quotes.json. Point it outside the repository to "
+                        "survive `make deploy`."
+                    ),
                 ),
             ),
         ),

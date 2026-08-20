@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import shutil
+import time
 from calendar import Calendar
 from datetime import date as _date
 from datetime import datetime, timedelta
@@ -61,18 +62,70 @@ class DashboardApp:
         self.args = args
         self.tz = resolve_tz(cfg.timezone)
         self.output = OutputService(cfg, self.tz)
+        # Set by _run() once a render completes; stays None for a quiet-hours
+        # skip or a failure before rendering.
+        self._run_outcome: dict | None = None
 
         # Ensure state directory exists and migrate legacy state files
         Path(cfg.state_dir).mkdir(parents=True, exist_ok=True)
         _migrate_state_files(cfg.output_dir, cfg.state_dir)
 
     def run(self):
+        started = time.monotonic()
+        self._run_outcome = None
         try:
             self._run()
         except Exception as exc:
             logger.exception("Dashboard run failed")
             self.output.write_error_marker(exc)
+            self._record_run_event("run_failed", started, exc=exc)
             raise
+        if self._run_outcome is not None:
+            self._record_run_event("run_completed", started)
+
+    def _record_run_event(
+        self, kind: str, started: float, exc: BaseException | None = None
+    ) -> None:
+        """Append this run to the web event stream (#218).
+
+        The stream used to carry only manual web-UI clicks, so the status page
+        could show that somebody pressed refresh but never whether the renders
+        themselves were happening. Imported lazily and failing silently: the
+        event store is stdlib-only, but recording history must never be what
+        turns a good run into a bad one.
+        """
+        duration = round(time.monotonic() - started, 2)
+        outcome = self._run_outcome or {}
+        if exc is not None:
+            message = f"Run failed after {duration:.1f}s: {type(exc).__name__}"
+            details = {
+                "duration_seconds": duration,
+                "exception_type": type(exc).__name__,
+                "theme": outcome.get("theme"),
+            }
+        else:
+            theme = outcome.get("theme")
+            cached = sorted(outcome.get("cached_sources") or [])
+            live = sorted(outcome.get("live_sources") or [])
+            message = f"Rendered '{theme}' in {duration:.1f}s"
+            if cached:
+                message += f" ({len(live)} live, {len(cached)} cached: {', '.join(cached)})"
+            elif live:
+                message += f" ({len(live)} live)"
+            details = {
+                "duration_seconds": duration,
+                "theme": theme,
+                "live_sources": live,
+                "cached_sources": cached,
+                "dry_run": bool(self.args.dry_run),
+            }
+
+        try:
+            from src.web.event_store import append_event
+
+            append_event(self.cfg.state_dir, kind, message, **details)
+        except Exception as event_exc:  # pragma: no cover - defensive
+            logger.debug("Could not record run event: %s", event_exc)
 
     def _run(self):
         logger.info("Using timezone: %s", self.tz)
@@ -149,6 +202,7 @@ class DashboardApp:
             title=self.cfg.title,
             theme=theme,
             quote_refresh=self.cfg.cache.quote_refresh,
+            quotes_path=self.cfg.quotes.path or None,
             message_text=getattr(self.args, "message", None),
             countdown_events=list(self.cfg.countdown.events),
             latitude=lat if coords_set else None,
@@ -166,6 +220,14 @@ class DashboardApp:
         if force_full_from_morning and not self.args.dry_run:
             record_morning_refresh(now, self.cfg.state_dir)
         self.output.write_health_marker()
+        # Marks the run as having actually rendered — a quiet-hours skip
+        # returns before this and is deliberately not recorded, since the
+        # 5-minute timer would otherwise bury the stream in "skipped" rows.
+        self._run_outcome = {
+            "theme": theme_name,
+            "live_sources": sorted(set(data.source_staleness) - set(data.stale_sources)),
+            "cached_sources": sorted(data.stale_sources),
+        }
         logger.info("Done")
 
     def _resolve_now(self) -> datetime:

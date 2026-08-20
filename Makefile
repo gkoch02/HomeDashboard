@@ -1,4 +1,4 @@
-.PHONY: dry test coverage deploy setup install check previews previews-split banner version lint fmt docs-check \
+.PHONY: dry test coverage deploy setup install check previews previews-inky previews-split banner version lint fmt docs-check \
         pi-install install-display-drivers pi-enable pi-status pi-logs configure \
         web-enable web-status web-logs
 
@@ -26,13 +26,10 @@ dry: _check-venv
 	$(VENV) -m src.main --dry-run --dummy
 
 previews: _check-venv
-	@mkdir -p assets/previews
-	@for theme in agenda air_quality day_arc default diags fantasy fuzzyclock fuzzyclock_invert halftone halftone_agenda minimalist moonphase moonphase_invert moonphase_photo naturalist old_fashioned postcard qotd qotd_invert terminal timeline today trends weather year_pulse; do \
-		echo "Generating preview for theme: $$theme"; \
-		$(VENV) -m src.main --dry-run --dummy --theme $$theme; \
-		cp output/latest.png assets/previews/theme_$$theme.png; \
-	done
-	@echo "All theme previews saved to assets/previews/theme_*.png"
+	$(VENV) scripts/build_previews.py
+
+previews-inky: _check-venv
+	$(VENV) scripts/build_previews.py --provider inky
 
 previews-split: _check-venv
 	$(VENV) scripts/build_split_previews.py
@@ -62,10 +59,17 @@ PI_USER ?= pi
 PI_HOST ?= dashboard
 PI_DIR  ?= /home/$(PI_USER)/home-dashboard
 
+# QUOTES_FILE names a quote store to leave alone on the Pi. The bundled
+# config/quotes.json is shipped as-is; set this when you have customised it in
+# place (or better, set `quotes.path` to a file outside the tree, which rsync
+# never touches).
+QUOTES_FILE ?=
+
 deploy:
 	rsync -avz --exclude='venv' --exclude='output/*.png' \
 		--exclude='__pycache__' --exclude='.git' \
 		--exclude='credentials/' --exclude='config/config.yaml' \
+		$(if $(QUOTES_FILE),--exclude='$(QUOTES_FILE)',) \
 		. $(PI_USER)@$(PI_HOST):$(PI_DIR)/
 
 install:

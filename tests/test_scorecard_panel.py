@@ -103,14 +103,11 @@ class TestQuoteForPanel:
         assert "text" in q_scorecard
 
     def test_fallback_quotes_used_when_no_file(self, monkeypatch, tmp_path):
-        import src.render.components.scorecard_panel as sp
+        from src.render.quotes import DEFAULT_QUOTES
 
-        monkeypatch.setattr(sp, "QUOTES_FILE", tmp_path / "nonexistent.json")
+        monkeypatch.setattr("src.render.quotes.DEFAULT_QUOTES_PATH", tmp_path / "nonexistent.json")
         q = _quote_for_panel(FIXED_TODAY)
-        assert q["text"] in [
-            "Not all those who wander are lost.",
-            "Dwell on the beauty of life.",
-        ]
+        assert q in DEFAULT_QUOTES
 
 
 # ---------------------------------------------------------------------------

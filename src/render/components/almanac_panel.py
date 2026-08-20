@@ -651,6 +651,7 @@ def _draw_footer(
     now: datetime,
     style: ThemeStyle,
     quote_refresh: str,
+    quotes_path: str | None = None,
 ) -> None:
     """Triple rule + quote + author + ornament line."""
     fg = style.fg
@@ -666,7 +667,7 @@ def _draw_footer(
         accent,
     )
 
-    quote = _quote_for_today(today, refresh=quote_refresh, now=now)
+    quote = _quote_for_today(today, refresh=quote_refresh, now=now, quotes_path=quotes_path)
     quote_font = (style.font_quote or style.font_regular)(17)
     author_font = (style.font_quote_author or style.font_semibold)(13)
 
@@ -712,6 +713,7 @@ def draw_almanac(
     latitude: float | None = None,
     longitude: float | None = None,
     quote_refresh: str = "daily",
+    quotes_path: str | None = None,
 ) -> None:
     """Render the full-canvas almanac page inside *region*."""
     if region is None:
@@ -785,4 +787,4 @@ def draw_almanac(
         style,
     )
 
-    _draw_footer(draw, region, today, now, style, quote_refresh)
+    _draw_footer(draw, region, today, now, style, quote_refresh, quotes_path)

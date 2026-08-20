@@ -646,3 +646,70 @@ def test_config_validation_importable_standalone():
         cwd=str(Path(__file__).resolve().parents[1]),
     )
     assert result.returncode == 0, result.stderr
+
+
+class TestNumericThemeRuleValidation:
+    """Temperature / AQI conditions (#215)."""
+
+    def _cfg_with_rule(self, theme="agenda", purpleair=True, **when_kwargs):
+        from src.config import ThemeRule, ThemeRuleCondition, ThemeRulesConfig
+
+        cfg = Config()
+        if purpleair:
+            cfg.purpleair.api_key = "key"
+            cfg.purpleair.sensor_id = 12345
+        cfg.theme_rules = ThemeRulesConfig(
+            rules=[ThemeRule(when=ThemeRuleCondition(**when_kwargs), theme=theme)]
+        )
+        return cfg
+
+    def test_sane_temperature_band_warns_nothing(self):
+        cfg = self._cfg_with_rule(temp_at_least=60.0, temp_at_most=75.0)
+        _, warnings = validate_config(cfg)
+        assert not any("theme_rules" in w.field for w in warnings)
+
+    def test_inverted_temperature_band_warns(self):
+        cfg = self._cfg_with_rule(temp_at_least=80.0, temp_at_most=32.0)
+        _, warnings = validate_config(cfg)
+        assert any("theme_rules[0].when" in w.field for w in warnings)
+
+    def test_equal_bounds_are_a_valid_single_value(self):
+        cfg = self._cfg_with_rule(temp_at_least=32.0, temp_at_most=32.0)
+        _, warnings = validate_config(cfg)
+        assert not any("theme_rules" in w.field for w in warnings)
+
+    def test_open_bounds_never_warn_as_inverted(self):
+        for kwargs in ({"temp_at_least": 90.0}, {"temp_at_most": 32.0}):
+            cfg = self._cfg_with_rule(**kwargs)
+            _, warnings = validate_config(cfg)
+            assert not any("theme_rules" in w.field for w in warnings)
+
+    def test_aqi_within_the_epa_scale_warns_nothing(self):
+        cfg = self._cfg_with_rule(aqi_at_least=101)
+        _, warnings = validate_config(cfg)
+        assert not any("theme_rules" in w.field for w in warnings)
+
+    def test_aqi_above_the_epa_scale_warns(self):
+        cfg = self._cfg_with_rule(aqi_at_least=900)
+        _, warnings = validate_config(cfg)
+        assert any("aqi_at_least" in w.field for w in warnings)
+
+    def test_negative_aqi_warns(self):
+        cfg = self._cfg_with_rule(aqi_at_least=-5)
+        _, warnings = validate_config(cfg)
+        assert any("aqi_at_least" in w.field for w in warnings)
+
+    def test_aqi_rule_without_purpleair_warns_it_can_never_fire(self):
+        cfg = self._cfg_with_rule(aqi_at_least=101, purpleair=False)
+        _, warnings = validate_config(cfg)
+        assert any("aqi_at_least" in w.field and "never fire" in w.message for w in warnings)
+
+    def test_temperature_rule_without_purpleair_is_fine(self):
+        cfg = self._cfg_with_rule(temp_at_most=32.0, purpleair=False)
+        _, warnings = validate_config(cfg)
+        assert not any("theme_rules" in w.field for w in warnings)
+
+    def test_numeric_rules_never_produce_fatal_errors(self):
+        cfg = self._cfg_with_rule(temp_at_least=80.0, temp_at_most=32.0, aqi_at_least=900)
+        errors, _ = validate_config(cfg)
+        assert not any("theme_rules" in e.field for e in errors)

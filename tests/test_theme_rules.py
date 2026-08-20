@@ -11,6 +11,7 @@ from src.config import (
     ThemeScheduleEntry,
 )
 from src.data.models import (
+    AirQualityData,
     Birthday,
     CalendarEvent,
     DashboardData,
@@ -723,3 +724,200 @@ class TestCalendarRule:
         """
         rule = ThemeRule(when=ThemeRuleCondition(calendar="empty"), theme="qotd")
         assert _rule_matches(rule, _now(), _data(events_loaded=False)) is False
+
+
+# ---------------------------------------------------------------------------
+# Numeric conditions — temperature and AQI (#215)
+# ---------------------------------------------------------------------------
+
+
+def _aq(aqi: int) -> AirQualityData:
+    return AirQualityData(aqi=aqi, category="Moderate", pm25=12.0)
+
+
+def _data_with_aq(air_quality: AirQualityData | None, **kwargs) -> DashboardData:
+    data = _data(**kwargs)
+    data.air_quality = air_quality
+    return data
+
+
+def _rule(theme: str = "weatherglass", **when) -> ThemeRule:
+    return ThemeRule(when=ThemeRuleCondition(**when), theme=theme)
+
+
+class TestTemperatureConditions:
+    def test_at_most_matches_below_the_bound(self):
+        data = _data(weather=_wx(current_temp=28.0))
+        assert _rule_matches(_rule(temp_at_most=32.0), _now(), data)
+
+    def test_at_most_is_inclusive(self):
+        data = _data(weather=_wx(current_temp=32.0))
+        assert _rule_matches(_rule(temp_at_most=32.0), _now(), data)
+
+    def test_at_most_rejects_above_the_bound(self):
+        data = _data(weather=_wx(current_temp=33.0))
+        assert not _rule_matches(_rule(temp_at_most=32.0), _now(), data)
+
+    def test_at_least_matches_above_the_bound(self):
+        data = _data(weather=_wx(current_temp=95.0))
+        assert _rule_matches(_rule(temp_at_least=90.0), _now(), data)
+
+    def test_at_least_is_inclusive(self):
+        data = _data(weather=_wx(current_temp=90.0))
+        assert _rule_matches(_rule(temp_at_least=90.0), _now(), data)
+
+    def test_at_least_rejects_below_the_bound(self):
+        data = _data(weather=_wx(current_temp=89.9))
+        assert not _rule_matches(_rule(temp_at_least=90.0), _now(), data)
+
+    def test_both_bounds_form_a_band(self):
+        rule = _rule(temp_at_least=60.0, temp_at_most=75.0)
+        assert _rule_matches(rule, _now(), _data(weather=_wx(current_temp=68.0)))
+        assert not _rule_matches(rule, _now(), _data(weather=_wx(current_temp=55.0)))
+        assert not _rule_matches(rule, _now(), _data(weather=_wx(current_temp=80.0)))
+
+    def test_negative_temperatures_work(self):
+        data = _data(weather=_wx(current_temp=-4.0))
+        assert _rule_matches(_rule(temp_at_most=0.0), _now(), data)
+
+    def test_skips_silently_when_weather_is_absent(self):
+        """Same contract as the weather condition: no data means no match."""
+        assert not _rule_matches(_rule(temp_at_most=32.0), _now(), _data(weather=None))
+
+    def test_skips_silently_on_the_pre_fetch_pass(self):
+        assert not _rule_matches(_rule(temp_at_most=32.0), _now(), None)
+        assert not _rule_matches(_rule(temp_at_least=90.0), _now(), None)
+
+    def test_combines_with_other_conditions(self):
+        rule = _rule(temp_at_most=32.0, daypart="day")
+        cold_day = _data(weather=_wx(current_temp=20.0))
+        assert _rule_matches(rule, _now(hour=12), cold_day)
+        assert not _rule_matches(rule, _now(hour=23), cold_day)
+
+    def test_unset_bounds_do_not_constrain(self):
+        assert _rule_matches(_rule(daypart="day"), _now(hour=12), _data(weather=_wx()))
+
+
+class TestAqiCondition:
+    def test_matches_at_or_above_the_threshold(self):
+        assert _rule_matches(_rule(aqi_at_least=100), _now(), _data_with_aq(_aq(150)))
+        assert _rule_matches(_rule(aqi_at_least=100), _now(), _data_with_aq(_aq(100)))
+
+    def test_rejects_below_the_threshold(self):
+        assert not _rule_matches(_rule(aqi_at_least=100), _now(), _data_with_aq(_aq(42)))
+
+    def test_skips_silently_when_air_quality_is_absent(self):
+        """The common case: PurpleAir is optional, so the source is often missing."""
+        assert not _rule_matches(_rule(aqi_at_least=100), _now(), _data_with_aq(None))
+
+    def test_skips_silently_on_the_pre_fetch_pass(self):
+        assert not _rule_matches(_rule(aqi_at_least=100), _now(), None)
+
+    def test_first_match_still_wins_across_numeric_rules(self):
+        rules = [
+            _rule("air_quality", aqi_at_least=150),
+            _rule("weather", aqi_at_least=50),
+        ]
+        data = _data_with_aq(_aq(160))
+        assert resolve_rule_theme(rules, _now(), data) == "air_quality"
+
+    def test_falls_through_when_nothing_matches(self):
+        rules = [_rule("air_quality", aqi_at_least=150)]
+        assert resolve_rule_theme(rules, _now(), _data_with_aq(_aq(20))) is None
+
+
+class TestNumericConditionParsing:
+    """load_config() must not turn an unreadable threshold into 'no constraint'."""
+
+    def _rules_from(self, tmp_path, yaml_text: str):
+        from src.config import load_config
+
+        path = tmp_path / "rules.yaml"
+        path.write_text(yaml_text)
+        return load_config(str(path)).theme_rules.rules
+
+    def test_numeric_thresholds_parse(self, tmp_path):
+        rules = self._rules_from(
+            tmp_path,
+            "theme_rules:\n"
+            "  - when: {temp_at_most: 32, temp_at_least: 10, aqi_at_least: 101}\n"
+            "    theme: weatherglass\n",
+        )
+        assert len(rules) == 1
+        assert rules[0].when.temp_at_most == 32.0
+        assert rules[0].when.temp_at_least == 10.0
+        assert rules[0].when.aqi_at_least == 101
+
+    def test_float_temperature_survives(self, tmp_path):
+        rules = self._rules_from(
+            tmp_path,
+            "theme_rules:\n  - when: {temp_at_most: 32.5}\n    theme: weatherglass\n",
+        )
+        assert rules[0].when.temp_at_most == 32.5
+
+    def test_unset_thresholds_are_none(self, tmp_path):
+        rules = self._rules_from(
+            tmp_path, "theme_rules:\n  - when: {weekday: weekend}\n    theme: today\n"
+        )
+        assert rules[0].when.temp_at_most is None
+        assert rules[0].when.temp_at_least is None
+        assert rules[0].when.aqi_at_least is None
+
+    def test_unreadable_threshold_drops_the_rule(self, tmp_path):
+        """Widening the rule to 'always' would be worse than dropping it."""
+        rules = self._rules_from(
+            tmp_path,
+            "theme_rules:\n"
+            "  - when: {temp_at_most: chilly}\n"
+            "    theme: weatherglass\n"
+            "  - when: {weekday: weekend}\n"
+            "    theme: today\n",
+        )
+        assert [r.theme for r in rules] == ["today"]
+
+    def test_list_threshold_drops_the_rule_instead_of_crashing(self, tmp_path):
+        """int()/float() reject these with TypeError, not ValueError.
+
+        Letting that escape crashes load_config() itself — every renderer run,
+        --check-config, and both web pages — over one malformed rule.
+        """
+        rules = self._rules_from(
+            tmp_path,
+            "theme_rules:\n"
+            "  - when: {aqi_at_least: [100]}\n"
+            "    theme: air_quality\n"
+            "  - when: {weekday: weekend}\n"
+            "    theme: today\n",
+        )
+        assert [r.theme for r in rules] == ["today"]
+
+    def test_mapping_threshold_drops_the_rule(self, tmp_path):
+        rules = self._rules_from(
+            tmp_path,
+            "theme_rules:\n  - when: {temp_at_most: {a: 1}}\n    theme: weatherglass\n",
+        )
+        assert rules == []
+
+    def test_an_explicit_null_threshold_means_unset(self, tmp_path):
+        """`null` is absence, not a malformed value — the rule survives."""
+        rules = self._rules_from(
+            tmp_path,
+            "theme_rules:\n  - when: {aqi_at_least: null, weekday: weekend}\n    theme: today\n",
+        )
+        assert [r.theme for r in rules] == ["today"]
+        assert rules[0].when.aqi_at_least is None
+
+    def test_numeric_string_threshold_is_accepted(self, tmp_path):
+        """A quoted number is still a number; only unparseable shapes drop."""
+        rules = self._rules_from(
+            tmp_path,
+            'theme_rules:\n  - when: {temp_at_most: "32"}\n    theme: weatherglass\n',
+        )
+        assert rules[0].when.temp_at_most == 32.0
+
+    def test_boolean_threshold_is_rejected(self, tmp_path):
+        """YAML 1.1 reads 'yes' as True, and int(True) is a plausible-looking 1."""
+        rules = self._rules_from(
+            tmp_path, "theme_rules:\n  - when: {aqi_at_least: yes}\n    theme: air_quality\n"
+        )
+        assert rules == []

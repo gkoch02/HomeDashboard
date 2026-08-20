@@ -18,10 +18,7 @@ Used by the ``moonphase`` and ``moonphase_invert`` themes.
 
 from __future__ import annotations
 
-import hashlib
-import json
 from datetime import date, datetime, timedelta, timezone
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 from src.astronomy import moon_distance_earth_radii, moon_times
@@ -54,9 +51,9 @@ if TYPE_CHECKING:
     from PIL import Image, ImageDraw
 
     from src.data.models import DashboardData, WeatherData
-    from src.render.theme import ComponentRegion, ThemeStyle
 
-QUOTES_FILE = Path(__file__).parent.parent.parent.parent / "config" / "quotes.json"
+from src.render.quotes import quote_for
+from src.render.theme import ComponentRegion, ThemeStyle
 
 # A full moon nearer than this (Earth radii) counts as a supermoon.  ~57.4 ER
 # ≈ 365,700 km, matching the common "within ~90% of perigee distance"
@@ -72,45 +69,15 @@ _DATA_FONT_PT = 26
 _QUOTE_FONT_PT = 23
 _ATTR_FONT_PT = 32
 
-_DEFAULT_QUOTES = [
-    {"text": "Not all those who wander are lost.", "author": "J.R.R. Tolkien"},
-    {"text": "The moon is a friend for the lonesome to talk to.", "author": "Carl Sandburg"},
-    {
-        "text": "We are all in the gutter, but some of us are looking at the stars.",
-        "author": "Oscar Wilde",
-    },
-    {"text": "Dwell on the beauty of life.", "author": "Marcus Aurelius"},
-    {"text": "The purpose of our lives is to be happy.", "author": "Dalai Lama"},
-]
 
-
-def _quote_for_panel(today: date, refresh: str = "daily", now: datetime | None = None) -> dict:
-    """Pick a quote deterministically, same logic as info_panel."""
-    if refresh == "hourly":
-        dt = now if now is not None else datetime.now()  # allow-naive-datetime — hour bucket only
-        key = f"moonphase-{today.isoformat()}T{dt.hour:02d}"
-    elif refresh == "twice_daily":
-        dt = now if now is not None else datetime.now()  # allow-naive-datetime — am/pm bucket only
-        period = "am" if dt.hour < 12 else "pm"
-        key = f"moonphase-{today.isoformat()}-{period}"
-    else:
-        key = f"moonphase-{today.isoformat()}"
-
-    if QUOTES_FILE.exists():
-        try:
-            quotes = json.loads(QUOTES_FILE.read_text())
-        except (json.JSONDecodeError, KeyError):
-            quotes = _DEFAULT_QUOTES
-    else:
-        quotes = _DEFAULT_QUOTES
-
-    # A valid-but-empty quotes file (``[]``) decodes fine but would make the
-    # modulo below divide by zero — fall back to the bundled defaults.
-    if not quotes:
-        quotes = _DEFAULT_QUOTES
-
-    day_hash = int(hashlib.md5(key.encode()).hexdigest(), 16)
-    return quotes[day_hash % len(quotes)]
+def _quote_for_panel(
+    today: date,
+    refresh: str = "daily",
+    now: datetime | None = None,
+    quotes_path: str | None = None,
+) -> dict:
+    """Pick this panel's quote under its own key prefix (see src.render.quotes)."""
+    return quote_for(today, refresh=refresh, now=now, prefix="moonphase-", path=quotes_path)
 
 
 # ---------------------------------------------------------------------------
@@ -396,13 +363,14 @@ def _draw_quote(
     max_h: int,
     style: ThemeStyle,
     quote_refresh: str,
+    quotes_path: str | None = None,
     gap: int = 2,
 ) -> None:
     """Draw a small wrapped quote at the bottom, centered.
 
     *gap* is the vertical space between the quote body and its attribution.
     """
-    quote = _quote_for_panel(today, refresh=quote_refresh)
+    quote = _quote_for_panel(today, refresh=quote_refresh, quotes_path=quotes_path)
     text = f'"{quote["text"]}"'
     quote_font = cormorant_italic(_QUOTE_FONT_PT)
     lines_h = text_height(quote_font)
@@ -422,9 +390,11 @@ def _draw_quote(
         draw.text((cx - attr_w // 2, attr_y), attr, font=attr_font, fill=style.fg)
 
 
-def _quote_body_height(today: date, max_w: int, quote_refresh: str) -> int:
+def _quote_body_height(
+    today: date, max_w: int, quote_refresh: str, quotes_path: str | None = None
+) -> int:
     """Measure the wrapped quote body height (no attribution) for layout."""
-    quote = _quote_for_panel(today, refresh=quote_refresh)
+    quote = _quote_for_panel(today, refresh=quote_refresh, quotes_path=quotes_path)
     quote_font = cormorant_italic(_QUOTE_FONT_PT)
     n_lines = len(wrap_lines(f'"{quote["text"]}"', quote_font, max_w)[:2])
     return n_lines * text_height(quote_font) + max(0, n_lines - 1) * 4
@@ -443,6 +413,7 @@ def draw_moonphase(
     region: ComponentRegion | None = None,
     style: ThemeStyle | None = None,
     quote_refresh: str = "daily",
+    quotes_path: str | None = None,
     image: Image.Image | None = None,
     latitude: float | None = None,
     longitude: float | None = None,
@@ -503,7 +474,7 @@ def draw_moonphase(
     # block reaches down to the bottom border instead of clustering up top.
     quote_w = w - 60
     data_line_h = text_height(cormorant_regular(_DATA_FONT_PT))
-    quote_body_h = _quote_body_height(today, quote_w, quote_refresh)
+    quote_body_h = _quote_body_height(today, quote_w, quote_refresh, quotes_path)
     attr_h = text_height(tangerine_regular(_ATTR_FONT_PT))
 
     sun_draws = weather is not None and (
@@ -519,4 +490,15 @@ def draw_moonphase(
     y = _draw_lunar_line(draw, today, cx, y, style, latitude, longitude, tz, gap=gap)
     y = _draw_sun_weather_line(draw, weather, cx, y, style, gap=gap)
     y = _draw_next_phase_line(draw, today, cx, y, style, gap=gap)
-    _draw_quote(draw, today, cx, y, quote_w, region.y + region.h - y, style, quote_refresh, gap=gap)
+    _draw_quote(
+        draw,
+        today,
+        cx,
+        y,
+        quote_w,
+        region.y + region.h - y,
+        style,
+        quote_refresh,
+        quotes_path,
+        gap=gap,
+    )

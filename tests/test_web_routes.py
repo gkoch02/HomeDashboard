@@ -395,3 +395,240 @@ def test_health_max_age_satisfied_is_healthy(app, client, monkeypatch):
     _write_success(app, now_utc().isoformat())
     resp = client.get("/api/health?max_age=600")
     assert resp.status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# Integrations panel — calendar backend awareness (#214)
+# ---------------------------------------------------------------------------
+
+
+def _integrations_for(tmp_path, yaml_text: str) -> dict[str, dict]:
+    """Build the integrations panel for a config, keyed by row name."""
+    from src.config import load_config
+    from src.web.routes.status import _build_integrations
+
+    cfg_path = tmp_path / "integrations.yaml"
+    cfg_path.write_text(yaml_text)
+    rows = _build_integrations(load_config(str(cfg_path)))
+    return {row["name"]: row for row in rows}
+
+
+_CALDAV_YAML = """
+google:
+  caldav_url: "https://cloud.example.com/remote.php/dav"
+  caldav_username: "alice"
+  caldav_password_file: "/etc/dashboard/caldav.pass"
+"""
+
+_ICS_YAML = """
+google:
+  ical_url: "https://example.com/feed.ics"
+"""
+
+_GOOGLE_YAML = """
+google:
+  calendar_id: "team@example.com"
+"""
+
+
+class TestIntegrationsCalendarBackend:
+    def test_caldav_reports_caldav_as_the_active_backend(self, tmp_path):
+        rows = _integrations_for(tmp_path, _CALDAV_YAML)
+        assert "Calendar (CalDAV)" in rows
+        assert rows["Calendar (CalDAV)"]["status"] == "ok"
+        assert "cloud.example.com" in rows["Calendar (CalDAV)"]["detail"]
+
+    def test_caldav_suppresses_the_google_service_account_row(self, tmp_path):
+        rows = _integrations_for(tmp_path, _CALDAV_YAML)
+        assert "Google service account" not in rows
+
+    def test_caldav_install_raises_no_warnings(self, tmp_path):
+        """The whole point of #214: a healthy CalDAV install looks healthy."""
+        rows = _integrations_for(tmp_path, _CALDAV_YAML)
+        calendar_rows = {n: r for n, r in rows.items() if n.startswith("Calendar")}
+        assert len(calendar_rows) == 1
+        assert all(r["status"] == "ok" for r in calendar_rows.values())
+
+    def test_caldav_detail_names_the_specific_calendar_when_set(self, tmp_path):
+        rows = _integrations_for(
+            tmp_path,
+            _CALDAV_YAML + '  caldav_calendar_url: "https://cloud.example.com/cal/home"\n',
+        )
+        assert "cal/home" in rows["Calendar (CalDAV)"]["detail"]
+
+    def test_caldav_detail_names_the_user(self, tmp_path):
+        rows = _integrations_for(tmp_path, _CALDAV_YAML)
+        assert "alice" in rows["Calendar (CalDAV)"]["detail"]
+
+    def test_caldav_wins_over_ics_matching_fetch_dispatch(self, tmp_path):
+        rows = _integrations_for(
+            tmp_path,
+            """
+google:
+  caldav_url: "https://cloud.example.com/remote.php/dav"
+  caldav_username: "alice"
+  caldav_password_file: "/etc/dashboard/caldav.pass"
+  ical_url: "https://example.com/feed.ics"
+""",
+        )
+        assert "Calendar (CalDAV)" in rows
+        assert "Calendar (ICS)" not in rows
+
+    def test_ics_reports_ics_and_suppresses_service_account(self, tmp_path):
+        rows = _integrations_for(tmp_path, _ICS_YAML)
+        assert rows["Calendar (ICS)"]["status"] == "ok"
+        assert "feed.ics" in rows["Calendar (ICS)"]["detail"]
+        assert "Google service account" not in rows
+
+    def test_ics_detail_counts_additional_feeds(self, tmp_path):
+        rows = _integrations_for(
+            tmp_path,
+            _ICS_YAML
+            + '  additional_ical_urls:\n    - "https://example.com/b.ics"\n'
+            + '    - "https://example.com/c.ics"\n',
+        )
+        assert "+2 additional feeds" in rows["Calendar (ICS)"]["detail"]
+
+    def test_google_api_path_still_reports_the_service_account(self, tmp_path):
+        rows = _integrations_for(tmp_path, _GOOGLE_YAML)
+        assert "Google service account" in rows
+        assert rows["Calendar (Google API)"]["status"] == "ok"
+        assert "team@example.com" in rows["Calendar (Google API)"]["detail"]
+
+    def test_google_api_default_calendar_id_still_warns(self, tmp_path):
+        rows = _integrations_for(tmp_path, "google:\n  calendar_id: primary\n")
+        assert rows["Calendar (Google API)"]["status"] == "warn"
+
+    def test_contacts_birthdays_keep_the_service_account_row_on_caldav(self, tmp_path):
+        """The People API needs the service account whatever the calendar backend."""
+        rows = _integrations_for(
+            tmp_path,
+            _CALDAV_YAML + "\nbirthdays:\n  source: contacts\n",
+        )
+        assert "Google service account" in rows
+        assert "Calendar (CalDAV)" in rows
+
+    def test_unrelated_rows_are_unchanged_across_backends(self, tmp_path):
+        for yaml_text in (_CALDAV_YAML, _ICS_YAML, _GOOGLE_YAML):
+            rows = _integrations_for(tmp_path, yaml_text)
+            assert "OpenWeather" in rows
+            assert "Birthdays source" in rows
+            assert "PurpleAir" in rows
+
+
+# ---------------------------------------------------------------------------
+# One Call health on the status page (#223)
+# ---------------------------------------------------------------------------
+
+
+def _set_one_call_version(app, version: str) -> None:
+    """Repoint the in-memory config, as a config save would."""
+    from src.config import load_config
+
+    Path(app.config["APP_CONFIG_PATH"]).write_text(f'weather:\n  one_call_version: "{version}"\n')
+    app.config["DASH_CFG"] = load_config(app.config["APP_CONFIG_PATH"])
+
+
+def _record_one_call(app, outcome: str, version: str = "3.0", status: int | None = 401):
+    from src.fetchers.one_call_health import STATE_FILENAME
+
+    payload = {"outcome": outcome, "version": version, "checked_at": "2026-08-19T12:00:00+00:00"}
+    if outcome == "auth_failed":
+        payload["http_status"] = status
+        payload["message"] = f"One Call {version} returned {status} — check one_call_version."
+    path = Path(app.config["STATE_DIR"]) / STATE_FILENAME
+    path.write_text(json.dumps(payload))
+
+
+class TestOneCallStatus:
+    def test_no_recorded_state_reports_nothing(self, client):
+        data = json.loads(client.get("/api/status").data)
+        assert data["one_call"] is None
+
+    def test_healthy_state_reports_nothing(self, app, client):
+        _record_one_call(app, "ok")
+        data = json.loads(client.get("/api/status").data)
+        assert data["one_call"] is None
+
+    def test_transient_failure_reports_nothing(self, app, client):
+        """A timeout is not actionable, so it must not colour the status page."""
+        _record_one_call(app, "transient", status=None)
+        data = json.loads(client.get("/api/status").data)
+        assert data["one_call"] is None
+
+    def test_auth_failure_is_surfaced(self, app, client):
+        _record_one_call(app, "auth_failed", version="4.0", status=401)
+        _set_one_call_version(app, "4.0")
+        data = json.loads(client.get("/api/status").data)
+        assert data["one_call"] is not None
+        assert data["one_call"]["http_status"] == 401
+        assert data["one_call"]["version"] == "4.0"
+
+    def test_auth_failure_degrades_overall_health(self, app, client):
+        _record_one_call(app, "auth_failed")
+        data = json.loads(client.get("/api/status").data)
+        assert data["overall"]["status"] in ("degraded", "needs_attention")
+        assert any(i["kind"] == "one_call" for i in data["overall"]["issues"])
+
+    def test_auth_failure_message_names_the_config_knob(self, app, client):
+        _record_one_call(app, "auth_failed")
+        data = json.loads(client.get("/api/status").data)
+        assert "one_call_version" in data["one_call"]["message"]
+
+    def test_auth_failure_says_the_rest_of_weather_is_fine(self, app, client):
+        _record_one_call(app, "auth_failed")
+        data = json.loads(client.get("/api/status").data)
+        assert "unaffected" in data["one_call"]["detail"]
+
+    def test_integrations_row_flags_the_failure(self, app, client):
+        _record_one_call(app, "auth_failed", version="3.0")
+        data = json.loads(client.get("/api/status").data)
+        row = next(r for r in data["integrations"] if r["name"].startswith("OpenWeather One Call"))
+        assert row["status"] == "warn"
+
+    def test_integrations_row_is_ok_when_healthy(self, client):
+        data = json.loads(client.get("/api/status").data)
+        row = next(r for r in data["integrations"] if r["name"].startswith("OpenWeather One Call"))
+        assert row["status"] == "ok"
+
+    def test_turning_one_call_off_clears_the_banner(self, app, client):
+        """Switching off is a documented remedy; the warning must not outlive it.
+
+        The disabled path deliberately records nothing, so the stale
+        auth_failed record would otherwise sit there forever telling the user
+        to check a setting they already changed.
+        """
+        _record_one_call(app, "auth_failed", version="3.0")
+        _set_one_call_version(app, "off")
+
+        data = json.loads(client.get("/api/status").data)
+        assert data["one_call"] is None
+        assert not any(i["kind"] == "one_call" for i in data["overall"]["issues"])
+
+    def test_switching_versions_clears_the_stale_banner(self, app, client):
+        """A 3.0 failure must not keep naming 3.0 after a switch to 4.0.
+
+        The record only refreshes on the next weather fetch, up to a
+        cache.weather_fetch_interval away.
+        """
+        _record_one_call(app, "auth_failed", version="3.0")
+        _set_one_call_version(app, "4.0")
+
+        data = json.loads(client.get("/api/status").data)
+        assert data["one_call"] is None
+
+    def test_a_failure_on_the_configured_version_still_shows(self, app, client):
+        _record_one_call(app, "auth_failed", version="4.0")
+        _set_one_call_version(app, "4.0")
+
+        data = json.loads(client.get("/api/status").data)
+        assert data["one_call"] is not None
+        assert data["one_call"]["version"] == "4.0"
+
+    def test_no_row_when_one_call_is_turned_off(self, app, client):
+        Path(app.config["APP_CONFIG_PATH"]).write_text('weather:\n  one_call_version: "off"\n')
+        from src.config import load_config
+
+        app.config["DASH_CFG"] = load_config(app.config["APP_CONFIG_PATH"])
+        data = json.loads(client.get("/api/status").data)
+        assert not any(r["name"].startswith("OpenWeather One Call") for r in data["integrations"])

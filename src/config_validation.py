@@ -533,6 +533,48 @@ def validate_config(
                         hint=f"Must be one of: {', '.join(sorted(_VALID_CALENDAR_STATES))}",
                     )
                 )
+        lo, hi = rule.when.temp_at_least, rule.when.temp_at_most
+        if lo is not None and hi is not None and lo > hi:
+            warnings.append(
+                ConfigWarning(
+                    field=f"theme_rules[{i}].when",
+                    message=(
+                        f"temp_at_least ({lo}) is above temp_at_most ({hi}) — "
+                        "no temperature can satisfy both, so the rule never fires."
+                    ),
+                    hint="Swap the two values, or drop one to make it an open bound.",
+                )
+            )
+        aqi_floor = rule.when.aqi_at_least
+        if aqi_floor is not None and not 0 <= aqi_floor <= 500:
+            warnings.append(
+                ConfigWarning(
+                    field=f"theme_rules[{i}].when.aqi_at_least",
+                    message=f"AQI threshold {aqi_floor} is outside the EPA 0–500 scale.",
+                    hint="Common thresholds: 51 moderate, 101 unhealthy for sensitive, 151 unhealthy.",
+                )
+            )
+        if aqi_floor is not None and not (cfg.purpleair.api_key and cfg.purpleair.sensor_id):
+            warnings.append(
+                ConfigWarning(
+                    field=f"theme_rules[{i}].when.aqi_at_least",
+                    message=(
+                        "Rule needs air-quality data, but PurpleAir is not configured — "
+                        "the rule will never fire."
+                    ),
+                    hint="Set purpleair.api_key and purpleair.sensor_id, or drop the condition.",
+                )
+            )
+
+    # --- Quotes ---
+    if cfg.quotes.path and not Path(cfg.quotes.path).is_file():
+        warnings.append(
+            ConfigWarning(
+                field="quotes.path",
+                message=f"Quotes file not found: {cfg.quotes.path}",
+                hint="The bundled quotes will be used instead.",
+            )
+        )
 
     # --- Countdown events ---
     for i, ev in enumerate(cfg.countdown.events):

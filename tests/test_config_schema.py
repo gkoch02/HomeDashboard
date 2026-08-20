@@ -156,3 +156,80 @@ def _find_field(schema_json: dict, path: str) -> dict | None:
             if f["path"] == path:
                 return f
     return None
+
+
+class TestThemeChoices:
+    """`theme` is the one field with a fully known domain (#216)."""
+
+    def test_theme_field_is_an_enum_with_choices(self):
+        spec = field_spec_by_path("theme")
+        assert spec is not None
+        assert spec.type == "enum"
+        assert spec.choices
+
+    def test_theme_choices_cover_every_registered_theme(self):
+        from src.render.theme import AVAILABLE_THEMES
+
+        spec = field_spec_by_path("theme")
+        assert set(AVAILABLE_THEMES) <= set(spec.choices)
+
+    def test_theme_choices_include_the_random_modes(self):
+        spec = field_spec_by_path("theme")
+        for pseudo in ("random", "random_daily", "random_hourly"):
+            assert pseudo in spec.choices
+
+    def test_theme_choices_are_sorted_and_unique(self):
+        spec = field_spec_by_path("theme")
+        assert list(spec.choices) == sorted(set(spec.choices))
+
+    def test_schema_json_exposes_theme_choices(self):
+        out = to_json()
+        theme_field = _find_field(out, "theme")
+        assert theme_field is not None
+        assert "choices" in theme_field
+        assert "agenda" in theme_field["choices"]
+
+    def test_theme_stays_editable_and_not_secret(self):
+        spec = field_spec_by_path("theme")
+        assert spec.editable is True
+        assert spec.secret is False
+        assert "theme" in editable_field_paths()
+
+    def test_theme_falls_back_to_free_text_when_registry_unreachable(self, monkeypatch):
+        """A stripped install without the render stack still gets a usable schema."""
+        import builtins
+
+        import src.config_schema as cs
+
+        real_import = builtins.__import__
+
+        def _boom(name, *args, **kwargs):
+            if name == "src.render.theme":
+                raise ImportError("no PIL here")
+            return real_import(name, *args, **kwargs)
+
+        monkeypatch.setattr(builtins, "__import__", _boom)
+        assert cs.theme_choices() is None
+
+        spec = [f for sec in cs.schema() for f in sec.fields if f.path == "theme"][0]
+        assert spec.type == "str"
+        assert spec.choices is None
+
+
+class TestSchemaImportIsRenderFree:
+    """Importing the schema must not drag in PIL (#216)."""
+
+    def test_importing_config_schema_does_not_import_pil(self):
+        import subprocess
+        import sys
+
+        code = (
+            "import sys; import src.config_schema; "
+            "assert 'PIL' not in sys.modules, sorted(m for m in sys.modules if 'PIL' in m); "
+            "print('clean')"
+        )
+        out = subprocess.run(
+            [sys.executable, "-c", code], capture_output=True, text=True, check=False
+        )
+        assert out.returncode == 0, out.stderr
+        assert "clean" in out.stdout

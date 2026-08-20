@@ -113,6 +113,10 @@ theme_rules:
     theme: "weather"
   - when: { daypart: "night", weather: "clear" }
     theme: "moonphase"
+  - when: { aqi_at_least: 100 }
+    theme: "air_quality"
+  - when: { temp_at_most: 32 }
+    theme: "weatherglass"
   - when: { weekday: "weekend" }
     theme: "today"
 ```
@@ -129,6 +133,8 @@ Supported conditions:
 | `season` | `"spring"`, `"summer"`, `"fall"`/`"autumn"`, `"winter"` (scalar or list) | N-hemisphere meteorological buckets by month. |
 | `weekday` | `"weekend"`, `"weekday"`, or a day name (scalar or list) | E.g. `"monday"`. |
 | `calendar` | `"empty"`, `"done"`, `"active"`, `"upcoming_soon"`, `"busy"`, `"birthday_today"` (scalar or list) | Today's calendar state — see below. States can overlap; a rule listing any matching state fires. |
+| `temp_at_least` / `temp_at_most` | number | Current temperature bounds, inclusive, in your configured `weather.units` (°F for `imperial`, °C for `metric`). Set both for a band. |
+| `aqi_at_least` | number | Minimum EPA AQI, inclusive. Needs PurpleAir configured — without it the source is never fetched, so the rule never fires. |
 
 Calendar states:
 
@@ -142,6 +148,10 @@ Calendar states:
 | `birthday_today` | At least one birthday's month/day matches today. |
 
 All-day events use the iCal inclusive-start / exclusive-end convention, so a vacation stored as `2026-04-22` → `2026-04-25` covers April 22, 23, and 24.
+
+Conditions that need a data source skip silently when that source is unavailable, rather than matching. This applies to `weather`, `weather_alert_present`, `temp_at_least` / `temp_at_most`, `aqi_at_least`, and `calendar`, and it is what lets an offline boot fall through cleanly to `theme_schedule` / `theme`. It also applies to the pre-fetch resolution pass, which runs before any data is loaded.
+
+A threshold the parser cannot read as a number drops the whole rule rather than widening it — a rule with an unreadable bound would otherwise match everything and shadow every rule below it. `make check` reports an inverted band (`temp_at_least` above `temp_at_most`), an AQI outside the EPA 0–500 scale, and an `aqi_at_least` rule on an install without PurpleAir.
 
 Rules that reference weather or calendar data silently skip on the first boot (no cached data yet), so the system falls through to `theme_schedule` / `cfg.theme` until data is available. A calendar fetch failure with no usable cache is treated the same way — event-derived rules don't fire on false-positive "empty" days during outages. If any rule could resolve to `monthly`, the calendar event window is pre-sized for the month grid so the view has complete data whenever the rule fires.
 

@@ -116,14 +116,11 @@ class TestTidesQuoteForPanel:
         assert "text" in q_am and "text" in q_pm
 
     def test_fallback_when_no_file(self, monkeypatch, tmp_path):
-        import src.render.components.tides_panel as tp
+        from src.render.quotes import DEFAULT_QUOTES
 
-        monkeypatch.setattr(tp, "QUOTES_FILE", tmp_path / "nonexistent.json")
+        monkeypatch.setattr("src.render.quotes.DEFAULT_QUOTES_PATH", tmp_path / "nonexistent.json")
         q = _quote_for_panel(FIXED_TODAY)
-        assert q["text"] in [
-            "Not all those who wander are lost.",
-            "Dwell on the beauty of life.",
-        ]
+        assert q in DEFAULT_QUOTES
 
 
 # ---------------------------------------------------------------------------

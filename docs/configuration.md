@@ -126,6 +126,10 @@ random_theme:                      # only used when theme: random_daily or rando
 #     theme: "weather"
 #   - when: { daypart: "night", weather: "clear" }
 #     theme: "moonphase"
+#   - when: { aqi_at_least: 100 }   # EPA AQI floor; needs PurpleAir configured
+#     theme: "air_quality"
+#   - when: { temp_at_most: 32 }    # in your weather.units (°F imperial / °C metric)
+#     theme: "weatherglass"
 #   # See themes.md → Context-aware theme rules for the full condition reference.
 
 cache:
@@ -141,10 +145,54 @@ cache:
   cooldown_minutes: 30             # circuit breaker: wait before probing
   quote_refresh: daily             # daily | twice_daily | hourly
 
+# quotes:
+#   path: "/home/pi/dashboard-quotes.json"   # custom quote store; empty = bundled
+
 filters:
   exclude_calendars: []            # case-insensitive substring match
   exclude_keywords: []             # case-insensitive match against event summary
   exclude_all_day: false
+
+### Custom quotes (`quotes.path`)
+
+The daily quote shown by the `default`, `qotd`, `almanac`, `postcard`,
+`naturalist`, `tides`, `scorecard`, and `moonphase` themes comes from a JSON
+list of `{"text": ..., "author": ...}` objects. With `quotes.path` unset the
+bundled `config/quotes.json` (144 entries) is used.
+
+```json
+[
+  {"text": "Simplicity is the ultimate sophistication.", "author": "Leonardo da Vinci"},
+  {"text": "Do what you can, with what you have, where you are.", "author": "Theodore Roosevelt"}
+]
+```
+
+**Put a customised store outside the repository.** `make deploy` rsyncs the
+whole tree to the Pi and spares only `config/config.yaml`, so edits to
+`config/quotes.json` in place are overwritten by the next deploy:
+
+```yaml
+quotes:
+  path: "/home/pi/dashboard-quotes.json"
+```
+
+If you would rather keep it in the tree, exclude it from the deploy explicitly:
+
+```bash
+make deploy QUOTES_FILE=config/quotes.json
+```
+
+A missing, malformed, or empty file falls back to the bundled list and
+`make check` warns about the path — the dashboard never fails to render over a
+quote store. Individual entries are checked too: anything without a string
+`text` and `author` is skipped with a warning, and a store with no usable
+entries left falls back wholesale. A single typo costs you that one quote, not
+the file.
+
+Each panel selects from the store under its own key prefix, so two panels on
+the same plate do not show the same quote on the same day. Selection is a
+stable hash of the date (and time bucket, per `cache.quote_refresh`), so the
+same slot always maps to the same quote and repeats are possible.
 
 output:
   dry_run_dir: "output"
@@ -193,6 +241,33 @@ by design: the run still succeeds, but
 - the `weather` theme's alert banner never appears,
 - the `weather_alert_present` theme rule can never fire, and
 - the `weatherglass` UV bar stays empty.
+
+**Silent, but not invisible.** The render is never broken by a One Call failure,
+and that contract is unconditional. But a 401 is permanent and actionable in a
+way a read timeout is not, so the two are handled differently:
+
+| Failure | Log level | Status page |
+|---|---|---|
+| HTTP 401 / 403 — key not subscribed to this version | `WARNING`, once when the failure first appears | **degraded**, naming `weather.one_call_version` |
+| Timeout, connection error, 5xx, unexpected payload | `DEBUG` | unchanged |
+
+The permanent case warns only on the healthy→failing transition, so a
+misconfiguration left in place does not emit a line every
+`cache.weather_fetch_interval`. The outcome is recorded in
+`state/one_call_health.json`, which is what makes the deduplication survive
+across runs (the renderer is a short-lived timer job) and what the status page
+reads. Delete the file to re-arm the warning.
+
+The status page reconciles that record against the config currently in force,
+because the record itself only refreshes on the next weather fetch. Setting
+`one_call_version: "off"` clears the banner immediately, and so does switching
+3.0 ↔ 4.0 — neither leaves a warning up that names a setting you have already
+changed.
+
+This matters most for the failure that arrives *after* a working install — a
+lapsed subscription, an account migrated between One Call products, or a key
+rotated to one without the entitlement. Alerts and UV stop appearing, the run
+still succeeds, and nothing else would prompt you to go looking.
 
 Setting `"off"` produces those same three outcomes deliberately, and skips the
 doomed request. The failure is logged at `DEBUG`, so raise `logging.level` to
@@ -243,12 +318,15 @@ python -m src.main --dry-run --force-full-refresh --theme weatherglass
 ```
 
 The UV bar on the rendered `output/latest.png` should now be populated. If it
-is still empty, set `logging.level: "DEBUG"` in your config and re-run: a line
-reading `Weather alerts/UV fetch skipped: ... 401` means the version does not
-match your subscription.
+is still empty, check the status page — a subscription mismatch shows there as a
+degraded One Call row naming the version it tried. The same thing appears in the
+log at `WARNING` on the first failing run. For a transient failure, which stays
+at `DEBUG` by design, set `logging.level: "DEBUG"` and look for a line reading
+`Weather alerts/UV fetch skipped`.
 
 **Switching between versions** is just step 3 — change the value and the next
-fetch uses the other endpoint. No state file needs clearing; the only lag is
+fetch uses the other endpoint. No state file needs clearing — the recorded One
+Call health is overwritten by the next fetch either way; the only lag is
 the normal `cache.weather_fetch_interval` (30 minutes by default), which is why
 step 4 forces a refresh. Because a mismatch degrades silently rather than
 failing the run, it is worth verifying after any switch.

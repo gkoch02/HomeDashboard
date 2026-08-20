@@ -36,7 +36,7 @@ class TestQuoteForToday:
         qfile = tmp_path / "quotes.json"
         qfile.write_text(json.dumps(custom))
 
-        with patch("src.render.components.info_panel.QUOTES_FILE", qfile):
+        with patch("src.render.quotes.DEFAULT_QUOTES_PATH", qfile):
             _quote_for_today.cache_clear()
             q = _quote_for_today(date(2024, 3, 15))
 
@@ -45,14 +45,14 @@ class TestQuoteForToday:
 
     def test_falls_back_to_defaults_when_file_missing(self, tmp_path):
         missing = tmp_path / "no_such_file.json"
-        with patch("src.render.components.info_panel.QUOTES_FILE", missing):
+        with patch("src.render.quotes.DEFAULT_QUOTES_PATH", missing):
             q = _quote_for_today(date(2024, 3, 15))
         assert q["text"]  # non-empty
 
     def test_falls_back_to_defaults_on_corrupt_json(self, tmp_path):
         corrupt = tmp_path / "quotes.json"
         corrupt.write_text("not json {{{")
-        with patch("src.render.components.info_panel.QUOTES_FILE", corrupt):
+        with patch("src.render.quotes.DEFAULT_QUOTES_PATH", corrupt):
             q = _quote_for_today(date(2024, 3, 15))
         assert q["text"]
 
@@ -96,7 +96,7 @@ class TestDrawInfo:
 
         _quote_for_today.cache_clear()
 
-        with patch("src.render.components.info_panel.QUOTES_FILE", qfile):
+        with patch("src.render.quotes.DEFAULT_QUOTES_PATH", qfile):
             _quote_for_today.cache_clear()
             img, draw = self._make_draw()
             # Use a unique date to avoid the lru_cache returning a stale result
@@ -110,7 +110,7 @@ class TestDrawInfo:
         from src.render.components.info_panel import _quote_for_today
 
         _quote_for_today.cache_clear()
-        with patch("src.render.components.info_panel.QUOTES_FILE", corrupt):
+        with patch("src.render.quotes.DEFAULT_QUOTES_PATH", corrupt):
             _quote_for_today.cache_clear()
             img, draw = self._make_draw()
             draw_info(draw, date(2098, 6, 15))
@@ -122,7 +122,7 @@ class TestDrawInfo:
         from src.render.components.info_panel import _quote_for_today
 
         _quote_for_today.cache_clear()
-        with patch("src.render.components.info_panel.QUOTES_FILE", missing):
+        with patch("src.render.quotes.DEFAULT_QUOTES_PATH", missing):
             _quote_for_today.cache_clear()
             img, draw = self._make_draw()
             draw_info(draw, date(2097, 11, 22))

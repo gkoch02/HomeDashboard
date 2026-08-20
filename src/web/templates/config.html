@@ -396,6 +396,20 @@
         </select>
       </div>
     </div>
+
+    <div class="field-row">
+      <label class="field-label" for="cfg-quotes-path">Quotes file</label>
+      <div class="field-input-wrap">
+        <input type="text" id="cfg-quotes-path" data-field="quotes.path"
+               value="{{ cfg.quotes.path }}"
+               placeholder="empty = bundled config/quotes.json">
+      </div>
+    </div>
+    <div class="field-hint">
+      JSON list of <code>{"text": ..., "author": ...}</code> objects. Leave empty for the
+      bundled store. <code>make deploy</code> overwrites anything inside the repository,
+      so point this at a path outside it to keep a customised file.
+    </div>
   </div>
 
   {# ------------------------------------------------------------------ #}
@@ -474,7 +488,8 @@
       Context-aware theme switching — first matching rule wins, and rules beat the schedule
       and the base theme. Each entry pairs a <code>when:</code> block (any of
       <code>weather</code>, <code>weather_alert_present</code>, <code>daypart</code>,
-      <code>season</code>, <code>weekday</code>, <code>calendar</code>) with a
+      <code>season</code>, <code>weekday</code>, <code>calendar</code>,
+      <code>temp_at_least</code>, <code>temp_at_most</code>, <code>aqi_at_least</code>) with a
       <code>theme:</code> name. Edited as YAML; validated on save and usable with
       Live&nbsp;preview. Leave empty to disable.
     </div>
