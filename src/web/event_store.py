@@ -11,9 +11,16 @@ from __future__ import annotations
 import json
 import logging
 import os
+import tempfile
 import threading
 from collections import deque
+from contextlib import contextmanager
 from pathlib import Path
+
+try:
+    import fcntl
+except ImportError:  # pragma: no cover - non-POSIX
+    fcntl = None  # type: ignore[assignment]
 
 from src._time import now_utc
 
@@ -36,6 +43,41 @@ _TRIM_THRESHOLD_BYTES = 256 * 1024
 # inside a single record and produce a corrupt JSON line.
 _append_lock = threading.Lock()
 
+# The thread lock is not enough any more. Since #218 the stream has two
+# writers: the long-running web service and the short-lived renderer, which are
+# separate processes. The append itself survives that (each record is one small
+# O_APPEND write), but the trim does not — it is read-all, write-elsewhere,
+# rename, and anything the other process appends inside that window is dropped
+# by the rename. An advisory lock on a sidecar file closes it. The sidecar
+# rather than the stream itself, because the trim replaces the stream's inode
+# and a lock held on the old one would guard nothing.
+_LOCK_SUFFIX = ".lock"
+
+
+@contextmanager
+def _cross_process_lock(path: Path):
+    """Hold an advisory lock covering one append (and any trim it triggers).
+
+    Degrades to the in-process lock alone when ``fcntl`` is unavailable or the
+    lock file cannot be opened: an audit log is not worth failing a render or a
+    web request over.
+    """
+    if fcntl is None:
+        yield
+        return
+    lock_path = path.with_suffix(path.suffix + _LOCK_SUFFIX)
+    try:
+        handle = open(lock_path, "w")
+    except OSError as exc:
+        logger.debug("Could not open the event-stream lock: %s", exc)
+        yield
+        return
+    try:
+        fcntl.flock(handle, fcntl.LOCK_EX)
+        yield
+    finally:
+        handle.close()
+
 
 def append_event(state_dir: str, kind: str, message: str, **details) -> None:
     path = Path(state_dir) / _EVENT_FILE
@@ -48,7 +90,7 @@ def append_event(state_dir: str, kind: str, message: str, **details) -> None:
     }
     line = json.dumps(payload, sort_keys=True) + "\n"
     try:
-        with _append_lock:
+        with _append_lock, _cross_process_lock(path):
             _trim_if_oversized(path)
             with open(path, "a", encoding="utf-8") as f:
                 f.write(line)
@@ -59,12 +101,12 @@ def append_event(state_dir: str, kind: str, message: str, **details) -> None:
 def _trim_if_oversized(path: Path) -> None:
     """Drop the oldest records once the file grows past its ceiling.
 
-    Called with ``_append_lock`` held. A stat is cheap enough to do on every
-    append; the rewrite itself happens rarely. The rewrite goes through a
-    tempfile + rename so a kill mid-trim cannot leave a half-written stream —
-    the same discipline every other state file here uses. Failures are
-    swallowed by the caller: a stream that cannot be trimmed is still a stream
-    that can be appended to.
+    Called with both locks held. A stat is cheap enough to do on every append;
+    the rewrite itself happens rarely. The rewrite goes through a tempfile +
+    rename so a kill mid-trim cannot leave a half-written stream — the same
+    discipline every other state file here uses. Failures are swallowed by the
+    caller: a stream that cannot be trimmed is still a stream that can be
+    appended to.
     """
     try:
         if path.stat().st_size <= _TRIM_THRESHOLD_BYTES:
@@ -75,10 +117,19 @@ def _trim_if_oversized(path: Path) -> None:
     with open(path, encoding="utf-8", errors="replace") as f:
         keep = deque(f, maxlen=_KEEP_EVENTS)
 
-    tmp = path.with_suffix(path.suffix + ".tmp")
-    with open(tmp, "w", encoding="utf-8") as f:
-        f.writelines(keep)
-    os.replace(tmp, path)
+    # A unique temp name, not a fixed one: two processes trimming at once would
+    # otherwise write the same path and each rename the other's half-file.
+    fd, tmp = tempfile.mkstemp(dir=path.parent, suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.writelines(keep)
+        os.replace(tmp, path)
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
     logger.debug("Trimmed web event stream to the most recent %d records", len(keep))
 
 

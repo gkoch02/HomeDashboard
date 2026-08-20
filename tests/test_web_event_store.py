@@ -277,7 +277,11 @@ class TestTrimming:
         self._fill_oversized(tmp_path)
         append_event(str(tmp_path), "run_completed", "fresh")
 
-        assert [p.name for p in tmp_path.iterdir()] == [_EVENT_FILE]
+        names = {p.name for p in tmp_path.iterdir()}
+        assert _EVENT_FILE in names
+        assert not any(n.endswith(".tmp") for n in names)
+        # The advisory-lock sidecar is the only other file allowed here.
+        assert names <= {_EVENT_FILE, _EVENT_FILE + ".lock"}
 
     def test_repeated_appends_stay_bounded(self, tmp_path):
         from src.web.event_store import _EVENT_FILE, _TRIM_THRESHOLD_BYTES, append_event
@@ -293,3 +297,115 @@ class TestTrimming:
 
         append_event(str(tmp_path / "fresh"), "run_completed", "first")
         assert len(read_recent_events(str(tmp_path / "fresh"))) == 1
+
+
+class TestCrossProcessSafety:
+    """Since #218 the stream has two writers: the web service and the renderer."""
+
+    def test_trim_does_not_drop_a_concurrent_append(self, tmp_path):
+        """The read-all → rename window used to swallow the other writer's records."""
+        import subprocess
+        import sys
+
+        from src.web.event_store import _EVENT_FILE, _KEEP_EVENTS, read_recent_events
+
+        path = tmp_path / _EVENT_FILE
+        path.write_text(
+            "".join(
+                json.dumps({"kind": "old", "n": i, "pad": "x" * 1000}) + "\n"
+                for i in range(_KEEP_EVENTS + 200)
+            )
+        )
+
+        repo = Path(__file__).resolve().parent.parent
+        code = (
+            f"import sys; sys.path.insert(0, {str(repo)!r});"
+            "from src.web.event_store import append_event;"
+            f"append_event({str(tmp_path)!r}, 'run_completed', 'from-the-renderer')"
+        )
+
+        # Two processes appending (and therefore trimming) the same stream.
+        procs = [subprocess.Popen([sys.executable, "-c", code], cwd=str(repo)) for _ in range(4)]
+        for proc in procs:
+            assert proc.wait(timeout=60) == 0
+
+        messages = [
+            r.get("message") for r in read_recent_events(str(tmp_path), limit=_KEEP_EVENTS + 10)
+        ]
+        assert messages.count("from-the-renderer") == 4
+
+    def test_every_line_stays_valid_json_under_concurrency(self, tmp_path):
+        import subprocess
+        import sys
+
+        from src.web.event_store import _EVENT_FILE
+
+        repo = Path(__file__).resolve().parent.parent
+        code = (
+            f"import sys; sys.path.insert(0, {str(repo)!r});"
+            "from src.web.event_store import append_event;"
+            f"[append_event({str(tmp_path)!r}, 'run_completed', 'x' * 300, n=i) "
+            "for i in range(20)]"
+        )
+
+        procs = [subprocess.Popen([sys.executable, "-c", code], cwd=str(repo)) for _ in range(4)]
+        for proc in procs:
+            assert proc.wait(timeout=60) == 0
+
+        lines = (tmp_path / _EVENT_FILE).read_text().splitlines()
+        assert len(lines) == 80
+        for line in lines:
+            json.loads(line)  # must not raise
+
+    def test_a_unique_tempfile_is_used_per_trim(self, tmp_path, monkeypatch):
+        """A fixed .tmp name lets two trimming processes rename each other's half-file."""
+        import src.web.event_store as es
+
+        seen: list[str] = []
+        real_mkstemp = es.tempfile.mkstemp
+
+        def _spy(*args, **kwargs):
+            fd, name = real_mkstemp(*args, **kwargs)
+            seen.append(name)
+            return fd, name
+
+        monkeypatch.setattr(es.tempfile, "mkstemp", _spy)
+
+        for _ in range(2):
+            (tmp_path / es._EVENT_FILE).write_text(
+                "".join(
+                    json.dumps({"kind": "old", "n": i, "pad": "x" * 1000}) + "\n"
+                    for i in range(es._KEEP_EVENTS + 200)
+                )
+            )
+            es.append_event(str(tmp_path), "run_completed", "fresh")
+
+        assert len(seen) == 2
+        assert seen[0] != seen[1]
+
+    def test_append_still_works_without_fcntl(self, tmp_path, monkeypatch):
+        """Non-POSIX degrades to the in-process lock rather than failing."""
+        import src.web.event_store as es
+
+        monkeypatch.setattr(es, "fcntl", None)
+        es.append_event(str(tmp_path), "run_completed", "no fcntl here")
+
+        assert es.read_recent_events(str(tmp_path))[0]["message"] == "no fcntl here"
+
+    def test_an_unwritable_lock_path_does_not_break_the_append(self, tmp_path, monkeypatch):
+        import builtins
+
+        import src.web.event_store as es
+
+        real_open = builtins.open
+
+        def _fail_lock(path, *args, **kwargs):
+            if str(path).endswith(es._LOCK_SUFFIX):
+                raise OSError("read-only filesystem")
+            return real_open(path, *args, **kwargs)
+
+        monkeypatch.setattr(builtins, "open", _fail_lock)
+        es.append_event(str(tmp_path), "run_completed", "still recorded")
+        monkeypatch.undo()
+
+        assert es.read_recent_events(str(tmp_path))[0]["message"] == "still recorded"

@@ -521,6 +521,14 @@ google:
 # ---------------------------------------------------------------------------
 
 
+def _set_one_call_version(app, version: str) -> None:
+    """Repoint the in-memory config, as a config save would."""
+    from src.config import load_config
+
+    Path(app.config["APP_CONFIG_PATH"]).write_text(f'weather:\n  one_call_version: "{version}"\n')
+    app.config["DASH_CFG"] = load_config(app.config["APP_CONFIG_PATH"])
+
+
 def _record_one_call(app, outcome: str, version: str = "3.0", status: int | None = 401):
     from src.fetchers.one_call_health import STATE_FILENAME
 
@@ -550,6 +558,7 @@ class TestOneCallStatus:
 
     def test_auth_failure_is_surfaced(self, app, client):
         _record_one_call(app, "auth_failed", version="4.0", status=401)
+        _set_one_call_version(app, "4.0")
         data = json.loads(client.get("/api/status").data)
         assert data["one_call"] is not None
         assert data["one_call"]["http_status"] == 401
@@ -581,6 +590,40 @@ class TestOneCallStatus:
         data = json.loads(client.get("/api/status").data)
         row = next(r for r in data["integrations"] if r["name"].startswith("OpenWeather One Call"))
         assert row["status"] == "ok"
+
+    def test_turning_one_call_off_clears_the_banner(self, app, client):
+        """Switching off is a documented remedy; the warning must not outlive it.
+
+        The disabled path deliberately records nothing, so the stale
+        auth_failed record would otherwise sit there forever telling the user
+        to check a setting they already changed.
+        """
+        _record_one_call(app, "auth_failed", version="3.0")
+        _set_one_call_version(app, "off")
+
+        data = json.loads(client.get("/api/status").data)
+        assert data["one_call"] is None
+        assert not any(i["kind"] == "one_call" for i in data["overall"]["issues"])
+
+    def test_switching_versions_clears_the_stale_banner(self, app, client):
+        """A 3.0 failure must not keep naming 3.0 after a switch to 4.0.
+
+        The record only refreshes on the next weather fetch, up to a
+        cache.weather_fetch_interval away.
+        """
+        _record_one_call(app, "auth_failed", version="3.0")
+        _set_one_call_version(app, "4.0")
+
+        data = json.loads(client.get("/api/status").data)
+        assert data["one_call"] is None
+
+    def test_a_failure_on_the_configured_version_still_shows(self, app, client):
+        _record_one_call(app, "auth_failed", version="4.0")
+        _set_one_call_version(app, "4.0")
+
+        data = json.loads(client.get("/api/status").data)
+        assert data["one_call"] is not None
+        assert data["one_call"]["version"] == "4.0"
 
     def test_no_row_when_one_call_is_turned_off(self, app, client):
         Path(app.config["APP_CONFIG_PATH"]).write_text('weather:\n  one_call_version: "off"\n')

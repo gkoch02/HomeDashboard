@@ -289,13 +289,21 @@ def _optional_number(block: dict, key: str, cast):
     drop the rule rather than silently widen it. Booleans are rejected outright:
     YAML 1.1 reads ``yes``/``on`` as ``True``, and ``int(True)`` is a perfectly
     valid 1 that would read as a real threshold.
+
+    Every unreadable shape has to arrive as ``ValueError``, including the ones
+    ``int()``/``float()`` reject with ``TypeError`` — a YAML list or mapping.
+    Letting that escape would crash ``load_config()`` itself, taking down every
+    renderer run and both web pages over one malformed rule.
     """
     value = block.get(key)
     if value is None:
         return None
     if isinstance(value, bool):
         raise ValueError(f"{key} must be a number, got {value!r}")
-    return cast(value)
+    try:
+        return cast(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{key} must be a number, got {value!r}") from exc
 
 
 def _normalise_one_call_version(value: object) -> str:

@@ -83,15 +83,27 @@ def _source_summary(source: str, source_state: dict) -> dict:
     }
 
 
-def _one_call_summary(health: dict) -> dict | None:
+def _one_call_summary(health: dict, configured_version: str) -> dict | None:
     """Summarise One Call health, or ``None`` when there is nothing to report.
 
     Only a recorded authentication failure is worth surfacing: it is permanent
     and actionable, and it silently removes weather alerts and the UV index
     from every render until someone fixes the subscription. A transient failure
     and an empty record are both normal.
+
+    The record is also checked against the config currently in force, because
+    it only refreshes on the next weather fetch — up to a
+    ``cache.weather_fetch_interval`` away, and never at all once One Call is
+    switched off (the disabled path deliberately records nothing). Without this
+    the two documented remedies both leave the banner up: turning One Call off
+    keeps a permanent "check one_call_version" warning against a config that no
+    longer calls it, and switching 3.0 → 4.0 keeps naming the old version.
     """
+    if configured_version == "off":
+        return None
     if health.get("outcome") != one_call_health.AUTH_FAILED:
+        return None
+    if health.get("version") != configured_version:
         return None
     return {
         "severity": "warn",
@@ -354,7 +366,9 @@ def _build_status() -> dict:
             "quota_today": quota.get(source, quota.get(_quota_key(source), 0)),
         }
 
-    one_call = _one_call_summary(one_call_health.read_health(state_dir))
+    one_call = _one_call_summary(
+        one_call_health.read_health(state_dir), cfg.weather.one_call_version
+    )
     overall = _overall_health(last_run["seconds_since"], quiet_hours_active, sources, one_call)
     effective_theme = resolve_theme_name(cfg, override_theme=None, now=now)
     theme_info = _describe_theme_mode(cfg, effective_theme, now)

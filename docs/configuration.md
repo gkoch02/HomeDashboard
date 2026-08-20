@@ -255,6 +255,12 @@ misconfiguration left in place does not emit a line every
 across runs (the renderer is a short-lived timer job) and what the status page
 reads. Delete the file to re-arm the warning.
 
+The status page reconciles that record against the config currently in force,
+because the record itself only refreshes on the next weather fetch. Setting
+`one_call_version: "off"` clears the banner immediately, and so does switching
+3.0 ↔ 4.0 — neither leaves a warning up that names a setting you have already
+changed.
+
 This matters most for the failure that arrives *after* a working install — a
 lapsed subscription, an account migrated between One Call products, or a key
 rotated to one without the entitlement. Alerts and UV stop appearing, the run

@@ -875,6 +875,46 @@ class TestNumericConditionParsing:
         )
         assert [r.theme for r in rules] == ["today"]
 
+    def test_list_threshold_drops_the_rule_instead_of_crashing(self, tmp_path):
+        """int()/float() reject these with TypeError, not ValueError.
+
+        Letting that escape crashes load_config() itself — every renderer run,
+        --check-config, and both web pages — over one malformed rule.
+        """
+        rules = self._rules_from(
+            tmp_path,
+            "theme_rules:\n"
+            "  - when: {aqi_at_least: [100]}\n"
+            "    theme: air_quality\n"
+            "  - when: {weekday: weekend}\n"
+            "    theme: today\n",
+        )
+        assert [r.theme for r in rules] == ["today"]
+
+    def test_mapping_threshold_drops_the_rule(self, tmp_path):
+        rules = self._rules_from(
+            tmp_path,
+            "theme_rules:\n  - when: {temp_at_most: {a: 1}}\n    theme: weatherglass\n",
+        )
+        assert rules == []
+
+    def test_an_explicit_null_threshold_means_unset(self, tmp_path):
+        """`null` is absence, not a malformed value — the rule survives."""
+        rules = self._rules_from(
+            tmp_path,
+            "theme_rules:\n  - when: {aqi_at_least: null, weekday: weekend}\n    theme: today\n",
+        )
+        assert [r.theme for r in rules] == ["today"]
+        assert rules[0].when.aqi_at_least is None
+
+    def test_numeric_string_threshold_is_accepted(self, tmp_path):
+        """A quoted number is still a number; only unparseable shapes drop."""
+        rules = self._rules_from(
+            tmp_path,
+            'theme_rules:\n  - when: {temp_at_most: "32"}\n    theme: weatherglass\n',
+        )
+        assert rules[0].when.temp_at_most == 32.0
+
     def test_boolean_threshold_is_rejected(self, tmp_path):
         """YAML 1.1 reads 'yes' as True, and int(True) is a plausible-looking 1."""
         rules = self._rules_from(

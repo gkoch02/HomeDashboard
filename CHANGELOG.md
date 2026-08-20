@@ -30,6 +30,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - **`make previews-inky`** renders the Inky preview batch, which the docs
   previously described as a hand-run shell loop. (#219)
 
+### Fixed
+
+- **A malformed `theme_rules` threshold no longer crashes the dashboard.** A
+  YAML list or mapping for `temp_at_least` / `temp_at_most` / `aqi_at_least`
+  reached `int()`/`float()` as a `TypeError`, which escaped `load_config()` and
+  took down every renderer run, `--check-config`, and both web pages. Such a
+  rule is now dropped like any other unreadable threshold. (#215)
+- **The One Call warning no longer outlives its cause.** The recorded health
+  state only refreshes on the next weather fetch, and the disabled path
+  deliberately records nothing, so setting `one_call_version: "off"` left a
+  permanent "check `one_call_version`" banner against a config that no longer
+  calls One Call — and switching 3.0 → 4.0 left the banner naming 3.0. The
+  status page now reconciles the record against the configured version. (#223)
+- **The web event stream is safe against its second writer.** #218 made the
+  renderer a writer of a file the web service also appends to, from a separate
+  process, where the trim's read-all → rename window silently discarded the
+  other process's appends and both used the same fixed `.tmp` path. Appends and
+  trims are now serialised with an advisory lock, and the temp file is unique
+  per trim. (#218)
+
 ### Changed
 
 - **A lapsed One Call subscription is now visible.** A 401/403 from an

@@ -347,6 +347,12 @@ A few operator notes:
   interrupted trim cannot leave a half-written stream). With renderer runs in the
   stream the file would otherwise grow by roughly 288 records a day. No manual
   rotation needed.
+- **Two writers.** The web service and the renderer are separate processes, so
+  appends and trims are serialised with an advisory lock on a
+  `web_events.jsonl.lock` sidecar — a trim is read-all-then-rename, and without
+  the lock it would discard whatever the other process appended in that window.
+  Where `fcntl` is unavailable this degrades to in-process locking rather than
+  failing a render.
 
 ---
 
