@@ -1,5 +1,13 @@
 """Theme-declared partial-refresh capability (#222).
 
+**This module is the enforcement point for the rules below.** Nothing derives
+``ThemeLayout.supports_partial_refresh`` at runtime — ``OutputService.publish``
+honours whatever each theme declares, and the field defaults to ``True``. A new
+theme that dithers its plate and forgets to decline therefore fails open on
+hardware and is caught here, at CI time, rather than by the code itself. Keep
+that in mind before relaxing any of these tests: they are not a description of
+the behaviour, they are the thing that produces it.
+
 Waveshare's fast waveform does not drive black as deeply as a full init. A
 plate built out of dithered greyscale or large solid ink fades under it — on
 ``halftone_agenda`` the fade tracked the artwork's rows across the whole

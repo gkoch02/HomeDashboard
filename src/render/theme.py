@@ -206,12 +206,33 @@ class ThemeLayout:
     # Whether this theme's plate survives a partial (fast-waveform) refresh.
     #
     # Waveshare's ``epd.init_fast()`` does not drive black as deeply as a full
-    # init, so a plate built out of dithered greyscale or large solid fills
-    # fades — visibly, and in bands aligned with the artwork. Themes whose
-    # image depends on either declare ``False`` here; ``OutputService.publish``
-    # then forces the full waveform for them regardless of
-    # ``display.enable_partial_refresh``. Crisp 1-bit type-and-rule themes
-    # leave it ``True`` and keep the speed.
+    # init, so a plate built out of dithered ink or large solid fills fades —
+    # visibly, and in bands aligned with the artwork. Themes whose image
+    # depends on either declare ``False`` here; ``OutputService.publish`` then
+    # forces the full waveform for them regardless of
+    # ``display.enable_partial_refresh``. Crisp type-and-rule themes leave it
+    # ``True`` and keep the speed.
+    #
+    # DECLARE IT YOURSELF — nothing derives this. A new theme should set
+    # ``False`` when any of the following is true of its plate:
+    #
+    #   * ``preferred_quantization_mode`` is ``"floyd_steinberg"`` or
+    #     ``"ordered"`` — those diffuse ink across the plate. (``"threshold"``
+    #     is a hard cut and does not, which is why ``canvas_mode == "L"`` on
+    #     its own is *not* a reason: ``moonphase_invert`` and ``weatherglass``
+    #     are both L-mode, both threshold, and both keep partial refresh.)
+    #   * ``background_fn`` paints a dithered image across the canvas (``photo``).
+    #   * ``ThemeStyle.bg`` is ink rather than paper, so the whole plate is one
+    #     solid fill (``terminal``, ``fantasy``, ``qotd_invert``).
+    #
+    # The default is ``True``, which means a theme that *should* decline and
+    # says nothing FAILS OPEN at runtime: the panel takes the fast waveform on
+    # a plate that cannot hold it. What catches that is
+    # ``tests/test_theme_partial_refresh.py``, which encodes the rules above
+    # and fails CI naming the theme — so the mistake is caught before merge,
+    # but only if the tests run. A theme may keep partial refresh against the
+    # rules (``fuzzyclock_invert``, ``moonphase``, ``moonphase_photo`` all do)
+    # by being listed in that module's ``SOLID_INK_BY_CHOICE`` with a reason.
     supports_partial_refresh: bool = True
 
 
