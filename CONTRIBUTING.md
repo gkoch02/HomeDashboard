@@ -190,7 +190,7 @@ When changing any of these areas, update the canonical docs in the same PR:
 - Use `tmp_path` for temporary files.
 - Do not make real network calls in tests.
 - Add or update documentation checks when you introduce a new exhaustive list.
-- Coverage is enforced at ≥94% via `pytest-cov` (`fail_under` in `pyproject.toml`); current coverage is ~96%. Run `make coverage` to see missing lines and an HTML report at `htmlcov/index.html`. New defensive branches should ship with tests.
+- Coverage is enforced at ≥94% via `pytest-cov` (`fail_under` in `pyproject.toml`); current coverage is ~98%. Run `make coverage` to see missing lines and an HTML report at `htmlcov/index.html`. New defensive branches should ship with tests.
 - Theme changes shift the pixel-hash snapshots in `tests/snapshots/theme_pixel_hashes.json`. If the diff is intentional, regenerate with `UPDATE_SNAPSHOTS=1 pytest tests/test_theme_pixel_snapshots.py` and commit the updated JSON alongside the source change. Adding a new theme also requires a fresh baseline — the coverage guard test fails without one.
 
 ## PR Checklist
