@@ -59,6 +59,7 @@ def draw_qotd(
     region: ComponentRegion | None = None,
     style: ThemeStyle | None = None,
     quote_refresh: str = "daily",
+    quotes_path: str | None = None,
 ) -> None:
     """Draw the quote of the day, typographically centered in *region*.
 
@@ -71,7 +72,7 @@ def draw_qotd(
     if style is None:
         style = ThemeStyle()
 
-    quote = _quote_for_today(today, refresh=quote_refresh)
+    quote = _quote_for_today(today, refresh=quote_refresh, quotes_path=quotes_path)
     text = quote["text"]  # marks rendered separately, large
     author = f"\u2014 {quote['author']}"
 

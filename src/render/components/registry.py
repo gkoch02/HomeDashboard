@@ -48,6 +48,9 @@ class RenderContext:
     style: Any  # ThemeStyle
     title: str = "Home Dashboard"
     quote_refresh: str = "daily"
+    # Override for the daily-quote store (``quotes.path`` in config). ``None``
+    # uses the bundled ``config/quotes.json``.
+    quotes_path: str | None = None
     message_text: str | None = None
     countdown_events: list | None = None
     latitude: float | None = None

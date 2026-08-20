@@ -418,6 +418,17 @@ def schema() -> tuple[SectionSpec, ...]:
                     "Quote rotation cadence",
                     choices=("daily", "twice_daily", "hourly"),
                 ),
+                _f(
+                    "quotes.path",
+                    ("quotes", "path"),
+                    "str",
+                    "Quotes file path",
+                    description=(
+                        "Custom quote store (JSON list of {text, author}). Leave empty for "
+                        "the bundled config/quotes.json. Point it outside the repository to "
+                        "survive `make deploy`."
+                    ),
+                ),
             ),
         ),
         SectionSpec(

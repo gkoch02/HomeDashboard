@@ -95,6 +95,7 @@ def draw_postcard(
     region: ComponentRegion | None = None,
     style: ThemeStyle | None = None,
     quote_refresh: str = "daily",
+    quotes_path: str | None = None,
 ) -> None:
     """Draw the full postcard (dithered scene + postcard back) into *region*."""
     if region is None:
@@ -119,6 +120,7 @@ def draw_postcard(
         rect=back_rect,
         style=style,
         quote_refresh=quote_refresh,
+        quotes_path=quotes_path,
     )
     _draw_center_crease(image, x0 + SCENE_W, y0, h)
 
@@ -1051,6 +1053,7 @@ def _draw_back(
     rect: tuple[int, int, int, int],
     style: ThemeStyle,
     quote_refresh: str,
+    quotes_path: str | None = None,
 ) -> None:
     """Paint the right-panel postcard back: greeting, postmark, stamp, agenda, quote."""
     mode = image.mode
@@ -1113,7 +1116,7 @@ def _draw_back(
     )
 
     # --- Quote at the bottom — solid ink, larger Playfair body for legibility.
-    quote = _quote_for_today(today, refresh=quote_refresh, now=now)
+    quote = _quote_for_today(today, refresh=quote_refresh, now=now, quotes_path=quotes_path)
     quote_font = style.font_quote(15 * SS) if style.font_quote else style.font_regular(15 * SS)
     author_font = (
         style.font_quote_author(12 * SS)

@@ -62,10 +62,17 @@ PI_USER ?= pi
 PI_HOST ?= dashboard
 PI_DIR  ?= /home/$(PI_USER)/home-dashboard
 
+# QUOTES_FILE names a quote store to leave alone on the Pi. The bundled
+# config/quotes.json is shipped as-is; set this when you have customised it in
+# place (or better, set `quotes.path` to a file outside the tree, which rsync
+# never touches).
+QUOTES_FILE ?=
+
 deploy:
 	rsync -avz --exclude='venv' --exclude='output/*.png' \
 		--exclude='__pycache__' --exclude='.git' \
 		--exclude='credentials/' --exclude='config/config.yaml' \
+		$(if $(QUOTES_FILE),--exclude='$(QUOTES_FILE)',) \
 		. $(PI_USER)@$(PI_HOST):$(PI_DIR)/
 
 install:

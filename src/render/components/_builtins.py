@@ -104,6 +104,7 @@ def _info(ctx: RenderContext) -> None:
         region=ctx.layout.info,
         style=ctx.style,
         quote_refresh=ctx.quote_refresh,
+        quotes_path=ctx.quotes_path,
     )
 
 
@@ -127,6 +128,7 @@ def _qotd(ctx: RenderContext) -> None:
         region=ctx.layout.qotd,
         style=ctx.style,
         quote_refresh=ctx.quote_refresh,
+        quotes_path=ctx.quotes_path,
     )
 
 
@@ -205,6 +207,7 @@ def _moonphase_full(ctx: RenderContext) -> None:
         region=ctx.layout.moonphase_full,
         style=ctx.style,
         quote_refresh=ctx.quote_refresh,
+        quotes_path=ctx.quotes_path,
         image=ctx.image,
         latitude=ctx.latitude,
         longitude=ctx.longitude,
@@ -289,6 +292,7 @@ def _scorecard(ctx: RenderContext) -> None:
         region=ctx.layout.scorecard,
         style=ctx.style,
         quote_refresh=ctx.quote_refresh,
+        quotes_path=ctx.quotes_path,
     )
 
 
@@ -302,6 +306,7 @@ def _tides(ctx: RenderContext) -> None:
         region=ctx.layout.tides,
         style=ctx.style,
         quote_refresh=ctx.quote_refresh,
+        quotes_path=ctx.quotes_path,
     )
 
 
@@ -356,6 +361,7 @@ def _almanac(ctx: RenderContext) -> None:
         latitude=ctx.latitude,
         longitude=ctx.longitude,
         quote_refresh=ctx.quote_refresh,
+        quotes_path=ctx.quotes_path,
     )
 
 
@@ -440,6 +446,7 @@ def _postcard(ctx: RenderContext) -> None:
         region=ctx.layout.postcard,
         style=ctx.style,
         quote_refresh=ctx.quote_refresh,
+        quotes_path=ctx.quotes_path,
     )
 
 
@@ -454,6 +461,7 @@ def _naturalist(ctx: RenderContext) -> None:
         region=ctx.layout.naturalist,
         style=ctx.style,
         quote_refresh=ctx.quote_refresh,
+        quotes_path=ctx.quotes_path,
     )
 
 

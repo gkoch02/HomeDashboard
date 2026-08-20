@@ -68,6 +68,18 @@ class PhotoConfig:
 
 
 @dataclass
+class QuotesConfig:
+    """Where the daily-quote store lives.
+
+    Empty means the bundled ``config/quotes.json``. Point this outside the
+    repository to keep a customised store from being overwritten by
+    ``make deploy``.
+    """
+
+    path: str = ""
+
+
+@dataclass
 class CountdownEvent:
     """A single user-defined countdown target for the countdown theme."""
 
@@ -249,6 +261,7 @@ class Config:
     theme_schedule: ThemeScheduleConfig = field(default_factory=ThemeScheduleConfig)
     theme_rules: ThemeRulesConfig = field(default_factory=ThemeRulesConfig)
     photo: PhotoConfig = field(default_factory=PhotoConfig)
+    quotes: QuotesConfig = field(default_factory=QuotesConfig)
     countdown: CountdownConfig = field(default_factory=CountdownConfig)
     title: str = "Home Dashboard"
     theme: str = "default"
@@ -487,6 +500,11 @@ def load_config(path: str = "config/config.yaml") -> Config:
                 )
                 rules.append(ThemeRule(when=cond, theme=str(item.get("theme", ""))))
         cfg.theme_rules = ThemeRulesConfig(rules=rules)
+
+    if "quotes" in raw:
+        q = raw["quotes"] or {}
+        if isinstance(q, dict):
+            cfg.quotes = QuotesConfig(path=str(q.get("path", cfg.quotes.path) or ""))
 
     if "photo" in raw:
         ph = raw["photo"]

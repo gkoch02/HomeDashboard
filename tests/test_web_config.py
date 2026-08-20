@@ -140,6 +140,7 @@ _SAMPLE_VALUES: dict[str, object] = {
     "cache.max_failures": 19,
     "cache.cooldown_minutes": 20,
     "cache.quote_refresh": "hourly",
+    "quotes.path": "/srv/dashboard/quotes.json",
     "random_theme.include": ["minimalist"],
     "random_theme.exclude": ["fantasy"],
     # v5 additions — keep aligned with src.config_schema.

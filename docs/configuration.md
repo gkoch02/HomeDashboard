@@ -145,10 +145,51 @@ cache:
   cooldown_minutes: 30             # circuit breaker: wait before probing
   quote_refresh: daily             # daily | twice_daily | hourly
 
+# quotes:
+#   path: "/home/pi/dashboard-quotes.json"   # custom quote store; empty = bundled
+
 filters:
   exclude_calendars: []            # case-insensitive substring match
   exclude_keywords: []             # case-insensitive match against event summary
   exclude_all_day: false
+
+### Custom quotes (`quotes.path`)
+
+The daily quote shown by the `default`, `qotd`, `almanac`, `postcard`,
+`naturalist`, `tides`, `scorecard`, and `moonphase` themes comes from a JSON
+list of `{"text": ..., "author": ...}` objects. With `quotes.path` unset the
+bundled `config/quotes.json` (144 entries) is used.
+
+```json
+[
+  {"text": "Simplicity is the ultimate sophistication.", "author": "Leonardo da Vinci"},
+  {"text": "Do what you can, with what you have, where you are.", "author": "Theodore Roosevelt"}
+]
+```
+
+**Put a customised store outside the repository.** `make deploy` rsyncs the
+whole tree to the Pi and spares only `config/config.yaml`, so edits to
+`config/quotes.json` in place are overwritten by the next deploy:
+
+```yaml
+quotes:
+  path: "/home/pi/dashboard-quotes.json"
+```
+
+If you would rather keep it in the tree, exclude it from the deploy explicitly:
+
+```bash
+make deploy QUOTES_FILE=config/quotes.json
+```
+
+A missing, malformed, or empty file falls back to a small bundled list and
+`make check` warns about the path — the dashboard never fails to render over a
+quote store.
+
+Each panel selects from the store under its own key prefix, so two panels on
+the same plate do not show the same quote on the same day. Selection is a
+stable hash of the date (and time bucket, per `cache.quote_refresh`), so the
+same slot always maps to the same quote and repeats are possible.
 
 output:
   dry_run_dir: "output"

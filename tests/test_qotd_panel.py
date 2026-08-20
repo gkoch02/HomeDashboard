@@ -153,7 +153,7 @@ class TestDrawQotd:
 
         _quote_for_today.cache_clear()
 
-        with patch("src.render.components.info_panel.QUOTES_FILE", qfile):
+        with patch("src.render.quotes.DEFAULT_QUOTES_PATH", qfile):
             _quote_for_today.cache_clear()
             img, draw = _make_draw()
             draw_qotd(draw, date(2099, 1, 15))
@@ -170,7 +170,7 @@ class TestDrawQotd:
 
         _quote_for_today.cache_clear()
 
-        with patch("src.render.components.info_panel.QUOTES_FILE", qfile):
+        with patch("src.render.quotes.DEFAULT_QUOTES_PATH", qfile):
             _quote_for_today.cache_clear()
             img, draw = _make_draw()
             draw_qotd(draw, date(2099, 2, 20))
@@ -188,7 +188,7 @@ class TestDrawQotd:
 
         _quote_for_today.cache_clear()
 
-        with patch("src.render.components.info_panel.QUOTES_FILE", qfile):
+        with patch("src.render.quotes.DEFAULT_QUOTES_PATH", qfile):
             _quote_for_today.cache_clear()
             renders = set()
             for i in range(10):

@@ -126,7 +126,7 @@ class TestQuoteForPanel:
 
     def test_fallback_to_default_quotes_when_file_missing(self):
         with patch(
-            "src.render.components.moonphase_panel.QUOTES_FILE",
+            "src.render.quotes.DEFAULT_QUOTES_PATH",
             Path("/nonexistent/path/quotes.json"),
         ):
             q = _quote_for_panel(TODAY)
@@ -136,7 +136,7 @@ class TestQuoteForPanel:
     def test_fallback_on_corrupt_json(self, tmp_path):
         corrupt_file = tmp_path / "quotes.json"
         corrupt_file.write_text("{ this is not valid json }")
-        with patch("src.render.components.moonphase_panel.QUOTES_FILE", corrupt_file):
+        with patch("src.render.quotes.DEFAULT_QUOTES_PATH", corrupt_file):
             q = _quote_for_panel(TODAY)
         assert "text" in q
 

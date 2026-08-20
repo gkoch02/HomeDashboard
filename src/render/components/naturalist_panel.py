@@ -250,6 +250,7 @@ def draw_naturalist(
     region: ComponentRegion | None = None,
     style: ThemeStyle | None = None,
     quote_refresh: str = "daily",
+    quotes_path: str | None = None,
 ) -> None:
     if region is None:
         region = ComponentRegion(0, 0, 800, 480)
@@ -289,6 +290,7 @@ def draw_naturalist(
         now,
         style=style,
         quote_refresh=quote_refresh,
+        quotes_path=quotes_path,
         ink=ink,
         red=red,
         mode=mode,
@@ -1168,6 +1170,7 @@ def _draw_footer(
     ink,
     red,
     mode: str,
+    quotes_path: str | None = None,
 ) -> None:
     # Heavy + thin double rule.
     canvas_w = 800 * SS
@@ -1183,7 +1186,7 @@ def _draw_footer(
     )
 
     # Quote in Playfair, larger so it carries the footer without crowding.
-    quote = _quote_for_today(today, refresh=quote_refresh, now=now)
+    quote = _quote_for_today(today, refresh=quote_refresh, now=now, quotes_path=quotes_path)
     quote_font = style.font_quote(17 * SS) if style.font_quote else style.font_regular(17 * SS)
     author_font = (
         style.font_quote_author(13 * SS)

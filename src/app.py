@@ -202,6 +202,7 @@ class DashboardApp:
             title=self.cfg.title,
             theme=theme,
             quote_refresh=self.cfg.cache.quote_refresh,
+            quotes_path=self.cfg.quotes.path or None,
             message_text=getattr(self.args, "message", None),
             countdown_events=list(self.cfg.countdown.events),
             latitude=lat if coords_set else None,

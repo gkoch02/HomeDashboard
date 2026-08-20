@@ -566,6 +566,16 @@ def validate_config(
                 )
             )
 
+    # --- Quotes ---
+    if cfg.quotes.path and not Path(cfg.quotes.path).is_file():
+        warnings.append(
+            ConfigWarning(
+                field="quotes.path",
+                message=f"Quotes file not found: {cfg.quotes.path}",
+                hint="The bundled quotes will be used instead.",
+            )
+        )
+
     # --- Countdown events ---
     for i, ev in enumerate(cfg.countdown.events):
         if not ev.name:
