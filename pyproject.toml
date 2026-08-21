@@ -45,6 +45,9 @@ web = [
 # so this never imports the package (no Pillow/numpy needed at build time).
 version = {attr = "src._version.__version__"}
 
+[tool.setuptools.packages.find]
+include = ["src*"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]

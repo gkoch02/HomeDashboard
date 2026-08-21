@@ -25,6 +25,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   drift, on a non-semver `__version__`, on an undated or mismatched newest
   changelog entry, and on a missing `## [Unreleased]` heading.
 
+### Fixed
+
+- **`pip install .` produced an unimportable package.** With no explicit
+  `packages` config, setuptools auto-discovery read the repo as a *src-layout*
+  and installed every module at the top level of `site-packages` — `app.py`,
+  `config.py`, `cli.py`, `main.py`, `filters.py`, a bare `__init__.py`, plus
+  `data/`, `display/`, `fetchers/`, `render/`, `services/` and `web/`. Nothing
+  was importable afterwards: `import src.config` failed (`No module named
+  'src'`) because the `src` package no longer existed, and `import config`
+  failed too, because the module's own body does `from src.config_validation
+  import ...`. The generic names also collided with anything else in the
+  environment. `[tool.setuptools.packages.find] include = ["src*"]` now installs
+  the single `src` package that the codebase actually imports. The
+  `test-core-install` CI job never caught this because pytest's
+  `pythonpath = ["."]` makes the source tree importable, shadowing the
+  installed copy entirely.
+
 ## [5.2.0] - 2026-08-21
 
 ### Added
