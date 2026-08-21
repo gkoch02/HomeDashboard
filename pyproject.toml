@@ -1,6 +1,6 @@
 [project]
 name = "home-dashboard"
-version = "5.1.0"
+version = "5.2.0"
 description = "Python eInk dashboard for Raspberry Pi — calendar, weather, birthdays, and daily quotes"
 readme = "README.md"
 requires-python = ">=3.10"
