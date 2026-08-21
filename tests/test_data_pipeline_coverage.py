@@ -665,3 +665,76 @@ class TestRegistryFetcherSkipDecisions:
             fetch_fn.assert_called_once()
         finally:
             unregister_fetcher("__review_209b__")
+
+
+# ---------------------------------------------------------------------------
+# Regression (#228): _cache_is_recent guarded on `save_metadata is not None`,
+# but save_metadata defaults to the _no_metadata *function*, so that test was
+# always true and the non-metadata branch behind it was unreachable. It was
+# also incoherent — it fell through to interval_map[source], which is built
+# from all_fetchers() and would KeyError on the very sources the branch
+# claimed to serve. The load-bearing test is the second one below: the
+# sources that branch nominally served must keep reading their cache.
+# ---------------------------------------------------------------------------
+
+
+class TestCacheIsRecentUnregisteredSource:
+    def test_unregistered_source_returns_not_recent(self, tmp_path):
+        """Characterization, NOT a guard test — it passes either way.
+
+        Deliberately labelled: this still passes with the `fetcher is None`
+        branch deleted, because an unregistered source also fails the blob
+        decode (_decode_v2_block returns None when get_fetcher does). The
+        branch survives for mypy, which cannot see that. Verified by
+        deleting it and re-running. Don't read this as proof the guard works.
+        """
+        cfg = Config()
+        cfg.purpleair = PurpleAirConfig()
+        pipeline = DataPipeline(cfg, cache_dir=str(tmp_path))
+        pipeline._cache_blob = {}
+
+        assert pipeline._cache_is_recent("__not_registered__") == (None, False)
+
+    def test_registered_source_without_custom_metadata_uses_cache(self, tmp_path):
+        """A fetcher that never set save_metadata still reads its cache.
+
+        This is the case the deleted branch nominally existed for. It has
+        always gone through the metadata path (cache_metadata_valid defaults
+        to always-True), and must keep doing so.
+        """
+        from datetime import timedelta
+
+        from src.fetchers.cache import save_source
+
+        cfg = Config()
+        cfg.purpleair = PurpleAirConfig()
+        register_fetcher(
+            Fetcher(
+                name="__no_meta_228__",
+                fetch=lambda ctx: {"v": 1},
+                serialize=lambda d: d,
+                deserialize=lambda b: b,
+                ttl_minutes=lambda cfg: 60,
+                interval_minutes=lambda cfg: 60,
+            )
+        )
+        try:
+            pipeline = DataPipeline(cfg, cache_dir=str(tmp_path))
+            # Cached 5 minutes ago, well inside the 60-minute interval.
+            save_source(
+                "__no_meta_228__",
+                {"v": 1},
+                pipeline.fetched_at - timedelta(minutes=5),
+                str(tmp_path),
+            )
+            from src.fetchers.cache import load_cache_blob
+
+            # fetch() normally seeds both; this calls the helper directly.
+            pipeline._cache_blob = load_cache_blob(str(tmp_path))
+            pipeline._content_at = {}
+
+            data, recent = pipeline._cache_is_recent("__no_meta_228__")
+            assert recent is True
+            assert data == {"v": 1}
+        finally:
+            unregister_fetcher("__no_meta_228__")

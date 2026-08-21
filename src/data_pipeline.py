@@ -291,34 +291,34 @@ class DataPipeline:
         if self.force_refresh:
             return None, False
         fetcher = get_fetcher(source)
-        if fetcher is not None and fetcher.save_metadata is not None:
-            cached_with_meta = load_cached_source_with_metadata_from_blob(source, self._cache_blob)
-            if cached_with_meta is None:
-                return None, False
-            data, cached_at, metadata = cached_with_meta
-            if not fetcher.cache_metadata_valid(metadata, self._fetch_context()):
-                # Events-style window mismatch — log helpful detail without
-                # forcing every fetcher to surface its own log.
-                if source == "events":
-                    requested_start = (
-                        self.event_window_start.isoformat()
-                        if self.event_window_start is not None
-                        else None
-                    )
-                    logger.info(
-                        "events cache window mismatch; cached=(%s, %s) requested=(%s, %s), "
-                        "refetching",
-                        metadata.get("window_start"),
-                        metadata.get("window_days"),
-                        requested_start,
-                        self.event_window_days,
-                    )
-                return None, False
-        else:
-            cached = load_cached_source_from_blob(source, self._cache_blob)
-            if cached is None:
-                return None, False
-            data, cached_at = cached
+        # Type narrowing only: get_fetcher returns Fetcher | None, and the
+        # metadata call below needs a Fetcher. Not a behavioural branch —
+        # every caller reaches this via all_fetchers(), and an unregistered
+        # source would fail the blob decode two lines down anyway (its
+        # deserialize lives on the same missing fetcher).
+        if fetcher is None:
+            return None, False
+        cached_with_meta = load_cached_source_with_metadata_from_blob(source, self._cache_blob)
+        if cached_with_meta is None:
+            return None, False
+        data, cached_at, metadata = cached_with_meta
+        if not fetcher.cache_metadata_valid(metadata, self._fetch_context()):
+            # Events-style window mismatch — log helpful detail without
+            # forcing every fetcher to surface its own log.
+            if source == "events":
+                requested_start = (
+                    self.event_window_start.isoformat()
+                    if self.event_window_start is not None
+                    else None
+                )
+                logger.info(
+                    "events cache window mismatch; cached=(%s, %s) requested=(%s, %s), refetching",
+                    metadata.get("window_start"),
+                    metadata.get("window_days"),
+                    requested_start,
+                    self.event_window_days,
+                )
+            return None, False
         age_minutes = (self.fetched_at - cached_at).total_seconds() / 60
         interval = self.interval_map[source]
         if age_minutes < interval:
