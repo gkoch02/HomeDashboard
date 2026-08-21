@@ -32,6 +32,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Fixed
 
+- **The staleness badge is no longer dropped when the forecast is empty.** With
+  the forecast strip enabled but no forecast data and no weather alerts,
+  `draw_weather` returned at its `n_cols == 0` early exit before reaching the
+  staleness call at the end of the function — so the "!" badge was silently
+  skipped in precisely the degraded state it exists to announce, an empty
+  forecast usually being a symptom of the stale fetch itself. The parallel
+  no-forecast-strip early return already drew it. (#229)
 - **A malformed `theme_rules` threshold no longer crashes the dashboard.** A
   YAML list or mapping for `temp_at_least` / `temp_at_most` / `aqi_at_least`
   reached `int()`/`float()` as a `TypeError`, which escaped `load_config()` and
@@ -68,6 +75,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- **Two dead component parameters removed.** `draw_week` accepted a `forecast`
+  argument it never read, and `draw_air_quality_full` accepted a `today` it
+  threaded two levels down to a function that takes its day names from the
+  forecast entries instead. Both were being fed by the component registry on
+  every render. No rendered output changes. (#229)
+- **The render tests now assert what they claim to.** The suites had settled on
+  `assert img.getbbox() is not None`, which on a white 1-bit plate reports the
+  bounds of non-zero pixels and so returns the full canvas whether or not
+  anything was drawn — whole files passed with their draw function stubbed to a
+  no-op. All 60 such assertions are gone, replaced by per-region ink
+  measurements and differential comparisons, with the shared helpers in
+  `tests/inkutils.py`. The weak-assertion count is down from 403 of 3238 tests
+  to 73. (#229)
+- **`_cache_is_recent` no longer guards on a callable default.** The check
+  `fetcher.save_metadata is not None` was always true — `save_metadata`
+  defaults to a function, not `None` — leaving the branch behind it
+  unreachable, and incoherent besides: it fell through to an `interval_map`
+  lookup that would have raised `KeyError` for the very sources it claimed to
+  serve. Behaviour is unchanged. (#228)
 - **The weatherglass pressure history goes through `atomic_write_json`.**
   `_save_pressure_sample` hand-rolled its own `mkstemp` + `os.replace` instead
   of the shared helper in `src/_io.py`, which is documented as the only
