@@ -23,6 +23,9 @@ make docs-check     # Run scripts/check_docs.py (markdown links + the canonical 
                     #   inventories in docs/themes.md and docs/previews.md). Enforced by
                     #   the `lint` CI job, so drift here blocks a merge.
 make version        # Print current version (e.g. main.py 5.2.0)
+make release-dry    # Show the next release (inferred from the CHANGELOG) — writes nothing
+make release        # Bump src/_version.py, date the CHANGELOG, commit, tag vX.Y.Z
+                    #   (scripts/release.py; RELEASE_ARGS="--major" forces a bump size)
 make deploy         # Rsync to Pi (configurable: PI_USER, PI_HOST, PI_DIR)
 make install        # Install systemd timer on remote Pi (via ssh/scp)
 make pi-install     # Full Pi setup: apt deps, venv, Inky + Waveshare drivers (run ON Pi)
@@ -408,6 +411,18 @@ default to `None` and fall back gracefully so adding a new field never breaks ex
 | `font_quote_author` | `font_regular` | Quote attribution line (`— Author`) |
 
 ## Gotchas
+
+- **The version has one home: `src/_version.py`.** `pyproject.toml` declares
+  `dynamic = ["version"]` and reads it via `[tool.setuptools.dynamic]`, so there is no
+  second copy to bump. Never restate a literal `version = "..."` in `pyproject.toml` —
+  `tests/test_version_consistency.py` fails the build if you do, because the two files
+  silently disagreed before (`4.6.0` in one, `5.2.0` in the other). Releases are cut with
+  `make release` (`scripts/release.py`), which bumps the version, dates the
+  `## [Unreleased]` changelog block, commits, and tags `vX.Y.Z` in one step; the bump size
+  is inferred from the Unreleased `### ...` headings (Added/Changed/Deprecated/Removed →
+  minor, Fixed/Security only → patch) and **major is never inferred** — pass
+  `RELEASE_ARGS="--major"`. The same test asserts the newest CHANGELOG entry matches
+  `__version__`, so a bump without a changelog entry (or the reverse) is caught in CI.
 
 - Incremental sync tokens persist in `state/calendar_sync_state.json`; delete to force full resync
 - Quiet hours (default 23:00–06:00): app exits immediately during this window (dry-run bypasses this)

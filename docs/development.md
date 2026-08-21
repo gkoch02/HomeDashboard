@@ -41,6 +41,8 @@ Use this page for local workflow, dev commands, and repo orientation. For archit
 | `make check` | validate `config/config.yaml` |
 | `make docs-check` | validate markdown links and doc theme inventories |
 | `make version` | print the app version |
+| `make release-dry` | show what the next release would be — writes nothing |
+| `make release` | cut a release: bump the version, date the changelog, commit, tag |
 
 Pi/operator commands such as `make pi-install`, `make pi-enable`, and `make web-enable` are documented for operators in [Setup Guide](setup.md) and [Web UI](web-ui.md).
 
@@ -78,6 +80,57 @@ This path needs no hardware, API keys, or credentials.
 - Use `make dry` for the default dummy preview.
 - Use `make previews` for the batch of standard preview PNGs.
 - Use [Theme Previews](previews.md) when you need to regenerate the Waveshare or Inky preview PNGs that are embedded in [Themes](themes.md).
+
+---
+
+## Releasing
+
+The version lives in **one** place: `src/_version.py`. `pyproject.toml` reads it
+via `[tool.setuptools.dynamic]`, so there is no second copy to keep in sync —
+`pip install .` and `make version` resolve the same string.
+
+Cut a release with one command:
+
+```bash
+make release-dry        # show the plan, write nothing
+make release            # bump, date the changelog, commit, tag
+git push -u origin HEAD && git push origin v<new-version>
+```
+
+`scripts/release.py` does four things that used to be four manual edits:
+
+1. bumps `src/_version.py`
+2. renames the `## [Unreleased]` changelog heading to `## [X.Y.Z] - <today>` and
+   opens a fresh empty `## [Unreleased]` above it
+3. commits both files as `Release X.Y.Z`
+4. creates the annotated tag `vX.Y.Z`
+
+It refuses to run on a dirty working tree, on an existing tag, or when the new
+version would not be greater than the current one. Pushing stays manual.
+
+### How the bump size is chosen
+
+The size is inferred from the `### ...` headings in the `## [Unreleased]` block,
+following [Keep a Changelog](https://keepachangelog.com/):
+
+| Unreleased contains | Bump |
+|---|---|
+| `Added`, `Changed`, `Deprecated`, or `Removed` | minor |
+| only `Fixed` and/or `Security` | patch |
+
+**Major is never inferred.** "Is this breaking?" is not a question the headings
+can answer, so it has to be asked for: `make release RELEASE_ARGS="--major"`.
+Any bump can be forced the same way — `--minor`, `--patch`, or
+`--version 6.0.0`. An empty `## [Unreleased]` block is an error rather than a
+silent patch bump; write the entries first.
+
+### The guard
+
+`tests/test_version_consistency.py` fails the build when the release invariants
+drift: `pyproject.toml` restating a literal version, `__version__` not being
+semver, the newest changelog entry disagreeing with `__version__`, an undated
+newest entry, or a missing `## [Unreleased]` heading. Forgetting to bump is
+caught by CI instead of noticed three releases later.
 
 ---
 

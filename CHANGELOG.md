@@ -6,6 +6,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Changed
+
+- **Releases are cut with one command instead of four manual edits.**
+  `make release` (`scripts/release.py`) bumps `src/_version.py`, dates the
+  `## [Unreleased]` block, commits, and creates the annotated `vX.Y.Z` tag.
+  The bump size is inferred from the Unreleased section headings —
+  `Added`/`Changed`/`Deprecated`/`Removed` means minor, `Fixed`/`Security`
+  alone means patch. Major is never inferred and must be requested with
+  `make release RELEASE_ARGS="--major"`. `make release-dry` prints the plan
+  without writing. The script refuses a dirty tree, an existing tag, or a
+  version that does not increase; pushing stays manual.
+- **The version has a single source of truth.** `pyproject.toml` now declares
+  `dynamic = ["version"]` and reads `src/_version.py` via
+  `[tool.setuptools.dynamic]` rather than restating the number. The two files
+  had already drifted once — `4.6.0` was committed to one while the other
+  said `5.2.0`. `tests/test_version_consistency.py` fails the build on that
+  drift, on a non-semver `__version__`, on an undated or mismatched newest
+  changelog entry, and on a missing `## [Unreleased]` heading.
+
 ## [5.2.0] - 2026-08-21
 
 ### Added
