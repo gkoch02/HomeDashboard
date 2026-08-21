@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 from PIL import Image, ImageDraw
 
-from src.data.models import CalendarEvent, DayForecast
+from src.data.models import CalendarEvent
 from src.render import layout as L
 from src.render.components.week_view import (
     _density_tier,
@@ -272,29 +272,18 @@ class TestDrawWeek:
         ink = self._header_ink_by_column(img)
         assert ink[4] < 0.5, "the today cell must not be filled when inversion is off"
 
-    def test_smoke_with_forecast_icons(self):
-        """draw_week with forecast data should not crash."""
+    def test_smoke_with_forecast_data_present(self):
+        """A weather forecast in the data does not reach the week grid.
+
+        draw_week takes no forecast argument: the grid renders events only.
+        It used to accept one and never read it, with _builtins.py computing
+        `ctx.data.weather.forecast` on every render to feed it (#229); both are
+        gone. This keeps a rendering check on the same Monday-anchored week.
+        """
         img, draw = self._make_draw()
         today = date(2024, 3, 18)  # Monday
-        forecast = [
-            DayForecast(
-                date=today + timedelta(days=i),
-                high=50.0 + i,
-                low=35.0,
-                icon="01d",
-                description="clear",
-                precip_chance=0.1,
-            )
-            for i in range(5)
-        ]
-        draw_week(draw, [], today, forecast=forecast)
-        # NOTE: draw_week accepts `forecast` and never reads it — see the
-        # finding recorded in tests/test_v3_features.py::TestWeekViewForecast.
-        # This asserts the grid renders, not that a forecast appears.
-        plain, plain_draw = self._make_draw()
-        draw_week(plain_draw, [], today)
+        draw_week(draw, [], today)
         assert ink(img, WEEK_BOX) > 0
-        assert img.tobytes() == plain.tobytes(), "draw_week started using its forecast argument"
 
     def test_today_bordered_not_inverted_draws_underline(self):
         """invert_today_col=False + show_borders=True → thick accent underline under today.

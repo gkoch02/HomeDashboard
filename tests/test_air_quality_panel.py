@@ -19,15 +19,18 @@ panel is actually *for* rather than that it drew something:
   the reading and clamp at 500.
 
 Verification (the step that makes the rewrite worth anything): with
-``draw_air_quality_full`` stubbed to a no-op, 42 of the 52 tests here fail.
-Of the 10 survivors, 7 are ``TestAirQualityTheme`` cases that exercise the
-theme factory and never draw through this entry point. The other three
-assert an equivalence, which two blank plates satisfy by construction —
-``test_returns_none``, ``test_default_region_and_style`` and
-``test_today_does_not_affect_the_panel``. Each was checked the other way
-instead, by breaking what it names (returning a value, defaulting to a
-different region, making ``today`` alter the output) and confirming it goes
-red. If you add a test here, do the same before you trust it.
+``draw_air_quality_full`` stubbed to a no-op, most of the tests here fail.
+The survivors are the ``TestAirQualityTheme`` cases, which exercise the
+theme factory and never draw through this entry point, plus two that assert
+an equivalence which two blank plates satisfy by construction —
+``test_returns_none`` and ``test_default_region_and_style``. Both were
+checked the other way instead, by breaking what they name (returning a
+value; defaulting to a different region) and confirming they go red. If you
+add a test here, do the same before you trust it.
+
+A third such test, ``test_today_does_not_affect_the_panel``, is gone: it
+pinned a ``today`` parameter that this panel accepted and never read, and
+that parameter has since been removed.
 """
 
 from datetime import date, timedelta
@@ -160,7 +163,6 @@ def _scale_bar_crop_greyscale(aqi: int):
     draw_air_quality_full(
         draw,
         DashboardData(events=[], weather=None, birthdays=[], air_quality=aq),
-        date(2024, 3, 15),
         style=style,
     )
     split = int(CANVAS_W * 0.28)
@@ -217,12 +219,12 @@ def _make_data(**overrides) -> DashboardData:
     return data
 
 
-def _render(data=None, today=date(2024, 3, 15), *, region=None, style=None, **aq_overrides):
+def _render(data=None, *, region=None, style=None, **aq_overrides):
     """Render onto a fresh plate. Leftover kwargs override the AirQualityData."""
     if data is None:
         data = _make_data(air_quality=_make_aq(**aq_overrides)) if aq_overrides else _make_data()
     img, draw = _make_draw()
-    draw_air_quality_full(draw, data, today, region=region, style=style)
+    draw_air_quality_full(draw, data, region=region, style=style)
     return img
 
 
@@ -244,7 +246,7 @@ class TestDrawAirQualityFullSmoke:
         """Contract check. A no-op also returns None; verified instead by
         making the component return a value and watching this fail."""
         _, draw = _make_draw()
-        assert draw_air_quality_full(draw, _make_data(), date(2024, 3, 15)) is None
+        assert draw_air_quality_full(draw, _make_data()) is None
 
     def test_produces_non_blank_image(self):
         """Genuinely non-blank: ink pixels exist, which getbbox could never show."""
@@ -363,17 +365,6 @@ class TestWeatherStrip:
         high = _ink(_render(_make_data(weather=_fc(1.0))), self.BAND)
         low = _ink(_render(_make_data(weather=_fc(0.1))), self.BAND)
         assert high != low, "the precipitation chance is not being drawn"
-
-    def test_today_does_not_affect_the_panel(self):
-        """`today` is threaded through this panel but never read.
-
-        draw_air_quality_full passes it to _draw_weather_strip, which passes
-        it to _draw_forecast_columns, which does not use it — the forecast
-        columns take their dates from the DayForecast entries. Asserted as an
-        equality rather than described as a rendering behaviour, because that
-        is what is actually true today.
-        """
-        assert _render(today=None).tobytes() == _render(today=date(2024, 3, 15)).tobytes()
 
 
 # ---------------------------------------------------------------------------

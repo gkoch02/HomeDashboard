@@ -65,7 +65,6 @@ def _week_view(ctx: RenderContext) -> None:
         ctx.draw,
         ctx.data.events,
         ctx.today,
-        forecast=ctx.data.weather.forecast if ctx.data.weather else None,
         region=ctx.layout.week_view,
         style=ctx.style,
     )
@@ -192,7 +191,6 @@ def _air_quality_full(ctx: RenderContext) -> None:
     air_quality_panel.draw_air_quality_full(
         ctx.draw,
         ctx.data,
-        ctx.today,
         region=ctx.layout.air_quality_full,
         style=ctx.style,
     )

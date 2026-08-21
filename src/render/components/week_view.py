@@ -4,7 +4,7 @@ from datetime import date, datetime, timedelta
 
 from PIL import ImageDraw
 
-from src.data.models import CalendarEvent, DayForecast
+from src.data.models import CalendarEvent
 from src.render import layout as L
 from src.render.primitives import (
     dashed_vline,
@@ -97,7 +97,6 @@ def draw_week(
     draw: ImageDraw.ImageDraw,
     events: list[CalendarEvent],
     today: date,
-    forecast: list[DayForecast] | None = None,
     *,
     region: ComponentRegion | None = None,
     style: ThemeStyle | None = None,

@@ -338,55 +338,12 @@ class TestMultidaySpanning:
 # ---------------------------------------------------------------------------
 
 
-class TestWeekViewForecast:
-    """`draw_week(forecast=...)` is accepted and ignored.
-
-    FINDING (#229): `forecast` appears exactly once in week_view.py — in
-    draw_week's signature — and is never read. _builtins.py nonetheless
-    computes `ctx.data.weather.forecast` on every render and passes it in, so
-    this is live plumbing feeding a parameter that does nothing.
-
-    The three tests below were named as if the week view rendered a forecast
-    and asserted getbbox, which could not have noticed either way. They now
-    assert the equality that is actually true, so they will fail the moment
-    the parameter starts (or stops) mattering. Left as a finding rather than
-    removed, because deleting a public component parameter is outside a
-    test-strengthening change.
-    """
-
-    def _render(self, today, **kwargs):
-        img, draw = _make_draw()
-        draw_week(draw, [], today, **kwargs)
-        return img
-
-    def test_draw_week_forecast_argument_is_ignored(self):
-        today = date(2024, 3, 15)
-        forecast = [
-            DayForecast(
-                date=today + timedelta(days=i),
-                high=50.0 + i,
-                low=40.0 + i,
-                icon="02d",
-                description="cloudy",
-            )
-            for i in range(1, 6)
-        ]
-        with_forecast = self._render(today, forecast=forecast)
-        assert _ink(with_forecast, WEEK_BOX) > 0, "the grid itself did not render"
-        assert with_forecast.tobytes() == self._render(today, forecast=None).tobytes(), (
-            "draw_week started using its forecast argument — update this test and the note above it"
-        )
-
-    def test_draw_week_forecast_none_no_crash(self):
-        today = date(2024, 3, 15)
-        assert _ink(self._render(today, forecast=None), WEEK_BOX) > 0
-
-    def test_draw_week_forecast_empty_list(self):
-        today = date(2024, 3, 15)
-        assert (
-            self._render(today, forecast=[]).tobytes()
-            == self._render(today, forecast=None).tobytes()
-        )
+# `draw_week` used to accept a `forecast` argument that it never read, while
+# _builtins.py computed `ctx.data.weather.forecast` on every render to feed it.
+# The three tests that lived here documented that dead parameter (#229); both
+# the parameter and its caller are gone now, so there is nothing left to pin —
+# passing `forecast=` to draw_week is a TypeError, which the signature enforces
+# more directly than a test could.
 
 
 # ---------------------------------------------------------------------------
