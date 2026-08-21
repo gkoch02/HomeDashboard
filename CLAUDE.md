@@ -22,7 +22,7 @@ make check          # Validate config/config.yaml
 make docs-check     # Run scripts/check_docs.py (markdown links + the canonical theme
                     #   inventories in docs/themes.md and docs/previews.md). Enforced by
                     #   the `lint` CI job, so drift here blocks a merge.
-make version        # Print current version (e.g. main.py 5.1.0)
+make version        # Print current version (e.g. main.py 4.6.0)
 make deploy         # Rsync to Pi (configurable: PI_USER, PI_HOST, PI_DIR)
 make install        # Install systemd timer on remote Pi (via ssh/scp)
 make pi-install     # Full Pi setup: apt deps, venv, Inky + Waveshare drivers (run ON Pi)
@@ -317,7 +317,7 @@ The cooldown is `display.min_refresh_interval_seconds` (config), defaulting to 6
 --force-full-refresh   Force full eInk refresh and bypass fetch intervals
 --ignore-breakers      Ignore OPEN circuit breakers for this run
 --check-config         Validate config and exit
---version              Print version and exit (e.g. "main.py 5.1.0")
+--version              Print version and exit (e.g. "main.py 4.6.0")
 ```
 
 ## Adding New Features
