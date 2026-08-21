@@ -19,6 +19,7 @@ from src.render.components.astronomy_panel import (
     draw_astronomy,
 )
 from src.render.theme import AVAILABLE_THEMES, load_theme
+from tests.inkutils import ink
 
 NYC_LAT = 40.7128
 NYC_LON = -74.0060
@@ -160,7 +161,7 @@ class TestDrawAstronomyDirect:
         img, d = _make_draw()
         data = DashboardData(events=[], weather=None)
         draw_astronomy(d, data, TODAY, FIXED_NOW)
-        assert img.getbbox() is not None
+        assert ink(img) > 0, "the default-style panel drew nothing"
 
     def test_with_weather_supplied_sun_times(self):
         """With weather data providing sunrise/sunset, no coords needed."""
@@ -177,7 +178,9 @@ class TestDrawAstronomyDirect:
         )
         data = DashboardData(events=[], weather=w)
         draw_astronomy(d, data, TODAY, FIXED_NOW)
-        assert img.getbbox() is not None
+        bare, bd = _make_draw()
+        draw_astronomy(bd, DashboardData(events=[], weather=None), TODAY, FIXED_NOW)
+        assert ink(img) != ink(bare), "the weather block is not drawn"
 
     def test_polar_day_gracefully_handled(self):
         """At very high latitudes the sun never sets — panel still renders."""
@@ -191,4 +194,4 @@ class TestDrawAstronomyDirect:
             latitude=85.0,
             longitude=0.0,
         )
-        assert img.getbbox() is not None
+        assert ink(img) > 0, "the polar page rendered blank"

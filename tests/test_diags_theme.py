@@ -19,8 +19,18 @@ from src.data.models import (
     WeatherData,
 )
 from src.render.canvas import render_dashboard
+from src.render.quantize import flatten_pixels
 from src.render.theme import AVAILABLE_THEMES, load_theme
 from src.render.themes.diags import diags_theme
+
+# Assertion discipline (see #229): the render tests here asserted only
+# isinstance/size, or nothing at all — all 40 passed with draw_diags stubbed
+# to a no-op. They now measure ink per column: the panel is two columns split
+# by a vertical divider at x=400, weather/forecast/host on the left and
+# calendar/air-quality/birthdays/status on the right, so each test measures
+# the column that owns what it changes. The three truncation caps
+# (_MAX_BIRTHDAYS=5, _MAX_FORECAST=6, _MAX_ALERTS=2) are pinned by asserting
+# that going past each one renders byte-identically to hitting it exactly.
 
 # ---------------------------------------------------------------------------
 # Shared fixture
@@ -97,6 +107,46 @@ def _make_data(today: date | None = None) -> DashboardData:
 
 
 # ---------------------------------------------------------------------------
+# Ink measurement
+# ---------------------------------------------------------------------------
+
+# Column geometry, from diags_panel's own layout constants.
+HEADER = (0, 0, 800, 28)
+LEFT_COL = (10, 34, 388, 480)
+RIGHT_COL = (412, 34, 788, 480)
+_DIVIDER_X = 400
+
+
+def _ink(img, box=None) -> int:
+    """Count ink (value-0) pixels, optionally only inside *box*."""
+    px = flatten_pixels(img)
+    width = img.width
+    if box is None:
+        return sum(1 for v in px if v == 0)
+    x0, y0, x1, y1 = box
+    return sum(1 for y in range(y0, y1) for x in range(x0, x1) if px[y * width + x] == 0)
+
+
+def _divider_height(img) -> int:
+    """Inked rows in the vertical column divider."""
+    px = flatten_pixels(img)
+    width = img.width
+    return sum(1 for y in range(28, img.height - 1) if px[y * width + _DIVIDER_X] == 0)
+
+
+def _section_rules(img, column) -> int:
+    """Full-width horizontal separator rules inside a column."""
+    px = flatten_pixels(img)
+    width = img.width
+    x0, y0, x1, y1 = column
+    return sum(
+        1
+        for y in range(y0, y1)
+        if sum(1 for x in range(x0, x1) if px[y * width + x] == 0) > (x1 - x0) * 0.9
+    )
+
+
+# ---------------------------------------------------------------------------
 # Theme structure
 # ---------------------------------------------------------------------------
 
@@ -153,57 +203,90 @@ class TestDiagsTheme:
 
 
 class TestDiagsRender:
+    """Rendered content, measured per column.
+
+    The panel is two columns split by a vertical divider at x=400: weather /
+    forecast / host on the left, calendar / air quality / birthdays / status
+    on the right. Each test measures the column that owns what it changes.
+    """
+
+    def _render(self, data=None, config=None, theme=None) -> Image.Image:
+        return render_dashboard(
+            data if data is not None else _make_data(),
+            config or DisplayConfig(),
+            theme=theme or diags_theme(),
+        )
+
     def test_render_returns_image(self):
-        result = render_dashboard(_make_data(), DisplayConfig(), theme=diags_theme())
-        assert isinstance(result, Image.Image)
+        assert isinstance(self._render(), Image.Image)
 
     def test_render_correct_size(self):
-        result = render_dashboard(
-            _make_data(),
-            DisplayConfig(width=800, height=480),
-            theme=diags_theme(),
-        )
+        result = self._render(config=DisplayConfig(width=800, height=480))
         assert result.size == (800, 480)
 
+    def test_render_draws_both_columns_and_the_divider(self):
+        """The two-column structure is present, not just some ink somewhere."""
+        img = self._render()
+        assert _ink(img, LEFT_COL) > 0, "left column empty"
+        assert _ink(img, RIGHT_COL) > 0, "right column empty"
+        assert _divider_height(img) > 300, "no vertical column divider"
+        assert _section_rules(img, LEFT_COL) == 2, "left column section rules missing"
+        assert _section_rules(img, RIGHT_COL) == 3, "right column section rules missing"
+
     def test_render_no_weather(self):
+        """Weather and forecast both live in the left column, so it loses ink."""
         data = _make_data()
+        full = _ink(self._render(data), LEFT_COL)
         data.weather = None
-        render_dashboard(data, DisplayConfig(), theme=diags_theme())
+        assert _ink(self._render(data), LEFT_COL) < full, "weather section still drawn"
 
     def test_render_no_air_quality(self):
+        """Air quality is a right-column section."""
         data = _make_data()
+        full = _ink(self._render(data), RIGHT_COL)
         data.air_quality = None
-        render_dashboard(data, DisplayConfig(), theme=diags_theme())
+        without = _ink(self._render(data), RIGHT_COL)
+        assert without != full, "the air-quality section is not being drawn"
+        assert _section_rules(self._render(data), RIGHT_COL) == 3, "a section rule disappeared"
 
     def test_render_empty_events(self):
         data = _make_data()
+        full = _ink(self._render(data), RIGHT_COL)
         data.events = []
-        render_dashboard(data, DisplayConfig(), theme=diags_theme())
+        assert _ink(self._render(data), RIGHT_COL) != full
 
     def test_render_empty_birthdays(self):
         data = _make_data()
+        full = _ink(self._render(data), RIGHT_COL)
         data.birthdays = []
-        render_dashboard(data, DisplayConfig(), theme=diags_theme())
+        assert _ink(self._render(data), RIGHT_COL) != full
 
     def test_render_stale_data(self):
+        """Staleness surfaces in the right-hand status section."""
         data = _make_data()
+        fresh = _ink(self._render(data), RIGHT_COL)
         data.is_stale = True
         data.stale_sources = ["weather"]
-        render_dashboard(data, DisplayConfig(), theme=diags_theme())
+        data.source_staleness = {"weather": StalenessLevel.STALE}
+        assert _ink(self._render(data), RIGHT_COL) != fresh, "staleness is not reported"
 
     def test_render_all_sources_stale(self):
+        """Each staleness level prints its own label, so the three differ."""
         data = _make_data()
-        data.is_stale = True
-        data.source_staleness = {
-            "weather": StalenessLevel.STALE,
-            "events": StalenessLevel.EXPIRED,
-            "air_quality": StalenessLevel.AGING,
-        }
-        render_dashboard(data, DisplayConfig(), theme=diags_theme())
+        plates = set()
+        for levels in (
+            {"weather": StalenessLevel.FRESH},
+            {"weather": StalenessLevel.STALE},
+            {"weather": StalenessLevel.EXPIRED},
+        ):
+            data.source_staleness = levels
+            plates.add(self._render(data).tobytes())
+        assert len(plates) == 3, "different staleness levels rendered the same"
 
     def test_render_minimal_weather(self):
-        """Weather with only required fields (no optional fields)."""
+        """Weather with no optional fields draws less than the full record."""
         data = _make_data()
+        full = _ink(self._render(data), LEFT_COL)
         data.weather = WeatherData(
             current_temp=60.0,
             current_icon="01d",
@@ -212,22 +295,41 @@ class TestDiagsRender:
             low=50.0,
             humidity=45,
         )
-        render_dashboard(data, DisplayConfig(), theme=diags_theme())
+        minimal = _ink(self._render(data), LEFT_COL)
+        assert minimal < full, "optional weather fields are not being drawn"
+        assert minimal > 0
 
     def test_render_weather_with_alerts(self):
         data = _make_data()
+        without = _ink(self._render(data), LEFT_COL)
         data.weather.alerts = [WeatherAlert(event="Flood Watch")]
-        render_dashboard(data, DisplayConfig(), theme=diags_theme())
+        assert _ink(self._render(data), LEFT_COL) > without, "alerts are not drawn"
+
+    def test_alerts_capped_at_two(self):
+        """_MAX_ALERTS=2 — a third alert must not reach the plate."""
+        data = _make_data()
+
+        def with_alerts(n):
+            data.weather.alerts = [WeatherAlert(event=f"Alert {i}") for i in range(n)]
+            return _ink(self._render(data), LEFT_COL)
+
+        two = with_alerts(2)
+        assert with_alerts(5) == two, "more than two alerts were drawn"
+        assert two > with_alerts(1), "the second alert was dropped too"
 
     def test_render_aq_partial_fields(self):
-        """AirQualityData with only required fields (no pm1, pm10, temp, etc.)."""
+        """Only the required AQ fields draws less than the full sensor record."""
         data = _make_data()
+        full = _ink(self._render(data), RIGHT_COL)
         data.air_quality = AirQualityData(aqi=55, category="Moderate", pm25=12.5)
-        render_dashboard(data, DisplayConfig(), theme=diags_theme())
+        partial = _ink(self._render(data), RIGHT_COL)
+        assert 0 < partial < full, "the optional sensor fields are not being drawn"
 
     def test_render_aq_all_sensor_fields(self):
-        """AirQualityData with all new PurpleAir sensor fields populated."""
+        """Every PurpleAir field populated draws the most of the three cases."""
         data = _make_data()
+        data.air_quality = AirQualityData(aqi=42, category="Good", pm25=9.8)
+        bare = _ink(self._render(data), RIGHT_COL)
         data.air_quality = AirQualityData(
             aqi=42,
             category="Good",
@@ -239,21 +341,52 @@ class TestDiagsRender:
             humidity=48.0,
             pressure=1012.5,
         )
-        render_dashboard(data, DisplayConfig(), theme=diags_theme())
+        assert _ink(self._render(data), RIGHT_COL) > bare
 
-    def test_render_many_birthdays(self):
-        """Test with max birthdays to ensure no vertical overflow crash."""
+    def test_birthdays_capped_at_five(self):
+        """_MAX_BIRTHDAYS=5 — the sixth and later entries are dropped."""
         data = _make_data()
         today = data.fetched_at.date()
-        data.birthdays = [
-            Birthday(name=f"Person {i}", date=today + timedelta(days=i + 1), age=30 + i)
-            for i in range(5)
-        ]
-        render_dashboard(data, DisplayConfig(), theme=diags_theme())
+
+        def with_birthdays(n):
+            data.birthdays = [
+                Birthday(name=f"Person {i}", date=today + timedelta(days=i + 1), age=30 + i)
+                for i in range(n)
+            ]
+            return _ink(self._render(data), RIGHT_COL)
+
+        five = with_birthdays(5)
+        assert with_birthdays(9) == five, "more than five birthdays were drawn"
+        assert five > with_birthdays(4), "the fifth birthday was dropped too"
+
+    def test_forecast_capped_at_six(self):
+        """_MAX_FORECAST=6 — a seventh day must not reach the plate."""
+        data = _make_data()
+        today = data.fetched_at.date()
+
+        def with_days(n):
+            data.weather.forecast = [
+                DayForecast(
+                    date=today + timedelta(days=i + 1),
+                    high=70.0 + i,
+                    low=55.0 + i,
+                    icon="02d",
+                    description="partly cloudy",
+                    precip_chance=0.20,
+                )
+                for i in range(n)
+            ]
+            return _ink(self._render(data), LEFT_COL)
+
+        six = with_days(6)
+        assert with_days(10) == six, "more than six forecast days were drawn"
+        assert six > with_days(5), "the sixth day was dropped too"
 
     def test_render_via_load_theme(self):
-        result = render_dashboard(_make_data(), DisplayConfig(), theme=load_theme("diags"))
-        assert isinstance(result, Image.Image)
+        """The registry's theme renders the same plate as the factory's."""
+        via_registry = self._render(theme=load_theme("diags"))
+        assert isinstance(via_registry, Image.Image)
+        assert via_registry.tobytes() == self._render().tobytes()
 
 
 # ---------------------------------------------------------------------------
@@ -342,7 +475,7 @@ class TestAirQualityCacheRoundtrip:
 
 
 class TestDiagsPanelDefaults:
-    """Call draw_diags directly to cover default region/style/today branches."""
+    """draw_diags called directly: default region/style/today branches."""
 
     def _make_draw(self):
         from PIL import ImageDraw
@@ -351,41 +484,68 @@ class TestDiagsPanelDefaults:
         return img, ImageDraw.Draw(img)
 
     def test_default_region_and_style(self):
-        """region=None and style=None trigger the default assignment branches."""
-        from src.render.components.diags_panel import draw_diags
-
-        _, draw = self._make_draw()
-        draw_diags(draw, _make_data(), region=None, style=None)
-
-    def test_today_derived_from_datetime_fetched_at(self):
-        """today=None with a datetime fetched_at uses now.date()."""
+        """region=None/style=None fill in the full-canvas defaults."""
         from src.render.components.diags_panel import draw_diags
         from src.render.theme import ComponentRegion, ThemeStyle
 
-        _, draw = self._make_draw()
-        data = _make_data()
+        img_default, draw = self._make_draw()
+        draw_diags(draw, _make_data(), region=None, style=None)
+        img_explicit, draw2 = self._make_draw()
         draw_diags(
-            draw, data, today=None, region=ComponentRegion(0, 0, 800, 480), style=ThemeStyle()
+            draw2,
+            _make_data(),
+            region=ComponentRegion(0, 0, 800, 480),
+            style=ThemeStyle(),
         )
+        assert _ink(img_default) > 0
+        assert img_default.tobytes() == img_explicit.tobytes()
+
+    def test_today_derived_from_datetime_fetched_at(self):
+        """today=None with a datetime fetched_at uses now.date().
+
+        Checked against the same date passed explicitly. Note the resolution:
+        `today` reaches the plate only through _calendar_section, which
+        buckets by ISO week, so this detects a derivation off by a week but
+        not one off by a day or two. Verified by shifting the derived date —
+        +3 days still passes, +7 fails. The birthday section ignores `today`
+        entirely.
+        """
+        from src.render.components.diags_panel import draw_diags
+
+        data = _make_data()
+        derived, draw = self._make_draw()
+        draw_diags(draw, data, today=None)
+        explicit, draw2 = self._make_draw()
+        draw_diags(draw2, data, today=data.fetched_at.date())
+        assert derived.tobytes() == explicit.tobytes(), "today was not derived from fetched_at"
 
     def test_today_derived_from_date_fetched_at(self):
-        """today=None with a plain date fetched_at falls back to date.today() (line 60)."""
-        from datetime import date
+        """A plain-date fetched_at falls back to date.today() rather than raising."""
+        from datetime import date as _date
 
         from src.render.components.diags_panel import draw_diags
 
-        _, draw = self._make_draw()
         data = _make_data()
-        data.fetched_at = date(2026, 3, 24)  # plain date, not datetime
+        data.fetched_at = _date(2026, 3, 24)
+        img, draw = self._make_draw()
         draw_diags(draw, data, today=None)
+        explicit, draw2 = self._make_draw()
+        draw_diags(draw2, data, today=_date.today())
+        assert _ink(img) > 0
+        assert img.tobytes() == explicit.tobytes(), "the date.today() fallback was not taken"
 
     def test_header_non_datetime_fetched_at(self):
-        """fetched_at as a plain date renders header via str(now) branch (line 126)."""
-        from datetime import date
+        """A plain date in the header renders via the str(now) branch.
 
+        It must differ from the datetime header — that branch exists because
+        a date has no time to format.
+        """
         data = _make_data()
+        with_datetime = render_dashboard(data, DisplayConfig(), theme=diags_theme())
         data.fetched_at = date(2026, 3, 24)
-        render_dashboard(data, DisplayConfig(), theme=diags_theme())
+        with_date = render_dashboard(data, DisplayConfig(), theme=diags_theme())
+        assert _ink(with_date, HEADER) > 0
+        assert _ink(with_date, HEADER) != _ink(with_datetime, HEADER)
 
 
 class TestFmtUptime:
@@ -414,13 +574,13 @@ class TestFmtUptime:
 
 
 class TestHostSectionFullData:
-    """Render diags with a fully populated HostData to cover _host_section lines."""
+    """The host section is the bottom of the left column."""
 
-    def test_render_with_all_host_fields(self):
+    @staticmethod
+    def _full_host():
         from src.data.models import HostData
 
-        data = _make_data()
-        data.host_data = HostData(
+        return HostData(
             hostname="pi-dashboard",
             uptime_seconds=90061.0,  # 1d 1h 1m — exercises the days branch
             load_1m=0.42,
@@ -433,13 +593,27 @@ class TestHostSectionFullData:
             cpu_temp_c=42.7,
             ip_address="192.168.1.100",
         )
-        render_dashboard(data, DisplayConfig(), theme=diags_theme())
+
+    def _left_ink(self, host) -> int:
+        data = _make_data()
+        data.host_data = host
+        return _ink(render_dashboard(data, DisplayConfig(), theme=diags_theme()), LEFT_COL)
+
+    def test_render_with_all_host_fields(self):
+        """Every field populated draws more than the unavailable row."""
+        assert self._left_ink(self._full_host()) > self._left_ink(None)
 
     def test_render_with_none_host_data(self):
-        """host_data=None renders the 'unavailable' row."""
-        data = _make_data()
-        data.host_data = None
-        render_dashboard(data, DisplayConfig(), theme=diags_theme())
+        """host_data=None renders the 'unavailable' row, not a blank section."""
+        assert self._left_ink(None) > 0
+
+    def test_partial_host_data_is_distinguishable(self):
+        """Fields that are None are omitted rather than printed as placeholders."""
+        from src.data.models import HostData
+
+        partial = HostData(hostname="pi-dashboard", uptime_seconds=90061.0)
+        assert self._left_ink(partial) != self._left_ink(self._full_host())
+        assert self._left_ink(partial) != self._left_ink(None)
 
 
 class TestDiagsNotInRandomPool:

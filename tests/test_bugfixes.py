@@ -123,20 +123,24 @@ class TestFeb29Birthday:
         from PIL import Image, ImageDraw
 
         from src.render.components.birthday_bar import draw_birthdays
+        from tests.inkutils import ink
 
         img = Image.new("1", (800, 480), 1)
         draw = ImageDraw.Draw(img)
         # 2025 is not a leap year
         today = date(2025, 3, 15)
         birthdays = [Birthday(name="Leapy", date=date(2000, 2, 29))]
-        # Should not raise ValueError
+        # Should not raise ValueError, and the birthday must still be listed.
         draw_birthdays(draw, birthdays, today)
-        assert img.getbbox() is not None
+        empty = Image.new("1", img.size, 1)
+        draw_birthdays(ImageDraw.Draw(empty), [], today)
+        assert ink(img) != ink(empty), "the Feb-29 birthday was dropped"
 
     def test_feb29_birthday_next_year_non_leap(self):
         from PIL import Image, ImageDraw
 
         from src.render.components.birthday_bar import draw_birthdays
+        from tests.inkutils import ink
 
         img = Image.new("1", (800, 480), 1)
         draw = ImageDraw.Draw(img)
@@ -144,7 +148,9 @@ class TestFeb29Birthday:
         today = date(2025, 3, 15)
         birthdays = [Birthday(name="Leapy", date=date(2000, 2, 29))]
         draw_birthdays(draw, birthdays, today)
-        assert img.getbbox() is not None
+        empty = Image.new("1", img.size, 1)
+        draw_birthdays(ImageDraw.Draw(empty), [], today)
+        assert ink(img) != ink(empty), "the rolled-over Feb-29 birthday was dropped"
 
 
 # ---------------------------------------------------------------------------

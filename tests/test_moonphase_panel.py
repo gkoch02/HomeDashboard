@@ -1,4 +1,39 @@
-"""Tests for src/render/components/moonphase_panel.py."""
+"""Tests for src/render/components/moonphase_panel.py.
+
+Assertion discipline (see #229)
+-------------------------------
+The 1-bit draw tests asserted ``img.getbbox() is not None`` on a plate
+filled with 1, where every pixel is non-zero and getbbox can never return
+None; 54 of the 59 tests passed with ``draw_moonphase`` stubbed to a no-op.
+(The five that already failed use an L canvas with a *black* background,
+where getbbox is genuinely meaningful — just weak.)
+
+Two things shape the measurements here:
+
+* Polarity is not fixed. This panel is drawn on greyscale plates whose
+  background is black (``moonphase``) or white (``moonphase_invert``), so
+  ``_marks`` counts pixels differing from the background rather than a
+  fixed value, and the real theme styles are used. Passing the default
+  ``ThemeStyle`` (``fg=0, bg=1``, a 1-bit style) onto an L canvas — which
+  the pre-existing L tests did — is a combination the themes never produce,
+  and under it the lunar disc renders inverted: bright at new moon, dark at
+  full. Measuring against it would have pinned an artefact.
+* Counting the filmstrip's discs is phase-dependent and unreliable: a
+  near-new flanking moon has almost no lit area, and the hero's outline ring
+  reads as two marks on a scanline. ``_assert_filmstrip`` measures the
+  strip's span and centring instead, which holds at every phase.
+
+The load-bearing test is ``test_hero_disc_tracks_illumination``: the lit
+area of the hero disc must rank the same way the illumination percentage
+does across the cycle. That is the panel's whole job.
+
+Verification: with ``draw_moonphase`` stubbed to a no-op, 28 of the 63
+tests fail. The survivors are pure helpers (``_ordinal_suffix``,
+``_quote_for_panel``, ``_luminance``, ``_coords_set``), theme-factory
+cases, and tests that drive ``moon_render`` directly — none of which go
+through this entry point — plus ``test_returns_none``, which was checked
+by making the component return a value.
+"""
 
 import json
 from datetime import date, datetime, timezone
@@ -14,7 +49,9 @@ from src.render.components.moonphase_panel import (
     _quote_for_panel,
     draw_moonphase,
 )
-from src.render.theme import ComponentRegion, ThemeStyle
+from src.render.quantize import flatten_pixels
+from src.render.theme import ComponentRegion, ThemeStyle, load_theme
+from tests.inkutils import marks
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -148,50 +185,140 @@ class TestQuoteForPanel:
 
 
 # ---------------------------------------------------------------------------
-# draw_moonphase — smoke tests
+# Ink measurement
+#
+# This panel is drawn on greyscale plates whose background may be black
+# (moonphase) or white (moonphase_invert), so "ink" here means "differs from
+# the canvas background" rather than a fixed value. The real theme styles are
+# used below: passing the default ThemeStyle (fg=0, bg=1, a 1-bit style) onto
+# an L canvas is a combination the themes never produce, and under it the
+# lunar disc renders inverted — bright at new moon, dark at full.
 # ---------------------------------------------------------------------------
+
+_HERO_BOX = (250, 96, 550, 290)  # generous box around the hero disc
+
+
+def _dark_style():
+    from src.render.themes.moonphase import moonphase_theme
+
+    return moonphase_theme().style
+
+
+def _light_style():
+    from src.render.themes.moonphase_invert import moonphase_invert_theme
+
+    return moonphase_invert_theme().style
+
+
+def _marks(img, box=None) -> int:
+    """Pixels differing from the canvas background colour."""
+    px = flatten_pixels(img)
+    width = img.width
+    background = px[0]
+    if box is None:
+        return sum(1 for v in px if v != background)
+    x0, y0, x1, y1 = box
+    return sum(1 for y in range(y0, y1) for x in range(x0, x1) if px[y * width + x] != background)
+
+
+def _render_l(today=None, data=None, *, style=None, background=0, **kwargs):
+    """Render on an L plate using a real theme style."""
+    img = Image.new("L", (800, 480), background)
+    draw = ImageDraw.Draw(img)
+    draw_moonphase(
+        draw,
+        data if data is not None else _make_data(),
+        today or TODAY,
+        image=img,
+        style=style or _dark_style(),
+        **kwargs,
+    )
+    return img
+
+
+def _hero_lit(img, threshold: int = 140) -> int:
+    """Bright pixels inside the hero disc — the sunlit fraction of the moon."""
+    px = flatten_pixels(img)
+    x0, y0, x1, y1 = _HERO_BOX
+    return sum(1 for y in range(y0, y1) for x in range(x0, x1) if px[y * img.width + x] > threshold)
+
+
+def _moon_row_extent(img, y0: int = 96, y1: int = 290, threshold: int = 40):
+    """(left, right) x-extent of the filmstrip band.
+
+    Counting individual discs would be phase-dependent and unreliable: a
+    near-new flanking moon has almost no lit area to detect, and the hero's
+    outline ring reads as two separate marks on a scanline. The strip's
+    overall span does not have that problem — it is ~670px wide and centred
+    at every phase.
+    """
+    px = flatten_pixels(img)
+    width = img.width
+    xs = [x for x in range(width) if any(px[y * width + x] > threshold for y in range(y0, y1))]
+    return (xs[0], xs[-1] + 1) if xs else None
+
+
+def _assert_filmstrip(img, note: str = "") -> None:
+    """The hero plus its flanking days span most of the plate, centred."""
+    extent = _moon_row_extent(img)
+    assert extent is not None, f"no filmstrip drawn {note}"
+    left, right = extent
+    assert right - left > 600, f"filmstrip too narrow ({right - left}px) {note}"
+    midpoint = (left + right) / 2
+    assert abs(midpoint - 400) < 30, f"filmstrip off-centre at {midpoint} {note}"
 
 
 class TestDrawMoonphaseSmoke:
     def test_renders_with_full_data(self):
-        _, draw = _make_draw()
-        draw_moonphase(draw, _make_data(), TODAY)
+        assert _marks(_render_l()) > 0
 
     def test_returns_none(self):
         _, draw = _make_draw()
-        result = draw_moonphase(draw, _make_data(), TODAY)
-        assert result is None
+        assert draw_moonphase(draw, _make_data(), TODAY) is None
 
     def test_produces_non_blank_image(self):
-        img, draw = _make_draw()
-        draw_moonphase(draw, _make_data(), TODAY)
-        assert img.getbbox() is not None
+        """Genuinely non-blank: pixels differ from the background."""
+        assert _marks(_render_l()) > 0
+
+    def test_draws_the_hero_and_flanking_moons(self):
+        """The filmstrip is the hero plus three days each side, spanning the plate."""
+        _assert_filmstrip(_render_l())
 
     def test_renders_without_weather(self):
-        """weather=None skips weather and celestial strips without crashing."""
-        _, draw = _make_draw()
-        data = _make_data(weather=None)
-        draw_moonphase(draw, data, TODAY)
+        """weather=None drops the sun/weather line but keeps the rest."""
+        without = _render_l(data=_make_data(weather=None))
+        assert _marks(without) > 0
+        _assert_filmstrip(without, "without weather")
+        assert _marks(without) != _marks(_render_l()), "the weather line is not drawn"
 
     def test_renders_with_default_region_and_style(self):
-        """Passing region=None and style=None triggers default-assignment branches."""
-        _, draw = _make_draw()
+        """region=None/style=None fill in the full-canvas defaults."""
+        img_default, draw = _make_draw()
         draw_moonphase(draw, _make_data(), TODAY, region=None, style=None)
+        img_explicit, draw2 = _make_draw()
+        draw_moonphase(
+            draw2,
+            _make_data(),
+            TODAY,
+            region=ComponentRegion(0, 0, 800, 480),
+            style=ThemeStyle(),
+        )
+        assert _marks(img_default) > 0
+        assert img_default.tobytes() == img_explicit.tobytes()
 
     def test_renders_with_custom_region(self):
-        _, draw = _make_draw()
-        region = ComponentRegion(0, 0, 800, 480)
-        draw_moonphase(draw, _make_data(), TODAY, region=region)
+        """A shifted region moves the content with it."""
+        at_origin = _render_l(region=ComponentRegion(0, 0, 800, 240))
+        lower = _render_l(region=ComponentRegion(0, 120, 800, 240))
+        assert _marks(at_origin) > 0
+        assert at_origin.tobytes() != lower.tobytes()
 
     def test_renders_with_custom_style(self):
-        _, draw = _make_draw()
-        style = ThemeStyle()
-        draw_moonphase(draw, _make_data(), TODAY, style=style)
-
-
-# ---------------------------------------------------------------------------
-# draw_moonphase — date variations covering lunar cycle
-# ---------------------------------------------------------------------------
+        """The dark and light theme styles produce different plates."""
+        dark = _render_l(style=_dark_style(), background=0)
+        light = _render_l(style=_light_style(), background=255)
+        assert _marks(dark) > 0 and _marks(light) > 0
+        assert dark.tobytes() != light.tobytes()
 
 
 class TestDrawMoonphasePhases:
@@ -208,45 +335,73 @@ class TestDrawMoonphasePhases:
         ],
     )
     def test_renders_across_lunar_cycle(self, d):
-        _, draw = _make_draw()
-        draw_moonphase(draw, _make_data(), d)
+        """Every date draws the full filmstrip."""
+        img = _render_l(d)
+        assert _marks(img) > 0
+        _assert_filmstrip(img, f"for {d}")
 
+    def test_hero_disc_tracks_illumination(self):
+        """The sunlit area of the hero disc follows the phase.
 
-# ---------------------------------------------------------------------------
-# draw_moonphase — weather without sunrise/sunset
-# ---------------------------------------------------------------------------
+        This is the panel's whole job, so it is measured rather than assumed:
+        the lit pixel count must rank the same way the illumination percentage
+        does across the cycle.
+        """
+        from src.render.moon import moon_illumination
+
+        dates = [date(2024, 3, 10), date(2024, 3, 17), date(2024, 3, 25), date(2024, 4, 1)]
+        measured = [(moon_illumination(d), _hero_lit(_render_l(d))) for d in dates]
+        by_illumination = sorted(measured, key=lambda pair: pair[0])
+        lit_values = [lit for _, lit in by_illumination]
+        assert lit_values == sorted(lit_values), (
+            f"lit area does not follow illumination: {by_illumination}"
+        )
+        assert lit_values[0] < lit_values[-1] / 10, "new and full moon look nearly the same"
+
+    def test_light_canvas_inverts_the_disc(self):
+        """On the parchment variant the lit region is dark, not bright."""
+        full_moon = date(2024, 3, 25)
+        new_moon = date(2024, 3, 10)
+        light_full = _render_l(full_moon, style=_light_style(), background=255)
+        light_new = _render_l(new_moon, style=_light_style(), background=255)
+        px_full = flatten_pixels(light_full)
+        px_new = flatten_pixels(light_new)
+        x0, y0, x1, y1 = _HERO_BOX
+
+        def dark_px(px):
+            return sum(1 for y in range(y0, y1) for x in range(x0, x1) if px[y * 800 + x] < 120)
+
+        assert dark_px(px_full) > dark_px(px_new) * 10, "the invert theme is not inverting"
 
 
 class TestDrawMoonphaseCelestialStrip:
     def test_renders_without_sunrise(self):
-        _, draw = _make_draw()
-        wx = _make_weather(sunrise=None)
-        data = _make_data(weather=wx)
-        draw_moonphase(draw, data, TODAY)
+        base = _marks(_render_l())
+        assert _marks(_render_l(data=_make_data(weather=_make_weather(sunrise=None)))) != base
 
     def test_renders_without_sunset(self):
-        _, draw = _make_draw()
-        wx = _make_weather(sunset=None)
-        data = _make_data(weather=wx)
-        draw_moonphase(draw, data, TODAY)
+        base = _marks(_render_l())
+        assert _marks(_render_l(data=_make_data(weather=_make_weather(sunset=None)))) != base
 
     def test_renders_without_sunrise_and_sunset(self):
-        _, draw = _make_draw()
-        wx = _make_weather(sunrise=None, sunset=None)
-        data = _make_data(weather=wx)
-        draw_moonphase(draw, data, TODAY)
-
-
-# ---------------------------------------------------------------------------
-# draw_moonphase — quote refresh modes
-# ---------------------------------------------------------------------------
+        """Neither time still renders the rest of the panel."""
+        neither = _render_l(data=_make_data(weather=_make_weather(sunrise=None, sunset=None)))
+        assert _marks(neither) > 0
+        _assert_filmstrip(neither, "without sun times")
+        assert _marks(neither) != _marks(_render_l())
 
 
 class TestDrawMoonphaseQuoteRefresh:
     @pytest.mark.parametrize("mode", ["daily", "hourly", "twice_daily"])
     def test_refresh_mode_renders(self, mode):
-        _, draw = _make_draw()
-        draw_moonphase(draw, _make_data(), TODAY, quote_refresh=mode)
+        assert _marks(_render_l(quote_refresh=mode)) > 0
+
+    def test_refresh_modes_can_select_different_quotes(self):
+        """The three cadences bucket differently, so they do not all agree."""
+        plates = {
+            m: _render_l(quote_refresh=m).tobytes() for m in ("daily", "hourly", "twice_daily")
+        }
+        assert len(set(plates.values())) > 1, "every refresh mode drew the same quote"
 
 
 # ---------------------------------------------------------------------------
@@ -319,6 +474,19 @@ class TestMoonphaseThemeIntegration:
 
 
 class TestDrawMoonphaseProcedural:
+    """Dark-canvas rendering, using the theme's own style.
+
+    (#229) These originally passed the default ThemeStyle, whose fg=0 on this
+    black canvas leaves almost nothing visible — 2828 marked pixels against
+    56541 under the theme's fg=255. Coordinates then made no difference to the
+    plate, so a test asserting they did would have failed for the wrong
+    reason. Same trap as the one recorded in test_constellation_map_panel.py.
+    """
+
+    @staticmethod
+    def _style():
+        return load_theme("moonphase").style
+
     def _l_canvas(self, w=800, h=480):
         img = Image.new("L", (w, h), 0)
         return img, ImageDraw.Draw(img)
@@ -338,8 +506,20 @@ class TestDrawMoonphaseProcedural:
             latitude=37.77,
             longitude=-122.42,
             now=now,
+            style=self._style(),
         )
-        assert img.getbbox() is not None
+        assert marks(img) > 0, "the L-canvas plate rendered blank"
+        # Coordinates add the moonrise/moonset line, so they change the plate.
+        bare, bare_draw = self._l_canvas()
+        draw_moonphase(
+            bare_draw,
+            _make_data(),
+            date(2026, 5, 30),
+            image=bare,
+            now=now,
+            style=self._style(),
+        )
+        assert img.tobytes() != bare.tobytes(), "the coordinates reached nothing"
 
     def test_renders_on_rgb_canvas(self):
         img, draw = self._rgb_canvas()
@@ -353,24 +533,42 @@ class TestDrawMoonphaseProcedural:
             longitude=-122.42,
             now=now,
         )
-        assert img.getbbox() is not None
+        assert marks(img) > 0, "the RGB plate rendered blank"
 
     def test_supermoon_badge_renders(self):
-        """A near-perigee full moon exercises the supermoon branch."""
+        """A near-perigee full moon swaps the illumination subtitle for a badge."""
         img, draw = self._l_canvas()
-        draw_moonphase(draw, _make_data(), date(2025, 11, 5), image=img)
-        assert img.getbbox() is not None
+        draw_moonphase(draw, _make_data(), date(2025, 11, 5), image=img, style=self._style())
+        ordinary, ordinary_draw = self._l_canvas()
+        draw_moonphase(
+            ordinary_draw, _make_data(), date(2025, 11, 20), image=ordinary, style=self._style()
+        )
+        assert marks(img) > 0
+        assert img.tobytes() != ordinary.tobytes(), "the supermoon badge never appeared"
 
     def test_zero_coords_treated_as_unset(self):
         img, draw = self._l_canvas()
         # 0,0 should skip moonrise/moonset and fall back to age only — no crash.
-        draw_moonphase(draw, _make_data(), TODAY, image=img, latitude=0.0, longitude=0.0)
-        assert img.getbbox() is not None
+        draw_moonphase(
+            draw,
+            _make_data(),
+            TODAY,
+            image=img,
+            latitude=0.0,
+            longitude=0.0,
+            style=self._style(),
+        )
+        unset, unset_draw = self._l_canvas()
+        draw_moonphase(unset_draw, _make_data(), TODAY, image=unset, style=self._style())
+        assert marks(img) > 0
+        assert img.tobytes() == unset.tobytes(), (
+            "(0,0) was treated as a real location rather than as unset"
+        )
 
     def test_no_coords_renders(self):
         img, draw = self._l_canvas()
-        draw_moonphase(draw, _make_data(), TODAY, image=img)
-        assert img.getbbox() is not None
+        draw_moonphase(draw, _make_data(), TODAY, image=img, style=self._style())
+        assert marks(img) > 0, "the no-coordinates plate rendered blank"
 
 
 class TestMoonphaseHelpers:

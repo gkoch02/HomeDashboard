@@ -240,6 +240,12 @@ def draw_weather(
         show_aqi_col = False
 
     if n_cols == 0:
+        # No forecast and no alerts — nothing to column up, but the staleness
+        # badge still has to be emitted here, exactly as the no-forecast-strip
+        # early return above does. An empty forecast is itself usually a
+        # symptom of the stale fetch the badge exists to announce.
+        if staleness in (StalenessLevel.STALE, StalenessLevel.EXPIRED):
+            draw_staleness_glyph(draw, region, style)
         return
 
     col_w = w // n_cols

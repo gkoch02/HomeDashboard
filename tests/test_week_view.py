@@ -5,7 +5,8 @@ from unittest.mock import patch
 
 from PIL import Image, ImageDraw
 
-from src.data.models import CalendarEvent, DayForecast
+from src.data.models import CalendarEvent
+from src.render import layout as L
 from src.render.components.week_view import (
     _density_tier,
     _events_for_day,
@@ -14,10 +15,14 @@ from src.render.components.week_view import (
     draw_week,
 )
 from src.render.quantize import flatten_pixels
+from tests.inkutils import ink
 
 # ---------------------------------------------------------------------------
 # _fmt_time
 # ---------------------------------------------------------------------------
+
+
+WEEK_BOX = (L.WEEK_X, L.WEEK_Y, L.WEEK_X + L.WEEK_W, L.WEEK_Y + L.WEEK_H)
 
 
 class TestFmtTime:
@@ -134,8 +139,8 @@ class TestDrawWeek:
     def test_smoke_no_events(self):
         img, draw = self._make_draw()
         draw_week(draw, [], date(2024, 3, 15))
-        # Should draw something (header lines at minimum)
-        assert img.getbbox() is not None
+        # The empty grid is still the day headers + column rules.
+        assert ink(img, WEEK_BOX) > 0
 
     def test_smoke_with_timed_events(self):
         img, draw = self._make_draw()
@@ -148,7 +153,9 @@ class TestDrawWeek:
             ),
         ]
         draw_week(draw, events, today)
-        assert img.getbbox() is not None
+        empty, empty_draw = self._make_draw()
+        draw_week(empty_draw, [], today)
+        assert ink(img, WEEK_BOX) > ink(empty, WEEK_BOX), "the event was not drawn"
 
     def test_location_newlines_are_normalized_before_truncation(self):
         img, draw = self._make_draw()
@@ -188,7 +195,9 @@ class TestDrawWeek:
             ),
         ]
         draw_week(draw, events, today)
-        assert img.getbbox() is not None
+        empty, empty_draw = self._make_draw()
+        draw_week(empty_draw, [], today)
+        assert ink(img, WEEK_BOX) > ink(empty, WEEK_BOX), "the all-day bar was not drawn"
 
     def test_smoke_many_events_per_day(self):
         """Overflow indicator (+N more) should not crash."""
@@ -203,7 +212,9 @@ class TestDrawWeek:
             for i in range(10)
         ]
         draw_week(draw, events, today)
-        assert img.getbbox() is not None
+        few, few_draw = self._make_draw()
+        draw_week(few_draw, events[:2], today)
+        assert ink(img, WEEK_BOX) > ink(few, WEEK_BOX), "ten events drew no more than two"
 
     @staticmethod
     def _header_ink_by_column(img, region=None):
@@ -261,23 +272,18 @@ class TestDrawWeek:
         ink = self._header_ink_by_column(img)
         assert ink[4] < 0.5, "the today cell must not be filled when inversion is off"
 
-    def test_smoke_with_forecast_icons(self):
-        """draw_week with forecast data should not crash."""
+    def test_smoke_with_forecast_data_present(self):
+        """A weather forecast in the data does not reach the week grid.
+
+        draw_week takes no forecast argument: the grid renders events only.
+        It used to accept one and never read it, with _builtins.py computing
+        `ctx.data.weather.forecast` on every render to feed it (#229); both are
+        gone. This keeps a rendering check on the same Monday-anchored week.
+        """
         img, draw = self._make_draw()
         today = date(2024, 3, 18)  # Monday
-        forecast = [
-            DayForecast(
-                date=today + timedelta(days=i),
-                high=50.0 + i,
-                low=35.0,
-                icon="01d",
-                description="clear",
-                precip_chance=0.1,
-            )
-            for i in range(5)
-        ]
-        draw_week(draw, [], today, forecast=forecast)
-        assert img.getbbox() is not None
+        draw_week(draw, [], today)
+        assert ink(img, WEEK_BOX) > 0
 
     def test_today_bordered_not_inverted_draws_underline(self):
         """invert_today_col=False + show_borders=True → thick accent underline under today.
@@ -402,7 +408,9 @@ class TestDrawWeek:
             is_all_day=True,
         )
         draw_week(draw, [spanning], today)
-        assert img.getbbox() is not None
+        empty, empty_draw = self._make_draw()
+        draw_week(empty_draw, [], today)
+        assert ink(img, WEEK_BOX) > ink(empty, WEEK_BOX), "the spanning bar was not drawn"
 
 
 # ---------------------------------------------------------------------------
@@ -558,7 +566,7 @@ class TestDrawDayEvents:
             title_font=semibold(13),
             allday_font=None,  # triggers line 392
         )
-        assert img.getbbox() is not None
+        assert ink(img) > 0, "the allday_font=None fallback drew nothing"
 
     def test_overflow_indicator_shown_when_events_exceed_space(self):
         """When events don't fit, '+N more' is shown (lines 404-406)."""
@@ -580,4 +588,17 @@ class TestDrawDayEvents:
             time_font=regular(10),
             title_font=semibold(13),
         )
-        assert img.getbbox() is not None
+        # A 50px column cannot hold ten events, so most become "+N more".
+        assert ink(img) > 0, "nothing drawn"
+        roomy, roomy_draw = self._make_draw()
+        _draw_day_events(
+            draw=roomy_draw,
+            events=events,
+            cx=0,
+            y_start=40,
+            col_w=114,
+            max_h=280,
+            time_font=regular(10),
+            title_font=semibold(13),
+        )
+        assert ink(img) < ink(roomy), "the tiny column listed as much as a roomy one"

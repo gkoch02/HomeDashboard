@@ -35,8 +35,6 @@ Layout (800 × 480):
 
 from __future__ import annotations
 
-from datetime import date
-
 from PIL import ImageDraw
 
 from src.data.models import AirQualityData, DashboardData, WeatherData
@@ -82,7 +80,6 @@ def _aqi_accent(style: ThemeStyle, aqi: int) -> Fill:
 def draw_air_quality_full(
     draw: ImageDraw.ImageDraw,
     data: DashboardData,
-    today: date | None = None,
     *,
     region: ComponentRegion | None = None,
     style: ThemeStyle | None = None,
@@ -125,7 +122,7 @@ def draw_air_quality_full(
     _draw_pm_row(draw, aq, x0, pm_top, W, pm_h, style)
     if has_ambient:
         _draw_ambient_cards(draw, aq, x0, cards_top, W, cards_h, style)
-    _draw_weather_strip(draw, data.weather, today, x0, weather_top, W, weather_h, style)
+    _draw_weather_strip(draw, data.weather, x0, weather_top, W, weather_h, style)
 
 
 # ---------------------------------------------------------------------------
@@ -427,7 +424,6 @@ def _draw_ambient_cards(
 def _draw_weather_strip(
     draw: ImageDraw.ImageDraw,
     wx: WeatherData | None,
-    today: date | None,
     x0: int,
     y0: int,
     W: int,
@@ -458,7 +454,7 @@ def _draw_weather_strip(
     vline(draw, forecast_x, y0 + 8, y0 + H - 8, fill=fg)
 
     _draw_current_conditions(draw, wx, x0, y0, current_w, H, style)
-    _draw_forecast_columns(draw, wx, today, forecast_x, y0, forecast_w, H, style)
+    _draw_forecast_columns(draw, wx, forecast_x, y0, forecast_w, H, style)
 
 
 def _draw_current_conditions(
@@ -519,7 +515,6 @@ def _draw_current_conditions(
 def _draw_forecast_columns(
     draw: ImageDraw.ImageDraw,
     wx: WeatherData,
-    today: date | None,
     x0: int,
     y0: int,
     W: int,

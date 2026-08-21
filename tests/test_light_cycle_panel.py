@@ -19,7 +19,8 @@ from src.render.components.light_cycle_panel import (
     _to_local_naive,
     draw_light_cycle,
 )
-from src.render.theme import AVAILABLE_THEMES, load_theme
+from src.render.quantize import flatten_pixels
+from src.render.theme import AVAILABLE_THEMES, ComponentRegion, ThemeStyle, load_theme
 
 NYC_LAT = 40.7128
 NYC_LON = -74.0060
@@ -176,6 +177,22 @@ class TestResolveSunTimes:
 # ---------------------------------------------------------------------------
 
 
+def _ink(img, box=None) -> int:
+    """Count ink (value-0) pixels, optionally only inside *box*.
+
+    (#229) The tests below asserted `img.getbbox() is not None` on a
+    mode-"1" plate filled with 1, where every pixel is non-zero and getbbox
+    can never return None — 33 of 34 passed with draw_light_cycle stubbed to
+    a no-op. This counts actual marks instead.
+    """
+    px = flatten_pixels(img)
+    width = img.width
+    if box is None:
+        return sum(1 for v in px if v == 0)
+    x0, y0, x1, y1 = box
+    return sum(1 for y in range(y0, y1) for x in range(x0, x1) if px[y * width + x] == 0)
+
+
 class TestLightCycleRender:
     def test_renders_correct_size(self):
         img = _render(latitude=NYC_LAT, longitude=NYC_LON)
@@ -187,14 +204,21 @@ class TestLightCycleRender:
         assert not all(p == 255 for p in img.tobytes())
 
     def test_renders_without_lat_lon(self):
-        img = _render()
-        assert img.size == (800, 480)
+        """No coordinates falls back to OWM sun times, drawing a simpler dial."""
+        without = _render()
+        with_coords = _render(latitude=NYC_LAT, longitude=NYC_LON)
+        assert without.size == (800, 480)
+        assert _ink(without) > 0, "nothing drawn without coordinates"
+        assert without.tobytes() != with_coords.tobytes(), (
+            "the coordinates make no difference to the dial"
+        )
 
     def test_renders_with_no_weather_and_no_coords(self):
+        """Neither weather nor coordinates still draws the dial chrome."""
         data = DashboardData(events=[], weather=None)
-        theme = load_theme("light_cycle")
-        img = render_dashboard(data, DisplayConfig(), theme=theme)
+        img = render_dashboard(data, DisplayConfig(), theme=load_theme("light_cycle"))
         assert img.size == (800, 480)
+        assert _ink(img) > 0, "the dial chrome is missing entirely"
 
 
 # ---------------------------------------------------------------------------
@@ -202,12 +226,35 @@ class TestLightCycleRender:
 # ---------------------------------------------------------------------------
 
 
+def _weather_with_range():
+    """The same weather as the no-range case but with high/low populated."""
+    return WeatherData(
+        current_temp=60.0,
+        current_icon="01d",
+        current_description="clear",
+        high=70.0,
+        low=50.0,
+        humidity=50,
+        sunrise=datetime(2026, 4, 23, 6, 5, tzinfo=TZ),
+        sunset=datetime(2026, 4, 23, 19, 43, tzinfo=TZ),
+    )
+
+
+def _direct(data, now=None, **kwargs):
+    """Draw the panel alone onto a fresh plate."""
+    img, d = _make_draw()
+    draw_light_cycle(d, data, TODAY, now or FIXED_NOW, **kwargs)
+    return img
+
+
 class TestDrawLightCycleDirect:
     def test_defaults_region_and_style(self):
-        img, d = _make_draw()
+        """region=None/style=None fill in the defaults and draw the dial."""
         data = DashboardData(events=[], weather=None)
-        draw_light_cycle(d, data, TODAY, FIXED_NOW)
-        assert img.getbbox() is not None
+        img = _direct(data)
+        assert _ink(img) > 0, "nothing drawn at all"
+        explicit = _direct(data, region=ComponentRegion(0, 0, 800, 480), style=ThemeStyle())
+        assert img.tobytes() == explicit.tobytes()
 
     def test_with_weather_only(self):
         img, d = _make_draw()
@@ -222,15 +269,16 @@ class TestDrawLightCycleDirect:
             sunset=datetime(2026, 4, 23, 19, 43, tzinfo=TZ),
             location_name="Brooklyn",
         )
-        data = DashboardData(events=[], weather=w)
-        draw_light_cycle(d, data, TODAY, FIXED_NOW)
-        assert img.getbbox() is not None
+        with_weather = _direct(DashboardData(events=[], weather=w))
+        without = _direct(DashboardData(events=[], weather=None))
+        assert _ink(with_weather) > _ink(without), "the weather summary is not drawn"
 
     def test_with_lat_lon_full_twilight_bands(self):
-        img, d = _make_draw()
+        """Coordinates enable the computed twilight rings, which add ink."""
         data = DashboardData(events=[], weather=None)
-        draw_light_cycle(d, data, TODAY, FIXED_NOW, latitude=NYC_LAT, longitude=NYC_LON)
-        assert img.getbbox() is not None
+        with_coords = _direct(data, latitude=NYC_LAT, longitude=NYC_LON)
+        without = _direct(data)
+        assert _ink(with_coords) > _ink(without), "no twilight bands drawn from the coordinates"
 
     def test_with_timed_events_renders_event_ticks(self):
         img, d = _make_draw()
@@ -248,27 +296,32 @@ class TestDrawLightCycleDirect:
                 calendar_name="Personal",
             ),
         ]
-        data = DashboardData(events=events, weather=None)
-        draw_light_cycle(d, data, TODAY, FIXED_NOW)
-        assert img.getbbox() is not None
+        with_events = _direct(DashboardData(events=events, weather=None))
+        without = _direct(DashboardData(events=[], weather=None))
+        assert _ink(with_events) > _ink(without), "no event ticks drawn"
 
     def test_skips_all_day_events(self):
-        """All-day events should not produce event ticks."""
-        img, d = _make_draw()
+        """All-day events produce no tick — they have no hour to plot at.
+
+        The start is a *datetime*, which is how every fetcher produces an
+        all-day event (see today_view's `_all_day` helper and the ICS path in
+        CLAUDE.md). The previous fixture passed a bare `date`, which the
+        `isinstance(start, datetime)` guard rejects one line later — so it
+        could not tell whether the `is_all_day` guard worked. Verified by
+        deleting that guard: this shape then draws a tick, the old one did not.
+        """
         events = [
             CalendarEvent(
                 summary="Holiday",
-                start=date(2026, 4, 23),
-                end=date(2026, 4, 24),
+                start=datetime(2026, 4, 23, 0, 0),
+                end=datetime(2026, 4, 24, 0, 0),
                 calendar_name="Holidays",
                 is_all_day=True,
             ),
         ]
-        data = DashboardData(events=events, weather=None)
-        draw_light_cycle(d, data, TODAY, FIXED_NOW)
-        # Image is non-blank from the rest of the chrome, but we just want this
-        # to not crash on the all-day branch.
-        assert img.getbbox() is not None
+        all_day = _direct(DashboardData(events=events, weather=None))
+        none = _direct(DashboardData(events=[], weather=None))
+        assert all_day.tobytes() == none.tobytes(), "an all-day event produced a tick on the dial"
 
     def test_no_op_band_returns_early(self):
         """Density 0 or zero-width band should be a no-op (no exceptions)."""
@@ -279,7 +332,14 @@ class TestDrawLightCycleDirect:
         assert img.tobytes() == before  # nothing drawn
 
     def test_event_far_outside_dial_is_skipped(self):
-        """Events more than a day away can't be plotted — must be silently skipped."""
+        """An event days away leaves the dial untouched.
+
+        Note the mechanism: `events_for_day` filters it out before the tick
+        code runs, so this pins the panel's *observable* behaviour rather than
+        its internal `hr is None` guard, which the event never reaches. That
+        guard is a backstop for a same-day event whose hour cannot be
+        resolved, and is not what this test covers.
+        """
         img, d = _make_draw()
         events = [
             CalendarEvent(
@@ -289,9 +349,11 @@ class TestDrawLightCycleDirect:
                 calendar_name="Misc",
             ),
         ]
-        data = DashboardData(events=events, weather=None)
-        draw_light_cycle(d, data, TODAY, FIXED_NOW)
-        assert img.getbbox() is not None
+        distant = _direct(DashboardData(events=events, weather=None))
+        none = _direct(DashboardData(events=[], weather=None))
+        assert distant.tobytes() == none.tobytes(), (
+            "an event days away was plotted onto a 24-hour dial"
+        )
 
     def test_weather_with_no_high_low_renders(self):
         """Weather missing high/low still renders (just shows current temp)."""
@@ -306,9 +368,11 @@ class TestDrawLightCycleDirect:
             sunrise=datetime(2026, 4, 23, 6, 5, tzinfo=TZ),
             sunset=datetime(2026, 4, 23, 19, 43, tzinfo=TZ),
         )
-        data = DashboardData(events=[], weather=w)
-        draw_light_cycle(d, data, TODAY, FIXED_NOW)
-        assert img.getbbox() is not None
+        no_range = _direct(DashboardData(events=[], weather=w))
+        assert _ink(no_range) > 0
+        assert _ink(no_range) < _ink(
+            _direct(DashboardData(events=[], weather=_weather_with_range()))
+        ), "the hi/lo range is not being drawn when present"
 
     def test_night_glyph_when_now_outside_daylight(self):
         """At midnight the moon glyph branch is hit instead of the sun."""
@@ -325,5 +389,7 @@ class TestDrawLightCycleDirect:
             sunset=datetime(2026, 4, 23, 19, 43, tzinfo=TZ),
         )
         data = DashboardData(events=[], weather=w)
-        draw_light_cycle(d, data, TODAY, midnight)
-        assert img.getbbox() is not None
+        night = _direct(data, now=midnight)
+        noon = _direct(data, now=datetime(2026, 4, 23, 12, 30, tzinfo=TZ))
+        assert _ink(night) > 0
+        assert night.tobytes() != noon.tobytes(), "the same glyph was drawn at midnight and midday"

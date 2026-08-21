@@ -224,7 +224,9 @@ docs/
 ├── upgrading-from-v3.md       # Migration guide from v3
 └── upgrading-from-v4.md       # Migration guide from v4 → v5
 
-tests/                         # test files, extensive mocking
+tests/                         # test files, extensive mocking; `inkutils.py` holds the shared
+                               #   pixel-measurement helpers for render tests (not collected — it is
+                               #   not a `test_*.py`)
 tools/                         # check_naive_datetime.py — AST guard enforcing aware-datetime discipline
 fonts/                         # Bundled TTF fonts
 deploy/                        # Systemd service + timer + configure.sh + logrotate
@@ -295,6 +297,8 @@ The cooldown is `display.min_refresh_interval_seconds` (config), defaulting to 6
 - **Config mirrors YAML**: dataclass hierarchy in `config.py` matches YAML structure; all fields optional with defaults
 - **Max line length**: 100 characters
 - **Testing**: heavy use of `unittest.mock.patch`; fixtures for temp dirs and dummy data; every public render function has dedicated smoke tests plus logic unit tests. Coverage gate is `fail_under = 94` in `pyproject.toml` (`[tool.coverage.report]`). Run `make coverage` to print missing lines and write an HTML report to `htmlcov/`. `src/_version.py` and `src/main.py` are omitted from coverage
+- **Render-test assertions**: measure ink, never `Image.getbbox()`. On the white mode-`"1"` plates these tests build, `getbbox()` reports the bounds of *non-zero* pixels — every pixel — so it returns the full canvas whether or not anything was drawn, and an `assert img.getbbox() is not None` has no failing input. The suite had 60 of them; whole files passed with their draw function stubbed to a no-op (#229). Use the helpers in `tests/inkutils.py`: `marks()` (pixels differing from the background — the only form that works across all four canvas polarities here: white `"1"`, white `"L"`, black `"L"`, and the mid-grey moon-render plate), plus `ink()`, `ink_bbox()`, `ink_x_extent()`, `text_line_heights()` and `ink_clusters()`. Two traps to know: **polarity** — the header, weather, environment and quote bands are inverted (`filled_rect` in `fg` with text knocked out in `bg`), so there *more content means less ink*; and **style** — a panel that draws white-on-black (`constellation_map`, `moonphase`) must be rendered with its own theme style, since the default `ThemeStyle` has `fg=0` and leaves the plate essentially blank. Prefer differential assertions (render with and without the feature, compare the band it owns) over hardcoded pixel counts, which font and padding changes invalidate
+- **Verify a render test by deleting what it names**: write the assertion, delete the behaviour it is named for, and confirm it goes red before trusting it. This is not optional diligence — it is the step that works. During #229 it caught a rewritten assertion that was still vacuous (the AQI clamp is invisible on a 1-bit plate, so the test passed with `min(aqi, _AQI_MAX)` deleted) and four fixtures that did not match how the code is really invoked, including an all-day event built with a `date` start that an earlier `isinstance` guard rejects before the guard under test is reached. A test that asserts something is *not* drawn cannot detect a no-op by construction; check those by breaking the suppression instead
 - **Thread safety**: cache operations use `threading.Lock()`
 - **Graceful degradation**: fetch failure → load cached → use stale data → staleness indicator in header
 - **Error boundaries**: credential loading failures, malformed API responses, and cache write errors are caught and logged without crashing the app. A top-level `try/except` in `DashboardApp.run()` writes `output/last_error.txt` (read by the web UI for "is the last run current?") and re-raises so the failure propagates to systemd

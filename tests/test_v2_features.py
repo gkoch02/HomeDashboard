@@ -32,12 +32,40 @@ from src.fetchers.calendar import (
     _filter_to_window,
     _ser_sync_event,
 )
+from src.render import layout as L
 from src.render.components.weather_panel import draw_weather
 from src.render.components.week_view import draw_week
+from src.render.quantize import flatten_pixels
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+
+def _ink(img, box=None) -> int:
+    """Count ink (value-0) pixels, optionally only inside *box*.
+
+    (#229) The draw tests below asserted `img.getbbox() is not None` on a
+    mode-"1" plate filled with 1, where getbbox can never return None.
+    """
+    px = flatten_pixels(img)
+    width = img.width
+    if box is None:
+        return sum(1 for v in px if v == 0)
+    x0, y0, x1, y1 = box
+    return sum(1 for y in range(y0, y1) for x in range(x0, x1) if px[y * width + x] == 0)
+
+
+def _ink_x_extent(img, box):
+    px = flatten_pixels(img)
+    width = img.width
+    x0, y0, x1, y1 = box
+    xs = [x for x in range(x0, x1) if any(px[y * width + x] == 0 for y in range(y0, y1))]
+    return (xs[0], xs[-1] + 1) if xs else None
+
+
+WEEK_BOX = (L.WEEK_X, L.WEEK_Y, L.WEEK_X + L.WEEK_W, L.WEEK_Y + L.WEEK_H)
+WEATHER_BOX = (L.WEATHER_X, L.WEATHER_Y, L.WEATHER_X + L.WEATHER_W, L.WEATHER_Y + L.WEATHER_H)
 
 
 def _make_draw(w: int = 800, h: int = 480):
@@ -82,37 +110,62 @@ def _make_weather(**kwargs) -> WeatherData:
 
 
 class TestEventLocationDisplay:
-    def test_event_with_location_renders(self):
-        """Smoke test: events with location should not crash draw_week."""
-        today = date(2024, 3, 15)
-        events = [_timed(today, 9, 10, "Meeting", location="Conference Room A")]
+    def _week(self, events, today=None):
         img, draw = _make_draw()
-        draw_week(draw, events, today)
-        assert img.getbbox() is not None
+        draw_week(draw, events, today or date(2024, 3, 15))
+        return img
+
+    def test_event_with_location_renders(self):
+        """A location adds a line under the event, so the day column inks more."""
+        today = date(2024, 3, 15)
+        with_loc = self._week([_timed(today, 9, 10, "Meeting", location="Conference Room A")])
+        without = self._week([_timed(today, 9, 10, "Meeting")])
+        assert _ink(with_loc, WEEK_BOX) > _ink(without, WEEK_BOX), "the location is not drawn"
 
     def test_event_location_split_on_comma(self):
-        """Location with comma: only the first component should appear (tested via no-crash)."""
+        """Only the first comma-separated component is drawn.
+
+        Two locations sharing a first component must render identically; one
+        differing in it must not. The old version asserted getbbox and said in
+        its own docstring that it was "tested via no-crash".
+        """
         today = date(2024, 3, 15)
-        events = [_timed(today, 9, 10, "Dentist", location="123 Main St, Suite 4, Springfield")]
-        img, draw = _make_draw()
-        draw_week(draw, events, today)
-        assert img.getbbox() is not None
+
+        def with_location(loc):
+            return _ink(self._week([_timed(today, 9, 10, "Dentist", location=loc)]), WEEK_BOX)
+
+        same_head = with_location("123 Main St, Suite 4, Springfield")
+        same_head_other_tail = with_location("123 Main St, Totally Different Tail")
+        different_head = with_location("456 Oak Ave, Suite 4, Springfield")
+        assert same_head == same_head_other_tail, "text past the first comma reached the plate"
+        assert same_head != different_head, "the location is not being drawn at all"
 
     def test_event_without_location_renders(self):
-        """Events without location should still render correctly."""
+        """No location still draws the event itself."""
         today = date(2024, 3, 15)
-        events = [_timed(today, 9, 10, "No Location")]
-        img, draw = _make_draw()
-        draw_week(draw, events, today)
-        assert img.getbbox() is not None
+        no_loc = self._week([_timed(today, 9, 10, "No Location")])
+        empty = self._week([])
+        assert _ink(no_loc, WEEK_BOX) > _ink(empty, WEEK_BOX)
 
     def test_many_events_with_locations_overflow(self):
-        """Overflow (+N more) should still work when events have locations."""
+        """Rows cap out and the surplus becomes '+N more'."""
         today = date(2024, 3, 15)
-        events = [_timed(today, 8 + i, 9 + i, f"Evt {i}", location=f"Room {i}") for i in range(8)]
-        img, draw = _make_draw()
-        draw_week(draw, events, today)
-        assert img.getbbox() is not None
+
+        def with_n(n):
+            # Hours wrap so n can exceed 24 without leaving the clock.
+            return _ink(
+                self._week(
+                    [
+                        _timed(today, 6 + (i % 12), 7 + (i % 12), f"Evt {i}", location=f"Room {i}")
+                        for i in range(n)
+                    ]
+                ),
+                WEEK_BOX,
+            )
+
+        assert with_n(8) > with_n(2), "nothing accumulated"
+        # Past the cap the row count saturates; only the "+N" label grows.
+        assert with_n(8) != with_n(20), "the overflow count is not being drawn"
 
 
 # ---------------------------------------------------------------------------
@@ -122,12 +175,13 @@ class TestEventLocationDisplay:
 
 class TestBusynessHeatmap:
     def test_no_crash_with_max_events(self):
-        """10+ events (> _MAX_DOTS cap) should not crash."""
+        """12 events on one day render, and draw more than a quiet day."""
         today = date(2024, 3, 18)
-        events = [_timed(today, 7, 8, f"Evt {i}") for i in range(12)]
         img, draw = _make_draw()
-        draw_week(draw, events, today)
-        assert img.getbbox() is not None
+        draw_week(draw, [_timed(today, 7, 8, f"Evt {i}") for i in range(12)], today)
+        quiet, quiet_draw = _make_draw()
+        draw_week(quiet_draw, [_timed(today, 7, 8, "Only one")], today)
+        assert _ink(img, WEEK_BOX) > _ink(quiet, WEEK_BOX)
 
 
 # ---------------------------------------------------------------------------
@@ -137,23 +191,33 @@ class TestBusynessHeatmap:
 
 class TestWeatherAlerts:
     def test_alert_renders_without_crash(self):
-        weather = _make_weather(alerts=[WeatherAlert(event="Flood Watch")])
+        """An alert takes a forecast column as a filled (inverted) bar."""
         img, draw = _make_draw()
-        draw_weather(draw, weather)
-        assert img.getbbox() is not None
+        draw_weather(draw, _make_weather(alerts=[WeatherAlert(event="Flood Watch")]))
+        plain, plain_draw = _make_draw()
+        draw_weather(plain_draw, _make_weather(alerts=[]))
+        assert _ink(img, WEATHER_BOX) > _ink(plain, WEATHER_BOX) * 2, (
+            "the alert column is not inverted"
+        )
 
     def test_no_alerts_renders_normally(self):
-        weather = _make_weather(alerts=[])
+        """No alerts draws the panel with no inverted column."""
         img, draw = _make_draw()
-        draw_weather(draw, weather)
-        assert img.getbbox() is not None
+        draw_weather(draw, _make_weather(alerts=[]))
+        area = L.WEATHER_W * L.WEATHER_H
+        assert 0 < _ink(img, WEATHER_BOX) < area * 0.5
 
     def test_long_alert_name_truncated(self):
-        """Very long alert names should be truncated, not overflow."""
-        weather = _make_weather(alerts=[WeatherAlert(event="A" * 200)])
+        """A 200-char alert stays inside the panel rather than overflowing."""
         img, draw = _make_draw()
-        draw_weather(draw, weather)
-        assert img.getbbox() is not None
+        draw_weather(draw, _make_weather(alerts=[WeatherAlert(event="A" * 200)]))
+        extent = _ink_x_extent(img, WEATHER_BOX)
+        assert extent is not None, "nothing drawn"
+        assert extent[1] <= L.WEATHER_X + L.WEATHER_W, "the alert text left the panel"
+        # Nothing but chrome to the right: the panel's border hlines are drawn
+        # to x0+w inclusive, so they put a few pixels on the column past the
+        # region — the same convention weather_panel and birthday_bar share.
+        assert _ink(img, (L.WEATHER_X + L.WEATHER_W + 1, 0, 800, 480)) == 0
 
     def test_weather_alert_model(self):
         a = WeatherAlert(event="Tornado Warning")
