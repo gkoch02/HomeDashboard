@@ -18,6 +18,7 @@ from src.render.components.constellation_map_panel import (
     _utc,
     draw_constellation_map,
 )
+from src.render.quantize import flatten_pixels
 from src.render.star_catalog import (
     CONSTELLATIONS,
     LABELED_STARS,
@@ -32,6 +33,17 @@ TZ = ZoneInfo("America/New_York")
 # A clear winter night so Orion + Big Dipper are both up at NYC.
 FIXED_NOW = datetime(2026, 1, 15, 22, 0, tzinfo=TZ)
 TODAY = FIXED_NOW.date()
+
+
+def _bright(img, threshold: int = 200) -> int:
+    """Count lit pixels on the dark chart.
+
+    (#229) This panel draws white-on-black, so "did it render" means lit
+    pixels — and it must be drawn with the *theme's* style to mean anything:
+    under the default ThemeStyle (fg=0) the whole chart is black on black and
+    nothing is visible, which is what several tests here were doing.
+    """
+    return sum(1 for p in flatten_pixels(img) if p > threshold)
 
 
 def _make_draw(w: int = 800, h: int = 480, mode: str = "L"):
@@ -281,12 +293,32 @@ class TestDrawConstellationMapDirect:
         assert bright > 50, "expected stars + chrome to brighten the canvas"
 
     def test_with_lat_lon_during_day_uses_solar_midnight(self):
-        """Renders without crashing during daylight (uses tonight's projection)."""
+        """During daylight the chart projects for tonight, not for now.
+
+        Rendered with the theme style — under the default style the whole
+        chart is fg=0 on a black canvas and nothing is visible at all.
+        """
+        style = load_theme("constellation_map").style
         img, d = _make_draw()
         noon = datetime(2026, 4, 23, 16, 0, tzinfo=ZoneInfo("America/New_York"))
         data = DashboardData(events=[], weather=None)
-        draw_constellation_map(d, data, noon.date(), noon, latitude=NYC_LAT, longitude=NYC_LON)
-        assert img.getbbox() is not None
+        draw_constellation_map(
+            d, data, noon.date(), noon, style=style, latitude=NYC_LAT, longitude=NYC_LON
+        )
+        assert _bright(img) > 50, "daylight render produced no visible chart"
+
+        night, nd = _make_draw()
+        night_now = datetime(2026, 4, 23, 22, 0, tzinfo=ZoneInfo("America/New_York"))
+        draw_constellation_map(
+            nd,
+            data,
+            night_now.date(),
+            night_now,
+            style=style,
+            latitude=NYC_LAT,
+            longitude=NYC_LON,
+        )
+        assert img.tobytes() != night.tobytes(), "the projection ignores the time of day"
 
     def test_with_zero_zero_lat_lon_falls_back_to_message(self):
         """(0,0) coordinates trigger the explanatory message branch."""
@@ -297,7 +329,13 @@ class TestDrawConstellationMapDirect:
         # canvas and getbbox would be None despite the branch having executed.
         style = load_theme("constellation_map").style
         draw_constellation_map(d, data, TODAY, FIXED_NOW, style=style, latitude=0.0, longitude=0.0)
-        assert img.getbbox() is not None
+        assert _bright(img) > 0, "the explanatory message did not render"
+
+        chart, cd = _make_draw()
+        draw_constellation_map(
+            cd, data, TODAY, FIXED_NOW, style=style, latitude=NYC_LAT, longitude=NYC_LON
+        )
+        assert _bright(img) < _bright(chart), "the (0,0) fallback drew as much as a real star chart"
 
     def test_with_weather_location_name_in_footer(self):
         """Weather with a location name should render its footer label."""
@@ -311,28 +349,48 @@ class TestDrawConstellationMapDirect:
             humidity=60,
             location_name="Brooklyn",
         )
+        style = load_theme("constellation_map").style
         data = DashboardData(events=[], weather=w)
-        draw_constellation_map(d, data, TODAY, FIXED_NOW, latitude=NYC_LAT, longitude=NYC_LON)
-        assert img.getbbox() is not None
-
-    def test_polar_observer_renders_without_crashing(self):
-        """At extreme latitudes most stars stay above/below the horizon."""
-        img, d = _make_draw()
-        data = DashboardData(events=[], weather=None)
         draw_constellation_map(
-            d,
-            data,
+            d, data, TODAY, FIXED_NOW, style=style, latitude=NYC_LAT, longitude=NYC_LON
+        )
+        without, wd = _make_draw()
+        draw_constellation_map(
+            wd,
+            DashboardData(events=[], weather=None),
             TODAY,
             FIXED_NOW,
-            latitude=85.0,
-            longitude=0.0,
+            style=style,
+            latitude=NYC_LAT,
+            longitude=NYC_LON,
         )
-        assert img.getbbox() is not None
+        assert _bright(img) > _bright(without), "the location label is not drawn"
+
+    def test_polar_observer_renders_without_crashing(self):
+        """At 85°N the chart still draws, and differs from a mid-latitude one."""
+        style = load_theme("constellation_map").style
+        data = DashboardData(events=[], weather=None)
+        img, d = _make_draw()
+        draw_constellation_map(d, data, TODAY, FIXED_NOW, style=style, latitude=85.0, longitude=0.0)
+        nyc, nd = _make_draw()
+        draw_constellation_map(
+            nd, data, TODAY, FIXED_NOW, style=style, latitude=NYC_LAT, longitude=NYC_LON
+        )
+        assert _bright(img) > 50, "polar render produced no visible chart"
+        assert img.tobytes() != nyc.tobytes(), "latitude does not affect the projection"
 
     def test_southern_hemisphere_observer(self):
-        """A southern observer projects correctly (most northern stars below horizon)."""
-        img, d = _make_draw()
+        """A southern observer gets a different sky from a northern one."""
+        style = load_theme("constellation_map").style
         data = DashboardData(events=[], weather=None)
         sydney = datetime(2026, 4, 23, 12, 0, tzinfo=timezone.utc)
-        draw_constellation_map(d, data, sydney.date(), sydney, latitude=-33.87, longitude=151.21)
-        assert img.getbbox() is not None
+        img, d = _make_draw()
+        draw_constellation_map(
+            d, data, sydney.date(), sydney, style=style, latitude=-33.87, longitude=151.21
+        )
+        north, nd = _make_draw()
+        draw_constellation_map(
+            nd, data, sydney.date(), sydney, style=style, latitude=33.87, longitude=151.21
+        )
+        assert _bright(img) > 50, "southern render produced no visible chart"
+        assert img.tobytes() != north.tobytes(), "the hemisphere is not reflected in the chart"

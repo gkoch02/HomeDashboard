@@ -21,13 +21,28 @@ from src.render.components.almanac_panel import (
     _upcoming_calendar_summary,
     draw_almanac,
 )
-from src.render.theme import AVAILABLE_THEMES, load_theme
+from src.render.quantize import flatten_pixels
+from src.render.theme import AVAILABLE_THEMES, ComponentRegion, ThemeStyle, load_theme
 
 NYC_LAT = 40.7128
 NYC_LON = -74.0060
 TZ = ZoneInfo("America/New_York")
 FIXED_NOW = datetime(2026, 4, 23, 9, 30, tzinfo=TZ)
 TODAY = FIXED_NOW.date()
+
+
+def _ink(img, box=None) -> int:
+    """Count ink (value-0) pixels.
+
+    (#229) The direct-draw tests below asserted `img.getbbox() is not None`
+    on a mode-"1" plate filled with 1, where getbbox can never return None.
+    """
+    px = flatten_pixels(img)
+    width = img.width
+    if box is None:
+        return sum(1 for v in px if v == 0)
+    x0, y0, x1, y1 = box
+    return sum(1 for y in range(y0, y1) for x in range(x0, x1) if px[y * width + x] == 0)
 
 
 def _make_draw(w: int = 800, h: int = 480):
@@ -296,14 +311,26 @@ class TestAlmanacRender:
 
 
 class TestDrawAlmanacDirect:
-    def test_defaults_region_and_style(self):
+    def _draw(self, data=None, today=TODAY, now=FIXED_NOW, **kwargs):
         img, d = _make_draw()
-        data = DashboardData(events=[], weather=None)
-        draw_almanac(d, data, TODAY, FIXED_NOW)
-        assert img.getbbox() is not None
+        draw_almanac(
+            d,
+            data if data is not None else DashboardData(events=[], weather=None),
+            today,
+            now,
+            **kwargs,
+        )
+        return img
+
+    def test_defaults_region_and_style(self):
+        """region=None/style=None fill in the defaults and draw the page."""
+        img = self._draw()
+        assert _ink(img) > 0, "nothing drawn at all"
+        explicit = self._draw(region=ComponentRegion(0, 0, 800, 480), style=ThemeStyle())
+        assert img.tobytes() == explicit.tobytes()
 
     def test_with_full_weather_data(self):
-        img, d = _make_draw()
+        """Every editorial field populated draws more than none of them."""
         w = WeatherData(
             current_temp=60.0,
             current_icon="01d",
@@ -317,18 +344,21 @@ class TestDrawAlmanacDirect:
             sunset=datetime(2026, 4, 23, 19, 43, tzinfo=TZ),
             alerts=[WeatherAlert(event="Wind Advisory")],
         )
-        data = DashboardData(events=[], weather=w)
-        draw_almanac(d, data, TODAY, FIXED_NOW, latitude=NYC_LAT, longitude=NYC_LON)
-        assert img.getbbox() is not None
+        full = self._draw(DashboardData(events=[], weather=w), latitude=NYC_LAT, longitude=NYC_LON)
+        bare = self._draw(latitude=NYC_LAT, longitude=NYC_LON)
+        assert _ink(full) > _ink(bare), "the weather editorial block is not drawn"
 
     def test_with_lat_lon(self):
-        img, d = _make_draw()
-        data = DashboardData(events=[], weather=None)
-        draw_almanac(d, data, TODAY, FIXED_NOW, latitude=NYC_LAT, longitude=NYC_LON)
-        assert img.getbbox() is not None
+        """Coordinates enable the computed almanac figures."""
+        with_coords = self._draw(latitude=NYC_LAT, longitude=NYC_LON)
+        without = self._draw()
+        assert _ink(with_coords) > 0
+        assert with_coords.tobytes() != without.tobytes(), (
+            "the coordinates make no difference to the page"
+        )
 
     def test_with_zero_zero_lat_lon_falls_back(self):
-        img, d = _make_draw()
+        """(0,0) is the project-wide 'unset' convention — falls back to OWM times."""
         w = WeatherData(
             current_temp=60.0,
             current_icon="01d",
@@ -340,12 +370,15 @@ class TestDrawAlmanacDirect:
             sunset=datetime(2026, 4, 23, 19, 43, tzinfo=TZ),
         )
         data = DashboardData(events=[], weather=w)
-        draw_almanac(d, data, TODAY, FIXED_NOW, latitude=0.0, longitude=0.0)
-        assert img.getbbox() is not None
+        zero = self._draw(data, latitude=0.0, longitude=0.0)
+        unset = self._draw(data)
+        assert _ink(zero) > 0
+        assert zero.tobytes() == unset.tobytes(), (
+            "(0,0) was treated as a real location rather than as unset"
+        )
 
     def test_weather_with_no_wind_or_alerts(self):
-        """Weather missing the optional editorial fields still renders."""
-        img, d = _make_draw()
+        """Weather missing the optional editorial fields draws less, not nothing."""
         w = WeatherData(
             current_temp=55.0,
             current_icon="01d",
@@ -354,20 +387,40 @@ class TestDrawAlmanacDirect:
             low=None,
             humidity=50,
         )
-        data = DashboardData(events=[], weather=w)
-        draw_almanac(d, data, TODAY, FIXED_NOW)
-        assert img.getbbox() is not None
+        minimal = self._draw(DashboardData(events=[], weather=w))
+        assert _ink(minimal) > 0
+        assert _ink(minimal) < _ink(
+            self._draw(
+                DashboardData(
+                    events=[],
+                    weather=WeatherData(
+                        current_temp=55.0,
+                        current_icon="01d",
+                        current_description="clear",
+                        high=70.0,
+                        low=50.0,
+                        humidity=50,
+                        wind_speed=9.0,
+                        wind_deg=90.0,
+                        alerts=[WeatherAlert(event="Wind Advisory")],
+                    ),
+                )
+            )
+        ), "the optional editorial fields are not being drawn when present"
 
     def test_polar_day_handles_missing_day_length_delta(self):
-        """At extreme latitudes day_length_delta returns None — must not crash."""
-        img, d = _make_draw()
-        data = DashboardData(events=[], weather=None)
-        draw_almanac(
-            d,
-            data,
-            date(2026, 6, 21),
-            datetime(2026, 6, 21, 12, 0, tzinfo=TZ),
+        """At 85°N day_length_delta is None — the page still typesets."""
+        polar = self._draw(
+            today=date(2026, 6, 21),
+            now=datetime(2026, 6, 21, 12, 0, tzinfo=TZ),
             latitude=85.0,
             longitude=0.0,
         )
-        assert img.getbbox() is not None
+        temperate = self._draw(
+            today=date(2026, 6, 21),
+            now=datetime(2026, 6, 21, 12, 0, tzinfo=TZ),
+            latitude=NYC_LAT,
+            longitude=NYC_LON,
+        )
+        assert _ink(polar) > 0, "the polar page rendered blank"
+        assert polar.tobytes() != temperate.tobytes()

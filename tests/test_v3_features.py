@@ -16,6 +16,7 @@ from src.data.models import (
     WeatherData,
 )
 from src.display.driver import image_changed, image_hash, persist_image_hash
+from src.render import layout as L
 from src.render.components.week_view import (
     _collect_spanning_events,
     _events_for_day,
@@ -23,10 +24,30 @@ from src.render.components.week_view import (
     draw_week,
 )
 from src.render.moon import moon_phase_age, moon_phase_glyph, moon_phase_name
+from src.render.quantize import flatten_pixels
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+
+def _ink(img, box=None) -> int:
+    """Count ink (value-0) pixels, optionally only inside *box*.
+
+    (#229) The draw tests below asserted `img.getbbox() is not None` on a
+    mode-"1" plate filled with 1, where every pixel is non-zero and getbbox
+    can never return None.
+    """
+    px = flatten_pixels(img)
+    width = img.width
+    if box is None:
+        return sum(1 for v in px if v == 0)
+    x0, y0, x1, y1 = box
+    return sum(1 for y in range(y0, y1) for x in range(x0, x1) if px[y * width + x] == 0)
+
+
+WEEK_BOX = (L.WEEK_X, L.WEEK_Y, L.WEEK_X + L.WEEK_W, L.WEEK_Y + L.WEEK_H)
+WEATHER_BOX = (L.WEATHER_X, L.WEATHER_Y, L.WEATHER_X + L.WEATHER_W, L.WEATHER_Y + L.WEATHER_H)
 
 
 def _make_draw(w: int = 800, h: int = 480):
@@ -276,6 +297,7 @@ class TestMultidaySpanning:
         assert len(spanning) == 0
 
     def test_draw_week_with_spanning_events_no_crash(self):
+        """A spanning bar plus a timed event both reach the grid."""
         today = date(2024, 3, 15)  # Friday
         events = [
             _all_day(date(2024, 3, 12), date(2024, 3, 15), "Conference"),
@@ -283,17 +305,22 @@ class TestMultidaySpanning:
         ]
         img, draw = _make_draw()
         draw_week(draw, events, today)
-        assert img.getbbox() is not None
+        empty, empty_draw = _make_draw()
+        draw_week(empty_draw, [], today)
+        assert _ink(img, WEEK_BOX) > _ink(empty, WEEK_BOX), "no events drawn"
 
     def test_draw_week_multiple_spanning_events(self):
+        """Two overlapping spanning bars both draw — not just the first."""
         today = date(2024, 3, 15)
-        events = [
-            _all_day(date(2024, 3, 11), date(2024, 3, 14), "Trip A"),
-            _all_day(date(2024, 3, 14), date(2024, 3, 17), "Trip B"),
-        ]
-        img, draw = _make_draw()
-        draw_week(draw, events, today)
-        assert img.getbbox() is not None
+        trip_a = _all_day(date(2024, 3, 11), date(2024, 3, 14), "Trip A")
+        trip_b = _all_day(date(2024, 3, 14), date(2024, 3, 17), "Trip B")
+
+        def render(events):
+            img, draw = _make_draw()
+            draw_week(draw, events, today)
+            return _ink(img, WEEK_BOX)
+
+        assert render([trip_a, trip_b]) > render([trip_a]), "the second bar was not drawn"
 
     def test_spanning_event_excluded_from_per_day_rendering(self):
         """Multi-day events drawn as spanning bars should not also appear as per-day bars."""
@@ -311,7 +338,27 @@ class TestMultidaySpanning:
 
 
 class TestWeekViewForecast:
-    def test_draw_week_with_forecast_no_crash(self):
+    """`draw_week(forecast=...)` is accepted and ignored.
+
+    FINDING (#229): `forecast` appears exactly once in week_view.py — in
+    draw_week's signature — and is never read. _builtins.py nonetheless
+    computes `ctx.data.weather.forecast` on every render and passes it in, so
+    this is live plumbing feeding a parameter that does nothing.
+
+    The three tests below were named as if the week view rendered a forecast
+    and asserted getbbox, which could not have noticed either way. They now
+    assert the equality that is actually true, so they will fail the moment
+    the parameter starts (or stops) mattering. Left as a finding rather than
+    removed, because deleting a public component parameter is outside a
+    test-strengthening change.
+    """
+
+    def _render(self, today, **kwargs):
+        img, draw = _make_draw()
+        draw_week(draw, [], today, **kwargs)
+        return img
+
+    def test_draw_week_forecast_argument_is_ignored(self):
         today = date(2024, 3, 15)
         forecast = [
             DayForecast(
@@ -323,21 +370,22 @@ class TestWeekViewForecast:
             )
             for i in range(1, 6)
         ]
-        img, draw = _make_draw()
-        draw_week(draw, [], today, forecast=forecast)
-        assert img.getbbox() is not None
+        with_forecast = self._render(today, forecast=forecast)
+        assert _ink(with_forecast, WEEK_BOX) > 0, "the grid itself did not render"
+        assert with_forecast.tobytes() == self._render(today, forecast=None).tobytes(), (
+            "draw_week started using its forecast argument — update this test and the note above it"
+        )
 
     def test_draw_week_forecast_none_no_crash(self):
         today = date(2024, 3, 15)
-        img, draw = _make_draw()
-        draw_week(draw, [], today, forecast=None)
-        assert img.getbbox() is not None
+        assert _ink(self._render(today, forecast=None), WEEK_BOX) > 0
 
     def test_draw_week_forecast_empty_list(self):
         today = date(2024, 3, 15)
-        img, draw = _make_draw()
-        draw_week(draw, [], today, forecast=[])
-        assert img.getbbox() is not None
+        assert (
+            self._render(today, forecast=[]).tobytes()
+            == self._render(today, forecast=None).tobytes()
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -347,28 +395,32 @@ class TestWeekViewForecast:
 
 class TestWeatherPanelMoon:
     def test_draw_weather_with_today_no_crash(self):
+        """today= adds the moon glyph to the weather panel's label row."""
         from src.render.components.weather_panel import draw_weather
 
-        weather = _make_weather()
-        img, draw = _make_draw()
-        draw_weather(draw, weather, today=date(2024, 3, 15))
-        assert img.getbbox() is not None
+        with_today, draw = _make_draw()
+        draw_weather(draw, _make_weather(), today=date(2024, 3, 15))
+        without, draw2 = _make_draw()
+        draw_weather(draw2, _make_weather(), today=None)
+        assert _ink(with_today, WEATHER_BOX) > _ink(without, WEATHER_BOX), "no moon glyph"
 
     def test_draw_weather_without_today_no_crash(self):
-        """Backward compat: today=None should still work."""
+        """Backward compat: today=None renders the panel minus the glyph."""
         from src.render.components.weather_panel import draw_weather
 
-        weather = _make_weather()
         img, draw = _make_draw()
-        draw_weather(draw, weather, today=None)
-        assert img.getbbox() is not None
+        draw_weather(draw, _make_weather(), today=None)
+        assert _ink(img, WEATHER_BOX) > 0
 
     def test_draw_weather_none_with_today(self):
+        """The moon glyph is drawn even when there is no weather to pair it with."""
         from src.render.components.weather_panel import draw_weather
 
-        img, draw = _make_draw()
+        with_today, draw = _make_draw()
         draw_weather(draw, None, today=date(2024, 3, 15))
-        assert img.getbbox() is not None
+        without, draw2 = _make_draw()
+        draw_weather(draw2, None, today=None)
+        assert _ink(with_today, WEATHER_BOX) > _ink(without, WEATHER_BOX)
 
 
 # ---------------------------------------------------------------------------

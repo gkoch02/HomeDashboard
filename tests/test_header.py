@@ -19,7 +19,7 @@ these pixels on every tick and force an eInk refresh for content that has
 not moved.
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from PIL import Image, ImageDraw
 
