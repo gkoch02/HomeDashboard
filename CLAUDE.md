@@ -38,10 +38,10 @@ make web-enable     # Install and start web UI systemd service (run ON Pi)
 make web-status     # Web service status + recent log tail (run ON Pi)
 make web-logs       # Tail output/dashboard-web.log (run ON Pi)
 make banner         # Regenerate the eInk-faithful README logo → assets/banner.png
-make lint           # ruff check src/ tests/
-make fmt            # ruff format src/ tests/
-ruff check src/ tests/                         # Lint (direct invocation)
-ruff format src/ tests/                        # Format (direct invocation)
+make lint           # ruff check src/ tests/ scripts/ tools/
+make fmt            # ruff format src/ tests/ scripts/ tools/
+ruff check src/ tests/ scripts/ tools/         # Lint (direct invocation)
+ruff format src/ tests/ scripts/ tools/        # Format (direct invocation)
 ```
 
 ## Tech Stack

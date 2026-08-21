@@ -36,8 +36,8 @@ Use this page for local workflow, dev commands, and repo orientation. For archit
 | `make test` | run the full pytest suite |
 | `make coverage` | run pytest with coverage; prints missing lines and writes `htmlcov/index.html` |
 | `UPDATE_SNAPSHOTS=1 pytest tests/test_theme_pixel_snapshots.py` | regenerate theme pixel-hash baselines after an intentional theme change (commit the updated `tests/snapshots/theme_pixel_hashes.json`) |
-| `make lint` | run `ruff check src/ tests/` |
-| `make fmt` | run `ruff format src/ tests/` |
+| `make lint` | run `ruff check src/ tests/ scripts/ tools/` |
+| `make fmt` | run `ruff format src/ tests/ scripts/ tools/` |
 | `make check` | validate `config/config.yaml` |
 | `make docs-check` | validate markdown links and doc theme inventories |
 | `make version` | print the app version |

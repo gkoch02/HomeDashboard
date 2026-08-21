@@ -52,10 +52,10 @@ coverage: _check-venv
 	$(VENV) -m pytest --cov-report=html
 
 lint: _check-venv
-	$(VENV) -m ruff check src/ tests/
+	$(VENV) -m ruff check src/ tests/ scripts/ tools/
 
 fmt: _check-venv
-	$(VENV) -m ruff format src/ tests/
+	$(VENV) -m ruff format src/ tests/ scripts/ tools/
 
 check: _check-venv
 	$(VENV) -m src.main --check-config

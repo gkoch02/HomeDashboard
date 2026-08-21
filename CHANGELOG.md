@@ -25,6 +25,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   drift, on a non-semver `__version__`, on an undated or mismatched newest
   changelog entry, and on a missing `## [Unreleased]` heading.
 
+- **`make lint` / `make fmt` now cover `scripts/` and `tools/`.** Both
+  directories were outside the linted set, so `scripts/release.py`,
+  `scripts/build_previews.py`, `tools/check_naive_datetime.py` and their
+  neighbours could drift from the project's ruff config without CI noticing.
+  Both were already clean, so this is a scope widening with no code changes.
+
 ### Fixed
 
 - **`pip install .` produced an unimportable package.** With no explicit

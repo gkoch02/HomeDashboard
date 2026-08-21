@@ -18,8 +18,8 @@ make dry
 ```bash
 make test         # run pytest
 make coverage     # run pytest with coverage report (htmlcov/index.html)
-make lint         # ruff check src/ tests/
-make fmt          # ruff format src/ tests/
+make lint         # ruff check src/ tests/ scripts/ tools/
+make fmt          # ruff format src/ tests/ scripts/ tools/
 make dry          # preview with dummy data
 make previews     # generate theme previews
 make check        # validate config/config.yaml

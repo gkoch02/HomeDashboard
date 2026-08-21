@@ -24,8 +24,8 @@ jobs:
           python-version: "3.11"
           cache: "pip"
       - run: pip install -e ".[dev]"
-      - run: ruff check src/ tests/
-      - run: ruff format --check src/ tests/
+      - run: ruff check src/ tests/ scripts/ tools/
+      - run: ruff format --check src/ tests/ scripts/ tools/
       # Validates markdown links and the canonical theme inventories in
       # docs/themes.md and docs/previews.md. CONTRIBUTING asks contributors to
       # run this, but nothing enforced it — which is how themes drifted out of
