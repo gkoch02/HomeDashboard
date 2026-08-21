@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [5.2.0] - 2026-08-21
+
 ### Added
 
 - **`theme_rules` gained numeric conditions.** `temp_at_least` / `temp_at_most`
