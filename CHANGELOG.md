@@ -42,6 +42,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   `pythonpath = ["."]` makes the source tree importable, shadowing the
   installed copy entirely.
 
+- **The `test-core-install` CI job could not fail.** Its whole purpose is to
+  prove `pip install .` is usable, but it ran pytest from the repo checkout,
+  where three separate mechanisms put the repo root on `sys.path` ahead of
+  site-packages: `tests/__init__.py` makes pytest prepend the rootdir,
+  `python -m pytest` prepends the cwd, and `pyproject.toml`'s
+  `pythonpath = ["."]` adds it a third time. `import src.*` therefore always
+  resolved to the source tree, and the job stayed green through an install in
+  which every module was unimportable. It now also imports the installed
+  package from a directory where the source tree is not importable. Verified
+  both ways: the new step exits 0 against a correct install and exits 1
+  against the pre-fix one.
+
 ## [5.2.0] - 2026-08-21
 
 ### Added
