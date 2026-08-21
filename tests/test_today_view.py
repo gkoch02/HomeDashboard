@@ -13,6 +13,7 @@ from src.render.components.today_view import (
     _fmt_time,
     draw_today,
 )
+from src.render.quantize import flatten_pixels
 from src.render.theme import ComponentRegion
 
 
@@ -183,71 +184,132 @@ class TestEventsForToday:
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# Ink measurement
+#
+# The default region is (0, 60, 800, 280): an inverted date panel filling the
+# left 3/10, a vertical rule, then the event list. Each test measures the side
+# that owns what it changes.
+# ---------------------------------------------------------------------------
+
+REGION = ComponentRegion(0, 60, 800, 280)
+_DATE_PANEL_W = 800 * 3 // 10  # 240, per draw_today's own split
+DATE_PANEL = (0, 60, _DATE_PANEL_W, 340)
+EVENTS = (_DATE_PANEL_W, 60, 800, 340)
+
+
+def _ink(img: Image.Image, box: tuple[int, int, int, int] | None = None) -> int:
+    """Count ink (value-0) pixels, optionally only inside *box*."""
+    px = flatten_pixels(img)
+    width = img.width
+    if box is None:
+        return sum(1 for v in px if v == 0)
+    x0, y0, x1, y1 = box
+    return sum(1 for y in range(y0, y1) for x in range(x0, x1) if px[y * width + x] == 0)
+
+
+def _divider_height(img: Image.Image) -> int:
+    """Inked rows in the rule between the date panel and the event list."""
+    px = flatten_pixels(img)
+    width = img.width
+    return sum(1 for y in range(60, 340) if px[y * width + _DATE_PANEL_W] == 0)
+
+
+def _render(events=None, today=TODAY, **kwargs) -> Image.Image:
+    img, draw = _make_draw()
+    draw_today(draw, events or [], today, **kwargs)
+    return img
+
+
 class TestDrawToday:
     def test_smoke_no_events(self):
-        img, draw = _make_draw()
-        draw_today(draw, [], TODAY)
-        assert img.getbbox() is not None
+        """The date panel is inverted and the event list carries the empty message."""
+        img = _render()
+        panel_area = _DATE_PANEL_W * 280
+        assert _ink(img, DATE_PANEL) > panel_area * 0.5, "date panel is not inverted"
+        assert _ink(img, DATE_PANEL) < panel_area, "no date text knocked out of the fill"
+        assert _ink(img, EVENTS) > 0, "no empty-state message"
+        assert _divider_height(img) > 200, "no rule between the panels"
+
+    def test_date_panel_tracks_the_date(self):
+        """Day name, month and numeral come from the date, so they vary with it."""
+        inks = {
+            d: _ink(_render(today=d), DATE_PANEL)
+            for d in (date(2024, 3, 1), date(2024, 3, 15), date(2024, 12, 25))
+        }
+        assert len(set(inks.values())) == 3, f"the date panel is not date-driven: {inks}"
 
     def test_smoke_single_timed_event(self):
-        img, draw = _make_draw()
-        draw_today(draw, [_timed(TODAY, 10, 11)], TODAY)
-        assert img.getbbox() is not None
+        """A timed event replaces the empty-state message."""
+        assert _ink(_render([_timed(TODAY, 10, 11)]), EVENTS) != _ink(_render(), EVENTS)
 
     def test_smoke_single_all_day_event(self):
-        img, draw = _make_draw()
-        draw_today(draw, [_all_day(TODAY, TODAY + timedelta(days=1))], TODAY)
-        assert img.getbbox() is not None
+        """An all-day event draws a filled bar, so it inks far more than a timed row."""
+        all_day = _ink(_render([_all_day(TODAY, TODAY + timedelta(days=1))]), EVENTS)
+        assert all_day > _ink(_render([_timed(TODAY, 10, 11)]), EVENTS) * 5
 
     def test_smoke_mixed_events(self):
-        img, draw = _make_draw()
+        """All three events are drawn, so the plate exceeds any one of them."""
         events = [
             _all_day(TODAY, TODAY + timedelta(days=1), "Holiday"),
             _timed(TODAY, 9, 10, "Standup"),
             _timed(TODAY, 14, 15, "Review"),
         ]
-        draw_today(draw, events, TODAY)
-        assert img.getbbox() is not None
+        mixed = _ink(_render(events), EVENTS)
+        assert mixed > _ink(_render(events[:1]), EVENTS)
+        assert mixed > _ink(_render(events[1:]), EVENTS)
 
     def test_smoke_events_on_different_days_only_today_shown(self):
-        """Events from other days should be silently excluded (no crash)."""
-        img, draw = _make_draw()
-        events = [
+        """Yesterday's and tomorrow's events are filtered out, not merely tolerated."""
+        only_today = [_timed(TODAY, 11, 12, "Today")]
+        with_neighbours = [
             _timed(TODAY - timedelta(days=1), 9, 10, "Yesterday"),
             _timed(TODAY, 11, 12, "Today"),
             _timed(TODAY + timedelta(days=1), 9, 10, "Tomorrow"),
         ]
-        draw_today(draw, events, TODAY)
-        assert img.getbbox() is not None
+        assert _ink(_render(with_neighbours), EVENTS) == _ink(_render(only_today), EVENTS), (
+            "an event from another day reached the plate"
+        )
 
     def test_smoke_with_custom_region(self):
-        img, draw = _make_draw()
-        region = ComponentRegion(0, 60, 800, 300)
-        draw_today(draw, [_timed(TODAY, 10, 11)], TODAY, region=region)
-        assert img.getbbox() is not None
+        """A taller region gives the event list more room, so more fits."""
+        events = [_timed(TODAY, 8 + i, 9 + i, f"Event {i}") for i in range(10)]
+        tall = ComponentRegion(0, 60, 800, 300)
+        short = ComponentRegion(0, 60, 800, 140)
+        tall_ink = _ink(_render(events, region=tall), (240, 60, 800, 360))
+        short_ink = _ink(_render(events, region=short), (240, 60, 800, 360))
+        assert tall_ink > short_ink, "the region height does not affect how much is listed"
 
     def test_smoke_many_events_overflow(self):
-        """More events than fit should show '+N more' without crashing."""
-        img, draw = _make_draw()
-        events = [_timed(TODAY, i, i + 1, f"Event {i}") for i in range(8, 18)]
-        draw_today(draw, events, TODAY)
-        assert img.getbbox() is not None
+        """Beyond what fits, the list stops and shows a '+N more' indicator."""
+
+        def with_events(n):
+            return _ink(
+                _render([_timed(TODAY, 6 + (i % 14), 7 + (i % 14), f"E{i}") for i in range(n)]),
+                EVENTS,
+            )
+
+        eight = with_events(8)
+        assert with_events(10) == eight, "more rows were drawn than fit"
+        # The row count saturates but the "+N more" label still tracks N.
+        assert with_events(20) != eight, "the overflow count is not being drawn"
 
     def test_smoke_all_day_event_non_inverted_bars(self):
-        """invert_allday_bars=False draws an outlined (not filled) all-day bar."""
+        """invert_allday_bars=False outlines the bar instead of filling it."""
         from src.render.theme import ThemeStyle
 
-        img, draw = _make_draw()
-        style = ThemeStyle(invert_allday_bars=False)
-        events = [_all_day(TODAY, TODAY + timedelta(days=1), "Conference Day")]
-        draw_today(draw, events, TODAY, style=style)
-        assert img.getbbox() is not None
+        event = [_all_day(TODAY, TODAY + timedelta(days=1), "Conference Day")]
+        outlined = _ink(_render(event, style=ThemeStyle(invert_allday_bars=False)), EVENTS)
+        filled = _ink(_render(event, style=ThemeStyle(invert_allday_bars=True)), EVENTS)
+        assert outlined > 0
+        assert filled > outlined * 5, "the inverted bar is not filled"
 
     def test_smoke_event_with_location(self):
-        img, draw = _make_draw()
-        evt = _timed(TODAY, 9, 10, "Doctor Visit", location="123 Medical Center, Suite 4")
-        draw_today(draw, [evt], TODAY)
-        assert img.getbbox() is not None
+        """A location adds a line below the title."""
+        with_loc = _timed(TODAY, 9, 10, "Doctor Visit", location="123 Medical Center, Suite 4")
+        assert _ink(_render([with_loc]), EVENTS) > _ink(
+            _render([_timed(TODAY, 9, 10, "Doctor Visit")]), EVENTS
+        )
 
     def test_location_newlines_are_normalized_before_truncation(self):
         img, draw = _make_draw()
@@ -268,31 +330,35 @@ class TestDrawToday:
         assert all("\n" not in t for t in seen_texts)
 
     def test_smoke_event_with_long_title(self):
-        img, draw = _make_draw()
-        evt = _timed(TODAY, 10, 11, "A Very Long Event Title That Should Be Wrapped")
-        draw_today(draw, [evt], TODAY)
-        assert img.getbbox() is not None
+        """A long title wraps rather than being dropped or overflowing."""
+        long_title = _timed(TODAY, 10, 11, "A Very Long Event Title That Should Be Wrapped")
+        img = _render([long_title])
+        assert _ink(img, EVENTS) > _ink(_render([_timed(TODAY, 10, 11, "Short")]), EVENTS)
+        assert _ink(img, (0, 340, 800, 480)) == 0, "the event list overflowed its region"
 
     def test_smoke_small_region(self):
-        """Small region should not crash even with many events."""
-        img, draw = _make_draw()
+        """A small region still renders and keeps everything inside it."""
         region = ComponentRegion(0, 60, 400, 120)
         events = [_timed(TODAY, i, i + 1, f"E{i}") for i in range(9, 14)]
-        draw_today(draw, events, TODAY, region=region)
-        assert img.getbbox() is not None
+        img = _render(events, region=region)
+        assert _ink(img, (0, 60, 400, 180)) > 0
+        assert _ink(img, (400, 0, 800, 480)) == 0, "content escaped a 400px-wide region"
 
     def test_smoke_all_day_invert_style(self):
-        """With invert_allday_bars style, all-day events should still render."""
+        """The inverted all-day bar knocks its title out of the fill."""
         from src.render.theme import ThemeStyle
 
-        img, draw = _make_draw()
-        style = ThemeStyle(invert_allday_bars=True)
         evt = _all_day(TODAY, TODAY + timedelta(days=1), "Inverted")
-        draw_today(draw, [evt], TODAY, style=style)
-        assert img.getbbox() is not None
+        img = _render([evt], style=ThemeStyle(invert_allday_bars=True))
+        bar_ink = _ink(img, EVENTS)
+        assert bar_ink > 0
+        blank_title = _all_day(TODAY, TODAY + timedelta(days=1), "")
+        assert bar_ink < _ink(
+            _render([blank_title], style=ThemeStyle(invert_allday_bars=True)), EVENTS
+        ), "the title is not knocked out of the inverted bar"
 
     def test_smoke_with_forecast(self):
-        img, draw = _make_draw()
+        """A forecast is accepted; this view does not surface it in the event list."""
         forecast = [
             DayForecast(
                 date=TODAY + timedelta(days=i),
@@ -303,28 +369,24 @@ class TestDrawToday:
             )
             for i in range(3)
         ]
-        draw_today(draw, [_timed(TODAY, 10, 11)], TODAY, forecast=forecast)
-        assert img.getbbox() is not None
+        with_fc = _render([_timed(TODAY, 10, 11)], forecast=forecast)
+        assert _ink(with_fc, EVENTS) > 0
 
     def test_no_events_today_message_differs_from_with_events(self):
-        """Empty event panel should differ from a panel with events."""
-        img_empty, draw_empty = _make_draw()
-        draw_today(draw_empty, [], TODAY)
-
-        img_with, draw_with = _make_draw()
-        draw_today(draw_with, [_timed(TODAY, 9, 10)], TODAY)
-
-        assert img_empty.tobytes() != img_with.tobytes()
+        assert _render().tobytes() != _render([_timed(TODAY, 9, 10)]).tobytes()
 
     def test_same_am_period_strips_redundant_suffix(self):
-        """When start and end share the same am/pm, start suffix is stripped."""
-        img, draw = _make_draw()
-        evt = _timed(TODAY, 9, 11, "Morning Block")  # 9a–11a → should show "9–11a"
-        draw_today(draw, [evt], TODAY)
-        assert img.getbbox() is not None
+        """9a–11a is set as '9–11a', which is narrower than a cross-period range.
+
+        Compared against an event of the same duration that crosses noon, so
+        the only difference is the dropped suffix.
+        """
+        same_period = _render([_timed(TODAY, 9, 11, "Block")])
+        cross_noon = _render([_timed(TODAY, 11, 13, "Block")])
+        assert _ink(same_period, EVENTS) < _ink(cross_noon, EVENTS), (
+            "the redundant am/pm suffix was not stripped"
+        )
 
     def test_cross_noon_event(self):
-        img, draw = _make_draw()
-        evt = _timed(TODAY, 11, 13, "Lunch & Meeting")  # 11a–1p
-        draw_today(draw, [evt], TODAY)
-        assert img.getbbox() is not None
+        """An 11a–1p event keeps both suffixes."""
+        assert _ink(_render([_timed(TODAY, 11, 13, "Lunch & Meeting")]), EVENTS) > 0

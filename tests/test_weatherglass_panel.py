@@ -13,6 +13,26 @@ Both were previously exercised only incidentally through the pixel-snapshot
 suite, which renders every theme at a single pinned moment under imperial
 units — so the metric and standard branches and every pressure-history path
 had no regression protection.
+
+Assertion discipline (see #229)
+-------------------------------
+#229 singles this file out: its parametrized sweeps across the AQI scale,
+the wind rose and the UV scale are *deliberate* smoke tests and should keep
+their shape. They have — the change here is only that they can now fail.
+They asserted ``img.getbbox() is not None`` on a white plate with fg=0,
+where getbbox reports the bounds of non-zero pixels and so returns the full
+canvas whether or not anything was drawn; ``_marks`` counts pixels that
+differ from the background instead.
+
+Each sweep also gained one companion test asserting that the range actually
+reaches its instrument. The sweep says every value renders; the companion
+says the values do not all render *identically*. A compass that ignores the
+bearing passes the first and fails the second.
+
+Verification: with ``draw_weatherglass`` stubbed to a no-op, 52 of the 126
+tests fail (10 did before). The survivors are the pure scale/format helpers,
+the theme-registry cases, and the pressure-history tests, which assert on
+files in ``state/`` rather than on pixels.
 """
 
 from __future__ import annotations
@@ -49,6 +69,7 @@ from src.render.components.weatherglass_panel import (
     _wind_unit_label,
     draw_weatherglass,
 )
+from src.render.quantize import flatten_pixels
 from src.render.theme import AVAILABLE_THEMES, ComponentRegion, ThemeStyle, load_theme
 
 FIXED_NOW = datetime(2026, 4, 6, 10, 30)
@@ -91,6 +112,22 @@ def _style(mode: str = "L") -> ThemeStyle:
     if mode == "RGB":
         return ThemeStyle(fg=(0, 0, 0), bg=(255, 255, 255))
     return ThemeStyle(fg=0, bg=255)
+
+
+def _marks(img, box=None) -> int:
+    """Pixels differing from the canvas background.
+
+    The honest replacement for ``img.getbbox() is not None`` here: the plate
+    is white with fg=0, so getbbox reports the bounds of non-zero pixels and
+    returns the full canvas whether or not anything was drawn.
+    """
+    px = flatten_pixels(img)
+    width = img.width
+    background = px[0]
+    if box is None:
+        return sum(1 for v in px if v != background)
+    x0, y0, x1, y1 = box
+    return sum(1 for y in range(y0, y1) for x in range(x0, x1) if px[y * width + x] != background)
 
 
 def _history(path) -> list[dict]:
@@ -340,8 +377,11 @@ class TestLoadPrevPressure:
 
 
 class TestSavePressureSample:
-    def test_no_state_dir_is_a_noop(self):
+    def test_no_state_dir_is_a_noop(self, tmp_path):
+        """state_dir=None disables history entirely, in both directions."""
         _save_pressure_sample(None, 1013.0, NOW_UTC)  # must not raise
+        assert _load_prev_pressure(None, NOW_UTC) == (None, None)
+        assert list(tmp_path.iterdir()) == [], "something was written despite no state dir"
 
     def test_none_pressure_is_not_recorded(self, tmp_path):
         _save_pressure_sample(str(tmp_path), None, NOW_UTC)
@@ -414,13 +454,20 @@ class TestSavePressureSample:
         it from an aware now never raises TypeError."""
         _save_pressure_sample(str(tmp_path), 1013.0, NOW_UTC.replace(tzinfo=None))
         ts = _history(tmp_path / _PRESSURE_FILE)[0]["ts"]
-        assert datetime.fromisoformat(ts).tzinfo is not None
+        parsed = datetime.fromisoformat(ts)
+        assert parsed.tzinfo is not None, "a naive timestamp was persisted"
+        assert parsed.utcoffset() == timedelta(0), f"not stored as UTC: {ts}"
+        # And it round-trips: subtracting from an aware now must not raise.
+        assert (NOW_UTC - parsed) == timedelta(0)
 
     def test_unwritable_state_dir_degrades_silently(self, tmp_path):
         """History bookkeeping must never break a render."""
         blocker = tmp_path / "state"
         blocker.write_text("i am a file, not a directory")
         _save_pressure_sample(str(blocker), 1013.0, NOW_UTC)  # must not raise
+        # The blocker is untouched and the read side degrades to "no history".
+        assert blocker.read_text() == "i am a file, not a directory"
+        assert _load_prev_pressure(str(blocker), NOW_UTC) == (None, None)
 
     def test_write_leaves_no_temp_files_behind(self, tmp_path):
         _save_pressure_sample(str(tmp_path), 1013.0, NOW_UTC)
@@ -517,7 +564,7 @@ class TestDrawWeatherglass:
         temps = {"imperial": 64.0, "metric": 18.0, "standard": 291.0}[units]
         data = DashboardData(weather=_weather(units=units, current_temp=temps))
         img = self._draw(data)
-        assert img.getbbox() is not None
+        assert _marks(img) > 0
 
     def test_unit_systems_produce_distinct_plates(self):
         """The scale, comfort band and wind label all change with units — if
@@ -536,7 +583,7 @@ class TestDrawWeatherglass:
         assert imperial.tobytes() != metric.tobytes()
 
     def test_renders_without_weather(self):
-        assert self._draw(DashboardData()).getbbox() is not None
+        assert _marks(self._draw(DashboardData())) > 0
 
     def test_renders_with_every_optional_field_missing(self):
         data = DashboardData(
@@ -550,14 +597,14 @@ class TestDrawWeatherglass:
                 units=None,
             )
         )
-        assert self._draw(data).getbbox() is not None
+        assert _marks(self._draw(data)) > 0
 
     def test_renders_with_air_quality(self):
         data = DashboardData(
             weather=_weather(),
             air_quality=AirQualityData(aqi=142, category="Unhealthy", pm25=52.3),
         )
-        assert self._draw(data).getbbox() is not None
+        assert _marks(self._draw(data)) > 0
 
     @pytest.mark.parametrize("aqi", [0, 25, 75, 125, 175, 250, 400, 500])
     def test_renders_across_the_aqi_scale(self, aqi):
@@ -566,7 +613,7 @@ class TestDrawWeatherglass:
             weather=_weather(),
             air_quality=AirQualityData(aqi=aqi, category="X", pm25=float(aqi) / 4),
         )
-        assert self._draw(data).getbbox() is not None
+        assert _marks(self._draw(data)) > 0
 
     def test_alert_cartouche_overlays_the_plate(self):
         plain = self._draw(DashboardData(weather=_weather()))
@@ -580,26 +627,26 @@ class TestDrawWeatherglass:
     @pytest.mark.parametrize("temp", [-40.0, 0.0, 32.0, 64.0, 85.0, 110.0, 130.0])
     def test_temperatures_beyond_the_scale_clamp(self, temp):
         data = DashboardData(weather=_weather(current_temp=temp))
-        assert self._draw(data).getbbox() is not None
+        assert _marks(self._draw(data)) > 0
 
     @pytest.mark.parametrize("deg", [0.0, 45.0, 90.0, 180.0, 270.0, 359.0])
     def test_wind_compass_across_the_rose(self, deg):
         data = DashboardData(weather=_weather(wind_deg=deg))
-        assert self._draw(data).getbbox() is not None
+        assert _marks(self._draw(data)) > 0
 
     @pytest.mark.parametrize("uv", [0.0, 2.0, 5.5, 8.0, 11.0, 15.0])
     def test_uv_bar_across_the_scale(self, uv):
         data = DashboardData(weather=_weather(uv_index=uv))
-        assert self._draw(data).getbbox() is not None
+        assert _marks(self._draw(data)) > 0
 
     def test_renders_on_rgb_for_inky(self):
         data = DashboardData(weather=_weather())
-        assert self._draw(data, mode="RGB").getbbox() is not None
+        assert _marks(self._draw(data, mode="RGB")) > 0
 
     def test_polar_latitude_renders(self):
         """Svalbard in April has no sunset — the sun arc must still draw."""
         data = DashboardData(weather=_weather())
-        assert self._draw(data, latitude=78.2, longitude=15.6).getbbox() is not None
+        assert _marks(self._draw(data, latitude=78.2, longitude=15.6)) > 0
 
     def test_unset_coordinates_fall_back_to_owm_times(self):
         data = DashboardData(
@@ -609,12 +656,51 @@ class TestDrawWeatherglass:
             )
         )
         # Exact (0.0, 0.0) is the project-wide "unset" convention.
-        assert self._draw(data, latitude=0.0, longitude=0.0).getbbox() is not None
+        assert _marks(self._draw(data, latitude=0.0, longitude=0.0)) > 0
+
+    # The parametrized sweeps above are deliberate smoke tests (#229 calls
+    # them out as such) — they check that every value in a range renders.
+    # These companions check the complementary thing: that the range is
+    # actually reaching the instrument. A scale that draws identically at
+    # every value passes the sweep and is still broken.
+
+    def test_the_aqi_sweep_reaches_the_badge(self):
+        plates = {
+            aqi: self._draw(
+                DashboardData(
+                    weather=_weather(),
+                    air_quality=AirQualityData(aqi=aqi, category="X", pm25=float(aqi) / 4),
+                )
+            ).tobytes()
+            for aqi in (0, 75, 175, 400)
+        }
+        assert len(set(plates.values())) > 1, "every AQI band drew the same badge"
+
+    def test_the_temperature_sweep_reaches_the_thermometer(self):
+        plates = {
+            temp: self._draw(DashboardData(weather=_weather(current_temp=temp))).tobytes()
+            for temp in (0.0, 32.0, 64.0, 110.0)
+        }
+        assert len(set(plates.values())) > 1, "every temperature drew the same column"
+
+    def test_the_wind_sweep_reaches_the_compass(self):
+        plates = {
+            deg: self._draw(DashboardData(weather=_weather(wind_deg=deg))).tobytes()
+            for deg in (0.0, 90.0, 180.0, 270.0)
+        }
+        assert len(set(plates.values())) == 4, "the compass needle ignores the bearing"
+
+    def test_the_uv_sweep_reaches_the_bar(self):
+        plates = {
+            uv: self._draw(DashboardData(weather=_weather(uv_index=uv))).tobytes()
+            for uv in (0.0, 5.5, 11.0)
+        }
+        assert len(set(plates.values())) == 3, "the UV bar ignores the index"
 
     def test_defaults_are_supplied_when_region_and_style_are_omitted(self):
         img, draw = _canvas("L", (800, 480))
         draw_weatherglass(draw, DashboardData(weather=_weather()), TODAY, FIXED_NOW)
-        assert img.getbbox() is not None
+        assert _marks(img) > 0
 
 
 # ---------------------------------------------------------------------------
@@ -738,7 +824,7 @@ class TestWeatherglassTheme:
     def test_renders_end_to_end(self):
         img = _render()
         assert img.size == (800, 480)
-        assert img.getbbox() is not None
+        assert _marks(img) > 0
 
     def test_render_is_deterministic(self):
         assert _render().tobytes() == _render().tobytes()
