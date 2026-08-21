@@ -16,6 +16,7 @@ from src.data.models import Birthday, CalendarEvent, DashboardData
 from src.dummy_data import generate_dummy_data
 from src.render.canvas import render_dashboard
 from src.render.theme import AVAILABLE_THEMES, load_theme
+from tests.inkutils import ink
 
 FIXED_NOW = datetime(2026, 4, 5, 10, 30)  # A Sunday morning
 
@@ -502,7 +503,7 @@ class TestMonthlyPanel:
         draw = ImageDraw.Draw(img)
         data = DashboardData(events=[])
         draw_monthly(draw, data, date(2026, 4, 5))
-        assert img.getbbox() is not None
+        assert ink(img) > 0, "the month grid drew nothing"
 
     def test_draw_monthly_empty_month_shows_today_marker(self):
         """When today has no events, the cell shows the 'today' word marker."""
@@ -516,4 +517,4 @@ class TestMonthlyPanel:
         # cell) and 212 (meta-text "looks open" branch).
         data = DashboardData(events=[])
         draw_monthly(draw, data, date(2026, 4, 5))
-        assert img.getbbox() is not None
+        assert ink(img) > 0, "the empty-month grid drew nothing"

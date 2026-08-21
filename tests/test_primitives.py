@@ -16,6 +16,7 @@ from src.render.primitives import (
     text_width,
     vline,
 )
+from tests.inkutils import ink, ink_x_extent
 
 
 # Use a default bitmap font so tests don't require bundled TTF files
@@ -60,14 +61,21 @@ class TestDrawTextTruncated:
         img, draw = canvas
         # Draw "Hi" in a wide space — it should not add ellipsis
         draw_text_truncated(draw, (0, 0), "Hi", font, max_width=200)
-        # Check pixel was drawn (image not all-white)
-        assert img.getbbox() is not None
+        # Short text is drawn in full: no ellipsis, so no wider than "Hi" alone.
+        assert ink(img) > 0, "nothing drawn"
+        wide = Image.new("1", img.size, WHITE)
+        draw_text_truncated(ImageDraw.Draw(wide), (0, 0), "Hi", font, max_width=2000)
+        assert img.tobytes() == wide.tobytes(), "a generous width changed the result"
 
     def test_long_text_is_truncated(self, canvas, font):
         img, draw = canvas
         very_long = "A" * 100
         draw_text_truncated(draw, (0, 0), very_long, font, max_width=30)
-        assert img.getbbox() is not None
+        assert ink(img) > 0, "nothing drawn"
+        extent = ink_x_extent(img, (0, 0, img.width, img.height))
+        assert extent is not None and extent[1] <= 30 + 2, (
+            f"truncated text ran to x={extent[1]}, past its 30px budget"
+        )
 
     def test_returns_width(self, canvas, font):
         _, draw = canvas
@@ -134,7 +142,7 @@ class TestDrawTextWrapped:
     def test_draws_something(self, canvas, font):
         img, draw = canvas
         draw_text_wrapped(draw, (0, 0), "Hello world", font, max_width=200)
-        assert img.getbbox() is not None
+        assert ink(img) > 0, "wrapped text drew nothing"
 
 
 class TestDrawingPrimitives:

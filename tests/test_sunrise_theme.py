@@ -14,6 +14,7 @@ from src.render.components.sunrise_panel import (
     _sun_position_fraction,
 )
 from src.render.theme import AVAILABLE_THEMES, load_theme
+from tests.inkutils import ink
 
 FIXED_NOW = datetime(2026, 4, 5, 10, 30)
 
@@ -169,7 +170,7 @@ class TestDrawSunriseComponentEdges:
         img, draw = _make_draw()
         data = DashboardData(events=[], weather=_make_weather())
         draw_sunrise(draw, data, date(2026, 4, 5), FIXED_NOW)
-        assert img.getbbox() is not None
+        assert ink(img) > 0, "the sunrise panel drew nothing"
 
     def test_renders_with_evening_events(self):
         """Events starting after sunset populate the TONIGHT column."""
@@ -199,5 +200,6 @@ class TestDrawSunriseComponentEdges:
         ]
         data = DashboardData(events=events, weather=weather)
         draw_sunrise(draw, data, today, FIXED_NOW)
-        # Non-blank — something was drawn in the schedule area.
-        assert img.getbbox() is not None
+        empty, empty_draw = _make_draw()
+        draw_sunrise(empty_draw, DashboardData(events=[], weather=weather), today, FIXED_NOW)
+        assert ink(img) > ink(empty), "the schedule events were not drawn"

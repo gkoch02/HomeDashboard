@@ -22,6 +22,7 @@ from src.render.moon_render import (
     render_moon_disc,
 )
 from src.render.quantize import flatten_pixels
+from tests.inkutils import marks
 
 # Phase ages (days) for a 29.53059-day synodic month.
 NEW = 0.0
@@ -137,9 +138,11 @@ class TestRenderPhotoDisc:
         assert px[132, 80] > px[28, 80]
 
     def test_photo_full_moon_is_bright(self, fake_photo):
-        img = self._disc_image("L", fake_photo, FULL, dark_canvas=True)
-        assert img.getbbox() is not None
-        assert max(flatten_pixels(img)) > 0
+        """A full moon lights most of the disc, unlike a new moon."""
+        full = self._disc_image("L", fake_photo, FULL, dark_canvas=True)
+        new = self._disc_image("L", fake_photo, NEW, dark_canvas=True)
+        assert marks(full) > marks(new), "the full disc is no brighter than a new one"
+        assert max(flatten_pixels(full)) > 0
 
     def test_photo_new_moon_only_earthshine(self, fake_photo):
         # New moon: no lit region, only faint earthshine.  On the L canvas the
@@ -177,7 +180,7 @@ class TestRenderPhotoDisc:
             use_photo=True,
             photo_path=str(fake_photo),
         )
-        assert img.getbbox() is not None
+        assert marks(img) > 0, "the photo disc rendered nothing"
 
 
 # ---------------------------------------------------------------------------
@@ -192,7 +195,7 @@ class TestProceduralPath:
         img = Image.new("L", (160, 160), 0)
         draw = ImageDraw.Draw(img)
         render_moon_disc(img, draw, 80, 80, 60, FULL, MoonTones(lit=255, dark=0, edge=255))
-        assert img.getbbox() is not None
+        assert marks(img) > 0, "the procedural disc rendered nothing"
 
     def test_missing_photo_falls_back_to_procedural(self, tmp_path):
         _load_moon_photo.cache_clear()
@@ -210,7 +213,21 @@ class TestProceduralPath:
             use_photo=True,
             photo_path=str(missing),
         )
-        assert img.getbbox() is not None
+        # A missing asset falls back to the procedural disc rather than blanking.
+        assert marks(img) > 0, "the missing-photo fallback rendered nothing"
+        procedural = Image.new("L", (160, 160), 0)
+        render_moon_disc(
+            procedural,
+            ImageDraw.Draw(procedural),
+            80,
+            80,
+            60,
+            FULL,
+            MoonTones(lit=255, dark=0, edge=255),
+        )
+        assert img.tobytes() == procedural.tobytes(), (
+            "the missing-photo path did not fall back to the procedural disc"
+        )
 
     def test_bilevel_mode_skips_photo(self, fake_photo):
         # "1" canvases always use the flat procedural path even with use_photo.

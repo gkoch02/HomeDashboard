@@ -25,6 +25,7 @@ from src.render.components.week_view import (
 )
 from src.render.moon import moon_phase_age, moon_phase_glyph, moon_phase_name
 from src.render.quantize import flatten_pixels
+from tests.inkutils import ink
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -465,4 +466,4 @@ class TestRenderPipelineV3:
         assert isinstance(result, Image.Image)
         assert result.size == (800, 480)
         assert result.mode == "1"
-        assert result.getbbox() is not None
+        assert ink(result) > 0, "the full pipeline rendered a blank plate"

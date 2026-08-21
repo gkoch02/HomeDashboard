@@ -50,7 +50,8 @@ from src.render.components.moonphase_panel import (
     draw_moonphase,
 )
 from src.render.quantize import flatten_pixels
-from src.render.theme import ComponentRegion, ThemeStyle
+from src.render.theme import ComponentRegion, ThemeStyle, load_theme
+from tests.inkutils import marks
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -473,6 +474,19 @@ class TestMoonphaseThemeIntegration:
 
 
 class TestDrawMoonphaseProcedural:
+    """Dark-canvas rendering, using the theme's own style.
+
+    (#229) These originally passed the default ThemeStyle, whose fg=0 on this
+    black canvas leaves almost nothing visible — 2828 marked pixels against
+    56541 under the theme's fg=255. Coordinates then made no difference to the
+    plate, so a test asserting they did would have failed for the wrong
+    reason. Same trap as the one recorded in test_constellation_map_panel.py.
+    """
+
+    @staticmethod
+    def _style():
+        return load_theme("moonphase").style
+
     def _l_canvas(self, w=800, h=480):
         img = Image.new("L", (w, h), 0)
         return img, ImageDraw.Draw(img)
@@ -492,8 +506,20 @@ class TestDrawMoonphaseProcedural:
             latitude=37.77,
             longitude=-122.42,
             now=now,
+            style=self._style(),
         )
-        assert img.getbbox() is not None
+        assert marks(img) > 0, "the L-canvas plate rendered blank"
+        # Coordinates add the moonrise/moonset line, so they change the plate.
+        bare, bare_draw = self._l_canvas()
+        draw_moonphase(
+            bare_draw,
+            _make_data(),
+            date(2026, 5, 30),
+            image=bare,
+            now=now,
+            style=self._style(),
+        )
+        assert img.tobytes() != bare.tobytes(), "the coordinates reached nothing"
 
     def test_renders_on_rgb_canvas(self):
         img, draw = self._rgb_canvas()
@@ -507,24 +533,42 @@ class TestDrawMoonphaseProcedural:
             longitude=-122.42,
             now=now,
         )
-        assert img.getbbox() is not None
+        assert marks(img) > 0, "the RGB plate rendered blank"
 
     def test_supermoon_badge_renders(self):
-        """A near-perigee full moon exercises the supermoon branch."""
+        """A near-perigee full moon swaps the illumination subtitle for a badge."""
         img, draw = self._l_canvas()
-        draw_moonphase(draw, _make_data(), date(2025, 11, 5), image=img)
-        assert img.getbbox() is not None
+        draw_moonphase(draw, _make_data(), date(2025, 11, 5), image=img, style=self._style())
+        ordinary, ordinary_draw = self._l_canvas()
+        draw_moonphase(
+            ordinary_draw, _make_data(), date(2025, 11, 20), image=ordinary, style=self._style()
+        )
+        assert marks(img) > 0
+        assert img.tobytes() != ordinary.tobytes(), "the supermoon badge never appeared"
 
     def test_zero_coords_treated_as_unset(self):
         img, draw = self._l_canvas()
         # 0,0 should skip moonrise/moonset and fall back to age only — no crash.
-        draw_moonphase(draw, _make_data(), TODAY, image=img, latitude=0.0, longitude=0.0)
-        assert img.getbbox() is not None
+        draw_moonphase(
+            draw,
+            _make_data(),
+            TODAY,
+            image=img,
+            latitude=0.0,
+            longitude=0.0,
+            style=self._style(),
+        )
+        unset, unset_draw = self._l_canvas()
+        draw_moonphase(unset_draw, _make_data(), TODAY, image=unset, style=self._style())
+        assert marks(img) > 0
+        assert img.tobytes() == unset.tobytes(), (
+            "(0,0) was treated as a real location rather than as unset"
+        )
 
     def test_no_coords_renders(self):
         img, draw = self._l_canvas()
-        draw_moonphase(draw, _make_data(), TODAY, image=img)
-        assert img.getbbox() is not None
+        draw_moonphase(draw, _make_data(), TODAY, image=img, style=self._style())
+        assert marks(img) > 0, "the no-coordinates plate rendered blank"
 
 
 class TestMoonphaseHelpers:

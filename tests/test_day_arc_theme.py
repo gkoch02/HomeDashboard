@@ -53,6 +53,7 @@ from src.render.theme import (
     ThemeStyle,
     load_theme,
 )
+from tests.inkutils import marks
 
 FIXED_NOW = datetime(2026, 4, 6, 10, 30)
 TODAY = FIXED_NOW.date()
@@ -723,7 +724,7 @@ def test_draw_day_arc_default_style_does_not_crash():
     # draw handle's backing image.
     image = Image.new("L", (800, 480), 255)
     draw_day_arc(ImageDraw.Draw(image), _data_for(), TODAY, FIXED_NOW)
-    assert image.getbbox() is not None
+    assert marks(image) > 0, "the default-style plate rendered blank"
 
 
 def test_draw_day_arc_accepts_an_explicit_style():
@@ -738,7 +739,7 @@ def test_draw_day_arc_accepts_an_explicit_style():
         latitude=NYC[0],
         longitude=NYC[1],
     )
-    assert image.getbbox() is not None
+    assert marks(image) > 0, "the coordinate path rendered blank"
 
 
 def test_draw_day_arc_with_aware_now():
@@ -747,4 +748,9 @@ def test_draw_day_arc_with_aware_now():
     image = Image.new("L", (800, 480), 255)
     aware = FIXED_NOW.replace(tzinfo=timezone.utc)
     draw_day_arc(ImageDraw.Draw(image), _data_for(), TODAY, aware, image=image)
-    assert image.getbbox() is not None
+    assert marks(image) > 0, "the aware-now path rendered blank"
+    # An aware `now` must resolve against its own zone, not the host's, so the
+    # plate is stable regardless of where the suite runs.
+    again = Image.new("L", (800, 480), 255)
+    draw_day_arc(ImageDraw.Draw(again), _data_for(), TODAY, aware, image=again)
+    assert image.tobytes() == again.tobytes()

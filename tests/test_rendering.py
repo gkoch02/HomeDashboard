@@ -17,6 +17,7 @@ from src.data.models import (
 from src.render.canvas import _resolve_style, render_dashboard
 from src.render.theme import Theme, ThemeLayout, ThemeStyle
 from src.render.themes.qotd import qotd_theme
+from tests.inkutils import ink, marks
 
 
 def _make_data(today: date | None = None) -> DashboardData:
@@ -137,7 +138,7 @@ class TestRenderDashboard:
         data = _make_data()
         cfg = DisplayConfig()
         result = render_dashboard(data, cfg)
-        assert result.getbbox() is not None, "Expected black pixels but image is all white"
+        assert ink(result) > 0, "Expected black pixels but image is all white"
 
     def test_scales_to_larger_display(self):
         """When width/height differ from 800×480, the image should be scaled."""
@@ -229,7 +230,7 @@ class TestGreyscaleCanvas:
         cfg = DisplayConfig(width=200, height=100)
         theme = self._make_l_theme()
         result = render_dashboard(data, cfg, theme=theme)
-        assert result.getbbox() is not None, "Expected black pixels but image is all white"
+        assert marks(result) > 0, "Expected drawn pixels but the L-mode plate is uniform"
 
     def test_l_canvas_with_quantization_modes(self):
         """All three quantization modes should return a valid 1-bit image."""

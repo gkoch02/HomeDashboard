@@ -15,6 +15,7 @@ from src.render.components.countdown_panel import (
     draw_countdown,
 )
 from src.render.theme import AVAILABLE_THEMES, load_theme
+from tests.inkutils import ink
 
 FIXED_NOW = datetime(2026, 4, 23, 12, 0)
 TODAY = FIXED_NOW.date()
@@ -159,12 +160,16 @@ class TestDrawCountdownDirect:
         img, d = _make_draw()
         draw_countdown(d, [], TODAY)
         # Empty state should still produce pixels
-        assert img.getbbox() is not None
+        assert ink(img) > 0, "the empty countdown state drew nothing"
 
     def test_none_events_treated_as_empty(self):
         img, d = _make_draw()
         draw_countdown(d, None, TODAY)  # type: ignore[arg-type]
-        assert img.getbbox() is not None
+        empty, ed = _make_draw()
+        draw_countdown(ed, [], TODAY)
+        assert img.tobytes() == empty.tobytes(), (
+            "events=None was not treated the same as an empty list"
+        )
 
     def test_resolved_dataclass_instance(self):
         r = _Resolved(name="X", target=date(2026, 5, 1), days_until=8)

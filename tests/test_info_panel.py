@@ -7,6 +7,7 @@ from unittest.mock import patch
 from PIL import Image, ImageDraw
 
 from src.render.components.info_panel import _quote_for_today, draw_info
+from tests.inkutils import ink
 
 
 class TestQuoteForToday:
@@ -72,15 +73,18 @@ class TestDrawInfo:
     def test_smoke_draws_something(self):
         img, draw = self._make_draw()
         draw_info(draw, date(2024, 3, 15))
-        assert img.getbbox() is not None
+        assert ink(img) > 0, "the info panel drew nothing"
 
     def test_smoke_various_dates(self):
         import datetime
 
+        plates = set()
         for offset in range(7):
             img, draw = self._make_draw()
             draw_info(draw, date(2024, 1, 1) + datetime.timedelta(days=offset))
-            assert img.getbbox() is not None
+            assert ink(img) > 0, f"day +{offset} drew nothing"
+            plates.add(img.tobytes())
+        assert len(plates) > 1, "the quote never changed across a week"
 
     def test_long_quote_adapts_to_smaller_font(self, tmp_path):
         """A very long quote triggers the smaller font (regular(12)) path (lines 62-65)."""
@@ -101,7 +105,7 @@ class TestDrawInfo:
             img, draw = self._make_draw()
             # Use a unique date to avoid the lru_cache returning a stale result
             draw_info(draw, date(2099, 12, 31))
-        assert img.getbbox() is not None
+        assert ink(img) > 0, "the custom quote store rendered nothing"
 
     def test_corrupt_quotes_json_falls_back_gracefully(self, tmp_path):
         """Corrupt quotes.json triggers except path (lines 62-63) in _quote_for_today."""
@@ -114,7 +118,7 @@ class TestDrawInfo:
             _quote_for_today.cache_clear()
             img, draw = self._make_draw()
             draw_info(draw, date(2098, 6, 15))
-        assert img.getbbox() is not None
+        assert ink(img) > 0, "the corrupt-store fallback rendered nothing"
 
     def test_missing_quotes_file_uses_defaults(self, tmp_path):
         """Missing quotes.json triggers else path (lines 64-65) in _quote_for_today."""
@@ -126,7 +130,7 @@ class TestDrawInfo:
             _quote_for_today.cache_clear()
             img, draw = self._make_draw()
             draw_info(draw, date(2097, 11, 22))
-        assert img.getbbox() is not None
+        assert ink(img) > 0, "the missing-store fallback rendered nothing"
 
 
 class TestQuoteRefreshModes:

@@ -287,7 +287,7 @@ class TestDrawConstellationMapDirect:
         draw_constellation_map(
             d, data, TODAY, FIXED_NOW, style=style, latitude=NYC_LAT, longitude=NYC_LON
         )
-        assert img.getbbox() is not None
+        assert _bright(img) > 0
         # A dark-canvas chart drawn with fg=255 should fill many pixels.
         bright = sum(1 for p in img.tobytes() if p > 200)
         assert bright > 50, "expected stars + chrome to brighten the canvas"
