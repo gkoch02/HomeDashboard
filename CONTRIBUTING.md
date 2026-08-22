@@ -18,8 +18,8 @@ make dry
 ```bash
 make test         # run pytest
 make coverage     # run pytest with coverage report (htmlcov/index.html)
-make lint         # ruff check src/ tests/
-make fmt          # ruff format src/ tests/
+make lint         # ruff check src/ tests/ scripts/ tools/
+make fmt          # ruff format src/ tests/ scripts/ tools/
 make dry          # preview with dummy data
 make previews     # generate theme previews
 make check        # validate config/config.yaml
@@ -192,6 +192,23 @@ When changing any of these areas, update the canonical docs in the same PR:
 - Add or update documentation checks when you introduce a new exhaustive list.
 - Coverage is enforced at ≥94% via `pytest-cov` (`fail_under` in `pyproject.toml`); current coverage is ~98%. Run `make coverage` to see missing lines and an HTML report at `htmlcov/index.html`. New defensive branches should ship with tests.
 - Theme changes shift the pixel-hash snapshots in `tests/snapshots/theme_pixel_hashes.json`. If the diff is intentional, regenerate with `UPDATE_SNAPSHOTS=1 pytest tests/test_theme_pixel_snapshots.py` and commit the updated JSON alongside the source change. Adding a new theme also requires a fresh baseline — the coverage guard test fails without one.
+
+## Releasing
+
+Do not hand-edit the version. It lives only in `src/_version.py` (`pyproject.toml`
+reads it dynamically), and releases are cut with:
+
+```bash
+make release-dry        # show the plan
+make release            # bump, date the changelog, commit, tag
+```
+
+The bump size is inferred from the `## [Unreleased]` changelog block — a
+`### Added`/`### Changed`/`### Deprecated`/`### Removed` section means minor,
+`### Fixed`/`### Security` alone means patch, and major must be asked for with
+`make release RELEASE_ARGS="--major"`. So the thing to keep current in a PR is
+the **`## [Unreleased]` entry**; the version number follows from it at release
+time. See [Releasing](docs/development.md#releasing).
 
 ## PR Checklist
 

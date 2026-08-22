@@ -24,8 +24,8 @@ jobs:
           python-version: "3.11"
           cache: "pip"
       - run: pip install -e ".[dev]"
-      - run: ruff check src/ tests/
-      - run: ruff format --check src/ tests/
+      - run: ruff check src/ tests/ scripts/ tools/
+      - run: ruff format --check src/ tests/ scripts/ tools/
       # Validates markdown links and the canonical theme inventories in
       # docs/themes.md and docs/previews.md. CONTRIBUTING asks contributors to
       # run this, but nothing enforced it — which is how themes drifted out of
@@ -69,6 +69,26 @@ jobs:
       # it's test tooling, not an application dep, so it doesn't undermine the
       # "no optional-extra app packages" guarantee.
       - run: pip install . pytest pytest-cov
+      # The pytest step below cannot detect a broken install. Three separate
+      # mechanisms put the repo root on sys.path ahead of site-packages:
+      # tests/__init__.py makes pytest prepend the rootdir, `python -m pytest`
+      # prepends the cwd, and pyproject's `pythonpath = ["."]` adds it again.
+      # So `import src.*` there always resolves to the checkout and the job
+      # stays green no matter what `pip install .` produced — which is exactly
+      # how it sat green while the install was scattering every module across
+      # the top level of site-packages, unimportable.
+      #
+      # This step runs from a directory where the source tree is not
+      # importable, so it exercises the installed package and nothing else.
+      - name: Import the installed package from outside the source tree
+        working-directory: /tmp
+        run: |
+          python - <<'PY'
+          import src.app, src.main, src.config, src.data_pipeline
+          import src.render.canvas, src.display.driver, src.fetchers.calendar
+          from src._version import __version__
+          print("installed home-dashboard", __version__)
+          PY
       - run: python -m pytest tests/ --ignore-glob='tests/test_web_*.py' --tb=short --no-cov
 
   snapshot-tests:

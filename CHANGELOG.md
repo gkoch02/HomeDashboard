@@ -6,6 +6,65 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Changed
+
+- **Releases are cut with one command instead of four manual edits.**
+  `make release` (`scripts/release.py`) bumps `src/_version.py`, dates the
+  `## [Unreleased]` block, commits, and creates the annotated `vX.Y.Z` tag.
+  The bump size is inferred from the Unreleased section headings —
+  `Added`/`Changed`/`Deprecated`/`Removed` means minor, `Fixed`/`Security`
+  alone means patch. Major is never inferred and must be requested with
+  `make release RELEASE_ARGS="--major"`. `make release-dry` prints the plan
+  without writing. The script refuses a dirty tree, an existing tag, or a
+  version that does not increase; pushing stays manual. If any step of the
+  mutating phase fails — a rejecting pre-commit hook, an unset git identity, a
+  signing key that will not load — the file rewrites and any release commit are
+  rolled back, so the same release can simply be retried once the cause is
+  fixed. The rollback never uses `git reset --hard`, since `--allow-dirty`
+  means the tree may hold unrelated work.
+- **The version has a single source of truth.** `pyproject.toml` now declares
+  `dynamic = ["version"]` and reads `src/_version.py` via
+  `[tool.setuptools.dynamic]` rather than restating the number. The two files
+  had already drifted once — `4.6.0` was committed to one while the other
+  said `5.2.0`. `tests/test_version_consistency.py` fails the build on that
+  drift, on a non-semver `__version__`, on an undated or mismatched newest
+  changelog entry, and on a missing `## [Unreleased]` heading.
+
+- **`make lint` / `make fmt` now cover `scripts/` and `tools/`.** Both
+  directories were outside the linted set, so `scripts/release.py`,
+  `scripts/build_previews.py`, `tools/check_naive_datetime.py` and their
+  neighbours could drift from the project's ruff config without CI noticing.
+  Both were already clean, so this is a scope widening with no code changes.
+
+### Fixed
+
+- **`pip install .` produced an unimportable package.** With no explicit
+  `packages` config, setuptools auto-discovery read the repo as a *src-layout*
+  and installed every module at the top level of `site-packages` — `app.py`,
+  `config.py`, `cli.py`, `main.py`, `filters.py`, a bare `__init__.py`, plus
+  `data/`, `display/`, `fetchers/`, `render/`, `services/` and `web/`. Nothing
+  was importable afterwards: `import src.config` failed (`No module named
+  'src'`) because the `src` package no longer existed, and `import config`
+  failed too, because the module's own body does `from src.config_validation
+  import ...`. The generic names also collided with anything else in the
+  environment. `[tool.setuptools.packages.find] include = ["src*"]` now installs
+  the single `src` package that the codebase actually imports. The
+  `test-core-install` CI job never caught this because pytest's
+  `pythonpath = ["."]` makes the source tree importable, shadowing the
+  installed copy entirely.
+
+- **The `test-core-install` CI job could not fail.** Its whole purpose is to
+  prove `pip install .` is usable, but it ran pytest from the repo checkout,
+  where three separate mechanisms put the repo root on `sys.path` ahead of
+  site-packages: `tests/__init__.py` makes pytest prepend the rootdir,
+  `python -m pytest` prepends the cwd, and `pyproject.toml`'s
+  `pythonpath = ["."]` adds it a third time. `import src.*` therefore always
+  resolved to the source tree, and the job stayed green through an install in
+  which every module was unimportable. It now also imports the installed
+  package from a directory where the source tree is not importable. Verified
+  both ways: the new step exits 0 against a correct install and exits 1
+  against the pre-fix one.
+
 ## [5.2.0] - 2026-08-21
 
 ### Added

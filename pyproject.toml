@@ -1,6 +1,10 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "home-dashboard"
-version = "5.2.0"
+dynamic = ["version"]
 description = "Python eInk dashboard for Raspberry Pi — calendar, weather, birthdays, and daily quotes"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -35,6 +39,14 @@ web = [
     "flask>=3.0",
     "waitress>=3.0",
 ]
+
+[tool.setuptools.dynamic]
+# Single source of truth: src/_version.py. setuptools reads the literal via AST,
+# so this never imports the package (no Pillow/numpy needed at build time).
+version = {attr = "src._version.__version__"}
+
+[tool.setuptools.packages.find]
+include = ["src*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -1,4 +1,4 @@
-.PHONY: dry test coverage deploy setup install check previews previews-inky previews-split banner version lint fmt docs-check \
+.PHONY: dry test coverage deploy setup install check previews previews-inky previews-split banner version release release-dry lint fmt docs-check \
         pi-install install-display-drivers pi-enable pi-status pi-logs configure \
         web-enable web-status web-logs
 
@@ -22,6 +22,14 @@ install-display-drivers: _check-venv
 version: _check-venv
 	@$(VENV) -m src.main --version
 
+# Releasing needs no venv: scripts/release.py is stdlib-only and reads
+# src/_version.py as text rather than importing the package.
+release-dry:
+	@python3 scripts/release.py --dry-run $(RELEASE_ARGS)
+
+release:
+	@python3 scripts/release.py $(RELEASE_ARGS)
+
 dry: _check-venv
 	$(VENV) -m src.main --dry-run --dummy
 
@@ -44,10 +52,10 @@ coverage: _check-venv
 	$(VENV) -m pytest --cov-report=html
 
 lint: _check-venv
-	$(VENV) -m ruff check src/ tests/
+	$(VENV) -m ruff check src/ tests/ scripts/ tools/
 
 fmt: _check-venv
-	$(VENV) -m ruff format src/ tests/
+	$(VENV) -m ruff format src/ tests/ scripts/ tools/
 
 check: _check-venv
 	$(VENV) -m src.main --check-config
