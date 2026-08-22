@@ -286,9 +286,16 @@ class DashboardApp:
     def _window_theme(self, pre_theme: str) -> str:
         """Return the theme whose event window should be fetched.
 
-        Widest requirement wins across the pre-fetch pick and every theme a
-        ``theme_rules`` entry could later resolve to, so a post-fetch flip never
-        renders against a window that was sized for a hungrier-but-different view.
+        Considers the pre-fetch pick and every theme a ``theme_rules`` entry
+        could later resolve to, so a post-fetch flip usually does not render
+        against a window sized for a different view.
+
+        This is a fixed priority order, not a union of the ranges, and the two
+        windows are anchored differently (``monthly`` to the Sunday-first month
+        grid, ``THEMES_NEEDING_TOMORROW`` to today+8). Known boundary: when the
+        month ends on a Saturday the grid's exclusive end falls on that last
+        day, so a flip from ``monthly`` to a rollover theme on that date has no
+        events for tomorrow. Sizing to the union of both ranges would close it.
         """
         candidates = {pre_theme} | {rule.theme for rule in self.cfg.theme_rules.rules}
         if "monthly" in candidates:
