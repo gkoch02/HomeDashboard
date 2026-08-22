@@ -1,7 +1,7 @@
 """Tests for src/app.py — DashboardApp and _migrate_state_files."""
 
 from argparse import Namespace
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -313,31 +313,40 @@ class TestEventWindowForTheme:
         assert window_start <= sunday + timedelta(days=1) < window_end
 
 
-class TestWindowTheme:
+class TestEventWindow:
+    """`_event_window` unions every candidate theme's range.
+
+    It replaced a fixed-priority pick (monthly, then a rollover theme, then the
+    pre-fetch pick). Priority was wrong because the candidates are anchored
+    differently and monthly is not always the superset it looks like.
+    """
+
     def test_uses_the_pre_fetch_theme_by_default(self, tmp_path):
         app = _make_app(tmp_path)
-        assert app._window_theme("default") == "default"
+        assert app._event_window("default", datetime(2026, 4, 11, 10, 0)) == (None, 7)
 
     def test_monthly_rule_widens_the_window(self, tmp_path):
+        from datetime import date
+
         from src.config import ThemeRule
 
         app = _make_app(tmp_path)
         app.cfg.theme_rules.rules = [ThemeRule(when={"weather": "rain"}, theme="monthly")]
-        assert app._window_theme("default") == "monthly"
+        assert app._event_window("default", datetime(2026, 4, 11, 10, 0)) == (date(2026, 3, 29), 35)
 
     def test_day_arc_rule_widens_the_window(self, tmp_path):
         from src.config import ThemeRule
 
         app = _make_app(tmp_path)
         app.cfg.theme_rules.rules = [ThemeRule(when={"weather": "rain"}, theme="day_arc")]
-        assert app._window_theme("default") == "day_arc"
+        assert app._event_window("default", datetime(2026, 4, 11, 10, 0)) == (None, 8)
 
     def test_halftone_agenda_rule_widens_the_window(self, tmp_path):
         from src.config import ThemeRule
 
         app = _make_app(tmp_path)
         app.cfg.theme_rules.rules = [ThemeRule(when={"weather": "rain"}, theme="halftone_agenda")]
-        assert app._window_theme("default") == "halftone_agenda"
+        assert app._event_window("default", datetime(2026, 4, 11, 10, 0)) == (None, 8)
 
     def test_every_rollover_theme_is_registered(self, tmp_path):
         # A typo here silently drops the extra day rather than failing.
@@ -346,16 +355,56 @@ class TestWindowTheme:
 
         assert THEMES_NEEDING_TOMORROW <= set(AVAILABLE_THEMES)
 
-    def test_monthly_wins_over_day_arc(self, tmp_path):
-        # monthly's grid window is a superset of day_arc's week-plus-one.
+    def test_default_anchor_stays_none_so_the_cache_key_is_unchanged(self, tmp_path):
+        # The union resolves a None start to week_start() internally, but must
+        # hand back None when the union begins there — an explicit-but-identical
+        # start would change the events-window cache metadata and force a
+        # needless re-fetch on every install after upgrade.
         from src.config import ThemeRule
 
         app = _make_app(tmp_path)
-        app.cfg.theme_rules.rules = [
-            ThemeRule(when={"weather": "rain"}, theme="day_arc"),
-            ThemeRule(when={"weather": "snow"}, theme="monthly"),
-        ]
-        assert app._window_theme("day_arc") == "monthly"
+        app.cfg.theme_rules.rules = [ThemeRule(when={"weather": "rain"}, theme="day_arc")]
+        start, _ = app._event_window("default", datetime(2026, 4, 11, 10, 0))
+        assert start is None
+
+    @pytest.mark.parametrize("last_day", [date(2026, 1, 31), date(2026, 2, 28), date(2026, 10, 31)])
+    def test_monthly_plus_rollover_still_covers_tomorrow(self, tmp_path, last_day):
+        # Regression: monthly's grid ends on the last day of the month, so when
+        # a month ends on a Saturday it does not reach tomorrow. The old
+        # priority pick returned monthly unconditionally, leaving a post-fetch
+        # flip to day_arc / halftone_agenda with no events for its after-dark
+        # rollover — it rendered "Nothing scheduled".
+        from datetime import timedelta
+
+        from src._time import week_start
+        from src.config import ThemeRule
+
+        assert last_day.weekday() == 5, "these are the Saturday month-ends"
+
+        app = _make_app(tmp_path)
+        app.cfg.theme_rules.rules = [ThemeRule(when={"weather": "rain"}, theme="day_arc")]
+        now = datetime(last_day.year, last_day.month, last_day.day, 21, 0)
+        start, days = app._event_window("monthly", now)
+
+        window_start = week_start(last_day) if start is None else start
+        window_end = window_start + timedelta(days=days)
+        assert window_start <= last_day + timedelta(days=1) < window_end
+
+    def test_union_keeps_the_monthly_grid_it_would_have_picked(self, tmp_path):
+        # Widening for the rollover theme must not lose monthly's earlier start:
+        # the grid reaches back before the current week, and the month view
+        # needs those cells.
+        from datetime import date, timedelta
+
+        from src.config import ThemeRule
+
+        app = _make_app(tmp_path)
+        app.cfg.theme_rules.rules = [ThemeRule(when={"weather": "rain"}, theme="day_arc")]
+        start, days = app._event_window("monthly", datetime(2026, 1, 31, 21, 0))
+
+        grid_start, grid_days = app._event_window_for_theme("monthly", datetime(2026, 1, 31, 21, 0))
+        assert start == grid_start == date(2025, 12, 28)
+        assert start + timedelta(days=days) >= grid_start + timedelta(days=grid_days)
 
 
 # ---------------------------------------------------------------------------

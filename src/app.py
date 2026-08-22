@@ -8,7 +8,7 @@ from datetime import date as _date
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from src._time import now_local
+from src._time import now_local, week_start
 from src.config import resolve_tz
 from src.data_pipeline import DataPipeline
 from src.dummy_data import generate_dummy_data
@@ -158,11 +158,10 @@ class DashboardApp:
         # Phase 1: pre-fetch resolve (no data) — used to size the calendar event window.
         pre_theme = resolve_theme_name(self.cfg, self.args.theme, now=now, data=None)
         # A post-fetch theme_rules flip can land on a theme that needs more
-        # calendar data than the pre-fetch pick did, so size the window for the
-        # widest requirement among the candidates; the extra events are cheap and
-        # avoid rendering an incomplete view.
-        window_theme = self._window_theme(pre_theme)
-        event_window_start, event_window_days = self._event_window_for_theme(window_theme, now)
+        # calendar data than the pre-fetch pick did, so fetch the union of every
+        # candidate's window; the extra events are cheap and avoid rendering an
+        # incomplete view.
+        event_window_start, event_window_days = self._event_window(pre_theme, now)
 
         data = self._load_data(now, force_full, pre_theme, event_window_start, event_window_days)
         data = self._apply_filters(data)
@@ -283,20 +282,39 @@ class DashboardApp:
             return None, 8
         return None, 7
 
-    def _window_theme(self, pre_theme: str) -> str:
-        """Return the theme whose event window should be fetched.
+    def _event_window(self, pre_theme: str, now: datetime) -> tuple[_date | None, int]:
+        """Return the event window covering every theme this run could render.
 
-        Widest requirement wins across the pre-fetch pick and every theme a
-        ``theme_rules`` entry could later resolve to, so a post-fetch flip never
-        renders against a window that was sized for a hungrier-but-different view.
+        Unions the ranges of the pre-fetch pick and every theme a ``theme_rules``
+        entry could later resolve to, rather than picking one of them. Picking
+        was the older behaviour and it had a real gap: the candidates are
+        anchored differently — ``monthly`` to the Sunday-first month grid,
+        ``THEMES_NEEDING_TOMORROW`` to the week anchor plus 8 — and ``monthly``
+        won unconditionally despite its grid ending on the last day of the
+        month. So when a month ends on a Saturday the grid did not reach
+        tomorrow, and a post-fetch flip to ``day_arc`` / ``halftone_agenda``
+        that day left their after-dark rollover with no events to show
+        (2026: Jan 31, Feb 28, Oct 31).
+
+        A ``None`` start means the fetchers' default anchor, which they resolve
+        to ``week_start(today)``; it is resolved the same way here so a
+        ``None``-anchored range can be unioned against an explicitly anchored
+        one. The result keeps ``None`` when the union starts on that same
+        anchor, so the common single-candidate case returns exactly what it
+        did before and no cached events window is needlessly invalidated.
         """
         candidates = {pre_theme} | {rule.theme for rule in self.cfg.theme_rules.rules}
-        if "monthly" in candidates:
-            return "monthly"
-        needs_tomorrow = candidates & THEMES_NEEDING_TOMORROW
-        if needs_tomorrow:
-            return sorted(needs_tomorrow)[0]
-        return pre_theme
+        default_anchor = week_start(now.date())
+
+        spans = []
+        for theme_name in candidates:
+            start, days = self._event_window_for_theme(theme_name, now)
+            resolved = default_anchor if start is None else start
+            spans.append((resolved, resolved + timedelta(days=days)))
+
+        start = min(span[0] for span in spans)
+        end = max(span[1] for span in spans)
+        return (None if start == default_anchor else start), (end - start).days
 
     def _apply_filters(self, data):
         if (

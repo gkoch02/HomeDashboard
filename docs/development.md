@@ -108,6 +108,16 @@ git push -u origin HEAD && git push origin v<new-version>
 It refuses to run on a dirty working tree, on an existing tag, or when the new
 version would not be greater than the current one. Pushing stays manual.
 
+If any of those steps fails partway — a rejecting pre-commit hook, a tag that
+cannot be created — the script restores `src/_version.py`, `CHANGELOG.md` and
+`HEAD` to their pre-release state before re-raising, so you can fix the cause
+and simply re-run. Without that, a failure left the version bumped and the
+`## [Unreleased]` block already rolled into a dated section, and the retry
+failed with a misleading "the `## [Unreleased]` block is empty". The rollback
+deliberately does not use `git reset --hard`: `--allow-dirty` means the tree
+may hold unrelated work, so only the two files the script owns are rewritten
+and unstaged.
+
 ### How the bump size is chosen
 
 The size is inferred from the `### ...` headings in the `## [Unreleased]` block,
@@ -130,7 +140,9 @@ silent patch bump; write the entries first.
 drift: `pyproject.toml` restating a literal version, `__version__` not being
 semver, the newest changelog entry disagreeing with `__version__`, an undated
 newest entry, or a missing `## [Unreleased]` heading. Forgetting to bump is
-caught by CI instead of noticed three releases later.
+caught by CI instead of noticed three releases later. `tests/test_release_script.py`
+covers the script itself — bump inference, the happy path, and each of the three
+failure paths — by driving the real script against throwaway git repos.
 
 ---
 

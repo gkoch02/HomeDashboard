@@ -13,7 +13,7 @@ comparisons against config strings, test fallbacks).
 
 from __future__ import annotations
 
-from datetime import date, datetime, time, timezone, tzinfo
+from datetime import date, datetime, time, timedelta, timezone, tzinfo
 
 
 def now_utc() -> datetime:
@@ -54,6 +54,21 @@ def day_start_utc(day: date, tz: tzinfo | None = None) -> datetime:
     if tz is None:
         return datetime.combine(day, time.min).astimezone(timezone.utc)
     return datetime.combine(day, time.min, tzinfo=tz).astimezone(timezone.utc)
+
+
+def week_start(day: date) -> date:
+    """Return the Monday of *day*'s week.
+
+    The default anchor for the calendar event window, matching the standard
+    week view. It lives here rather than in the fetchers because three of them
+    (`calendar_google`, `calendar_ical`, `calendar_caldav`) resolve a `None`
+    `start_date` to this value, and `DashboardApp._event_window` has to resolve
+    it the same way to union a `None`-anchored window against an explicitly
+    anchored one. Four independent copies of `today - timedelta(today.weekday())`
+    would be free to drift apart, and the union would then size a window the
+    fetchers do not actually use.
+    """
+    return day - timedelta(days=day.weekday())
 
 
 def assert_aware(value: datetime, name: str = "datetime") -> datetime:
