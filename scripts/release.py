@@ -30,6 +30,7 @@ import argparse
 import re
 import subprocess
 import sys
+from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 
@@ -157,6 +158,40 @@ def assert_tag_free(tag: str) -> None:
 # --------------------------------------------------------------------------
 
 
+@dataclass
+class _Snapshot:
+    """The repo state captured just before the mutating phase of a release."""
+
+    version_text: str
+    changelog_text: str
+    head: str
+    committed: bool = False
+
+
+def _restore(snapshot: _Snapshot) -> None:
+    """Put the tree back the way it was before a failed release attempt.
+
+    Deliberately avoids ``git reset --hard``: ``--allow-dirty`` means the tree
+    may hold unrelated work that a hard reset would destroy. Instead the two
+    files this script owns are rewritten from the snapshot, the release commit
+    (if one was made) is peeled off with a soft reset, and only those two paths
+    are unstaged. Every step is best-effort — a rollback must not mask the
+    original failure with one of its own.
+    """
+    for path, original in (
+        (VERSION_FILE, snapshot.version_text),
+        (CHANGELOG, snapshot.changelog_text),
+    ):
+        try:
+            path.write_text(original, encoding="utf-8")
+        except OSError as exc:  # pragma: no cover - filesystem failure
+            print(f"warning: could not restore {path.name}: {exc}", file=sys.stderr)
+
+    if snapshot.committed and snapshot.head:
+        git("reset", "--soft", snapshot.head, check=False)
+    git("reset", "-q", "HEAD", "--", str(VERSION_FILE), str(CHANGELOG), check=False)
+
+
 def rewrite_version_file(new_version: str) -> None:
     text = VERSION_FILE.read_text(encoding="utf-8")
     updated, count = VERSION_RE.subn(f'__version__ = "{new_version}"', text, count=1)
@@ -250,11 +285,28 @@ def main(argv: list[str] | None = None) -> int:
             print("\n--dry-run: nothing written.")
             return 0
 
-        rewrite_version_file(version_str)
-        roll_changelog(version_str, today)
-        git("add", str(VERSION_FILE), str(CHANGELOG))
-        git("commit", "-m", f"Release {version_str}")
-        git("tag", "-a", tag, "-m", f"Release {version_str}")
+        # Everything from here mutates the repo. A failure partway (a rejecting
+        # pre-commit hook, an unset git identity, a signing key that will not
+        # load) would otherwise strand the release: the files are rewritten, the
+        # Unreleased block is already rolled, and the next attempt reports
+        # "the Unreleased block is empty" — which is true, and says nothing
+        # about what actually went wrong. Undo the writes so the same release
+        # can simply be retried once the cause is fixed.
+        snapshot = _Snapshot(
+            version_text=VERSION_FILE.read_text(encoding="utf-8"),
+            changelog_text=text,
+            head=git("rev-parse", "HEAD", check=False),
+        )
+        try:
+            rewrite_version_file(version_str)
+            roll_changelog(version_str, today)
+            git("add", str(VERSION_FILE), str(CHANGELOG))
+            git("commit", "-m", f"Release {version_str}")
+            snapshot.committed = True
+            git("tag", "-a", tag, "-m", f"Release {version_str}")
+        except Exception:
+            _restore(snapshot)
+            raise
 
         print(f"\nCommitted and tagged {tag}.")
         print(f"Push it with:  git push -u origin HEAD && git push origin {tag}")

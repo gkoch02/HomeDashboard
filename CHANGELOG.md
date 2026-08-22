@@ -16,7 +16,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   alone means patch. Major is never inferred and must be requested with
   `make release RELEASE_ARGS="--major"`. `make release-dry` prints the plan
   without writing. The script refuses a dirty tree, an existing tag, or a
-  version that does not increase; pushing stays manual.
+  version that does not increase; pushing stays manual. If any step of the
+  mutating phase fails — a rejecting pre-commit hook, an unset git identity, a
+  signing key that will not load — the file rewrites and any release commit are
+  rolled back, so the same release can simply be retried once the cause is
+  fixed. The rollback never uses `git reset --hard`, since `--allow-dirty`
+  means the tree may hold unrelated work.
 - **The version has a single source of truth.** `pyproject.toml` now declares
   `dynamic = ["version"]` and reads `src/_version.py` via
   `[tool.setuptools.dynamic]` rather than restating the number. The two files
