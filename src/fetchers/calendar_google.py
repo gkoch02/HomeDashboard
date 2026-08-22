@@ -23,7 +23,7 @@ from typing import Any
 # _fetch_incremental so only runs that actually talk to the Google API pay
 # for them (same discipline as calendar_caldav's local `import caldav`).
 from src._io import atomic_write_json
-from src._time import day_start_utc
+from src._time import day_start_utc, week_start
 from src.config import GoogleConfig
 from src.data.models import CalendarEvent
 
@@ -138,7 +138,7 @@ def fetch_google_events(
 
     today = _today(tz)
     # Start from Monday of the current week by default to match the standard week view.
-    window_start = start_date if start_date is not None else today - timedelta(days=today.weekday())
+    window_start = start_date if start_date is not None else week_start(today)
     time_min = day_start_utc(window_start, tz)
     time_max = time_min + timedelta(days=days)
 

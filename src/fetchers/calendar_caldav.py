@@ -22,7 +22,7 @@ from datetime import date, datetime, timedelta, tzinfo
 from pathlib import Path
 from typing import Any, cast
 
-from src._time import day_start_utc
+from src._time import day_start_utc, week_start
 from src.data.models import CalendarEvent
 
 logger = logging.getLogger(__name__)
@@ -94,7 +94,7 @@ def fetch_from_caldav(
     today = date.today()
     if tz is not None:
         today = datetime.now(tz).date()
-    window_start = start_date if start_date is not None else today - timedelta(days=today.weekday())
+    window_start = start_date if start_date is not None else week_start(today)
     time_min = day_start_utc(window_start, tz)
     time_max = time_min + timedelta(days=days)
 

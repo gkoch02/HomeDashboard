@@ -38,6 +38,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Fixed
 
+- **A theme flip after fetch could render an agenda with no events for tomorrow.**
+  `DashboardApp` sized the calendar event window by picking one candidate theme
+  by fixed priority, with `monthly` always winning. But `monthly`'s window is the
+  Sunday-first month grid, which ends on the last day of the month, while
+  `day_arc` / `halftone_agenda` are anchored to the week plus one day — so
+  `monthly` is not the superset the priority order assumed. When a month ends on
+  a Saturday the grid did not reach tomorrow, and a `theme_rules` flip to either
+  rollover theme on that date left their after-dark agenda rendering "Nothing
+  scheduled" (2026: Jan 31, Feb 28, Oct 31). The window is now the **union** of
+  every candidate's range. The Monday anchor the fetchers apply to a `None`
+  start moved into `src/_time.week_start()` so the union resolves it the same
+  way they do, and the union still returns `None` when it begins on that anchor,
+  so installs with one candidate keep their exact cached events window.
+
 - **`pip install .` produced an unimportable package.** With no explicit
   `packages` config, setuptools auto-discovery read the repo as a *src-layout*
   and installed every module at the top level of `site-packages` — `app.py`,
