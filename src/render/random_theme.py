@@ -29,6 +29,7 @@ import random
 from datetime import date, datetime
 from pathlib import Path
 
+from src._io import atomic_write_json
 from src.render.theme import AVAILABLE_THEMES
 
 logger = logging.getLogger(__name__)
@@ -114,10 +115,11 @@ def pick_random_theme(
     chosen = random.choice(pool)
     logger.info("Random theme for %s: %s (newly selected from pool: %s)", today_str, chosen, pool)
 
-    # Persist the choice
+    # Persist the choice. Atomic (tempfile + rename) like every other JSON
+    # state file — a truncated write here would be re-picked on the next tick,
+    # so the theme would change mid-day after a power cut.
     try:
-        state_path.parent.mkdir(parents=True, exist_ok=True)
-        state_path.write_text(json.dumps({"date": today_str, "theme": chosen}))
+        atomic_write_json(state_path, {"date": today_str, "theme": chosen})
     except Exception as exc:
         logger.warning("Could not save random theme state: %s", exc)
 
@@ -182,10 +184,9 @@ def pick_random_theme_hourly(
         "Random hourly theme for %s: %s (newly selected from pool: %s)", hour_key, chosen, pool
     )
 
-    # Persist the choice
+    # Persist the choice — atomic, same reasoning as the daily variant.
     try:
-        state_path.parent.mkdir(parents=True, exist_ok=True)
-        state_path.write_text(json.dumps({"hour": hour_key, "theme": chosen}))
+        atomic_write_json(state_path, {"hour": hour_key, "theme": chosen})
     except Exception as exc:
         logger.warning("Could not save random hourly theme state: %s", exc)
 

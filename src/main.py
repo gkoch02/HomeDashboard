@@ -2,7 +2,12 @@ import logging
 
 from src.app import DashboardApp
 from src.cli import parse_args
-from src.config import load_config, print_validation_report, validate_config
+from src.config import (
+    load_config,
+    print_validation_report,
+    resolve_log_level,
+    validate_config,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +21,7 @@ def main():
     )
 
     cfg = load_config(args.config)
-    logging.getLogger().setLevel(getattr(logging, cfg.log_level, logging.INFO))
+    logging.getLogger().setLevel(resolve_log_level(cfg.log_level))
 
     errors, warnings = validate_config(cfg, config_path=args.config)
     if args.check_config:

@@ -2,8 +2,10 @@
 
 import json
 from datetime import date, datetime
+from pathlib import Path
 from unittest.mock import patch
 
+from src._io import atomic_write_json
 from src.render.random_theme import (
     _EXCLUDED_FROM_POOL,
     eligible_themes,
@@ -151,9 +153,26 @@ class TestPickRandomTheme:
     def test_unwritable_state_does_not_crash(self, tmp_path):
         """If the state file can't be written, the theme is still returned."""
         today = date(2026, 3, 22)
-        with patch("src.render.random_theme.Path.write_text", side_effect=OSError("disk full")):
+        with patch("src.render.random_theme.atomic_write_json", side_effect=OSError("disk full")):
             chosen = pick_random_theme([], [], str(tmp_path), today=today)
         assert chosen in _REAL_THEMES
+
+    def test_state_is_written_atomically(self, tmp_path):
+        """Persisted through the shared tempfile+rename helper, like every
+        other JSON state file — a truncated write would be re-picked on the
+        next tick, changing the theme mid-day after a power cut."""
+        today = date(2026, 3, 22)
+        with patch("src.render.random_theme.atomic_write_json", wraps=atomic_write_json) as writer:
+            chosen = pick_random_theme([], [], str(tmp_path), today=today)
+
+        writer.assert_called_once()
+        path, payload = writer.call_args.args
+        assert Path(path).name == "random_theme_state.json"
+        assert payload == {"date": "2026-03-22", "theme": chosen}
+        # And it really landed, with no temp file left behind.
+        state = json.loads((tmp_path / "random_theme_state.json").read_text())
+        assert state == {"date": "2026-03-22", "theme": chosen}
+        assert sorted(p.name for p in tmp_path.iterdir()) == ["random_theme_state.json"]
 
 
 # ---------------------------------------------------------------------------
@@ -270,6 +289,17 @@ class TestPickRandomThemeHourly:
 
     def test_unwritable_state_does_not_crash(self, tmp_path):
         now = datetime(2026, 3, 22, 14, 0)
-        with patch("src.render.random_theme.Path.write_text", side_effect=OSError("disk full")):
+        with patch("src.render.random_theme.atomic_write_json", side_effect=OSError("disk full")):
             chosen = pick_random_theme_hourly([], [], str(tmp_path), now=now)
         assert chosen in _REAL_THEMES
+
+    def test_state_is_written_atomically(self, tmp_path):
+        now = datetime(2026, 3, 22, 14, 0)
+        with patch("src.render.random_theme.atomic_write_json", wraps=atomic_write_json) as writer:
+            chosen = pick_random_theme_hourly([], [], str(tmp_path), now=now)
+
+        writer.assert_called_once()
+        path, payload = writer.call_args.args
+        assert Path(path).name == "random_theme_hourly_state.json"
+        assert payload == {"hour": "2026-03-22T14", "theme": chosen}
+        assert sorted(p.name for p in tmp_path.iterdir()) == ["random_theme_hourly_state.json"]

@@ -22,6 +22,12 @@ state/
 config/config.yaml
 config/web.yaml
 config/birthdays.json
+# Backups the web editor and the migration runner write beside the config are
+# byte-for-byte copies of it — same API keys, same paths — so they need the
+# same treatment as the original.
+config/*.yaml.bak
+config/*.yaml.bak.*
+config/*.yaml.bak-v*
 credentials/
 
 # Misc

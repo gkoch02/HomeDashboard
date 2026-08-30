@@ -282,6 +282,41 @@ def resolve_tz(tz_name: str) -> tzinfo:
     return zoneinfo.ZoneInfo(tz_name)
 
 
+def _named_level(name: object) -> int | None:
+    """Return the logging level for *name*, or ``None`` if it isn't a level name.
+
+    ``getLevelName`` maps a known name to its int and returns a ``"Level <x>"``
+    string otherwise, which is the not-a-level signal. It also knows the
+    aliases ``FATAL`` and ``WARN``, so anything derived from it stays in step
+    with what ``setLevel`` will actually accept.
+    """
+    level = logging.getLevelName(str(name).strip().upper())
+    return level if isinstance(level, int) else None
+
+
+def resolve_log_level(name: object) -> int:
+    """Return the logging level for *name*, falling back to INFO.
+
+    ``getattr(logging, name)`` is not safe here: a lowercase level resolves to
+    the *function* of that name (``logging.info``), which ``setLevel`` rejects
+    with ``TypeError`` — so ``level: info`` in config.yaml crashed every run
+    before the renderer started.
+    """
+    level = _named_level(name)
+    return logging.INFO if level is None else level
+
+
+def is_known_log_level(name: object) -> bool:
+    """True when *name* is a level name ``resolve_log_level`` will honour.
+
+    Shares ``_named_level`` with the resolver on purpose: a separately
+    maintained allowlist drifts from it, and did — it omitted the ``FATAL``
+    alias, so a working ``level: FATAL`` was reported as unknown and as
+    falling back to INFO while the root logger was in fact set to CRITICAL.
+    """
+    return _named_level(name) is not None
+
+
 def _optional_number(block: dict, key: str, cast):
     """Read an optional numeric ``when:`` threshold, or ``None`` when absent.
 

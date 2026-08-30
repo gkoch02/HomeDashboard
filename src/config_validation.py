@@ -411,6 +411,28 @@ def validate_config(
                 )
             )
 
+    # --- Log level ---
+    # Config carries a name, not a level object; ``resolve_log_level`` folds an
+    # unrecognised one back to INFO rather than crashing, so this is a warning
+    # naming the typo, not an error. It asks the resolver rather than checking
+    # a list of its own: the two drift otherwise, and did — an allowlist here
+    # omitted the ``FATAL`` alias, reporting a level that works as unknown.
+    # Imported inside the function because src.config imports this module at
+    # its own bottom, so a top-level import would close the cycle.
+    from src.config import is_known_log_level
+
+    if not is_known_log_level(cfg.log_level):
+        warnings.append(
+            ConfigWarning(
+                field="logging.level",
+                message=f"Unknown log level: '{cfg.log_level}'",
+                hint=(
+                    "Must be one of: CRITICAL, ERROR, WARNING, INFO, DEBUG. "
+                    "Falling back to INFO for this run."
+                ),
+            )
+        )
+
     # --- Quote refresh ---
     valid_quote_refresh = {"daily", "twice_daily", "hourly"}
     if cfg.cache.quote_refresh not in valid_quote_refresh:
