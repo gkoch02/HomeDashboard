@@ -461,3 +461,45 @@ class TestMainLiveDataPath:
                 main()
 
         mock_display.show.assert_called_once()
+
+
+class TestLogLevelFromConfig:
+    """A user-typed ``logging.level`` must never take the run down."""
+
+    def test_lowercase_level_does_not_crash_the_run(self, tmp_path):
+        config_path = tmp_path / "config.yaml"
+        config_path.write_text(
+            yaml.dump(
+                {
+                    "weather": {"api_key": "test", "latitude": 37.0, "longitude": -122.0},
+                    "output": {"dry_run_dir": str(tmp_path)},
+                    "logging": {"level": "info"},
+                }
+            )
+        )
+
+        with patch("sys.argv", ["main", "--dry-run", "--dummy", "--config", str(config_path)]):
+            from src.main import main
+
+            main()
+
+        assert (tmp_path / "latest.png").exists()
+
+    def test_unknown_level_still_renders(self, tmp_path):
+        config_path = tmp_path / "config.yaml"
+        config_path.write_text(
+            yaml.dump(
+                {
+                    "weather": {"api_key": "test", "latitude": 37.0, "longitude": -122.0},
+                    "output": {"dry_run_dir": str(tmp_path)},
+                    "logging": {"level": "verbose"},
+                }
+            )
+        )
+
+        with patch("sys.argv", ["main", "--dry-run", "--dummy", "--config", str(config_path)]):
+            from src.main import main
+
+            main()
+
+        assert (tmp_path / "latest.png").exists()

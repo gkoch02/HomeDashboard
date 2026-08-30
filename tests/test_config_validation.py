@@ -713,3 +713,32 @@ class TestNumericThemeRuleValidation:
         cfg = self._cfg_with_rule(temp_at_least=80.0, temp_at_most=32.0, aqi_at_least=900)
         errors, _ = validate_config(cfg)
         assert not any("theme_rules" in e.field for e in errors)
+
+
+class TestLogLevelValidation:
+    """An unrecognised log level silently became INFO; name it instead."""
+
+    def _warnings_for(self, level, tmp_path):
+        cfg = Config()
+        cfg.log_level = level
+        config_path = tmp_path / "config.yaml"
+        config_path.write_text("title: t\n")
+        _errors, warnings = validate_config(cfg, config_path=str(config_path))
+        return [w for w in warnings if w.field == "logging.level"]
+
+    def test_unknown_level_warns(self, tmp_path):
+        warnings = self._warnings_for("verbose", tmp_path)
+        assert len(warnings) == 1
+        assert "verbose" in warnings[0].message
+        assert "INFO" in warnings[0].hint
+
+    def test_lowercase_level_is_accepted(self, tmp_path):
+        # It resolves case-insensitively now, so it is not a typo to report.
+        assert self._warnings_for("info", tmp_path) == []
+
+    def test_known_levels_do_not_warn(self, tmp_path):
+        for level in ("DEBUG", "INFO", "WARNING", "WARN", "ERROR", "CRITICAL", "NOTSET"):
+            assert self._warnings_for(level, tmp_path) == [], level
+
+    def test_empty_level_warns(self, tmp_path):
+        assert len(self._warnings_for("", tmp_path)) == 1

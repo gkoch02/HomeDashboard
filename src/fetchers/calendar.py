@@ -185,14 +185,32 @@ def _birthdays_from_file(cfg: BirthdayConfig, tz: tzinfo | None = None) -> list[
         logger.warning("Failed to read birthday file %s: %s", path, exc)
         return []
 
+    # A top-level object (the natural first guess for a name→date mapping) or
+    # any other non-list shape used to reach _parse_birthday_entry and raise
+    # TypeError out of the fetcher, failing the whole source and counting
+    # toward the circuit breaker. Name the expected shape instead.
+    if not isinstance(entries, list):
+        logger.warning(
+            "Birthday file %s must contain a JSON list of {name, date} objects, got %s",
+            path,
+            type(entries).__name__,
+        )
+        return []
+
     today = _today(tz)
     lookahead = today + timedelta(days=cfg.lookahead_days)
     birthdays: list[Birthday] = []
 
     for entry in entries:
+        if not isinstance(entry, dict):
+            logger.warning(
+                "Skipping birthday entry that is not an object: %r",
+                entry,
+            )
+            continue
         try:
             bday = _parse_birthday_entry(entry, today, lookahead)
-        except (KeyError, ValueError) as exc:
+        except (KeyError, ValueError, TypeError) as exc:
             logger.warning("Skipping invalid birthday entry %s: %s", entry, exc)
             continue
         if bday is not None:

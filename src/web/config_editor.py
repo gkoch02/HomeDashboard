@@ -37,6 +37,13 @@ logger = logging.getLogger(__name__)
 
 _write_lock = threading.Lock()
 
+# How many rotated ``config.yaml.bak.<timestamp>`` archives to keep. Every save
+# used to add one and nothing ever removed them, so the directory grew without
+# bound — and each file is a byte-for-byte copy of the config, API keys
+# included. The UI only ever lists five, so anything past this is unreachable
+# from the app as well as unbounded on disk.
+_MAX_ROTATED_BACKUPS = 10
+
 
 @contextlib.contextmanager
 def config_write_lock():
@@ -375,6 +382,36 @@ def _rotated_backup_path(path: Path) -> Path:
     return candidate
 
 
+def _prune_rotated_backups(path: Path, keep: int = _MAX_ROTATED_BACKUPS) -> None:
+    """Delete all but the newest *keep* rotated archives for *path*.
+
+    Only files matching the rotation shape written by
+    :func:`_rotated_backup_path` are considered — the plain ``.bak`` is the
+    live backup and the versioned ``.bak-v<N>`` pre-migration snapshots are a
+    different artifact, so neither is ever a candidate. Ordering matches
+    :func:`list_config_backups` (mtime first, name as the tie-break) so the
+    files the UI lists are the files that survive.
+
+    Failure is non-fatal: a backup that cannot be deleted must not fail the
+    save that created it.
+    """
+    prefix = f"{path.stem}.yaml.bak."
+    rotated: list[tuple[int, str, Path]] = []
+    for candidate in path.parent.glob(f"{prefix}*"):
+        try:
+            rotated.append((candidate.stat().st_mtime_ns, candidate.name, candidate))
+        except OSError:
+            continue
+    if len(rotated) <= keep:
+        return
+    rotated.sort(key=lambda item: (item[0], item[1]), reverse=True)
+    for _mtime, name, stale in rotated[keep:]:
+        try:
+            stale.unlink()
+        except OSError as exc:
+            logger.warning("Could not prune old config backup %s: %s", name, exc)
+
+
 def _write_raw_yaml(config_path: str, raw: dict, *, rotate_backup: bool = True) -> None:
     """Write *raw* to *config_path* atomically using a temp-file rename.
 
@@ -393,6 +430,7 @@ def _write_raw_yaml(config_path: str, raw: dict, *, rotate_backup: bool = True) 
                 fb.write(path.read_bytes())
             if bak.exists():
                 bak.replace(_rotated_backup_path(path))
+                _prune_rotated_backups(path)
             os.replace(tmp_b, bak)
         except OSError as exc:
             logger.warning("Could not write config backup to %s: %s", bak, exc)

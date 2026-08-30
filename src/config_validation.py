@@ -28,6 +28,12 @@ if TYPE_CHECKING:
     from src.config import Config
 
 
+# Level names ``logging`` understands. Lowercase spellings are accepted (the
+# resolver upper-cases first) but anything outside this set silently became
+# INFO, so name it instead.
+_VALID_LOG_LEVELS = ("CRITICAL", "ERROR", "WARNING", "WARN", "INFO", "DEBUG", "NOTSET")
+
+
 @dataclass
 class ConfigWarning:
     """A non-fatal configuration issue detected during validation."""
@@ -410,6 +416,22 @@ def validate_config(
                     hint="Must be an integer between 0 and 23.",
                 )
             )
+
+    # --- Log level ---
+    # Config carries a name, not a level object; `main.resolve_log_level` folds
+    # an unrecognised one back to INFO rather than crashing, so this is a
+    # warning naming the typo, not an error.
+    if str(cfg.log_level).strip().upper() not in _VALID_LOG_LEVELS:
+        warnings.append(
+            ConfigWarning(
+                field="logging.level",
+                message=f"Unknown log level: '{cfg.log_level}'",
+                hint=(
+                    f"Must be one of: {', '.join(_VALID_LOG_LEVELS)}. "
+                    "Falling back to INFO for this run."
+                ),
+            )
+        )
 
     # --- Quote refresh ---
     valid_quote_refresh = {"daily", "twice_daily", "hourly"}

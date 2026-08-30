@@ -38,6 +38,50 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Fixed
 
+- **A lowercase `logging.level` crashed every run before it started.**
+  `getattr(logging, cfg.log_level, logging.INFO)` only guarded against names
+  the `logging` module does not have — but `info`, `debug`, `warning` and
+  `error` all exist there as *functions*, so `level: info` in config.yaml
+  resolved to a callable and `setLevel` rejected it with `TypeError`. It
+  happened after argument parsing and before `DashboardApp`, so there was no
+  `last_error.txt`, no render, and nothing but a traceback in the log. Levels
+  now resolve case-insensitively through `main.resolve_log_level()`, and an
+  unrecognised name falls back to INFO with `validate_config()` naming it as a
+  warning.
+
+- **A malformed `birthdays.json` failed the source instead of being skipped.**
+  `_birthdays_from_file()` caught `KeyError`/`ValueError` per entry but not
+  `TypeError`, so a top-level JSON object (the natural guess for a name→date
+  mapping) or a list of strings raised out of the fetcher, failed the whole
+  birthdays source, and counted toward opening its circuit breaker. Both
+  shapes are now reported by name and skipped, and one bad entry no longer
+  drops the valid ones beside it.
+
+- **Config backups are gitignored and pruned.** Every save through the web
+  editor rotates the previous `config.yaml.bak` to a timestamped archive; the
+  archives were never deleted and — unlike the config itself, which is matched
+  by an exact path in `.gitignore` — none of them were ignored. Each is a
+  byte-for-byte copy carrying the OpenWeatherMap and PurpleAir API keys, so
+  the directory grew without bound and one `git add -A` away from committing
+  secrets. `.gitignore` now covers `config/*.yaml.bak*` (including the
+  `.bak-v<N>` pre-migration snapshots), and a rotation prunes to the newest
+  `_MAX_ROTATED_BACKUPS` (10) — the plain `.bak` and the pre-migration
+  snapshots are never candidates, and a backup that cannot be deleted logs a
+  warning rather than failing the save.
+
+- **The random-theme state files are written atomically.** Both
+  `random_theme_state.json` and `random_theme_hourly_state.json` used a plain
+  `write_text`, the only two JSON state files not going through
+  `src/_io.atomic_write_json()`. A kill mid-write left a truncated file, which
+  the read path discards — so the theme changed mid-day after a power cut.
+
+- **CLAUDE.md documented daypart values that no code path produces.** The
+  `theme_rules` section listed `dawn`/`morning`/`afternoon`/`dusk`/`night`
+  with `day` as an alias for the middle two. `_current_daypart()` returns
+  exactly `dawn`/`day`/`dusk`/`night` and `_VALID_DAYPARTS` accepts only
+  those, so a rule written from the CLAUDE.md list validated as a warning and
+  then never fired.
+
 - **A theme flip after fetch could render an agenda with no events for tomorrow.**
   `DashboardApp` sized the calendar event window by picking one candidate theme
   by fixed priority, with `monthly` always winning. But `monthly`'s window is the

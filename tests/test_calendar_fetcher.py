@@ -203,6 +203,35 @@ class TestFetchBirthdaysFromFile:
         assert len(results) == 1
         assert results[0].name == "Good"
 
+    def _read_back(self, document):
+        """Write *document* as the birthday file and fetch from it."""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+            json.dump(document, f)
+            tmp_path = f.name
+        cfg_bday = BirthdayConfig(source="file", file_path=tmp_path, lookahead_days=30)
+        return fetch_birthdays(GoogleConfig(), cfg_bday)
+
+    def test_top_level_object_returns_empty_instead_of_raising(self):
+        # A name->date mapping is the natural first guess for this file's shape.
+        # Iterating it yields the *keys*, so entry["name"] used to raise
+        # TypeError out of the fetcher — failing the source and counting toward
+        # the circuit breaker instead of being skipped like any other bad input.
+        assert self._read_back({"Alice": "01-01"}) == []
+
+    def test_string_entries_are_skipped_not_raised(self):
+        assert self._read_back(["Alice 01-01"]) == []
+
+    def test_non_dict_entry_does_not_drop_the_valid_ones(self):
+        upcoming = date.today() + timedelta(days=5)
+        results = self._read_back(
+            [
+                "Alice 01-01",
+                {"name": "Good", "date": upcoming.strftime("%m-%d")},
+                42,
+            ]
+        )
+        assert [b.name for b in results] == ["Good"]
+
 
 # ---------------------------------------------------------------------------
 # _parse_contact_birthday

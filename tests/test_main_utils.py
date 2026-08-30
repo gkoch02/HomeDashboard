@@ -1,5 +1,6 @@
 """Tests for utility functions in the refactored runtime modules."""
 
+import logging
 import zoneinfo
 from datetime import date, datetime
 from unittest.mock import MagicMock
@@ -9,6 +10,7 @@ import pytest
 from src.config import resolve_tz
 from src.data_pipeline import retry_fetch
 from src.dummy_data import generate_dummy_data
+from src.main import resolve_log_level
 from src.services.run_policy import (
     in_quiet_hours,
     is_morning_startup_window,
@@ -453,3 +455,43 @@ class TestResolveTz:
     def test_utc_name(self):
         tz = resolve_tz("UTC")
         assert isinstance(tz, zoneinfo.ZoneInfo)
+
+
+class TestResolveLogLevel:
+    """``logging.level`` from config is a name, and names are user-typed.
+
+    The old ``getattr(logging, name, INFO)`` resolved a lowercase level to the
+    *function* of that name, and ``setLevel`` rejects a callable — so
+    ``level: info`` raised TypeError before the renderer started, with no
+    error marker and no render.
+    """
+
+    @pytest.mark.parametrize(
+        ("configured", "expected"),
+        [
+            ("INFO", logging.INFO),
+            ("info", logging.INFO),
+            ("Debug", logging.DEBUG),
+            ("warning", logging.WARNING),
+            ("warn", logging.WARNING),
+            ("  ERROR  ", logging.ERROR),
+            ("CRITICAL", logging.CRITICAL),
+        ],
+    )
+    def test_known_names_resolve_case_insensitively(self, configured, expected):
+        assert resolve_log_level(configured) == expected
+
+    @pytest.mark.parametrize("configured", ["bogus", "", "20", "basicConfig"])
+    def test_unknown_names_fall_back_to_info(self, configured):
+        assert resolve_log_level(configured) == logging.INFO
+
+    def test_resolved_level_is_accepted_by_setLevel(self):
+        # The real failure was one layer down: whatever this returns has to be
+        # something ``Logger.setLevel`` will take.
+        logger = logging.getLogger("test_resolve_log_level")
+        original = logger.level
+        try:
+            for name in ("info", "DEBUG", "bogus"):
+                logger.setLevel(resolve_log_level(name))
+        finally:
+            logger.setLevel(original)

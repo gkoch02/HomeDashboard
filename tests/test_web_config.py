@@ -12,6 +12,7 @@ import yaml
 from src.config import ConfigError
 from src.web.app import create_app
 from src.web.config_editor import (
+    _MAX_ROTATED_BACKUPS,
     EDITABLE_FIELD_PATHS,
     _apply_to_raw,
     _load_raw_yaml,
@@ -705,6 +706,60 @@ def test_write_raw_yaml_creates_backup_timestamp_on_repeat_save(tmp_path):
     assert yaml.safe_load(timestamped[0].read_text())["title"] == "Original"
     # Fresh .bak reflects the first-saved content.
     assert yaml.safe_load(bak.read_text())["title"] == "First"
+
+
+def test_rotated_backups_are_pruned_to_the_keep_limit(tmp_path):
+    """Every save used to add a rotated archive and nothing ever removed one.
+
+    Each is a byte-for-byte copy of the config — API keys included — so the
+    directory grew without bound in both size and exposure.
+    """
+    cfg_path = tmp_path / "config.yaml"
+    cfg_path.write_text("title: Original\n")
+
+    saves = _MAX_ROTATED_BACKUPS + 5
+    for i in range(saves):
+        _write_raw_yaml(str(cfg_path), {"title": f"Save {i}"})
+
+    rotated = list(tmp_path.glob("config.yaml.bak.*"))
+    assert len(rotated) == _MAX_ROTATED_BACKUPS
+
+    # Each save rotates the *previous* .bak, so the plain .bak trails one save
+    # behind and the archives hold "Original" plus "Save 0".."Save {saves-3}".
+    # The newest of those survive; the oldest are pruned.
+    kept_titles = {yaml.safe_load(path.read_text())["title"] for path in rotated}
+    newest_archived = saves - 3
+    assert kept_titles == {
+        f"Save {i}" for i in range(newest_archived - _MAX_ROTATED_BACKUPS + 1, newest_archived + 1)
+    }
+    assert "Original" not in kept_titles
+
+
+def test_pruning_keeps_the_plain_backup_and_pre_migration_snapshots(tmp_path):
+    """Only the rotated archives are pruning candidates."""
+    cfg_path = tmp_path / "config.yaml"
+    cfg_path.write_text("title: Original\n")
+    premigration = tmp_path / "config.yaml.bak-v4"
+    premigration.write_text("title: FromV4\n")
+
+    for i in range(_MAX_ROTATED_BACKUPS + 5):
+        _write_raw_yaml(str(cfg_path), {"title": f"Save {i}"})
+
+    assert premigration.exists()
+    assert premigration.read_text() == "title: FromV4\n"
+    assert cfg_path.with_suffix(".yaml.bak").exists()
+
+
+def test_pruning_survives_an_undeletable_archive(tmp_path, caplog):
+    """A backup that cannot be removed must not fail the save that made it."""
+    cfg_path = tmp_path / "config.yaml"
+    cfg_path.write_text("title: Original\n")
+
+    with patch.object(Path, "unlink", side_effect=OSError("read-only fs")):
+        for i in range(_MAX_ROTATED_BACKUPS + 2):
+            _write_raw_yaml(str(cfg_path), {"title": f"Save {i}"})
+
+    assert yaml.safe_load(cfg_path.read_text())["title"] == f"Save {_MAX_ROTATED_BACKUPS + 1}"
 
 
 def test_write_raw_yaml_cleans_up_tempfile_on_yaml_dump_failure(tmp_path):
