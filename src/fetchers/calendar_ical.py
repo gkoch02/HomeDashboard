@@ -12,6 +12,7 @@ import requests  # type: ignore[import-untyped]
 from src._time import day_start_utc, week_start
 from src.data.models import CalendarEvent
 from src.fetchers.calendar_google import _today
+from src.fetchers.errors import CalendarFetchError
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +38,17 @@ def fetch_from_ical(
     Events are filtered to the current-week window (Monday through Monday+days)
     and returned sorted by start time.  No sync tokens or caching at this layer —
     the caller's cache handles freshness.
+
+    Raises:
+        CalendarFetchError: if *any* feed could not be fetched or parsed. The
+            return value is the caller's complete calendar — it gets cached,
+            marked fresh, and counted as a breaker success — so a feed that
+            failed cannot simply be omitted from it. Returning the feeds that
+            did work overwrote the cache with a calendar missing everything
+            from the one that didn't, silently and with no staleness
+            indicator (#234). Failing instead lets the pipeline fall back to
+            the last complete calendar and flag it as stale.
+        RuntimeError: if the ``icalendar`` package is not installed.
     """
     try:
         from icalendar import Calendar as ICalendar  # type: ignore[import]
@@ -52,18 +64,23 @@ def fetch_from_ical(
     time_max = time_min + timedelta(days=days)
 
     all_events: list[CalendarEvent] = []
+    # Every feed is tried even once one has failed, so the log names all of
+    # them in a single run rather than one per retry.
+    failures: list[str] = []
     for url in urls:
         try:
             resp = requests.get(url, timeout=30)
             resp.raise_for_status()
         except Exception as exc:
             logger.warning("Failed to fetch ICS feed %s: %s", url, exc)
+            failures.append(f"{_url_hostname(url)} ({exc})")
             continue
 
         try:
             cal = ICalendar.from_ical(resp.text)
         except Exception as exc:
             logger.warning("Failed to parse ICS feed %s: %s", url, exc)
+            failures.append(f"{_url_hostname(url)} ({exc})")
             continue
 
         # Prefer X-WR-CALNAME if present, fall back to URL hostname
@@ -95,6 +112,11 @@ def fetch_from_ical(
                         win_end = time_max.replace(tzinfo=None)
                     if win_start <= start < win_end:
                         all_events.append(event)
+
+    if failures:
+        raise CalendarFetchError(
+            f"{len(failures)} of {len(urls)} ICS feed(s) could not be read: " + "; ".join(failures)
+        )
 
     all_events.sort(key=lambda e: e.start)
     return all_events

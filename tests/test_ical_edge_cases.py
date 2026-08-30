@@ -13,6 +13,7 @@ from src.fetchers.calendar_ical import (
     _url_hostname,
     fetch_from_ical,
 )
+from src.fetchers.errors import CalendarFetchError
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -173,25 +174,40 @@ class TestFetchFromIcalEdgeCases:
         assert events == []
 
     @patch("src.fetchers.calendar_ical.requests.get")
-    def test_http_error_gracefully_skipped(self, mock_get):
-        """HTTP errors should be logged and skipped, not raised."""
+    def test_http_error_raises_rather_than_reporting_an_empty_calendar(self, mock_get):
+        """An unreachable feed is a failed fetch, not a week with no events.
+
+        The caller caches whatever comes back, marks it FRESH and records a
+        breaker success, so returning [] overwrote the last good calendar with
+        an empty one and left nothing to fall back to (#234).
+        """
         mock_get.return_value = _mock_response("", status_code=500)
-        events = fetch_from_ical(["https://example.com/cal.ics"])
-        assert events == []
+        with pytest.raises(CalendarFetchError) as exc:
+            fetch_from_ical(["https://example.com/cal.ics"])
+        assert "example.com" in str(exc.value)
 
     @patch("src.fetchers.calendar_ical.requests.get")
-    def test_network_timeout_gracefully_skipped(self, mock_get):
-        """Network timeouts should be logged and skipped."""
+    def test_network_timeout_raises(self, mock_get):
         mock_get.side_effect = Exception("Connection timed out")
-        events = fetch_from_ical(["https://example.com/cal.ics"])
-        assert events == []
+        with pytest.raises(CalendarFetchError):
+            fetch_from_ical(["https://example.com/cal.ics"])
 
     @patch("src.fetchers.calendar_ical.requests.get")
-    def test_malformed_ics_gracefully_skipped(self, mock_get):
-        """Malformed ICS data should be logged and skipped."""
+    def test_malformed_feed_raises(self, mock_get):
+        """A feed that cannot be parsed is also a failed fetch, not an empty one."""
         mock_get.return_value = _mock_response("THIS IS NOT ICS DATA")
-        events = fetch_from_ical(["https://example.com/cal.ics"])
-        assert events == []
+        with pytest.raises(CalendarFetchError):
+            fetch_from_ical(["https://example.com/cal.ics"])
+
+    @patch("src.fetchers.calendar_ical.requests.get")
+    def test_failure_is_retryable_not_permanent(self, mock_get):
+        """`retry_fetch` treats RuntimeError/ValueError/TypeError/KeyError as
+        permanent and skips its retry. Most failures here are transient network
+        errors, so the raised type must fall outside that set."""
+        mock_get.side_effect = Exception("Connection reset")
+        with pytest.raises(CalendarFetchError) as exc:
+            fetch_from_ical(["https://example.com/cal.ics"])
+        assert not isinstance(exc.value, (RuntimeError, ValueError, TypeError, KeyError))
 
     @patch("src.fetchers.calendar_ical.requests.get")
     def test_multiple_feeds_are_merged_and_sorted(self, mock_get):
@@ -240,8 +256,22 @@ class TestFetchFromIcalEdgeCases:
         assert by_summary["Late From Feed A"] == "Feed A"
 
     @patch("src.fetchers.calendar_ical.requests.get")
-    def test_one_feed_failing_does_not_block_others(self, mock_get):
-        """A single ICS URL HTTP failure must not prevent other feeds from rendering."""
+    def test_one_feed_failing_fails_the_whole_fetch(self, mock_get):
+        """A partial calendar must not be cached as if it were complete.
+
+        This reverses the earlier contract, which returned the feeds that did
+        work. The events of the failed feed then vanished from the render *and*
+        from the cache — marked FRESH, breaker closed — with nothing on screen
+        to say a feed was missing (#234). There is no way to express "partial"
+        in the value the pipeline caches, so the fetch either produces the whole
+        calendar or fails.
+
+        The working feed is not lost by this: on any run with a cache the
+        pipeline serves the last complete calendar and flags it stale, which is
+        what the previous contract was reaching for. Only a first-ever run with
+        a broken feed renders nothing — loudly, with a warning naming the feed,
+        rather than quietly missing a third of the user's events.
+        """
         today = date.today()
         monday = today - timedelta(days=today.weekday())
         event_day = monday + timedelta(days=2)
@@ -262,16 +292,17 @@ class TestFetchFromIcalEdgeCases:
 
         mock_get.side_effect = get_side_effect
 
-        events = fetch_from_ical(
-            [
-                "https://example.com/broken.ics",
-                "https://example.com/working.ics",
-            ]
-        )
-        summaries = [e.summary for e in events]
-        assert summaries == ["Survived"], (
-            f"Working feed lost when sibling failed: got {summaries!r}"
-        )
+        with pytest.raises(CalendarFetchError) as exc:
+            fetch_from_ical(
+                [
+                    "https://example.com/broken.ics",
+                    "https://example.com/working.ics",
+                ]
+            )
+        # The message names which feed failed and how many of how many, so the
+        # log points at the URL to fix rather than just "calendar fetch failed".
+        assert "1 of 2" in str(exc.value)
+        assert "example.com" in str(exc.value)
 
     @patch("src.fetchers.calendar_ical.requests.get")
     def test_mixed_tz_events_in_single_feed(self, mock_get):
