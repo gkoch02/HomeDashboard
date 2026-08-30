@@ -28,12 +28,6 @@ if TYPE_CHECKING:
     from src.config import Config
 
 
-# Level names ``logging`` understands. Lowercase spellings are accepted (the
-# resolver upper-cases first) but anything outside this set silently became
-# INFO, so name it instead.
-_VALID_LOG_LEVELS = ("CRITICAL", "ERROR", "WARNING", "WARN", "INFO", "DEBUG", "NOTSET")
-
-
 @dataclass
 class ConfigWarning:
     """A non-fatal configuration issue detected during validation."""
@@ -418,16 +412,22 @@ def validate_config(
             )
 
     # --- Log level ---
-    # Config carries a name, not a level object; `main.resolve_log_level` folds
-    # an unrecognised one back to INFO rather than crashing, so this is a
-    # warning naming the typo, not an error.
-    if str(cfg.log_level).strip().upper() not in _VALID_LOG_LEVELS:
+    # Config carries a name, not a level object; ``resolve_log_level`` folds an
+    # unrecognised one back to INFO rather than crashing, so this is a warning
+    # naming the typo, not an error. It asks the resolver rather than checking
+    # a list of its own: the two drift otherwise, and did — an allowlist here
+    # omitted the ``FATAL`` alias, reporting a level that works as unknown.
+    # Imported inside the function because src.config imports this module at
+    # its own bottom, so a top-level import would close the cycle.
+    from src.config import is_known_log_level
+
+    if not is_known_log_level(cfg.log_level):
         warnings.append(
             ConfigWarning(
                 field="logging.level",
                 message=f"Unknown log level: '{cfg.log_level}'",
                 hint=(
-                    f"Must be one of: {', '.join(_VALID_LOG_LEVELS)}. "
+                    "Must be one of: CRITICAL, ERROR, WARNING, INFO, DEBUG. "
                     "Falling back to INFO for this run."
                 ),
             )

@@ -740,5 +740,13 @@ class TestLogLevelValidation:
         for level in ("DEBUG", "INFO", "WARNING", "WARN", "ERROR", "CRITICAL", "NOTSET"):
             assert self._warnings_for(level, tmp_path) == [], level
 
+    def test_the_fatal_alias_does_not_warn(self, tmp_path):
+        """`logging` honours FATAL as an alias for CRITICAL, so the validator
+        must too. A hand-written allowlist here omitted it: the level worked —
+        the root logger really was set to CRITICAL — while `--check-config` and
+        every run reported it unknown and claimed INFO would be used."""
+        for level in ("FATAL", "fatal"):
+            assert self._warnings_for(level, tmp_path) == [], level
+
     def test_empty_level_warns(self, tmp_path):
         assert len(self._warnings_for("", tmp_path)) == 1

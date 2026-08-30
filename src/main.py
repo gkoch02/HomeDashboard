@@ -2,23 +2,14 @@ import logging
 
 from src.app import DashboardApp
 from src.cli import parse_args
-from src.config import load_config, print_validation_report, validate_config
+from src.config import (
+    load_config,
+    print_validation_report,
+    resolve_log_level,
+    validate_config,
+)
 
 logger = logging.getLogger(__name__)
-
-
-def resolve_log_level(name: str) -> int:
-    """Return the logging level for *name*, falling back to INFO.
-
-    ``getattr(logging, name)`` is not safe here: a lowercase level resolves to
-    the *function* of that name (``logging.info``), which ``setLevel`` rejects
-    with ``TypeError`` — so ``level: info`` in config.yaml crashed every run
-    before the renderer started. ``getLevelName`` returns the int for a known
-    name and a ``"Level <x>"`` string for anything else, which is the fallback
-    signal.
-    """
-    level = logging.getLevelName(str(name).strip().upper())
-    return level if isinstance(level, int) else logging.INFO
 
 
 def main():

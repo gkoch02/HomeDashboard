@@ -45,9 +45,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   resolved to a callable and `setLevel` rejected it with `TypeError`. It
   happened after argument parsing and before `DashboardApp`, so there was no
   `last_error.txt`, no render, and nothing but a traceback in the log. Levels
-  now resolve case-insensitively through `main.resolve_log_level()`, and an
+  now resolve case-insensitively through `config.resolve_log_level()`, and an
   unrecognised name falls back to INFO with `validate_config()` naming it as a
-  warning.
+  warning. The validator asks the resolver via `is_known_log_level()` rather
+  than keeping a list of its own — a separate allowlist drifts from what
+  `setLevel` actually accepts, and did: it omitted the `FATAL` alias, so a
+  working `level: FATAL` was reported as unknown and as falling back to INFO
+  while the root logger really was set to CRITICAL.
 
 - **A malformed `birthdays.json` failed the source instead of being skipped.**
   `_birthdays_from_file()` caught `KeyError`/`ValueError` per entry but not

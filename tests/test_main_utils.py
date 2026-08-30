@@ -7,10 +7,9 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from src.config import resolve_tz
+from src.config import is_known_log_level, resolve_log_level, resolve_tz
 from src.data_pipeline import retry_fetch
 from src.dummy_data import generate_dummy_data
-from src.main import resolve_log_level
 from src.services.run_policy import (
     in_quiet_hours,
     is_morning_startup_window,
@@ -474,6 +473,9 @@ class TestResolveLogLevel:
             ("Debug", logging.DEBUG),
             ("warning", logging.WARNING),
             ("warn", logging.WARNING),
+            ("FATAL", logging.CRITICAL),
+            ("fatal", logging.CRITICAL),
+            ("NOTSET", logging.NOTSET),
             ("  ERROR  ", logging.ERROR),
             ("CRITICAL", logging.CRITICAL),
         ],
@@ -484,6 +486,26 @@ class TestResolveLogLevel:
     @pytest.mark.parametrize("configured", ["bogus", "", "20", "basicConfig"])
     def test_unknown_names_fall_back_to_info(self, configured):
         assert resolve_log_level(configured) == logging.INFO
+
+    @pytest.mark.parametrize("configured", ["INFO", "info", "FATAL", "WARN", "NOTSET", "  DEBUG  "])
+    def test_known_levels_are_reported_as_known(self, configured):
+        # The validator asks this rather than checking a list of its own. A
+        # separate allowlist drifts from the resolver, and did: it omitted the
+        # FATAL alias, so a level that works was reported as unknown and as
+        # falling back to INFO while the root logger was set to CRITICAL.
+        assert is_known_log_level(configured) is True
+
+    @pytest.mark.parametrize("configured", ["bogus", "", "20", "basicConfig"])
+    def test_unknown_levels_are_reported_as_unknown(self, configured):
+        assert is_known_log_level(configured) is False
+
+    def test_known_levels_are_exactly_the_ones_that_do_not_fall_back(self):
+        # The two must agree by construction, not by coincidence.
+        for name in ["INFO", "info", "FATAL", "WARN", "NOTSET", "bogus", "", "basicConfig"]:
+            falls_back = resolve_log_level(name) == logging.INFO and name.strip().upper() not in (
+                "INFO",
+            )
+            assert is_known_log_level(name) is not falls_back, name
 
     def test_resolved_level_is_accepted_by_setLevel(self):
         # The real failure was one layer down: whatever this returns has to be
