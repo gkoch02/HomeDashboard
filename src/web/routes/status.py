@@ -14,7 +14,7 @@ from flask import Blueprint, current_app, jsonify, render_template, request
 
 from src._time import now_local
 from src.fetchers import one_call_health
-from src.services.theme import resolve_theme_name
+from src.services.theme import PSEUDO_THEMES, resolve_theme_name
 from src.web.event_store import read_recent_events
 from src.web.sources import source_names
 from src.web.state_reader import (
@@ -190,7 +190,7 @@ def _overall_health(
     }
 
 
-def _describe_theme_mode(cfg, effective_theme: str, now: datetime) -> dict:
+def _describe_theme_mode(cfg, effective_theme: str | None, now: datetime) -> dict:
     schedule_entries = sorted(cfg.theme_schedule.entries, key=lambda e: e.time)
     next_entry = None
     current_hm = now.strftime("%H:%M")
@@ -206,9 +206,12 @@ def _describe_theme_mode(cfg, effective_theme: str, now: datetime) -> dict:
         detail = (
             "Theme schedule is active and overrides the base theme once its time window begins."
         )
-    elif cfg.theme in ("random", "random_daily", "random_hourly"):
+    elif cfg.theme in PSEUDO_THEMES:
         mode = "randomized"
         detail = "The dashboard is rotating through a pool of themes automatically."
+        if effective_theme is None:
+            # Reporting only — the page must not draw the pick itself (#238).
+            detail += " The next theme has not been drawn yet; the next renderer run picks it."
     else:
         mode = "fixed"
         detail = "A single fixed theme is selected."
@@ -376,7 +379,12 @@ def _build_status() -> dict:
         one_call_health.read_health(state_dir), cfg.weather.one_call_version
     )
     overall = _overall_health(last_run["seconds_since"], quiet_hours_active, sources, one_call)
-    effective_theme = resolve_theme_name(cfg, override_theme=None, now=now)
+    # persist=False keeps this a read. Resolving a random cadence normally
+    # *draws* the theme and writes state/random_theme_state.json, so the page's
+    # 30-second poll was deciding what the dashboard would show — and winning
+    # that race against the 5-minute renderer at nearly every rollover (#238).
+    resolved_theme = resolve_theme_name(cfg, override_theme=None, now=now, persist=False)
+    effective_theme = None if resolved_theme in PSEUDO_THEMES else resolved_theme
     theme_info = _describe_theme_mode(cfg, effective_theme, now)
 
     return {

@@ -135,6 +135,9 @@ there. For the step-by-step fix, see
 - `theme: random_hourly` picks once per hour and persists in
   `state/random_theme_hourly_state.json`.
 - Delete the state file to force a new pick immediately.
+- Only the renderer draws the theme. The web UI's status page reports the
+  pick already stored — it shows "not drawn yet" until the next renderer run
+  rather than choosing on the renderer's behalf.
 - Use `random_theme.include` and `random_theme.exclude` in config to control
   which themes are in the rotation pool.
 - `countdown`, `photo`, `message`, and `diags` are excluded from the random

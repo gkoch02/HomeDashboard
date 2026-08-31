@@ -6,7 +6,7 @@ filesystem paths are required.
 
 import base64
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -685,3 +685,67 @@ class TestStatusUsesConfiguredTimezone:
 
         assert resp.status_code == 503
         assert resp.get_json()["healthy"] is False
+
+
+# ---------------------------------------------------------------------------
+# GET /api/status is a read (#238)
+# ---------------------------------------------------------------------------
+
+
+class TestStatusDoesNotPickTheTheme:
+    """Reporting the current theme must not decide it.
+
+    ``resolve_theme_name`` on a random cadence *draws* a theme and writes
+    ``state/random_theme_state.json``. The page polls every 30 seconds and the
+    renderer runs every 5 minutes, so the web process was winning the race to
+    pick the day's theme at nearly every rollover.
+    """
+
+    def _app_with_theme(self, tmp_path, theme):
+        web_yaml = tmp_path / "web.yaml"
+        web_yaml.write_text("port: 8080\n")
+        cfg_yaml = tmp_path / "config.yaml"
+        cfg_yaml.write_text(f"theme: {theme}\nstate_dir: {tmp_path / 'state'}\n")
+        application = create_app(web_config_path=str(web_yaml), app_config_path=str(cfg_yaml))
+        application.config["TESTING"] = True
+        application.config["STATE_DIR"] = str(tmp_path / "state")
+        application.config["OUTPUT_DIR"] = str(tmp_path / "output")
+        (tmp_path / "state").mkdir(exist_ok=True)
+        (tmp_path / "output").mkdir(exist_ok=True)
+        return application
+
+    @pytest.mark.parametrize("theme", ["random", "random_daily", "random_hourly"])
+    def test_status_writes_no_theme_state(self, tmp_path, theme):
+        client = self._app_with_theme(tmp_path, theme).test_client()
+
+        assert client.get("/api/status").status_code == 200
+
+        written = [p.name for p in (tmp_path / "state").iterdir()]
+        assert written == []
+
+    @pytest.mark.parametrize("theme", ["random_daily", "random_hourly"])
+    def test_status_reports_no_theme_until_the_renderer_picks_one(self, tmp_path, theme):
+        client = self._app_with_theme(tmp_path, theme).test_client()
+
+        body = client.get("/api/status").get_json()
+
+        assert body["current_theme"] is None
+        assert body["theme_info"]["mode"] == "randomized"
+        assert body["theme_info"]["effective_theme"] is None
+        assert "has not been drawn yet" in body["theme_info"]["detail"]
+
+    def test_status_reports_the_pick_the_renderer_made(self, tmp_path):
+        application = self._app_with_theme(tmp_path, "random_daily")
+        today = date.today().isoformat()
+        (tmp_path / "state" / "random_theme_state.json").write_text(
+            json.dumps({"date": today, "theme": "terminal"})
+        )
+
+        body = application.test_client().get("/api/status").get_json()
+
+        assert body["current_theme"] == "terminal"
+        assert body["theme_info"]["effective_theme"] == "terminal"
+
+    def test_a_fixed_theme_is_still_reported_verbatim(self, tmp_path):
+        body = self._app_with_theme(tmp_path, "terminal").test_client()
+        assert body.get("/api/status").get_json()["current_theme"] == "terminal"

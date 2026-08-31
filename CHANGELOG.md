@@ -38,6 +38,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Fixed
 
+- **`GET /api/status` picked and persisted the random theme.** Reporting the
+  current theme went through `resolve_theme_name()`, which for `random_daily` /
+  `random` / `random_hourly` is not a read: it draws from the pool and writes
+  `state/random_theme_state.json` whenever the day/hour bucket has rolled over.
+  The status page polls every 30 seconds and the renderer runs every 5 minutes,
+  so the web process — not the renderer — won the race to choose the day's
+  theme at nearly every rollover. `resolve_theme_name()` and both
+  `pick_random_theme*` functions now take `persist=` (default `True`,
+  unchanged for the renderer); the status page passes `persist=False`, reports
+  the pick the renderer actually stored, and says the theme has not been drawn
+  yet when the bucket is empty.
+
 - **The web UI read the host clock where the renderer reads `cfg.timezone`.**
   `is_quiet_hours_now()` and `_build_status()` both called bare
   `datetime.now()`. On the documented Pi setup — system tz UTC, configured tz

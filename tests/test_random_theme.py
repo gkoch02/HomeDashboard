@@ -303,3 +303,71 @@ class TestPickRandomThemeHourly:
         assert Path(path).name == "random_theme_hourly_state.json"
         assert payload == {"hour": "2026-03-22T14", "theme": chosen}
         assert sorted(p.name for p in tmp_path.iterdir()) == ["random_theme_hourly_state.json"]
+
+
+# ---------------------------------------------------------------------------
+# persist=False — reporting without deciding (#238)
+# ---------------------------------------------------------------------------
+
+
+class TestReadOnlyPicks:
+    """A reporting caller must not draw the theme the dashboard will show.
+
+    The status page polls every 30 seconds; the renderer runs every 5 minutes.
+    Left able to pick, the page wins that race at nearly every rollover.
+    """
+
+    def test_daily_reports_nothing_when_no_pick_is_stored(self, tmp_path):
+        chosen = pick_random_theme([], [], str(tmp_path), today=date(2026, 3, 22), persist=False)
+        assert chosen == ""
+        assert list(tmp_path.iterdir()) == []
+
+    def test_daily_reports_the_stored_pick(self, tmp_path):
+        (tmp_path / "random_theme_state.json").write_text(
+            json.dumps({"date": "2026-03-22", "theme": "terminal"})
+        )
+        chosen = pick_random_theme([], [], str(tmp_path), today=date(2026, 3, 22), persist=False)
+        assert chosen == "terminal"
+
+    def test_daily_reports_nothing_once_the_stored_bucket_has_rolled_over(self, tmp_path):
+        (tmp_path / "random_theme_state.json").write_text(
+            json.dumps({"date": "2026-03-21", "theme": "terminal"})
+        )
+        chosen = pick_random_theme([], [], str(tmp_path), today=date(2026, 3, 22), persist=False)
+        assert chosen == ""
+        # Yesterday's pick is left exactly as it was for the renderer to replace.
+        assert json.loads((tmp_path / "random_theme_state.json").read_text()) == {
+            "date": "2026-03-21",
+            "theme": "terminal",
+        }
+
+    def test_daily_never_writes_when_reporting(self, tmp_path):
+        with patch("src.render.random_theme.atomic_write_json") as writer:
+            pick_random_theme([], [], str(tmp_path), today=date(2026, 3, 22), persist=False)
+        writer.assert_not_called()
+
+    def test_hourly_reports_nothing_when_no_pick_is_stored(self, tmp_path):
+        now = datetime(2026, 3, 22, 14, 0)
+        chosen = pick_random_theme_hourly([], [], str(tmp_path), now=now, persist=False)
+        assert chosen == ""
+        assert list(tmp_path.iterdir()) == []
+
+    def test_hourly_reports_the_stored_pick(self, tmp_path):
+        (tmp_path / "random_theme_hourly_state.json").write_text(
+            json.dumps({"hour": "2026-03-22T14", "theme": "minimalist"})
+        )
+        now = datetime(2026, 3, 22, 14, 30)
+        chosen = pick_random_theme_hourly([], [], str(tmp_path), now=now, persist=False)
+        assert chosen == "minimalist"
+
+    def test_hourly_never_writes_when_reporting(self, tmp_path):
+        now = datetime(2026, 3, 22, 14, 0)
+        with patch("src.render.random_theme.atomic_write_json") as writer:
+            pick_random_theme_hourly([], [], str(tmp_path), now=now, persist=False)
+        writer.assert_not_called()
+
+    def test_persisting_is_still_the_default(self, tmp_path):
+        """The renderer's call site is unchanged — it still picks and writes."""
+        chosen = pick_random_theme([], [], str(tmp_path), today=date(2026, 3, 22))
+        assert chosen in _REAL_THEMES
+        assert (tmp_path / "random_theme_state.json").exists()
