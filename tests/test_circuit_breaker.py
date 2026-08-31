@@ -1,9 +1,11 @@
 """Tests for circuit breaker (src/fetchers/circuit_breaker.py)."""
 
+import json
 from pathlib import Path
 
 import pytest
 
+from src._time import now_utc
 from src.fetchers.circuit_breaker import CircuitBreaker
 
 
@@ -199,3 +201,84 @@ class TestCircuitBreaker:
         # the exception handler.
         with patch("src._io.json.dump", side_effect=OSError("disk full")):
             cb.record_failure("weather")  # triggers _save(), should not raise
+
+
+class TestConcurrentWebWrites:
+    """The web UI rewrites this file from a separate process (#242).
+
+    A reset is most likely to be pressed *while* a run is in flight, and the
+    renderer holds its own in-memory copy of every source loaded at startup.
+    Writing that whole copy back erased the reset, and the UI reported success
+    while the breaker stayed open.
+    """
+
+    def _raw(self, tmp_path) -> dict:
+        return json.loads((tmp_path / "dashboard_breaker_state.json").read_text())
+
+    def _open_entry(self) -> dict:
+        # A recent failure keeps the breaker OPEN rather than probing.
+        return {
+            "consecutive_failures": 5,
+            "last_failure_at": now_utc().isoformat(),
+            "state": "open",
+        }
+
+    def test_a_reset_made_after_load_is_not_clobbered(self, tmp_path):
+        state_path = tmp_path / "dashboard_breaker_state.json"
+        state_path.write_text(json.dumps({"weather": self._open_entry()}))
+
+        breaker = CircuitBreaker(state_dir=str(tmp_path))
+        assert breaker.should_attempt("weather") is False
+
+        # The web process resets weather while this run is in flight.
+        state_path.write_text(
+            json.dumps(
+                {
+                    "weather": {
+                        "consecutive_failures": 0,
+                        "last_failure_at": None,
+                        "state": "closed",
+                    }
+                }
+            )
+        )
+
+        # The renderer then records an unrelated source's outcome.
+        breaker.record_success("events")
+
+        assert self._raw(tmp_path)["weather"]["state"] == "closed"
+        assert self._raw(tmp_path)["events"]["state"] == "closed"
+
+    def test_this_runs_own_changes_still_win(self, tmp_path):
+        """Merging must not turn into "the file always wins"."""
+        state_path = tmp_path / "dashboard_breaker_state.json"
+        state_path.write_text(json.dumps({"weather": self._open_entry()}))
+
+        breaker = CircuitBreaker(state_dir=str(tmp_path))
+        breaker.record_success("weather")
+
+        assert self._raw(tmp_path)["weather"]["state"] == "closed"
+        assert self._raw(tmp_path)["weather"]["consecutive_failures"] == 0
+
+    def test_sources_written_by_another_process_are_preserved(self, tmp_path):
+        breaker = CircuitBreaker(state_dir=str(tmp_path))
+        breaker.record_failure("weather")
+
+        # Another process adds a source this instance has never seen.
+        raw = self._raw(tmp_path)
+        raw["air_quality"] = self._open_entry()
+        (tmp_path / "dashboard_breaker_state.json").write_text(json.dumps(raw))
+
+        breaker.record_failure("weather")
+
+        merged = self._raw(tmp_path)
+        assert merged["air_quality"]["state"] == "open"
+        assert merged["weather"]["consecutive_failures"] == 2
+
+    def test_the_write_goes_through_the_shared_locked_helper(self):
+        """One implementation of the locked read-modify-write, not a private copy."""
+        from src import _io
+        from src.fetchers import circuit_breaker as cb
+
+        assert cb.locked_update_json is _io.locked_update_json
+        assert not hasattr(cb, "atomic_write_json")

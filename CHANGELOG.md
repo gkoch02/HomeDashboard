@@ -38,6 +38,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Fixed
 
+- **Web cache and breaker writes raced the renderer.** `POST /api/reset-breaker`
+  and `POST /api/clear-cache` did read-all → mutate → write on
+  `state/dashboard_breaker_state.json` and `state/dashboard_cache.json`, both of
+  which the renderer rewrites wholesale from a **separate process** on every
+  fetch. `atomic_write_json` makes each write atomic, so the file was never
+  torn — but it does nothing about the interleaving, and the reset button is
+  most likely to be pressed *while* a run is in flight. Whichever process wrote
+  last erased the other's change: a reset could report success while the
+  breaker stayed open, a failure the renderer had just recorded could vanish,
+  and a source the renderer had just refreshed could be resurrected from the
+  web process's stale read. `src/_io.py` now carries `file_lock()` and
+  `locked_update_json()` — the sidecar-`flock` approach `web/event_store.py`
+  already used, generalised so the lock covers the whole read-modify-write —
+  and `actions.py`, `cache.save_source()` and `CircuitBreaker._save()` all go
+  through it. The breaker additionally merges only the sources the current run
+  actually changed, so writing back its in-memory copy can no longer undo a
+  reset made since it loaded. `event_store` now shares the one lock
+  implementation instead of keeping its own.
+
 - **Live preview rendered a different dashboard than the renderer does.**
   `POST /api/preview` passed a subset of the arguments `DashboardApp` passes,
   so `photo` previewed with no photo at all — the one theme whose entire

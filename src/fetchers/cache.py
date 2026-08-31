@@ -15,7 +15,7 @@ import threading
 from datetime import date, datetime, timezone
 from pathlib import Path
 
-from src._io import atomic_write_json
+from src._io import atomic_write_json, locked_update_json
 from src.data.models import (
     AirQualityData,
     Birthday,
@@ -258,26 +258,27 @@ def save_source(
         return
     serialized = fetcher.serialize(data)
 
-    with _cache_lock:
-        # Preserve existing sources when possible
+    def _merge(existing: dict | None) -> dict:
+        # Preserve existing sources when possible.
         raw: dict = {"schema_version": _SCHEMA_VERSION}
-        if path.exists():
-            try:
-                with open(path) as f:
-                    existing = json.load(f)
-                if existing.get("schema_version") == _SCHEMA_VERSION:
-                    raw = existing
-            except Exception:
-                pass  # start fresh
+        if isinstance(existing, dict) and existing.get("schema_version") == _SCHEMA_VERSION:
+            raw = existing
 
         raw["schema_version"] = _SCHEMA_VERSION
         block = {"fetched_at": fetched_at.isoformat(), "data": serialized}
         if metadata:
             block.update(metadata)
         raw[source] = block
+        return raw
 
+    # ``_cache_lock`` serialises the concurrent fetch threads inside this
+    # process; the file lock covers the web service, which clears entries from
+    # a separate process. This is a read-modify-write, so the lock has to span
+    # both halves — an unlocked one resurrected a source the renderer had just
+    # refreshed, or dropped one it had just saved (#242).
+    with _cache_lock:
         try:
-            atomic_write_json(path, raw, indent=2)
+            locked_update_json(path, _merge, indent=2)
             logger.debug("Cache source %r written to %s", source, path)
         except Exception as exc:
             logger.warning("Cache write failed for source %r: %s", source, exc)

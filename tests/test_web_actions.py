@@ -269,7 +269,7 @@ def test_trigger_refresh_returns_500_on_io_error(client):
 def test_reset_breaker_returns_500_on_write_failure(client):
     headers = _csrf_headers(client)
     with patch(
-        "src.web.routes.actions.atomic_write_json",
+        "src.web.routes.actions.locked_update_json",
         side_effect=OSError("no space left"),
     ):
         resp = client.post(
@@ -287,7 +287,7 @@ def test_reset_breaker_returns_500_on_write_failure(client):
 def test_clear_cache_returns_500_on_write_failure(client):
     headers = _csrf_headers(client)
     with patch(
-        "src.web.routes.actions.atomic_write_json",
+        "src.web.routes.actions.locked_update_json",
         side_effect=OSError("io broke"),
     ):
         resp = client.post(
@@ -302,13 +302,18 @@ def test_clear_cache_returns_500_on_write_failure(client):
     assert "io broke" in body["error"]
 
 
-def test_actions_uses_the_shared_atomic_write_helper():
-    """One implementation of the atomic write, not a private web-layer copy (#213)."""
+def test_actions_uses_the_shared_locked_update_helper():
+    """One implementation of the locked read-modify-write, not a web-layer copy.
+
+    Was #213 (no private atomic-write copy); since #242 the shared helper is
+    ``locked_update_json``, which also covers the read.
+    """
     from src import _io
     from src.web.routes import actions
 
-    assert actions.atomic_write_json is _io.atomic_write_json
+    assert actions.locked_update_json is _io.locked_update_json
     assert not hasattr(actions, "_atomic_write_json")
+    assert not hasattr(actions, "atomic_write_json")
 
 
 def test_atomic_write_json_cleans_up_tempfile_on_failure(tmp_path):

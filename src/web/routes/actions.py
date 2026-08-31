@@ -8,13 +8,12 @@ Routes:
 
 from __future__ import annotations
 
-import json
 import logging
 from pathlib import Path
 
 from flask import Blueprint, current_app, jsonify, request
 
-from src._io import atomic_write_json
+from src._io import locked_update_json
 from src.web.event_store import append_event
 from src.web.sources import is_known_source
 
@@ -49,18 +48,22 @@ def reset_breaker():
         return jsonify({"ok": False, "error": f"Unknown source: {source!r}"}), 400
 
     state_path = Path(current_app.config["STATE_DIR"]) / "dashboard_breaker_state.json"
-    try:
-        raw: dict = {}
-        if state_path.exists():
-            with open(state_path) as f:
-                raw = json.load(f)
 
+    def _reset(raw: dict) -> dict:
         raw[source] = {
             "consecutive_failures": 0,
             "last_failure_at": None,
             "state": "closed",
         }
-        atomic_write_json(state_path, raw, indent=2)
+        return raw
+
+    try:
+        # Read-modify-write under one lock. The renderer rewrites this file
+        # wholesale from a separate process on every fetch, and a reset is most
+        # likely to be pressed *while* a run is in flight — unlocked, whichever
+        # process wrote last erased the other's change, so a reset could report
+        # success while the breaker stayed open (#242).
+        locked_update_json(state_path, _reset, default={}, indent=2)
         logger.info("Breaker reset via web UI: source=%s", source)
         append_event(
             current_app.config["STATE_DIR"],
@@ -84,18 +87,18 @@ def clear_cache():
         return jsonify({"ok": False, "error": f"Unknown source: {source!r}"}), 400
 
     cache_path = Path(current_app.config["STATE_DIR"]) / "dashboard_cache.json"
-    try:
-        raw: dict = {"schema_version": 2}
-        if cache_path.exists():
-            with open(cache_path) as f:
-                raw = json.load(f)
 
+    def _clear(raw: dict) -> dict:
         if source == "all":
-            raw = {"schema_version": 2}
-        else:
-            raw.pop(source, None)
+            return {"schema_version": 2}
+        raw.pop(source, None)
+        return raw
 
-        atomic_write_json(cache_path, raw, indent=2)
+    try:
+        # Same lock as the breaker reset: unlocked, a source the renderer had
+        # just refreshed could be resurrected from this process's stale read,
+        # or a just-saved source silently dropped (#242).
+        locked_update_json(cache_path, _clear, default={"schema_version": 2}, indent=2)
         logger.info("Cache cleared via web UI: source=%s", source)
         append_event(
             current_app.config["STATE_DIR"],

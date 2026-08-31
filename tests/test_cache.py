@@ -396,7 +396,7 @@ class TestSaveSourceEdgeCases:
         with tempfile.TemporaryDirectory() as tmpdir:
             with caplog.at_level(logging.WARNING, logger="src.fetchers.cache"):
                 with patch(
-                    "src.fetchers.cache.atomic_write_json",
+                    "src.fetchers.cache.locked_update_json",
                     side_effect=OSError("disk full"),
                 ):
                     save_source("events", [], datetime(2024, 3, 15, 9), tmpdir)
