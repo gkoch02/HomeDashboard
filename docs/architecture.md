@@ -87,6 +87,9 @@ CLI (main.py)
 - **`services/run_policy.py`** — Quiet hours, morning startup detection
 - **`services/theme.py`** — Theme name resolution (CLI → rules → schedule → cfg.theme / random)
 - **`services/theme_rules.py`** — Context-aware rule evaluator (weather / daypart / season / weekday / calendar)
+- **`services/render_args.py`** — `build_render_kwargs()`: the single assembly of
+  `render_dashboard()` arguments from a `Config`, shared by the renderer and the
+  web UI's live preview so the preview cannot show what the render will not
 - **`services/output.py`** — Publish to display or PNG, write health marker
 
 ### Rendering

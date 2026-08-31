@@ -82,6 +82,9 @@ src/
 │   ├── run_policy.py          # resolve_tz, should_skip_refresh, should_force_full_refresh
 │   ├── theme.py               # resolve_theme_name (CLI → rules → schedule → cfg.theme / random)
 │   ├── theme_rules.py         # Context-aware rule evaluator (weather / daypart / season / weekday / calendar)
+│   ├── render_args.py         # build_render_kwargs() — the one place a Config becomes
+│   │                          #   render_dashboard() arguments; shared by DashboardApp
+│   │                          #   and POST /api/preview so a preview cannot diverge
 │   └── output.py              # OutputService — publish to display or PNG; write last_success.txt;
 │                              #   content-hash + cooldown refresh throttle (replaces v4 hourly Inky throttle)
 ├── _version.py                # Single source of truth: __version__

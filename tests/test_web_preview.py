@@ -144,3 +144,110 @@ class TestPatchPreview:
         resp = _post_with_csrf(client, "/api/preview", {"theme": "agenda", "patch": {}})
         assert resp.status_code == 200
         assert resp.mimetype == "image/png"
+
+
+class TestPreviewMatchesTheRenderer:
+    """The preview must render what the renderer will (#240).
+
+    It used to pass a subset of the renderer's arguments, so ``photo``
+    previewed with no photo, ``countdown`` with no events, a custom quote store
+    was ignored, and the ``(0.0, 0.0)`` unset-coordinates sentinel was passed
+    through raw — making the sun/moon themes compute geometry for the Gulf of
+    Guinea instead of showing their unset-coordinates fallback.
+    """
+
+    def _client(self, tmp_path, config_body):
+        config_yaml = tmp_path / "config.yaml"
+        config_yaml.write_text(config_body)
+        return create_app(app_config_path=str(config_yaml)).test_client()
+
+    def _render_kwargs(self, client, theme, monkeypatch):
+        captured = {}
+
+        def fake_render(data, config, **kwargs):
+            captured.update(kwargs)
+            return Image.new("1", (800, 480), 1)
+
+        monkeypatch.setattr("src.web.routes.preview.render_dashboard", fake_render)
+        resp = _post_with_csrf(client, "/api/preview", {"theme": theme})
+        assert resp.status_code == 200, resp.get_data(as_text=True)
+        return captured
+
+    def test_photo_theme_gets_the_configured_photo_path(self, tmp_path, monkeypatch):
+        client = self._client(tmp_path, "photo:\n  path: /photos/hero.jpg\n")
+        kwargs = self._render_kwargs(client, "photo", monkeypatch)
+        assert kwargs["theme"].style.photo_path == "/photos/hero.jpg"
+
+    def test_countdown_theme_gets_the_configured_events(self, tmp_path, monkeypatch):
+        client = self._client(
+            tmp_path,
+            "countdown:\n  events:\n    - name: Trip\n      date: '2026-12-01'\n",
+        )
+        kwargs = self._render_kwargs(client, "countdown", monkeypatch)
+        assert [e.name for e in kwargs["countdown_events"]] == ["Trip"]
+
+    def test_custom_quote_store_is_forwarded(self, tmp_path, monkeypatch):
+        client = self._client(tmp_path, "quotes:\n  path: /etc/quotes.json\n")
+        kwargs = self._render_kwargs(client, "qotd", monkeypatch)
+        assert kwargs["quotes_path"] == "/etc/quotes.json"
+
+    def test_unset_coordinates_are_not_previewed_as_the_gulf_of_guinea(self, tmp_path, monkeypatch):
+        client = self._client(tmp_path, "weather:\n  latitude: 0.0\n  longitude: 0.0\n")
+        kwargs = self._render_kwargs(client, "astronomy", monkeypatch)
+        assert (kwargs["latitude"], kwargs["longitude"]) == (None, None)
+
+    def test_configured_coordinates_still_reach_the_render(self, tmp_path, monkeypatch):
+        client = self._client(tmp_path, "weather:\n  latitude: 37.8\n  longitude: -122.4\n")
+        kwargs = self._render_kwargs(client, "astronomy", monkeypatch)
+        assert (kwargs["latitude"], kwargs["longitude"]) == (37.8, -122.4)
+
+    def test_preview_still_persists_no_pressure_history(self, tmp_path, monkeypatch):
+        client = self._client(tmp_path, f"state_dir: {tmp_path / 'state'}\n")
+        kwargs = self._render_kwargs(client, "weatherglass", monkeypatch)
+        assert kwargs["state_dir"] is None
+
+    def test_a_patch_is_previewed_through_the_same_assembly(self, tmp_path, monkeypatch):
+        """The candidate config's values must reach the render, not the saved ones."""
+        client = self._client(tmp_path, "weather:\n  latitude: 0.0\n  longitude: 0.0\n")
+        captured = {}
+
+        def fake_render(data, config, **kwargs):
+            captured.update(kwargs)
+            return Image.new("1", (800, 480), 1)
+
+        monkeypatch.setattr("src.web.routes.preview.render_dashboard", fake_render)
+        resp = _post_with_csrf(
+            client,
+            "/api/preview",
+            {
+                "theme": "astronomy",
+                "patch": {"weather.latitude": 37.8, "weather.longitude": -122.4},
+            },
+        )
+        assert resp.status_code == 200, resp.get_data(as_text=True)
+        assert (captured["latitude"], captured["longitude"]) == (37.8, -122.4)
+
+
+class TestPreviewRealRenderStillWorks:
+    def test_photo_theme_renders_end_to_end_without_a_photo_file(self, tmp_path):
+        """A path that does not exist must not 500 the preview."""
+        config_yaml = tmp_path / "config.yaml"
+        config_yaml.write_text(f"photo:\n  path: {tmp_path / 'missing.jpg'}\n")
+        client = create_app(app_config_path=str(config_yaml)).test_client()
+
+        resp = _post_with_csrf(client, "/api/preview", {"theme": "photo"})
+
+        assert resp.status_code == 200
+        assert Image.open(io.BytesIO(resp.data)).size == (800, 480)
+
+    def test_countdown_theme_renders_end_to_end_with_events(self, tmp_path):
+        config_yaml = tmp_path / "config.yaml"
+        config_yaml.write_text(
+            "countdown:\n  events:\n    - name: Trip\n      date: '2099-12-01'\n"
+        )
+        client = create_app(app_config_path=str(config_yaml)).test_client()
+
+        resp = _post_with_csrf(client, "/api/preview", {"theme": "countdown"})
+
+        assert resp.status_code == 200
+        assert Image.open(io.BytesIO(resp.data)).size == (800, 480)

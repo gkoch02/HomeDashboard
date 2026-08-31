@@ -38,6 +38,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Fixed
 
+- **Live preview rendered a different dashboard than the renderer does.**
+  `POST /api/preview` passed a subset of the arguments `DashboardApp` passes,
+  so `photo` previewed with no photo at all — the one theme whose entire
+  content is the config value being previewed — `countdown` previewed with no
+  events (so it looked broken in the picker), a custom `quotes.path` store was
+  ignored, and the documented `(0.0, 0.0)` "unset" coordinate sentinel was
+  passed through raw instead of becoming `None`, so `astronomy`,
+  `light_cycle`, `moonphase`, `day_arc` and `constellation_map` previewed
+  plausible-looking sun and moon geometry for the Gulf of Guinea rather than
+  the unset-coordinates message the panel actually renders. The assembly now
+  lives once in `src/services/render_args.py` (`build_render_kwargs()`) and
+  both callers go through it; `state_dir=None` stays the preview's value so
+  previews still persist no weatherglass pressure history.
+
 - **`GET /api/status` picked and persisted the random theme.** Reporting the
   current theme went through `resolve_theme_name()`, which for `random_daily` /
   `random` / `random_hourly` is not a read: it draws from the pool and writes
