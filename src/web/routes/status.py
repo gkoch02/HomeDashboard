@@ -12,11 +12,13 @@ from pathlib import Path
 
 from flask import Blueprint, current_app, jsonify, render_template, request
 
+from src._time import now_local
 from src.fetchers import one_call_health
 from src.services.theme import resolve_theme_name
 from src.web.event_store import read_recent_events
 from src.web.sources import source_names
 from src.web.state_reader import (
+    config_tz,
     is_quiet_hours_now,
     read_breakers,
     read_cache_ages,
@@ -347,10 +349,14 @@ def _build_status() -> dict:
     breakers = read_breakers(state_dir)
     cache_ages = read_cache_ages(state_dir, ttls)
     quota = read_quota(state_dir)
+    # Everything below is resolved against the *configured* timezone, the same
+    # clock the renderer uses. Reading the host clock here put quiet hours,
+    # theme_schedule and the daypart/weekday theme_rules on a different wall
+    # clock — and near local midnight on a different day (#239).
+    now = now_local(config_tz(cfg))
     quiet_hours_active = is_quiet_hours_now(
-        cfg.schedule.quiet_hours_start, cfg.schedule.quiet_hours_end
+        cfg.schedule.quiet_hours_start, cfg.schedule.quiet_hours_end, now
     )
-    now = datetime.now()  # allow-naive-datetime — local wall clock for status display
 
     sources: dict = {}
     for source in source_names():
@@ -422,7 +428,11 @@ def api_health():
 
     healthy = success["timestamp"] is not None and not error["is_current"]
     max_age = request.args.get("max_age", type=int)
-    in_quiet = is_quiet_hours_now(cfg.schedule.quiet_hours_start, cfg.schedule.quiet_hours_end)
+    in_quiet = is_quiet_hours_now(
+        cfg.schedule.quiet_hours_start,
+        cfg.schedule.quiet_hours_end,
+        now_local(config_tz(cfg)),
+    )
     if healthy and max_age is not None and not in_quiet:
         seconds_since = success.get("seconds_since")
         if seconds_since is None or seconds_since > max_age:

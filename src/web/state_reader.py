@@ -10,10 +10,11 @@ from __future__ import annotations
 import json
 import logging
 from collections import deque
-from datetime import datetime, timezone
+from datetime import datetime, timezone, tzinfo
 from pathlib import Path
 
 from src._time import now_utc as _now_utc
+from src.config import resolve_tz
 from src.fetchers.cache import check_staleness
 from src.fetchers.host import fetch_host_data
 from src.services.run_policy import in_quiet_hours
@@ -230,11 +231,35 @@ def read_host_metrics() -> dict | None:
     }
 
 
-def is_quiet_hours_now(quiet_hours_start: int, quiet_hours_end: int) -> bool:
-    """Return True if the current local time falls in the quiet window."""
-    return in_quiet_hours(
-        datetime.now(), quiet_hours_start, quiet_hours_end
-    )  # allow-naive-datetime — quiet hours use local wall clock
+def config_tz(cfg) -> tzinfo:
+    """Resolve the dashboard's configured timezone, falling back to UTC.
+
+    The renderer resolves everything against ``cfg.timezone``; the web layer
+    read the *host* clock, which on the documented Pi setup (system tz UTC,
+    configured tz local — see ``_time.day_start_utc``) is a different wall
+    clock entirely. An unresolvable zone name degrades to UTC rather than
+    500-ing the status page: ``validate_config()`` is where a bad zone gets
+    reported.
+    """
+    name = getattr(cfg, "timezone", "local")
+    try:
+        return resolve_tz(name)
+    except Exception as exc:
+        logger.debug("Could not resolve configured timezone %r: %s", name, exc)
+        return timezone.utc
+
+
+def is_quiet_hours_now(quiet_hours_start: int, quiet_hours_end: int, now: datetime) -> bool:
+    """Return True if *now* falls in the quiet window.
+
+    *now* is supplied by the caller rather than read here: the window is
+    defined against the dashboard's configured timezone, so reading the host
+    clock reported quiet hours 7–8 hours out on a UTC host with a local
+    configured zone — the status page claimed "refresh paused" while the panel
+    was refreshing normally, and ``/api/health?max_age=`` exempted the age
+    check during the wrong window.
+    """
+    return in_quiet_hours(now, quiet_hours_start, quiet_hours_end)
 
 
 def read_log_tail(output_dir: str, n: int = 100) -> list[str]:

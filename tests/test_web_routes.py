@@ -6,6 +6,7 @@ filesystem paths are required.
 
 import base64
 import json
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -632,3 +633,55 @@ class TestOneCallStatus:
         app.config["DASH_CFG"] = load_config(app.config["APP_CONFIG_PATH"])
         data = json.loads(client.get("/api/status").data)
         assert not any(r["name"].startswith("OpenWeather One Call") for r in data["integrations"])
+
+
+# ---------------------------------------------------------------------------
+# Configured timezone (#239)
+# ---------------------------------------------------------------------------
+
+
+class TestStatusUsesConfiguredTimezone:
+    """The web layer must resolve against cfg.timezone, not the host clock.
+
+    The documented Pi setup runs the system in UTC with a local configured
+    zone (see ``_time.day_start_utc``), so reading the host clock reported
+    quiet hours 7–8 hours out.
+    """
+
+    def _app_with(self, tmp_path, timezone_name):
+        web_yaml = tmp_path / "web.yaml"
+        web_yaml.write_text("port: 8080\n")
+        cfg_yaml = tmp_path / "config.yaml"
+        cfg_yaml.write_text(
+            f"timezone: {timezone_name}\nschedule:\n  quiet_hours_start: 23\n  quiet_hours_end: 6\n"
+        )
+        application = create_app(web_config_path=str(web_yaml), app_config_path=str(cfg_yaml))
+        application.config["TESTING"] = True
+        application.config["STATE_DIR"] = str(tmp_path / "state")
+        application.config["OUTPUT_DIR"] = str(tmp_path / "output")
+        (tmp_path / "state").mkdir(exist_ok=True)
+        (tmp_path / "output").mkdir(exist_ok=True)
+        return application
+
+    def _quiet_at(self, tmp_path, timezone_name, instant, monkeypatch):
+        monkeypatch.setattr("src.web.routes.status.now_local", lambda tz: instant.astimezone(tz))
+        client = self._app_with(tmp_path, timezone_name).test_client()
+        return client.get("/api/status").get_json()["quiet_hours_active"]
+
+    def test_same_instant_differs_by_configured_zone(self, tmp_path, monkeypatch):
+        instant = datetime(2026, 4, 7, 5, 30, tzinfo=timezone.utc)  # 22:30 PDT
+        assert self._quiet_at(tmp_path, "UTC", instant, monkeypatch) is True
+        assert self._quiet_at(tmp_path, "America/Los_Angeles", instant, monkeypatch) is False
+
+    def test_health_max_age_exemption_follows_the_configured_zone(self, tmp_path, monkeypatch):
+        """An actually-dead renderer must not read healthy outside real quiet hours."""
+        instant = datetime(2026, 4, 7, 5, 30, tzinfo=timezone.utc)  # 22:30 PDT
+        monkeypatch.setattr("src.web.routes.status.now_local", lambda tz: instant.astimezone(tz))
+        application = self._app_with(tmp_path, "America/Los_Angeles")
+        marker = Path(application.config["OUTPUT_DIR"]) / "last_success.txt"
+        marker.write_text((instant - timedelta(hours=6)).isoformat() + "\n")
+
+        resp = application.test_client().get("/api/health?max_age=600")
+
+        assert resp.status_code == 503
+        assert resp.get_json()["healthy"] is False

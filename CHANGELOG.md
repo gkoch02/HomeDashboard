@@ -38,6 +38,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Fixed
 
+- **The web UI read the host clock where the renderer reads `cfg.timezone`.**
+  `is_quiet_hours_now()` and `_build_status()` both called bare
+  `datetime.now()`. On the documented Pi setup — system tz UTC, configured tz
+  local, the case `_time.day_start_utc`'s docstring names — that is a wall
+  clock 7–8 hours off: the status page reported "display refresh paused until
+  6:00" while the panel was refreshing normally, `GET /api/health?max_age=…`
+  exempted the age check during the wrong window (so a dead renderer read
+  healthy overnight), and the reported theme was resolved for the wrong hour —
+  near local midnight, for the wrong *day*, evaluating `theme_schedule` and the
+  daypart/weekday `theme_rules` against a date the renderer never sees. Both
+  now resolve through `state_reader.config_tz(cfg)`, and `is_quiet_hours_now()`
+  takes the instant as an argument instead of reading a clock of its own.
+
 - **An empty YAML section crashed the renderer, `--check-config` and the web
   UI.** Every section parser called `.get()` on `raw["<section>"]` without
   checking it was a mapping, so a header with nothing under it — the shape a
