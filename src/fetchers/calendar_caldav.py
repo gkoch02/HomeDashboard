@@ -24,8 +24,17 @@ from typing import Any, cast
 
 from src._time import day_start_utc, week_start
 from src.data.models import CalendarEvent
+from src.fetchers.errors import CalendarFetchError
 
 logger = logging.getLogger(__name__)
+
+# Per-request ceiling for every CalDAV call, matching the ICS path. Without it
+# ``caldav`` leaves the underlying requests session with no timeout at all, so
+# an unresponsive server blocks the fetch thread forever — and the pipeline's
+# ``future.result(timeout=120)`` bounds only the *render*, not the process:
+# ``concurrent.futures`` joins its worker threads at interpreter exit, so the
+# renderer stays alive holding the systemd unit active (#235).
+_TIMEOUT_SECONDS = 30
 
 
 def _read_password(password_file: str) -> str:
@@ -78,10 +87,19 @@ def fetch_from_caldav(
             local wall-clock time, matching the Google API path.
 
     Returns:
-        List of :class:`CalendarEvent` sorted by start time. An empty
-        list is returned and a warning is logged on connection /
-        authentication / parsing failures (graceful degradation matches
-        the ICS path).
+        List of :class:`CalendarEvent` sorted by start time.
+
+    Raises:
+        CalendarFetchError: on connection, authentication, calendar-lookup or
+            search failure. The return value is the caller's complete
+            calendar — it gets cached, marked fresh, and counted as a breaker
+            success — so an unreachable server cannot be reported as an empty
+            week. Returning ``[]`` overwrote the last good calendar with an
+            empty one, silently and with no staleness indicator (#234).
+            Individual unparseable VEVENTs are still skipped, since those
+            genuinely are per-event problems.
+        RuntimeError: if the ``caldav`` package is not installed, or the
+            password file is missing/unreadable/empty.
     """
     try:
         import caldav  # type: ignore[import-untyped]
@@ -102,11 +120,13 @@ def fetch_from_caldav(
     caldav_mod = cast(Any, caldav)
 
     try:
-        client = caldav_mod.DAVClient(url=url, username=username, password=password)
+        client = caldav_mod.DAVClient(
+            url=url, username=username, password=password, timeout=_TIMEOUT_SECONDS
+        )
         principal = client.principal()
     except Exception as exc:
         logger.warning("CalDAV auth/principal failed for %s: %s", url, exc)
-        return []
+        raise CalendarFetchError(f"CalDAV auth/principal failed for {url}: {exc}") from exc
 
     try:
         if calendar_url:
@@ -115,7 +135,7 @@ def fetch_from_caldav(
             calendars = principal.calendars()
     except Exception as exc:
         logger.warning("CalDAV calendar lookup failed: %s", exc)
-        return []
+        raise CalendarFetchError(f"CalDAV calendar lookup failed: {exc}") from exc
 
     all_events: list[CalendarEvent] = []
     for cal in calendars:
@@ -128,8 +148,10 @@ def fetch_from_caldav(
             # occurrence. Requires ``caldav>=1.5``.
             results = cal.search(start=time_min, end=time_max, event=True, server_expand=True)
         except Exception as exc:
+            # Not skipped: this calendar's events would go missing from a
+            # result the caller caches as the complete picture (#234).
             logger.warning("CalDAV search failed on %s: %s", cal_name, exc)
-            continue
+            raise CalendarFetchError(f"CalDAV search failed on {cal_name}: {exc}") from exc
 
         for entry in results:
             for component in _walk_vevents(entry):

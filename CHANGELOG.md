@@ -38,6 +38,39 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Fixed
 
+- **An ICS or CalDAV outage blanked the calendar and destroyed the cache.**
+  Both backends swallowed every failure and returned `[]`, which
+  `DataPipeline._resolve_source` cannot tell from "no events this week": it
+  wrote the empty list to the cache, marked the source `FRESH`, and recorded a
+  breaker **success**. So a feed being down rendered an empty week, overwrote
+  the last known good calendar, showed no staleness indicator, and kept the
+  breaker closed so nothing ever fell back to cache. Both now raise
+  `CalendarFetchError` (`src/fetchers/errors.py`) and the existing
+  cache-fallback path renders the last complete calendar with the stale
+  marker. **Partial failure is a failure too**: with several
+  `additional_ical_urls`, one bad feed no longer returns the others, because
+  there is no way to express "partial" in the value the pipeline caches — the
+  working feeds still reach the panel from cache, and only a first-ever run
+  with a broken feed renders nothing, loudly. The new exception subclasses
+  `Exception` rather than any of the four types `retry_fetch` treats as
+  permanent, so transient network failures keep their retry. A genuinely empty
+  week is still `[]` and still cached. The ICS walk stops at the **first**
+  failing feed: collecting them all cost one 30-second timeout per feed and the
+  retry repeated the sequence, so three dead feeds spent ~180s against the
+  pipeline's 120s per-source ceiling — which releases the render but cannot
+  kill the worker thread, so the renderer process stayed alive until the walk
+  finished. Since any failure discards the whole result, the remaining feeds
+  were pure waste.
+
+- **CalDAV requests had no timeout.** Every other fetcher sets one (weather
+  10s, ICS 30s, Google 30s); `DAVClient` was constructed without one, so
+  `caldav` left its requests session unbounded and an unresponsive server
+  blocked the fetch thread forever. The pipeline's `future.result(timeout=120)`
+  does not bound that: it releases the *render*, but `concurrent.futures` joins
+  its worker threads at interpreter exit, so the renderer process stayed alive
+  — holding the `oneshot` systemd unit active and blocking the next timer tick
+  — for as long as the server hung. Now `timeout=30`, matching the ICS path.
+
 - **A lowercase `logging.level` crashed every run before it started.**
   `getattr(logging, cfg.log_level, logging.INFO)` only guarded against names
   the `logging` module does not have — but `info`, `debug`, `warning` and

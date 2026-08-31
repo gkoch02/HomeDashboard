@@ -5,7 +5,7 @@ to verify thread pool coordination, cache fallback, and circuit breaker
 interaction work together correctly.
 """
 
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -401,3 +401,134 @@ class TestRetryFetch:
 
         with pytest.raises(ConnectionError, match="network down"):
             retry_fetch("test", always_fail)
+
+
+class TestCalendarOutageKeepsTheCache:
+    """The behaviour #234 was really about, verified through the pipeline.
+
+    The backend-level tests prove an unreachable feed now raises; these prove
+    what that buys — the last complete calendar survives the outage and is
+    flagged stale, instead of being overwritten by an empty one.
+    """
+
+    def _run(self, tmp_path, events_result):
+        """Run one pipeline pass with *events_result* as the events outcome."""
+        kwargs = (
+            {"side_effect": events_result}
+            if isinstance(events_result, Exception)
+            else {"return_value": events_result}
+        )
+        with (
+            patch("src.data_pipeline.fetch_events", **kwargs),
+            patch("src.data_pipeline.fetch_weather", return_value=_make_weather()),
+            patch("src.data_pipeline.fetch_birthdays", return_value=[]),
+        ):
+            cfg = Config()
+            cfg.purpleair = PurpleAirConfig(api_key="", sensor_id=0)
+            cfg.cache.events_fetch_interval = 0
+            return DataPipeline(cfg, cache_dir=str(tmp_path)).fetch()
+
+    def test_outage_serves_the_cached_calendar_and_flags_it(self, tmp_path):
+        from src.fetchers.errors import CalendarFetchError
+
+        first = self._run(tmp_path, _make_events())
+        assert [e.summary for e in first.events] == ["Meeting"]
+
+        during_outage = self._run(tmp_path, CalendarFetchError("all feeds down"))
+
+        # The panel still shows the meeting, and says the data is not live.
+        assert [e.summary for e in during_outage.events] == ["Meeting"]
+        assert "events" in during_outage.stale_sources
+        assert during_outage.is_stale
+
+    def test_outage_does_not_overwrite_the_cached_calendar(self, tmp_path):
+        import json
+
+        from src.fetchers.errors import CalendarFetchError
+
+        self._run(tmp_path, _make_events())
+        self._run(tmp_path, CalendarFetchError("all feeds down"))
+
+        cached = json.loads((tmp_path / "dashboard_cache.json").read_text())
+        assert [e["summary"] for e in cached["events"]["data"]] == ["Meeting"]
+
+    def test_outage_counts_against_the_breaker(self, tmp_path):
+        import json
+
+        from src.fetchers.errors import CalendarFetchError
+
+        self._run(tmp_path, _make_events())
+        self._run(tmp_path, CalendarFetchError("all feeds down"))
+
+        breakers = json.loads((tmp_path / "dashboard_breaker_state.json").read_text())
+        # Recorded as a failure, not the success an empty-list return looked like.
+        assert breakers["events"]["consecutive_failures"] >= 1
+
+    def test_a_genuinely_empty_week_is_still_cached_as_empty(self, tmp_path):
+        """The fix must not turn "no events this week" into an error — only a
+        failed *fetch* is a failure."""
+        import json
+
+        self._run(tmp_path, _make_events())
+        empty = self._run(tmp_path, [])
+
+        assert empty.events == []
+        assert "events" not in empty.stale_sources
+        cached = json.loads((tmp_path / "dashboard_cache.json").read_text())
+        assert cached["events"]["data"] == []
+
+    def test_real_ics_outage_end_to_end_keeps_the_cache(self, tmp_path):
+        """The whole #234 chain with nothing mocked but the HTTP call.
+
+        The sibling tests above patch `fetch_events` and so only guard the
+        pipeline half. This one drives the real ICS backend, so it fails if
+        either half regresses: the feed returning [] on an outage, or the
+        pipeline caching a failure as fresh.
+        """
+        import json
+
+        monday = date.today() - timedelta(days=date.today().weekday())
+        feed = (
+            "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nX-WR-CALNAME:Home\r\n"
+            "BEGIN:VEVENT\r\n"
+            f"DTSTART:{(monday + timedelta(days=1)).strftime('%Y%m%d')}T120000Z\r\n"
+            f"DTEND:{(monday + timedelta(days=1)).strftime('%Y%m%d')}T130000Z\r\n"
+            "SUMMARY:Dentist\r\nUID:dentist-1\r\n"
+            "END:VEVENT\r\nEND:VCALENDAR\r\n"
+        )
+
+        def _response(text, status=200):
+            resp = MagicMock()
+            resp.text = text
+            resp.status_code = status
+            if status >= 400:
+                resp.raise_for_status.side_effect = Exception(f"{status} Server Error")
+            else:
+                resp.raise_for_status.return_value = None
+            return resp
+
+        def _run(response):
+            cfg = Config()
+            cfg.purpleair = PurpleAirConfig(api_key="", sensor_id=0)
+            cfg.google.ical_url = "https://example.com/home.ics"
+            cfg.cache.events_fetch_interval = 0
+            with (
+                patch("src.fetchers.calendar_ical.requests.get", return_value=response),
+                patch("src.data_pipeline.fetch_weather", return_value=_make_weather()),
+                patch("src.data_pipeline.fetch_birthdays", return_value=[]),
+            ):
+                return DataPipeline(cfg, cache_dir=str(tmp_path)).fetch()
+
+        live = _run(_response(feed))
+        assert [e.summary for e in live.events] == ["Dentist"]
+
+        outage = _run(_response("", status=500))
+
+        assert [e.summary for e in outage.events] == ["Dentist"], (
+            "the feed went down and the calendar went blank"
+        )
+        assert "events" in outage.stale_sources
+        cached = json.loads((tmp_path / "dashboard_cache.json").read_text())
+        assert [e["summary"] for e in cached["events"]["data"]] == ["Dentist"], (
+            "the outage overwrote the good cache"
+        )

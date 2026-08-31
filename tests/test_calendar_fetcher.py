@@ -1305,20 +1305,22 @@ class TestICalFetcher:
     # --- HTTP error returns empty list, logs warning ---
 
     @patch("src.fetchers.calendar_ical.requests.get")
-    def test_http_error_returns_empty(self, mock_get):
+    def test_http_error_propagates_through_the_dispatcher(self, mock_get):
+        """The dispatcher must not soften the backend's failure into an empty
+        calendar — that is the value the pipeline caches as complete (#234)."""
         mock_get.side_effect = Exception("connection refused")
 
         cfg = GoogleConfig(ical_url="https://example.com/cal.ics")
         from src.fetchers.calendar import fetch_events
+        from src.fetchers.errors import CalendarFetchError
 
-        events = fetch_events(cfg)
-
-        assert events == []
+        with pytest.raises(CalendarFetchError):
+            fetch_events(cfg)
 
     # --- Malformed ICS returns empty list ---
 
     @patch("src.fetchers.calendar_ical.requests.get")
-    def test_malformed_ics_returns_empty(self, mock_get):
+    def test_malformed_ics_propagates_through_the_dispatcher(self, mock_get):
         mock_resp = MagicMock()
         mock_resp.text = "this is not valid ics data %%% garbage"
         mock_resp.raise_for_status.return_value = None
@@ -1326,11 +1328,10 @@ class TestICalFetcher:
 
         cfg = GoogleConfig(ical_url="https://example.com/cal.ics")
         from src.fetchers.calendar import fetch_events
+        from src.fetchers.errors import CalendarFetchError
 
-        # Should not raise — logs warning and returns []
-        events = fetch_events(cfg)
-
-        assert isinstance(events, list)
+        with pytest.raises(CalendarFetchError):
+            fetch_events(cfg)
 
     # --- Google path still works when ical_url is empty (regression) ---
 

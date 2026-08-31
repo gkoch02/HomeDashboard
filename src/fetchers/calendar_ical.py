@@ -12,12 +12,18 @@ import requests  # type: ignore[import-untyped]
 from src._time import day_start_utc, week_start
 from src.data.models import CalendarEvent
 from src.fetchers.calendar_google import _today
+from src.fetchers.errors import CalendarFetchError
 
 logger = logging.getLogger(__name__)
 
 # Padding applied to the recurrence-expansion span (see _expand_components).
 # One day comfortably exceeds the largest real UTC offset (+14:00).
 _EXPAND_PAD = timedelta(days=1)
+
+# Per-request ceiling. The whole call costs one of these plus the single retry
+# retry_fetch performs, because the first failing feed ends the walk — see the
+# comment in the fetch loop.
+_REQUEST_TIMEOUT_SECONDS = 30
 
 # Per-series ceiling on expanded occurrences (see _cap_runaway_series). The
 # densest legitimate pattern in an 8-day window is FREQ=HOURLY at 192; this
@@ -37,6 +43,20 @@ def fetch_from_ical(
     Events are filtered to the current-week window (Monday through Monday+days)
     and returned sorted by start time.  No sync tokens or caching at this layer —
     the caller's cache handles freshness.
+
+    Raises:
+        CalendarFetchError: as soon as *any* feed cannot be fetched or parsed.
+            The return value is the caller's complete calendar — it gets
+            cached, marked fresh, and counted as a breaker success — so a feed
+            that failed cannot simply be omitted from it. Returning the feeds
+            that did work overwrote the cache with a calendar missing
+            everything from the one that didn't, silently and with no
+            staleness indicator (#234). Failing instead lets the pipeline fall
+            back to the last complete calendar and flag it as stale. Raising
+            at the first failure rather than after trying every feed keeps the
+            call bounded by one request timeout — the other feeds' results
+            would be discarded anyway.
+        RuntimeError: if the ``icalendar`` package is not installed.
     """
     try:
         from icalendar import Calendar as ICalendar  # type: ignore[import]
@@ -53,18 +73,28 @@ def fetch_from_ical(
 
     all_events: list[CalendarEvent] = []
     for url in urls:
+        # Stop at the first failure rather than collecting them all. Any
+        # failure discards the whole result, so every request after one is
+        # wall-clock spent on data that will be thrown away — and at
+        # _REQUEST_TIMEOUT_SECONDS each, with retry_fetch running the sequence
+        # twice, three dead feeds took ~180s against the pipeline's 120s
+        # per-source ceiling. The pipeline releases the render at 120s but
+        # cannot kill the worker thread, so the renderer process stayed alive
+        # until the walk finished, holding the systemd unit active — the exact
+        # hang #235 fixes for CalDAV. One feed's timeout, retried once, is the
+        # whole bound now.
         try:
-            resp = requests.get(url, timeout=30)
+            resp = requests.get(url, timeout=_REQUEST_TIMEOUT_SECONDS)
             resp.raise_for_status()
         except Exception as exc:
             logger.warning("Failed to fetch ICS feed %s: %s", url, exc)
-            continue
+            raise CalendarFetchError(f"ICS feed {_url_hostname(url)} could not be read: {exc}")
 
         try:
             cal = ICalendar.from_ical(resp.text)
         except Exception as exc:
             logger.warning("Failed to parse ICS feed %s: %s", url, exc)
-            continue
+            raise CalendarFetchError(f"ICS feed {_url_hostname(url)} could not be parsed: {exc}")
 
         # Prefer X-WR-CALNAME if present, fall back to URL hostname
         cal_name = str(cal.get("X-WR-CALNAME", "")) or _url_hostname(url)

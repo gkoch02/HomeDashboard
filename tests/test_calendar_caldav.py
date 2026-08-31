@@ -18,6 +18,7 @@ from src.fetchers.calendar_caldav import (
     _read_password,
     fetch_from_caldav,
 )
+from src.fetchers.errors import CalendarFetchError
 
 # ---------------------------------------------------------------------------
 # password file
@@ -189,23 +190,56 @@ class TestFetchFromCalDAV:
         # Principal's calendars() never read because calendar_url short-circuits.
         fake_principal.calendars.assert_not_called()
 
-    def test_auth_failure_returns_empty(self, tmp_path, caplog):
+    def test_auth_failure_raises_rather_than_reporting_an_empty_calendar(self, tmp_path, caplog):
+        """An unreachable server is a failed fetch, not a week with no events.
+
+        The caller caches whatever comes back, marks it FRESH and records a
+        breaker success, so returning [] overwrote the last good calendar with
+        an empty one and left nothing to fall back to (#234).
+        """
         pw = tmp_path / "pw.txt"
         pw.write_text("secret\n")
 
         fake_client_cls = MagicMock(side_effect=RuntimeError("401"))
         fake_module = MagicMock(DAVClient=fake_client_cls)
         with patch.dict("sys.modules", {"caldav": fake_module}):
-            events = fetch_from_caldav(
+            with pytest.raises(CalendarFetchError):
+                fetch_from_caldav(
+                    url="https://example.com/dav/",
+                    username="alice",
+                    password_file=str(pw),
+                )
+
+        assert "auth/principal failed" in caplog.text or "401" in caplog.text
+
+    def test_timeout_is_passed_to_the_client(self, tmp_path):
+        """`caldav` leaves its requests session with no timeout unless told.
+
+        An unresponsive server then blocks the fetch thread forever, and the
+        pipeline's `future.result(timeout=120)` bounds only the render — the
+        worker thread is joined at interpreter exit, so the renderer process
+        stays alive holding the systemd unit active (#235).
+        """
+        pw = tmp_path / "pw.txt"
+        pw.write_text("secret\n")
+
+        fake_client_cls = MagicMock()
+        fake_client_cls.return_value.principal.return_value.calendars.return_value = []
+        fake_module = MagicMock(DAVClient=fake_client_cls)
+        with patch.dict("sys.modules", {"caldav": fake_module}):
+            fetch_from_caldav(
                 url="https://example.com/dav/",
                 username="alice",
                 password_file=str(pw),
             )
 
-        assert events == []
-        assert "auth/principal failed" in caplog.text or "401" in caplog.text
+        timeout = fake_client_cls.call_args.kwargs.get("timeout")
+        assert isinstance(timeout, (int, float)) and timeout > 0
 
-    def test_search_failure_skips_calendar(self, tmp_path):
+    def test_search_failure_fails_the_whole_fetch(self, tmp_path):
+        """One calendar's events must not silently vanish from a result the
+        caller stores as the complete picture — so a failed search fails the
+        fetch rather than dropping that calendar (#234)."""
         pw = tmp_path / "pw.txt"
         pw.write_text("secret\n")
         good = _make_calendar(
@@ -224,17 +258,17 @@ class TestFetchFromCalDAV:
         broken.search.side_effect = RuntimeError("server error")
 
         with _patch_caldav([broken, good]):
-            events = fetch_from_caldav(
-                url="https://example.com/dav/",
-                username="alice",
-                password_file=str(pw),
-                days=7,
-                start_date=date(2026, 5, 4),
-            )
+            with pytest.raises(CalendarFetchError) as exc:
+                fetch_from_caldav(
+                    url="https://example.com/dav/",
+                    username="alice",
+                    password_file=str(pw),
+                    days=7,
+                    start_date=date(2026, 5, 4),
+                )
 
-        # Broken calendar skipped; good calendar's event still surfaces.
-        assert len(events) == 1
-        assert events[0].calendar_name == "Good"
+        # The message names the calendar that failed, not just "search failed".
+        assert "Broken" in str(exc.value)
 
     def test_caldav_package_missing_raises_runtime_error(self, tmp_path):
         pw = tmp_path / "pw.txt"
@@ -358,8 +392,9 @@ class TestReadPasswordOSError:
 
 
 class TestFetchFromCalDAVAdditional:
-    def test_calendar_lookup_failure_returns_empty(self, tmp_path, caplog):
-        """When principal.calendars() raises, return [] and log a warning."""
+    def test_calendar_lookup_failure_raises(self, tmp_path, caplog):
+        """When principal.calendars() raises, the fetch fails rather than
+        reporting an empty calendar the caller would cache as complete (#234)."""
         pw = tmp_path / "pw.txt"
         pw.write_text("secret\n")
 
@@ -372,13 +407,13 @@ class TestFetchFromCalDAVAdditional:
         fake_module = MagicMock(DAVClient=fake_client_cls)
 
         with patch.dict("sys.modules", {"caldav": fake_module}):
-            events = fetch_from_caldav(
-                url="https://example.com/dav/",
-                username="alice",
-                password_file=str(pw),
-            )
+            with pytest.raises(CalendarFetchError):
+                fetch_from_caldav(
+                    url="https://example.com/dav/",
+                    username="alice",
+                    password_file=str(pw),
+                )
 
-        assert events == []
         assert "calendar lookup failed" in caplog.text
 
     def test_tz_arg_used_for_today_date(self, tmp_path):
