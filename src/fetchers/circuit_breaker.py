@@ -46,10 +46,6 @@ class CircuitBreaker:
         self._cooldown_minutes = cooldown_minutes
         self._state_dir = Path(state_dir)
         self._states: dict[str, BreakerState] = {}
-        # Sources this instance has actually changed. _save() merges only
-        # these into whatever is on disk, so a reset the web UI made mid-run
-        # is not clobbered by a source this run never touched (#242).
-        self._dirty: set[str] = set()
         self._load()
 
     # --- Public API ---
@@ -153,23 +149,28 @@ class CircuitBreaker:
         process, and it is most likely to be pressed *while* a run is in
         flight. Writing this instance's whole ``_states`` dict back would erase
         a reset made since the file was loaded — the UI reporting success while
-        the breaker stayed open — so only the sources this run has actually
-        changed are merged, and the read and write happen under one lock (#242).
+        the breaker stayed open — so the read and write happen under one lock
+        and **only the one source that just changed** is written (#242).
+
+        Exactly one source, not a running set of every source touched so far:
+        with a set, the second save of a run rewrites the first source too,
+        from an in-memory copy that a reset in between has already made stale,
+        and the reset disappears. A multi-source fetch does that every run.
+        This instance's view of *source* is authoritative only at the moment
+        *source* changed, so that is the only entry it may write.
         """
-        self._dirty.add(source)
         path = self._state_dir / _STATE_FILENAME
+        st = self._states.get(source)
+        if st is None:
+            return
 
         def _merge(raw: dict | None) -> dict:
             merged = raw if isinstance(raw, dict) else {}
-            for name in self._dirty:
-                st = self._states.get(name)
-                if st is None:
-                    continue
-                merged[name] = {
-                    "consecutive_failures": st.consecutive_failures,
-                    "last_failure_at": st.last_failure_at,
-                    "state": st.state,
-                }
+            merged[source] = {
+                "consecutive_failures": st.consecutive_failures,
+                "last_failure_at": st.last_failure_at,
+                "state": st.state,
+            }
             return merged
 
         try:

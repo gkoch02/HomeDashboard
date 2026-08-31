@@ -109,19 +109,25 @@ def pick_random_theme(
         except Exception as exc:
             logger.warning("Could not read random theme state: %s", exc)
 
-    if not persist:
-        # Reporting only: drawing here would decide what the dashboard shows.
-        return ""
-
     # Choose a new theme for today
     pool = eligible_themes(include, exclude)
     if not pool:
-        logger.warning(
-            "Random theme pool is empty (include=%r, exclude=%r) — falling back to 'default'",
-            include,
-            exclude,
-        )
+        # An empty pool is not a draw: every run resolves to "default" and
+        # persists nothing, so reporting it needs no write either. Evaluated
+        # before the persist check so the status page reports what the panel
+        # is really showing rather than "not drawn yet" forever. The warning
+        # stays on the renderer's path — the page polls every 30 seconds.
+        if persist:
+            logger.warning(
+                "Random theme pool is empty (include=%r, exclude=%r) — falling back to 'default'",
+                include,
+                exclude,
+            )
         return "default"
+
+    if not persist:
+        # Reporting only: drawing here would decide what the dashboard shows.
+        return ""
 
     chosen = random.choice(pool)
     logger.info("Random theme for %s: %s (newly selected from pool: %s)", today_str, chosen, pool)
@@ -185,19 +191,21 @@ def pick_random_theme_hourly(
         except Exception as exc:
             logger.warning("Could not read random hourly theme state: %s", exc)
 
-    if not persist:
-        # Reporting only — see pick_random_theme().
-        return ""
-
     # Choose a new theme for this hour
     pool = eligible_themes(include, exclude)
     if not pool:
-        logger.warning(
-            "Random theme pool is empty (include=%r, exclude=%r) — falling back to 'default'",
-            include,
-            exclude,
-        )
+        # Same ordering as the daily variant — see pick_random_theme().
+        if persist:
+            logger.warning(
+                "Random theme pool is empty (include=%r, exclude=%r) — falling back to 'default'",
+                include,
+                exclude,
+            )
         return "default"
+
+    if not persist:
+        # Reporting only — see pick_random_theme().
+        return ""
 
     chosen = random.choice(pool)
     logger.info(

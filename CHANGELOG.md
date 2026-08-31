@@ -72,9 +72,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   `locked_update_json()` — the sidecar-`flock` approach `web/event_store.py`
   already used, generalised so the lock covers the whole read-modify-write —
   and `actions.py`, `cache.save_source()` and `CircuitBreaker._save()` all go
-  through it. The breaker additionally merges only the sources the current run
-  actually changed, so writing back its in-memory copy can no longer undo a
-  reset made since it loaded. `event_store` now shares the one lock
+  through it. `CircuitBreaker._save()` additionally writes exactly the one
+  source that just changed, so writing back its in-memory copy can no longer
+  undo a reset made since it loaded. `event_store` now shares the one lock
   implementation instead of keeping its own.
 
 - **Live preview rendered a different dashboard than the renderer does.**

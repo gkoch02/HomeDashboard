@@ -282,3 +282,54 @@ class TestConcurrentWebWrites:
 
         assert cb.locked_update_json is _io.locked_update_json
         assert not hasattr(cb, "atomic_write_json")
+
+
+class TestDirtySourcesDoNotAccumulate:
+    """`_save()` must write the source it was given, not every source so far.
+
+    Caught in review on #242: an accumulating dirty set means the *second*
+    source saved in a run also rewrites the first from this instance's stale
+    in-memory copy — so a reset made between the two silently disappears. A
+    multi-source fetch does exactly that on every run.
+    """
+
+    def _raw(self, tmp_path) -> dict:
+        return json.loads((tmp_path / "dashboard_breaker_state.json").read_text())
+
+    def test_a_reset_between_two_saves_survives(self, tmp_path):
+        breaker = CircuitBreaker(state_dir=str(tmp_path))
+
+        # The run records weather first.
+        breaker.record_failure("weather")
+        assert self._raw(tmp_path)["weather"]["consecutive_failures"] == 1
+
+        # The user resets weather from the web UI, mid-run.
+        raw = self._raw(tmp_path)
+        raw["weather"] = {
+            "consecutive_failures": 0,
+            "last_failure_at": None,
+            "state": "closed",
+        }
+        (tmp_path / "dashboard_breaker_state.json").write_text(json.dumps(raw))
+
+        # The same run then records a *different* source. weather must not move.
+        breaker.record_success("events")
+
+        merged = self._raw(tmp_path)
+        assert merged["weather"]["consecutive_failures"] == 0
+        assert merged["weather"]["state"] == "closed"
+        assert merged["events"]["state"] == "closed"
+
+    def test_only_the_saved_source_is_written(self, tmp_path):
+        breaker = CircuitBreaker(state_dir=str(tmp_path))
+        breaker.record_failure("weather")
+        breaker.record_failure("events")
+
+        # Another process changes weather; saving a third source must not touch it.
+        raw = self._raw(tmp_path)
+        raw["weather"]["state"] = "open"
+        (tmp_path / "dashboard_breaker_state.json").write_text(json.dumps(raw))
+
+        breaker.record_failure("birthdays")
+
+        assert self._raw(tmp_path)["weather"]["state"] == "open"

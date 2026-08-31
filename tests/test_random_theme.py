@@ -371,3 +371,61 @@ class TestReadOnlyPicks:
         chosen = pick_random_theme([], [], str(tmp_path), today=date(2026, 3, 22))
         assert chosen in _REAL_THEMES
         assert (tmp_path / "random_theme_state.json").exists()
+
+
+class TestEmptyPoolIsReportedNotHidden:
+    """An empty pool is not a draw — every run resolves to "default".
+
+    Caught in review on #238: the read-only path returned before the empty-pool
+    branch, so the status page reported "not drawn yet" forever while the
+    dashboard was in fact rendering `default` on every run.
+    """
+
+    def test_daily_reports_the_default_fallback(self, tmp_path):
+        chosen = pick_random_theme(
+            ["no_such_theme"], [], str(tmp_path), today=date(2026, 3, 22), persist=False
+        )
+        assert chosen == "default"
+
+    def test_daily_still_writes_nothing_for_an_empty_pool(self, tmp_path):
+        pick_random_theme(
+            ["no_such_theme"], [], str(tmp_path), today=date(2026, 3, 22), persist=False
+        )
+        assert list(tmp_path.iterdir()) == []
+
+    def test_hourly_reports_the_default_fallback(self, tmp_path):
+        chosen = pick_random_theme_hourly(
+            ["no_such_theme"],
+            [],
+            str(tmp_path),
+            now=datetime(2026, 3, 22, 14, 0),
+            persist=False,
+        )
+        assert chosen == "default"
+
+    def test_hourly_still_writes_nothing_for_an_empty_pool(self, tmp_path):
+        pick_random_theme_hourly(
+            ["no_such_theme"],
+            [],
+            str(tmp_path),
+            now=datetime(2026, 3, 22, 14, 0),
+            persist=False,
+        )
+        assert list(tmp_path.iterdir()) == []
+
+    def test_reporting_does_not_log_the_empty_pool_warning(self, tmp_path, caplog):
+        """The status page polls every 30s — that warning would flood the log."""
+        import logging
+
+        with caplog.at_level(logging.WARNING, logger="src.render.random_theme"):
+            pick_random_theme(
+                ["no_such_theme"], [], str(tmp_path), today=date(2026, 3, 22), persist=False
+            )
+        assert "pool is empty" not in caplog.text
+
+    def test_the_renderer_still_gets_the_warning(self, tmp_path, caplog):
+        import logging
+
+        with caplog.at_level(logging.WARNING, logger="src.render.random_theme"):
+            pick_random_theme(["no_such_theme"], [], str(tmp_path), today=date(2026, 3, 22))
+        assert "pool is empty" in caplog.text
