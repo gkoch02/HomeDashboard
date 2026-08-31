@@ -5,6 +5,7 @@ import zoneinfo
 from dataclasses import dataclass, field
 from datetime import datetime, tzinfo
 from pathlib import Path
+from typing import Any
 
 import yaml  # type: ignore[import-untyped]
 
@@ -362,7 +363,7 @@ def _section(raw: dict, key: str) -> dict:
     return value if isinstance(value, dict) else {}
 
 
-def _optional_int(value: object) -> int | None:
+def _optional_int(value: Any) -> int | None:
     """Parse an optional integer, or ``None`` when it cannot be read.
 
     Booleans are rejected for the same reason ``_optional_number`` rejects
