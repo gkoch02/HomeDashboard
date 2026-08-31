@@ -180,6 +180,13 @@ class OutputService:
                 min_interval,
                 theme_name,
             )
+            # The content *did* change; the panel just is not allowed to redraw
+            # yet. latest.png claims to be the current render, and the web UI
+            # shows it as such — leaving the previous frame there made it wrong
+            # for up to min_refresh_interval_seconds, an hour for anyone who
+            # sets 3600 on Inky to restore the v4 hourly throttle, which is the
+            # configuration the docs recommend (#245).
+            self._save_latest_png(image)
             return
 
         if not image_changed(image, self.cfg.output_dir) and not force_full:
@@ -215,7 +222,16 @@ class OutputService:
         # min_refresh_interval_seconds gets the same throttling Inky does.
         _save_last_refresh(self.cfg.state_dir, now)
 
-        # Save latest.png so the web UI always reflects the current display.
+        self._save_latest_png(image)
+
+    def _save_latest_png(self, image) -> None:
+        """Write ``output/latest.png`` — the current render, for the web UI.
+
+        Written whether or not the hardware write happened: the unchanged-hash
+        path skips it because the file already matches by definition, but the
+        cooldown path must not, or the "current display" image is stale for the
+        whole cooldown window.
+        """
         try:
             latest = Path(self.cfg.output_dir) / "latest.png"
             latest.parent.mkdir(parents=True, exist_ok=True)

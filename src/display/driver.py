@@ -136,11 +136,21 @@ class DisplayDriver(ABC):
     def clear(self) -> None: ...
 
 
+#: How many timestamped dry-run PNGs to keep. Nothing used to remove them and
+#: nothing capped the count: they are gitignored (``output/*.png`` with a
+#: ``!output/latest.png`` exception), so they never showed up in ``git status``
+#: while quietly filling the card at ~50-100 KB each — and ``make dry`` and
+#: preview loops produce them in bulk. The log file next door gets a logrotate
+#: config; these got nothing (#245).
+DRY_RUN_HISTORY = 20
+
+
 class DryRunDisplay(DisplayDriver):
     """Saves rendered image to PNG. No hardware dependency."""
 
-    def __init__(self, output_dir: str = "output"):
+    def __init__(self, output_dir: str = "output", keep: int = DRY_RUN_HISTORY):
         self.output_dir = Path(output_dir)
+        self.keep = keep
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
     def show(self, image: Image.Image, force_full: bool = False) -> None:
@@ -154,8 +164,27 @@ class DryRunDisplay(DisplayDriver):
         latest = self.output_dir / "latest.png"
         image.save(latest)
 
+        self._prune_history()
+
         print(f"Dry run: saved {path}")
         print(f"Dry run: updated {latest}")
+
+    def _prune_history(self) -> None:
+        """Keep only the newest ``self.keep`` timestamped dry-run PNGs.
+
+        Sorted by name, which for ``dashboard_YYYYmmdd_HHMMSS.png`` is
+        chronological order and does not depend on filesystem mtimes.
+        ``latest.png`` never matches the glob, so it is never a candidate.
+        """
+        if self.keep is None or self.keep < 0:
+            return
+        try:
+            history = sorted(self.output_dir.glob("dashboard_*.png"))
+            for stale in history[: max(0, len(history) - self.keep)]:
+                stale.unlink()
+        except OSError as exc:
+            # Housekeeping must never be what fails a preview.
+            logger.debug("Could not prune dry-run PNGs: %s", exc)
 
     def clear(self) -> None:
         print("Dry run: clear (no-op)")

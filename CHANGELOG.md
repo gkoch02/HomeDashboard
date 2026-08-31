@@ -38,6 +38,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Fixed
 
+- **`output/` had no housekeeping.** `DryRunDisplay.show()` wrote a timestamped
+  `dashboard_<ts>.png` on every dry run in addition to `latest.png`, and
+  nothing ever removed them or capped the count. They are gitignored
+  (`output/*.png` with a `!output/latest.png` exception), so they never showed
+  up in `git status` while quietly filling the card at ~50–100 KB each — and
+  `make dry` / preview loops produce them in bulk. The log file next door gets
+  a logrotate config; these got nothing. Only the newest `DRY_RUN_HISTORY`
+  (20) are kept now.
+- **`latest.png` went stale whenever a refresh was deferred.**
+  `OutputService.publish()` returned early on both suppression paths and only
+  saved `latest.png` after a successful hardware write. The unchanged-hash case
+  is fine — the file already matches. The cooldown case was not: the content
+  *did* change, the panel just was not allowed to redraw yet, so the web UI's
+  "current display" image showed the previous frame for up to
+  `display.min_refresh_interval_seconds` — an hour for anyone who sets `3600`
+  on Inky to restore the v4 hourly throttle, which is the configuration the
+  docs recommend. The rendered image is now written to `latest.png` on that
+  path too. A deferred run still does not persist the image hash, so the next
+  eligible run paints the pending change.
+
 - **Web cache and breaker writes raced the renderer.** `POST /api/reset-breaker`
   and `POST /api/clear-cache` did read-all → mutate → write on
   `state/dashboard_breaker_state.json` and `state/dashboard_cache.json`, both of

@@ -1,11 +1,13 @@
 """Tests for src/display/driver.py — display registries and drivers."""
 
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 from PIL import Image
 
 from src.display.driver import (
+    DRY_RUN_HISTORY,
     INKY_MODEL_INIT,
     INKY_MODELS,
     WAVESHARE_MODELS,
@@ -485,3 +487,77 @@ class TestImageChanged:
         image = Image.new("1", (100, 100), 1)
         with patch("pathlib.Path.write_text", side_effect=OSError("read-only")):
             persist_image_hash(image, str(tmp_path))  # must not raise
+
+
+class TestDryRunHistoryPruning:
+    """Timestamped dry-run PNGs used to accumulate forever (#245).
+
+    They are gitignored, so they never showed up in ``git status`` while
+    quietly filling the card at ~50-100 KB each, and ``make dry`` / preview
+    loops produce them in bulk.
+    """
+
+    def _plate(self):
+        return Image.new("1", (8, 8), 1)
+
+    def _history(self, tmp_path):
+        return sorted(p.name for p in tmp_path.glob("dashboard_*.png"))
+
+    def test_history_is_capped_at_keep(self, tmp_path):
+        display = DryRunDisplay(output_dir=str(tmp_path), keep=3)
+        for i in range(6):
+            (tmp_path / f"dashboard_2026010{i}_120000.png").write_bytes(b"")
+        display.show(self._plate())
+
+        assert len(self._history(tmp_path)) == 3
+
+    def test_the_newest_files_are_the_ones_kept(self, tmp_path):
+        display = DryRunDisplay(output_dir=str(tmp_path), keep=2)
+        for day in range(1, 5):
+            (tmp_path / f"dashboard_2026010{day}_120000.png").write_bytes(b"")
+        display.show(self._plate())
+
+        kept = self._history(tmp_path)
+        assert kept[0] == "dashboard_20260104_120000.png"
+        assert len(kept) == 2
+        # The run's own frame is the newest and is always among them.
+        assert kept[-1].startswith("dashboard_")
+
+    def test_latest_png_is_never_pruned(self, tmp_path):
+        display = DryRunDisplay(output_dir=str(tmp_path), keep=1)
+        for day in range(1, 5):
+            (tmp_path / f"dashboard_2026010{day}_120000.png").write_bytes(b"")
+        display.show(self._plate())
+
+        assert (tmp_path / "latest.png").exists()
+
+    def test_unrelated_pngs_are_left_alone(self, tmp_path):
+        display = DryRunDisplay(output_dir=str(tmp_path), keep=1)
+        (tmp_path / "theme_agenda.png").write_bytes(b"")
+        (tmp_path / "dashboard_20260101_120000.png").write_bytes(b"")
+        display.show(self._plate())
+
+        assert (tmp_path / "theme_agenda.png").exists()
+
+    def test_a_short_history_is_untouched(self, tmp_path):
+        display = DryRunDisplay(output_dir=str(tmp_path), keep=20)
+        display.show(self._plate())
+        display.show(self._plate())
+
+        assert len(self._history(tmp_path)) >= 1
+
+    def test_pruning_failure_does_not_break_the_preview(self, tmp_path, monkeypatch):
+        display = DryRunDisplay(output_dir=str(tmp_path), keep=0)
+        monkeypatch.setattr(Path, "unlink", _raise_oserror)
+        (tmp_path / "dashboard_20260101_120000.png").write_bytes(b"")
+
+        display.show(self._plate())
+
+        assert (tmp_path / "latest.png").exists()
+
+    def test_default_cap_is_the_module_constant(self, tmp_path):
+        assert DryRunDisplay(output_dir=str(tmp_path)).keep == DRY_RUN_HISTORY
+
+
+def _raise_oserror(*args, **kwargs):
+    raise OSError("read-only filesystem")

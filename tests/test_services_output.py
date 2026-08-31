@@ -788,3 +788,95 @@ class TestNaiveThrottleTimestamp:
         legacy.write_text('{"last_refresh_at": "2026-04-08T11:30:00"}')
         ts = _load_last_refresh(str(tmp_path))
         assert ts is not None and ts.tzinfo is not None
+
+
+class TestLatestPngDuringCooldown:
+    """latest.png must show the current render, not the last painted frame (#245).
+
+    The unchanged-hash path is fine — the file already matches by definition.
+    The cooldown path is not: the content *did* change, the panel just is not
+    allowed to redraw yet, so the web UI's "current display" image was wrong
+    for up to min_refresh_interval_seconds — an hour for anyone who sets 3600
+    on Inky to restore the v4 hourly throttle.
+    """
+
+    def _svc(self, tmp_path, interval=3600):
+        cfg = _make_cfg(tmp_path)
+        cfg.display.min_refresh_interval_seconds = interval
+        return OutputService(cfg, _make_tz()), cfg
+
+    def _publish(self, svc, image, now):
+        with patch("src.services.output.build_display_driver") as driver:
+            svc.publish(image, dry_run=False, force_full=False, now=now, theme_name="agenda")
+        return driver
+
+    def test_a_deferred_refresh_still_updates_latest_png(self, tmp_path):
+        svc, cfg = self._svc(tmp_path)
+        now = datetime(2026, 4, 6, 10, 0, tzinfo=timezone.utc)
+
+        # First run paints, and records the refresh so the cooldown applies.
+        self._publish(svc, _make_image(), now)
+        first = (tmp_path / "latest.png").read_bytes()
+
+        # Two minutes later the content has changed, but the cooldown blocks it.
+        changed = _make_image()
+        changed.putpixel((0, 0), 0)
+        driver = self._publish(svc, changed, now + timedelta(minutes=2))
+
+        driver.assert_not_called()  # the panel was correctly not written
+        assert (tmp_path / "latest.png").read_bytes() != first
+
+    def test_the_deferred_frame_is_the_one_rendered(self, tmp_path):
+        svc, _cfg = self._svc(tmp_path)
+        now = datetime(2026, 4, 6, 10, 0, tzinfo=timezone.utc)
+        self._publish(svc, _make_image(), now)
+
+        changed = _make_image()
+        for x in range(20):
+            changed.putpixel((x, 0), 0)
+        self._publish(svc, changed, now + timedelta(minutes=2))
+
+        saved = Image.open(tmp_path / "latest.png").convert("1")
+        assert [saved.getpixel((x, 0)) for x in range(20)] == [0] * 20
+
+    def test_a_deferred_run_does_not_pin_the_image_hash(self, tmp_path):
+        """The change is still pending, so the next eligible run must paint it."""
+        svc, _cfg = self._svc(tmp_path)
+        now = datetime(2026, 4, 6, 10, 0, tzinfo=timezone.utc)
+        self._publish(svc, _make_image(), now)
+
+        changed = _make_image()
+        changed.putpixel((0, 0), 0)
+        self._publish(svc, changed, now + timedelta(minutes=2))
+
+        # Cooldown elapsed: the same content must now reach the panel.
+        driver = self._publish(svc, changed, now + timedelta(hours=2))
+        driver.return_value.show.assert_called_once()
+
+    def test_an_unchanged_image_leaves_latest_png_alone(self, tmp_path):
+        """No cooldown, identical content — the file already matches."""
+        cfg = _make_cfg(tmp_path)
+        cfg.display.min_refresh_interval_seconds = 0
+        svc = OutputService(cfg, _make_tz())
+        now = datetime(2026, 4, 6, 10, 0, tzinfo=timezone.utc)
+        image = _make_image()
+
+        self._publish(svc, image, now)
+        latest = tmp_path / "latest.png"
+        stamp = latest.stat().st_mtime_ns
+
+        driver = self._publish(svc, image, now + timedelta(minutes=30))
+
+        driver.assert_not_called()
+        assert latest.stat().st_mtime_ns == stamp
+
+    def test_a_dry_run_is_unaffected(self, tmp_path):
+        svc, _cfg = self._svc(tmp_path)
+        svc.publish(
+            _make_image(),
+            dry_run=True,
+            force_full=False,
+            now=datetime(2026, 4, 6, 10, 0, tzinfo=timezone.utc),
+            theme_name="agenda",
+        )
+        assert (tmp_path / "latest.png").exists()

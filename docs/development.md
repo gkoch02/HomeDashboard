@@ -155,7 +155,8 @@ home-dashboard/
 ├── deploy/          # systemd units and setup helpers
 ├── docs/            # operator and contributor docs
 ├── fonts/           # bundled fonts (see CLAUDE.md → Bundled fonts for the catalog)
-├── output/          # runtime artefacts (latest.png, dry-run scratch, logs, image-hash marker)
+├── output/          # runtime artefacts (latest.png, dry-run scratch capped at the newest
+│                   #   20 dashboard_*.png, logs, image-hash marker)
 ├── state/           # runtime state (cache, breaker, sync tokens, theme state)
 ├── src/             # application code
 ├── tests/           # pytest suite
