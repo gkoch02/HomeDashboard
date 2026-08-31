@@ -38,6 +38,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Fixed
 
+- **An empty YAML section crashed the renderer, `--check-config` and the web
+  UI.** Every section parser called `.get()` on `raw["<section>"]` without
+  checking it was a mapping, so a header with nothing under it — the shape a
+  user produces by commenting keys out one at a time — parsed as `None` and
+  raised `AttributeError` out of `load_config()`. That is the one call with no
+  error boundary above it: `--check-config` could not diagnose the very problem
+  it exists for, `POST /api/config` and `POST /api/preview` returned 500 instead
+  of a validation error, and `/config` 500'd outright, so the editor could not
+  be used to fix the file that broke the editor. A shared `_section()` helper
+  now normalises each section (and a non-mapping value) to `{}`, and the bare
+  scalar keys `title` / `theme` / `timezone` / `state_dir` keep their defaults
+  rather than becoming the string `"None"`. `purpleair.sensor_id` had the same
+  problem one level down (`TypeError` on an empty value, `ValueError` on text);
+  it now parses defensively and `validate_config()` reports the bad value as a
+  `ConfigError` naming it. `main()` also wraps `load_config()` so any remaining
+  parse failure — a YAML syntax error, say — prints a message naming the file
+  instead of a traceback.
+
 - **An ICS or CalDAV outage blanked the calendar and destroyed the cache.**
   Both backends swallowed every failure and returned `[]`, which
   `DataPipeline._resolve_source` cannot tell from "no events this week": it

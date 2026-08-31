@@ -750,3 +750,36 @@ class TestLogLevelValidation:
 
     def test_empty_level_warns(self, tmp_path):
         assert len(self._warnings_for("", tmp_path)) == 1
+
+
+class TestPurpleAirSensorIdValidation:
+    """A sensor_id that will not parse is reported, not raised (#236)."""
+
+    def _write(self, tmp_path, body: str) -> str:
+        p = tmp_path / "config.yaml"
+        p.write_text(body)
+        return str(p)
+
+    def test_unparseable_sensor_id_is_a_fatal_error(self, tmp_path):
+        path = self._write(tmp_path, "purpleair:\n  api_key: k\n  sensor_id: abc\n")
+        errors, _warnings = validate_config(load_config(path), config_path=path)
+        fields = [e.field for e in errors]
+        assert "purpleair.sensor_id" in fields
+        assert any("'abc'" in e.message for e in errors if e.field == "purpleair.sensor_id")
+
+    def test_unparseable_sensor_id_does_not_also_warn_about_a_missing_one(self, tmp_path):
+        path = self._write(tmp_path, "purpleair:\n  api_key: k\n  sensor_id: abc\n")
+        _errors, warnings = validate_config(load_config(path), config_path=path)
+        assert "purpleair.sensor_id" not in [w.field for w in warnings]
+
+    def test_absent_sensor_id_still_only_warns(self, tmp_path):
+        path = self._write(tmp_path, "purpleair:\n  api_key: k\n")
+        errors, warnings = validate_config(load_config(path), config_path=path)
+        assert "purpleair.sensor_id" not in [e.field for e in errors]
+        assert "purpleair.sensor_id" in [w.field for w in warnings]
+
+    def test_valid_sensor_id_is_clean(self, tmp_path):
+        path = self._write(tmp_path, "purpleair:\n  api_key: k\n  sensor_id: 12345\n")
+        errors, warnings = validate_config(load_config(path), config_path=path)
+        assert "purpleair.sensor_id" not in [e.field for e in errors]
+        assert "purpleair.sensor_id" not in [w.field for w in warnings]
