@@ -54,7 +54,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   with a broken feed renders nothing, loudly. The new exception subclasses
   `Exception` rather than any of the four types `retry_fetch` treats as
   permanent, so transient network failures keep their retry. A genuinely empty
-  week is still `[]` and still cached.
+  week is still `[]` and still cached. The ICS walk stops at the **first**
+  failing feed: collecting them all cost one 30-second timeout per feed and the
+  retry repeated the sequence, so three dead feeds spent ~180s against the
+  pipeline's 120s per-source ceiling — which releases the render but cannot
+  kill the worker thread, so the renderer process stayed alive until the walk
+  finished. Since any failure discards the whole result, the remaining feeds
+  were pure waste.
 
 - **CalDAV requests had no timeout.** Every other fetcher sets one (weather
   10s, ICS 30s, Google 30s); `DAVClient` was constructed without one, so

@@ -299,10 +299,31 @@ class TestFetchFromIcalEdgeCases:
                     "https://example.com/working.ics",
                 ]
             )
-        # The message names which feed failed and how many of how many, so the
-        # log points at the URL to fix rather than just "calendar fetch failed".
-        assert "1 of 2" in str(exc.value)
+        # The message names the feed that failed, so the log points at the URL
+        # to fix rather than just saying "calendar fetch failed".
         assert "example.com" in str(exc.value)
+
+    @patch("src.fetchers.calendar_ical.requests.get")
+    def test_a_failed_feed_stops_the_walk(self, mock_get):
+        """The call must stay bounded by *one* request timeout, not N of them.
+
+        Collecting every feed's failure before raising cost
+        `_REQUEST_TIMEOUT_SECONDS` per feed, and `retry_fetch` then ran the
+        whole sequence again: three dead feeds spent ~180s against the
+        pipeline's 120s per-source ceiling. The pipeline releases the render at
+        120s but cannot kill the worker thread, so the renderer process stayed
+        alive until the walk finished — the hang #235 fixes for CalDAV,
+        reintroduced through ICS. Since any failure discards the whole result,
+        the feeds after the first are pure waste.
+        """
+        mock_get.side_effect = Exception("timed out")
+
+        with pytest.raises(CalendarFetchError):
+            fetch_from_ical([f"https://feed{i}.example.com/cal.ics" for i in range(5)])
+
+        assert mock_get.call_count == 1, (
+            f"walked {mock_get.call_count} dead feeds; the cost must not scale with feed count"
+        )
 
     @patch("src.fetchers.calendar_ical.requests.get")
     def test_mixed_tz_events_in_single_feed(self, mock_get):
