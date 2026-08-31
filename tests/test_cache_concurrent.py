@@ -4,6 +4,7 @@ Verifies that the _cache_lock in cache.py prevents corruption when
 multiple threads write to the cache simultaneously.
 """
 
+import json
 import threading
 from datetime import datetime
 
@@ -119,3 +120,50 @@ class TestConcurrentCacheWrites:
 
         assert not write_errors, f"Writer errors: {write_errors}"
         assert not read_errors, f"Reader errors: {read_errors}"
+
+
+class TestCrossProcessCacheWrites:
+    """The web UI clears entries from a separate process (#242).
+
+    ``save_source`` is read-modify-write. Unlocked, a source the renderer had
+    just refreshed could be resurrected from the web process's stale read, or
+    one it had just saved silently dropped.
+    """
+
+    def test_a_source_written_by_another_process_survives(self, tmp_path):
+        from src.fetchers.cache import save_source
+
+        save_source("weather", None, datetime(2026, 4, 6, 10, 0), str(tmp_path))
+
+        # Another process adds a source between our writes.
+        path = tmp_path / "dashboard_cache.json"
+        raw = json.loads(path.read_text())
+        raw["birthdays"] = {"fetched_at": "2026-04-06T09:00:00", "data": []}
+        path.write_text(json.dumps(raw))
+
+        save_source("events", [], datetime(2026, 4, 6, 10, 5), str(tmp_path))
+
+        merged = json.loads(path.read_text())
+        assert set(merged) == {"schema_version", "weather", "birthdays", "events"}
+
+    def test_a_clear_between_writes_is_not_undone(self, tmp_path):
+        from src.fetchers.cache import save_source
+
+        save_source("weather", None, datetime(2026, 4, 6, 10, 0), str(tmp_path))
+        save_source("events", [], datetime(2026, 4, 6, 10, 0), str(tmp_path))
+
+        # The web UI clears everything.
+        path = tmp_path / "dashboard_cache.json"
+        path.write_text(json.dumps({"schema_version": 2}))
+
+        # The renderer's next write must add only its own source back.
+        save_source("events", [], datetime(2026, 4, 6, 10, 5), str(tmp_path))
+
+        merged = json.loads(path.read_text())
+        assert set(merged) == {"schema_version", "events"}
+
+    def test_save_source_goes_through_the_shared_locked_helper(self):
+        from src import _io
+        from src.fetchers import cache as cache_mod
+
+        assert cache_mod.locked_update_json is _io.locked_update_json

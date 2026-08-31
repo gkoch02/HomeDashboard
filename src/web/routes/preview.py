@@ -23,14 +23,13 @@ from flask import Blueprint, current_app, jsonify, request, send_file
 from src.dummy_data import generate_dummy_data
 from src.render.canvas import render_dashboard
 from src.render.theme import AVAILABLE_THEMES, load_theme
+from src.services.render_args import build_render_kwargs
+from src.services.theme import PSEUDO_THEMES
 from src.web.config_editor import build_patched_config
 
 logger = logging.getLogger(__name__)
 
 preview_bp = Blueprint("preview", __name__)
-
-# Pseudo-themes resolve at runtime; force them to a concrete pick for previews.
-_PSEUDO_THEMES = {"random", "random_daily", "random_hourly"}
 
 
 @preview_bp.route("/api/preview", methods=["POST"])
@@ -51,7 +50,8 @@ def render_preview():
     if patch is not None and not isinstance(patch, dict):
         return jsonify({"error": "'patch' must be an object of field-path/value pairs."}), 400
 
-    if theme_name in _PSEUDO_THEMES:
+    # Pseudo-themes resolve at run time; a preview needs a concrete plate.
+    if theme_name in PSEUDO_THEMES:
         return (
             jsonify(
                 {
@@ -96,11 +96,11 @@ def render_preview():
         image = render_dashboard(
             data,
             cfg.display,
-            title=cfg.title,
-            theme=theme,
-            quote_refresh=cfg.cache.quote_refresh,
-            latitude=cfg.weather.latitude,
-            longitude=cfg.weather.longitude,
+            # Same assembly the renderer uses, so the preview cannot show
+            # something the real render will never produce (#240).
+            # ``state_dir=None`` must stay the preview's value: a preview must
+            # not persist the weatherglass pressure history.
+            **build_render_kwargs(cfg, theme, theme_name, state_dir=None),
         )
     except Exception as exc:
         logger.warning("Preview render(%s) failed: %s", theme_name, exc)

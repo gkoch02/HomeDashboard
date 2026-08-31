@@ -14,14 +14,9 @@ import os
 import tempfile
 import threading
 from collections import deque
-from contextlib import contextmanager
 from pathlib import Path
 
-try:
-    import fcntl
-except ImportError:  # pragma: no cover - non-POSIX
-    fcntl = None  # type: ignore[assignment]
-
+from src._io import file_lock
 from src._time import now_utc
 
 logger = logging.getLogger(__name__)
@@ -43,40 +38,13 @@ _TRIM_THRESHOLD_BYTES = 256 * 1024
 # inside a single record and produce a corrupt JSON line.
 _append_lock = threading.Lock()
 
-# The thread lock is not enough any more. Since #218 the stream has two
+# The thread lock is not enough on its own. Since #218 the stream has two
 # writers: the long-running web service and the short-lived renderer, which are
 # separate processes. The append itself survives that (each record is one small
 # O_APPEND write), but the trim does not — it is read-all, write-elsewhere,
 # rename, and anything the other process appends inside that window is dropped
-# by the rename. An advisory lock on a sidecar file closes it. The sidecar
-# rather than the stream itself, because the trim replaces the stream's inode
-# and a lock held on the old one would guard nothing.
-_LOCK_SUFFIX = ".lock"
-
-
-@contextmanager
-def _cross_process_lock(path: Path):
-    """Hold an advisory lock covering one append (and any trim it triggers).
-
-    Degrades to the in-process lock alone when ``fcntl`` is unavailable or the
-    lock file cannot be opened: an audit log is not worth failing a render or a
-    web request over.
-    """
-    if fcntl is None:
-        yield
-        return
-    lock_path = path.with_suffix(path.suffix + _LOCK_SUFFIX)
-    try:
-        handle = open(lock_path, "w")
-    except OSError as exc:
-        logger.debug("Could not open the event-stream lock: %s", exc)
-        yield
-        return
-    try:
-        fcntl.flock(handle, fcntl.LOCK_EX)
-        yield
-    finally:
-        handle.close()
+# by the rename. ``_io.file_lock`` closes it; since #242 that helper is shared
+# with the cache and breaker state files, which have the same two writers.
 
 
 def append_event(state_dir: str, kind: str, message: str, **details) -> None:
@@ -90,7 +58,7 @@ def append_event(state_dir: str, kind: str, message: str, **details) -> None:
     }
     line = json.dumps(payload, sort_keys=True) + "\n"
     try:
-        with _append_lock, _cross_process_lock(path):
+        with _append_lock, file_lock(path):
             _trim_if_oversized(path)
             with open(path, "a", encoding="utf-8") as f:
                 f.write(line)

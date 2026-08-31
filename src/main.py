@@ -20,7 +20,15 @@ def main():
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
 
-    cfg = load_config(args.config)
+    # load_config() is the one step with nothing above it to catch a failure.
+    # A malformed file used to surface as a raw traceback — including under
+    # --check-config, the flag whose whole job is diagnosing a bad config.
+    try:
+        cfg = load_config(args.config)
+    except Exception as exc:
+        print(f"Could not read config file {args.config}: {type(exc).__name__}: {exc}")
+        print("Fix the file (or restore config/config.example.yaml) and try again.")
+        raise SystemExit(1) from exc
     logging.getLogger().setLevel(resolve_log_level(cfg.log_level))
 
     errors, warnings = validate_config(cfg, config_path=args.config)

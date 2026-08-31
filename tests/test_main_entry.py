@@ -503,3 +503,41 @@ class TestLogLevelFromConfig:
             main()
 
         assert (tmp_path / "latest.png").exists()
+
+
+class TestUnreadableConfig:
+    """A config main() cannot parse must report, not traceback (#236)."""
+
+    def _run(self, argv):
+        with patch("sys.argv", argv):
+            from src.main import main
+
+            with pytest.raises(SystemExit) as exc:
+                main()
+        return exc.value.code
+
+    def test_malformed_yaml_exits_with_a_message_naming_the_file(self, tmp_path, capsys):
+        config_path = tmp_path / "config.yaml"
+        config_path.write_text("google: [unclosed\n")
+
+        code = self._run(["main", "--dry-run", "--dummy", "--config", str(config_path)])
+
+        assert code == 1
+        assert str(config_path) in capsys.readouterr().out
+
+    def test_check_config_reports_rather_than_tracebacks(self, tmp_path, capsys):
+        """--check-config exists to diagnose a bad config; it must survive one."""
+        config_path = tmp_path / "config.yaml"
+        config_path.write_text("google: [unclosed\n")
+
+        code = self._run(["main", "--check-config", "--config", str(config_path)])
+
+        assert code == 1
+        assert "Could not read config file" in capsys.readouterr().out
+
+    def test_empty_section_is_no_longer_unreadable(self, tmp_path):
+        """The commented-out-section shape now parses and validates normally."""
+        config_path = tmp_path / "config.yaml"
+        config_path.write_text("google:\nweather:\ndisplay:\n")
+
+        assert self._run(["main", "--check-config", "--config", str(config_path)]) == 0

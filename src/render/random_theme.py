@@ -66,6 +66,7 @@ def pick_random_theme(
     exclude: list[str],
     output_dir: str,
     today: date | None = None,
+    persist: bool = True,
 ) -> str:
     """Return the theme chosen for *today*, persisting the selection across runs.
 
@@ -79,9 +80,15 @@ def pick_random_theme(
         exclude: Denylist of theme names.
         output_dir: Directory where the state file is stored.
         today: Override for the current date (useful in tests).
+        persist: When False, *report* the stored pick without making one —
+            no draw, no write. Returns ``""`` when today's bucket has no
+            valid stored pick yet. This exists for read-only callers like the
+            status page, whose 30-second poll otherwise won the race to pick
+            the day's theme at almost every rollover (#238).
 
     Returns:
-        A concrete theme name (never ``"random"`` or ``"random_daily"``).
+        A concrete theme name (never ``"random"`` or ``"random_daily"``), or
+        ``""`` when ``persist=False`` and nothing has been picked yet.
     """
     if today is None:
         today = date.today()
@@ -105,12 +112,22 @@ def pick_random_theme(
     # Choose a new theme for today
     pool = eligible_themes(include, exclude)
     if not pool:
-        logger.warning(
-            "Random theme pool is empty (include=%r, exclude=%r) — falling back to 'default'",
-            include,
-            exclude,
-        )
+        # An empty pool is not a draw: every run resolves to "default" and
+        # persists nothing, so reporting it needs no write either. Evaluated
+        # before the persist check so the status page reports what the panel
+        # is really showing rather than "not drawn yet" forever. The warning
+        # stays on the renderer's path — the page polls every 30 seconds.
+        if persist:
+            logger.warning(
+                "Random theme pool is empty (include=%r, exclude=%r) — falling back to 'default'",
+                include,
+                exclude,
+            )
         return "default"
+
+    if not persist:
+        # Reporting only: drawing here would decide what the dashboard shows.
+        return ""
 
     chosen = random.choice(pool)
     logger.info("Random theme for %s: %s (newly selected from pool: %s)", today_str, chosen, pool)
@@ -131,6 +148,7 @@ def pick_random_theme_hourly(
     exclude: list[str],
     output_dir: str,
     now: datetime | None = None,
+    persist: bool = True,
 ) -> str:
     """Return the theme chosen for the current hour, persisting the selection.
 
@@ -146,9 +164,13 @@ def pick_random_theme_hourly(
         exclude: Denylist of theme names.
         output_dir: Directory where the state file is stored.
         now: Override for the current datetime (useful in tests).
+        persist: When False, *report* the stored pick without making one —
+            no draw, no write. Returns ``""`` when this hour's bucket has no
+            valid stored pick yet (#238).
 
     Returns:
-        A concrete theme name (never ``"random_hourly"``).
+        A concrete theme name (never ``"random_hourly"``), or ``""`` when
+        ``persist=False`` and nothing has been picked yet.
     """
     if now is None:
         now = datetime.now()  # allow-naive-datetime — naive local for hourly bucket
@@ -172,12 +194,18 @@ def pick_random_theme_hourly(
     # Choose a new theme for this hour
     pool = eligible_themes(include, exclude)
     if not pool:
-        logger.warning(
-            "Random theme pool is empty (include=%r, exclude=%r) — falling back to 'default'",
-            include,
-            exclude,
-        )
+        # Same ordering as the daily variant — see pick_random_theme().
+        if persist:
+            logger.warning(
+                "Random theme pool is empty (include=%r, exclude=%r) — falling back to 'default'",
+                include,
+                exclude,
+            )
         return "default"
+
+    if not persist:
+        # Reporting only — see pick_random_theme().
+        return ""
 
     chosen = random.choice(pool)
     logger.info(

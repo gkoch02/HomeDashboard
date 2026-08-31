@@ -2,9 +2,12 @@
 
 import json
 from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
 from unittest.mock import patch
+from zoneinfo import ZoneInfo
 
 from src.web.state_reader import (
+    config_tz,
     is_quiet_hours_now,
     read_breakers,
     read_cache_ages,
@@ -227,8 +230,40 @@ def test_read_log_tail_returns_last_n(tmp_path):
 
 
 def test_is_quiet_hours_now_type():
-    result = is_quiet_hours_now(23, 6)
+    result = is_quiet_hours_now(23, 6, datetime(2026, 4, 6, 12, 0, tzinfo=timezone.utc))
     assert isinstance(result, bool)
+
+
+def test_is_quiet_hours_now_uses_the_supplied_clock():
+    """The same instant is inside or outside the window depending on the zone.
+
+    23:30 UTC is inside a 23:00-06:00 window; the same instant is 16:30 in
+    America/Los_Angeles, which is not. Reading the host clock here made the
+    answer depend on the machine rather than on cfg.timezone (#239).
+    """
+    instant = datetime(2026, 4, 6, 23, 30, tzinfo=timezone.utc)
+    assert is_quiet_hours_now(23, 6, instant) is True
+    assert is_quiet_hours_now(23, 6, instant.astimezone(ZoneInfo("America/Los_Angeles"))) is False
+
+
+# ---------------------------------------------------------------------------
+# config_tz
+# ---------------------------------------------------------------------------
+
+
+def test_config_tz_resolves_the_configured_zone():
+    assert config_tz(SimpleNamespace(timezone="America/Los_Angeles")) == ZoneInfo(
+        "America/Los_Angeles"
+    )
+
+
+def test_config_tz_falls_back_to_utc_on_an_unknown_zone():
+    """A bad zone is validate_config()'s to report, not the status page's to 500 on."""
+    assert config_tz(SimpleNamespace(timezone="Mars/Olympus_Mons")) == timezone.utc
+
+
+def test_config_tz_falls_back_to_utc_when_the_field_is_missing():
+    assert config_tz(SimpleNamespace()) == timezone.utc
 
 
 # ---------------------------------------------------------------------------

@@ -385,9 +385,10 @@ class TestCrossProcessSafety:
 
     def test_append_still_works_without_fcntl(self, tmp_path, monkeypatch):
         """Non-POSIX degrades to the in-process lock rather than failing."""
+        import src._io as io_
         import src.web.event_store as es
 
-        monkeypatch.setattr(es, "fcntl", None)
+        monkeypatch.setattr(io_, "fcntl", None)
         es.append_event(str(tmp_path), "run_completed", "no fcntl here")
 
         assert es.read_recent_events(str(tmp_path))[0]["message"] == "no fcntl here"
@@ -395,12 +396,13 @@ class TestCrossProcessSafety:
     def test_an_unwritable_lock_path_does_not_break_the_append(self, tmp_path, monkeypatch):
         import builtins
 
+        import src._io as io_
         import src.web.event_store as es
 
         real_open = builtins.open
 
         def _fail_lock(path, *args, **kwargs):
-            if str(path).endswith(es._LOCK_SUFFIX):
+            if str(path).endswith(io_._LOCK_SUFFIX):
                 raise OSError("read-only filesystem")
             return real_open(path, *args, **kwargs)
 

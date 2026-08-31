@@ -154,7 +154,7 @@ The main landing page. Refreshes automatically every 30 seconds.
 | **Quick Troubleshooting** | Likely causes when data is stale, auth is open, quiet hours are active, or no successful run has been recorded |
 | **Integration Readiness** | Whether key dependencies appear configured: OpenWeather, Google credentials, calendar/ICS, birthdays source, PurpleAir |
 | **Recent Events** | Structured recent actions/history (refresh requested, config saved, breaker reset, cache cleared, config restored) |
-| **Latest image** | Live preview of `output/latest.png` (refreshed every 60 s) |
+| **Latest image** | Live preview of `output/latest.png` (refreshed every 60 s) — the most recent *render*, which during a `display.min_refresh_interval_seconds` cooldown is one frame ahead of the panel |
 | **Data Sources** | Per-source table: breaker state, cache age, staleness, quota usage, and human-readable summary |
 | **System** | Uptime, load average, RAM, disk, CPU temperature, IP address |
 | **Log tail** | Last 100 lines of `output/dashboard.log` |

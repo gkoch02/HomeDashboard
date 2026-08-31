@@ -5,6 +5,7 @@ import zoneinfo
 from dataclasses import dataclass, field
 from datetime import datetime, tzinfo
 from pathlib import Path
+from typing import Any
 
 import yaml  # type: ignore[import-untyped]
 
@@ -60,6 +61,10 @@ class BirthdayConfig:
 class PurpleAirConfig:
     api_key: str = ""
     sensor_id: int = 0  # numeric sensor_index (shown in map.purpleair.com URL)
+    # repr() of a configured sensor_id that could not be parsed as an integer,
+    # empty when the value was absent or read cleanly. Set by load_config() so
+    # validate_config() can report the typo rather than the parser crashing on it.
+    sensor_id_invalid: str = ""
 
 
 @dataclass
@@ -341,6 +346,38 @@ def _optional_number(block: dict, key: str, cast):
         raise ValueError(f"{key} must be a number, got {value!r}") from exc
 
 
+def _section(raw: dict, key: str) -> dict:
+    """Return ``raw[key]`` as a mapping, or ``{}`` when it is not one.
+
+    A section header with nothing under it (``google:`` followed only by
+    commented-out keys) parses as ``None``, and every parser below then calls
+    ``.get()`` on it. That ``AttributeError`` escapes ``load_config()``, which
+    is the one function with no error boundary above it — it took down the
+    renderer, ``--check-config`` (so the flag could not diagnose the very
+    problem it exists for), and both web pages, leaving the user unable to use
+    the editor to fix the file that broke the editor. Commenting a section out
+    key by key is exactly what a user does while trying things, so treat it as
+    "nothing configured here" rather than a crash.
+    """
+    value = raw.get(key)
+    return value if isinstance(value, dict) else {}
+
+
+def _optional_int(value: Any) -> int | None:
+    """Parse an optional integer, or ``None`` when it cannot be read.
+
+    Booleans are rejected for the same reason ``_optional_number`` rejects
+    them: YAML 1.1 reads ``yes``/``on`` as ``True`` and ``int(True)`` is a
+    plausible-looking 1.
+    """
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
 def _normalise_one_call_version(value: object) -> str:
     """Coerce a raw weather.one_call_version YAML value to its canonical string.
 
@@ -388,7 +425,7 @@ def load_config(path: str = "config/config.yaml") -> Config:
     cfg = Config()
 
     if "google" in raw:
-        g = raw["google"]
+        g = _section(raw, "google")
         cfg.google = GoogleConfig(
             service_account_path=g.get("service_account_path", cfg.google.service_account_path),
             calendar_id=g.get("calendar_id", cfg.google.calendar_id),
@@ -404,7 +441,7 @@ def load_config(path: str = "config/config.yaml") -> Config:
         )
 
     if "weather" in raw:
-        w = raw["weather"]
+        w = _section(raw, "weather")
         cfg.weather = WeatherConfig(
             api_key=w.get("api_key", ""),
             latitude=w.get("latitude", 0.0),
@@ -414,7 +451,7 @@ def load_config(path: str = "config/config.yaml") -> Config:
         )
 
     if "birthdays" in raw:
-        b = raw["birthdays"]
+        b = _section(raw, "birthdays")
         cfg.birthdays = BirthdayConfig(
             source=b.get("source", "file"),
             file_path=b.get("file_path", "config/birthdays.json"),
@@ -423,7 +460,7 @@ def load_config(path: str = "config/config.yaml") -> Config:
         )
 
     if "display" in raw:
-        d = raw["display"]
+        d = _section(raw, "display")
         provider = str(d.get("provider", "waveshare"))
         model = d.get("model", "epd7in5_V2")
 
@@ -453,14 +490,14 @@ def load_config(path: str = "config/config.yaml") -> Config:
         )
 
     if "schedule" in raw:
-        s = raw["schedule"]
+        s = _section(raw, "schedule")
         cfg.schedule = ScheduleConfig(
             quiet_hours_start=s.get("quiet_hours_start", 23),
             quiet_hours_end=s.get("quiet_hours_end", 6),
         )
 
     if "cache" in raw:
-        ca = raw["cache"]
+        ca = _section(raw, "cache")
         cfg.cache = CacheConfig(
             weather_ttl_minutes=ca.get("weather_ttl_minutes", 60),
             events_ttl_minutes=ca.get("events_ttl_minutes", 120),
@@ -476,7 +513,7 @@ def load_config(path: str = "config/config.yaml") -> Config:
         )
 
     if "filters" in raw:
-        fl = raw["filters"]
+        fl = _section(raw, "filters")
         cfg.filters = FilterConfig(
             exclude_calendars=fl.get("exclude_calendars", []),
             exclude_keywords=fl.get("exclude_keywords", []),
@@ -484,14 +521,23 @@ def load_config(path: str = "config/config.yaml") -> Config:
         )
 
     if "purpleair" in raw:
-        pa = raw["purpleair"]
+        pa = _section(raw, "purpleair")
+        raw_sensor = pa.get("sensor_id", 0)
+        sensor_id = _optional_int(raw_sensor)
         cfg.purpleair = PurpleAirConfig(
             api_key=pa.get("api_key", ""),
-            sensor_id=int(pa.get("sensor_id", 0)),
+            sensor_id=sensor_id or 0,
+            # A sensor_id that will not parse used to raise straight out of
+            # load_config() (TypeError on an empty value, ValueError on text).
+            # Carry the offending value instead so validate_config() can name
+            # it as a ConfigError, which is what the user needs to see.
+            sensor_id_invalid=(
+                "" if sensor_id is not None or raw_sensor is None else repr(raw_sensor)
+            ),
         )
 
     if "random_theme" in raw:
-        rt = raw["random_theme"]
+        rt = _section(raw, "random_theme")
         cfg.random_theme = RandomThemeConfig(
             include=rt.get("include", []),
             exclude=rt.get("exclude", []),
@@ -545,19 +591,18 @@ def load_config(path: str = "config/config.yaml") -> Config:
         cfg.theme_rules = ThemeRulesConfig(rules=rules)
 
     if "quotes" in raw:
-        q = raw["quotes"] or {}
-        if isinstance(q, dict):
-            cfg.quotes = QuotesConfig(path=str(q.get("path", cfg.quotes.path) or ""))
+        q = _section(raw, "quotes")
+        cfg.quotes = QuotesConfig(path=str(q.get("path", cfg.quotes.path) or ""))
 
     if "photo" in raw:
-        ph = raw["photo"]
+        ph = _section(raw, "photo")
         cfg.photo = PhotoConfig(
             path=ph.get("path", cfg.photo.path),
         )
 
     if "countdown" in raw:
-        cd = raw["countdown"]
-        raw_events = cd.get("events", []) if isinstance(cd, dict) else []
+        cd = _section(raw, "countdown")
+        raw_events = cd.get("events", [])
         events: list[CountdownEvent] = []
         if isinstance(raw_events, list):
             for item in raw_events:
@@ -572,22 +617,22 @@ def load_config(path: str = "config/config.yaml") -> Config:
         cfg.countdown = CountdownConfig(events=events)
 
     if "output" in raw:
-        cfg.output_dir = raw["output"].get("dry_run_dir", "output")
+        cfg.output_dir = _section(raw, "output").get("dry_run_dir", cfg.output_dir)
 
-    if "state_dir" in raw:
+    if raw.get("state_dir") is not None:
         cfg.state_dir = str(raw["state_dir"])
 
     if "logging" in raw:
-        cfg.log_level = raw["logging"].get("level", "INFO")
+        cfg.log_level = _section(raw, "logging").get("level", cfg.log_level)
 
-    if "title" in raw:
-        cfg.title = raw["title"]
+    if raw.get("title") is not None:
+        cfg.title = str(raw["title"])
 
-    if "theme" in raw:
+    if raw.get("theme") is not None:
         cfg.theme = str(raw["theme"])
 
-    if "timezone" in raw:
-        cfg.timezone = raw["timezone"]
+    if raw.get("timezone") is not None:
+        cfg.timezone = str(raw["timezone"])
 
     return cfg
 

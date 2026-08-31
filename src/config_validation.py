@@ -620,7 +620,19 @@ def validate_config(
             )
 
     # --- PurpleAir ---
-    if cfg.purpleair.api_key and not cfg.purpleair.sensor_id:
+    if cfg.purpleair.sensor_id_invalid:
+        errors.append(
+            ConfigError(
+                field="purpleair.sensor_id",
+                message=(f"PurpleAir sensor_id {cfg.purpleair.sensor_id_invalid} is not a number."),
+                hint=(
+                    "Use the numeric sensor_index from map.purpleair.com "
+                    "(click your sensor — the ID appears in the URL as ?select=XXXXX), "
+                    "or remove the key."
+                ),
+            )
+        )
+    if cfg.purpleair.api_key and not (cfg.purpleair.sensor_id or cfg.purpleair.sensor_id_invalid):
         warnings.append(
             ConfigWarning(
                 field="purpleair.sensor_id",

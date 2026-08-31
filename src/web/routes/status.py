@@ -12,11 +12,13 @@ from pathlib import Path
 
 from flask import Blueprint, current_app, jsonify, render_template, request
 
+from src._time import now_local
 from src.fetchers import one_call_health
-from src.services.theme import resolve_theme_name
+from src.services.theme import PSEUDO_THEMES, resolve_theme_name
 from src.web.event_store import read_recent_events
 from src.web.sources import source_names
 from src.web.state_reader import (
+    config_tz,
     is_quiet_hours_now,
     read_breakers,
     read_cache_ages,
@@ -188,7 +190,7 @@ def _overall_health(
     }
 
 
-def _describe_theme_mode(cfg, effective_theme: str, now: datetime) -> dict:
+def _describe_theme_mode(cfg, effective_theme: str | None, now: datetime) -> dict:
     schedule_entries = sorted(cfg.theme_schedule.entries, key=lambda e: e.time)
     next_entry = None
     current_hm = now.strftime("%H:%M")
@@ -204,9 +206,12 @@ def _describe_theme_mode(cfg, effective_theme: str, now: datetime) -> dict:
         detail = (
             "Theme schedule is active and overrides the base theme once its time window begins."
         )
-    elif cfg.theme in ("random", "random_daily", "random_hourly"):
+    elif cfg.theme in PSEUDO_THEMES:
         mode = "randomized"
         detail = "The dashboard is rotating through a pool of themes automatically."
+        if effective_theme is None:
+            # Reporting only — the page must not draw the pick itself (#238).
+            detail += " The next theme has not been drawn yet; the next renderer run picks it."
     else:
         mode = "fixed"
         detail = "A single fixed theme is selected."
@@ -347,10 +352,14 @@ def _build_status() -> dict:
     breakers = read_breakers(state_dir)
     cache_ages = read_cache_ages(state_dir, ttls)
     quota = read_quota(state_dir)
+    # Everything below is resolved against the *configured* timezone, the same
+    # clock the renderer uses. Reading the host clock here put quiet hours,
+    # theme_schedule and the daypart/weekday theme_rules on a different wall
+    # clock — and near local midnight on a different day (#239).
+    now = now_local(config_tz(cfg))
     quiet_hours_active = is_quiet_hours_now(
-        cfg.schedule.quiet_hours_start, cfg.schedule.quiet_hours_end
+        cfg.schedule.quiet_hours_start, cfg.schedule.quiet_hours_end, now
     )
-    now = datetime.now()  # allow-naive-datetime — local wall clock for status display
 
     sources: dict = {}
     for source in source_names():
@@ -370,7 +379,12 @@ def _build_status() -> dict:
         one_call_health.read_health(state_dir), cfg.weather.one_call_version
     )
     overall = _overall_health(last_run["seconds_since"], quiet_hours_active, sources, one_call)
-    effective_theme = resolve_theme_name(cfg, override_theme=None, now=now)
+    # persist=False keeps this a read. Resolving a random cadence normally
+    # *draws* the theme and writes state/random_theme_state.json, so the page's
+    # 30-second poll was deciding what the dashboard would show — and winning
+    # that race against the 5-minute renderer at nearly every rollover (#238).
+    resolved_theme = resolve_theme_name(cfg, override_theme=None, now=now, persist=False)
+    effective_theme = None if resolved_theme in PSEUDO_THEMES else resolved_theme
     theme_info = _describe_theme_mode(cfg, effective_theme, now)
 
     return {
@@ -422,7 +436,11 @@ def api_health():
 
     healthy = success["timestamp"] is not None and not error["is_current"]
     max_age = request.args.get("max_age", type=int)
-    in_quiet = is_quiet_hours_now(cfg.schedule.quiet_hours_start, cfg.schedule.quiet_hours_end)
+    in_quiet = is_quiet_hours_now(
+        cfg.schedule.quiet_hours_start,
+        cfg.schedule.quiet_hours_end,
+        now_local(config_tz(cfg)),
+    )
     if healthy and max_age is not None and not in_quiet:
         seconds_since = success.get("seconds_since")
         if seconds_since is None or seconds_since > max_age:

@@ -38,6 +38,102 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Fixed
 
+- **`output/` had no housekeeping.** `DryRunDisplay.show()` wrote a timestamped
+  `dashboard_<ts>.png` on every dry run in addition to `latest.png`, and
+  nothing ever removed them or capped the count. They are gitignored
+  (`output/*.png` with a `!output/latest.png` exception), so they never showed
+  up in `git status` while quietly filling the card at ~50–100 KB each — and
+  `make dry` / preview loops produce them in bulk. The log file next door gets
+  a logrotate config; these got nothing. Only the newest `DRY_RUN_HISTORY`
+  (20) are kept now.
+- **`latest.png` went stale whenever a refresh was deferred.**
+  `OutputService.publish()` returned early on both suppression paths and only
+  saved `latest.png` after a successful hardware write. The unchanged-hash case
+  is fine — the file already matches. The cooldown case was not: the content
+  *did* change, the panel just was not allowed to redraw yet, so the web UI's
+  "current display" image showed the previous frame for up to
+  `display.min_refresh_interval_seconds` — an hour for anyone who sets `3600`
+  on Inky to restore the v4 hourly throttle, which is the configuration the
+  docs recommend. The rendered image is now written to `latest.png` on that
+  path too. A deferred run still does not persist the image hash, so the next
+  eligible run paints the pending change.
+
+- **Web cache and breaker writes raced the renderer.** `POST /api/reset-breaker`
+  and `POST /api/clear-cache` did read-all → mutate → write on
+  `state/dashboard_breaker_state.json` and `state/dashboard_cache.json`, both of
+  which the renderer rewrites wholesale from a **separate process** on every
+  fetch. `atomic_write_json` makes each write atomic, so the file was never
+  torn — but it does nothing about the interleaving, and the reset button is
+  most likely to be pressed *while* a run is in flight. Whichever process wrote
+  last erased the other's change: a reset could report success while the
+  breaker stayed open, a failure the renderer had just recorded could vanish,
+  and a source the renderer had just refreshed could be resurrected from the
+  web process's stale read. `src/_io.py` now carries `file_lock()` and
+  `locked_update_json()` — the sidecar-`flock` approach `web/event_store.py`
+  already used, generalised so the lock covers the whole read-modify-write —
+  and `actions.py`, `cache.save_source()` and `CircuitBreaker._save()` all go
+  through it. `CircuitBreaker._save()` additionally writes exactly the one
+  source that just changed, so writing back its in-memory copy can no longer
+  undo a reset made since it loaded. `event_store` now shares the one lock
+  implementation instead of keeping its own.
+
+- **Live preview rendered a different dashboard than the renderer does.**
+  `POST /api/preview` passed a subset of the arguments `DashboardApp` passes,
+  so `photo` previewed with no photo at all — the one theme whose entire
+  content is the config value being previewed — `countdown` previewed with no
+  events (so it looked broken in the picker), a custom `quotes.path` store was
+  ignored, and the documented `(0.0, 0.0)` "unset" coordinate sentinel was
+  passed through raw instead of becoming `None`, so `astronomy`,
+  `light_cycle`, `moonphase`, `day_arc` and `constellation_map` previewed
+  plausible-looking sun and moon geometry for the Gulf of Guinea rather than
+  the unset-coordinates message the panel actually renders. The assembly now
+  lives once in `src/services/render_args.py` (`build_render_kwargs()`) and
+  both callers go through it; `state_dir=None` stays the preview's value so
+  previews still persist no weatherglass pressure history.
+
+- **`GET /api/status` picked and persisted the random theme.** Reporting the
+  current theme went through `resolve_theme_name()`, which for `random_daily` /
+  `random` / `random_hourly` is not a read: it draws from the pool and writes
+  `state/random_theme_state.json` whenever the day/hour bucket has rolled over.
+  The status page polls every 30 seconds and the renderer runs every 5 minutes,
+  so the web process — not the renderer — won the race to choose the day's
+  theme at nearly every rollover. `resolve_theme_name()` and both
+  `pick_random_theme*` functions now take `persist=` (default `True`,
+  unchanged for the renderer); the status page passes `persist=False`, reports
+  the pick the renderer actually stored, and says the theme has not been drawn
+  yet when the bucket is empty.
+
+- **The web UI read the host clock where the renderer reads `cfg.timezone`.**
+  `is_quiet_hours_now()` and `_build_status()` both called bare
+  `datetime.now()`. On the documented Pi setup — system tz UTC, configured tz
+  local, the case `_time.day_start_utc`'s docstring names — that is a wall
+  clock 7–8 hours off: the status page reported "display refresh paused until
+  6:00" while the panel was refreshing normally, `GET /api/health?max_age=…`
+  exempted the age check during the wrong window (so a dead renderer read
+  healthy overnight), and the reported theme was resolved for the wrong hour —
+  near local midnight, for the wrong *day*, evaluating `theme_schedule` and the
+  daypart/weekday `theme_rules` against a date the renderer never sees. Both
+  now resolve through `state_reader.config_tz(cfg)`, and `is_quiet_hours_now()`
+  takes the instant as an argument instead of reading a clock of its own.
+
+- **An empty YAML section crashed the renderer, `--check-config` and the web
+  UI.** Every section parser called `.get()` on `raw["<section>"]` without
+  checking it was a mapping, so a header with nothing under it — the shape a
+  user produces by commenting keys out one at a time — parsed as `None` and
+  raised `AttributeError` out of `load_config()`. That is the one call with no
+  error boundary above it: `--check-config` could not diagnose the very problem
+  it exists for, `POST /api/config` and `POST /api/preview` returned 500 instead
+  of a validation error, and `/config` 500'd outright, so the editor could not
+  be used to fix the file that broke the editor. A shared `_section()` helper
+  now normalises each section (and a non-mapping value) to `{}`, and the bare
+  scalar keys `title` / `theme` / `timezone` / `state_dir` keep their defaults
+  rather than becoming the string `"None"`. `purpleair.sensor_id` had the same
+  problem one level down (`TypeError` on an empty value, `ValueError` on text);
+  it now parses defensively and `validate_config()` reports the bad value as a
+  `ConfigError` naming it. `main()` also wraps `load_config()` so any remaining
+  parse failure — a YAML syntax error, say — prints a message naming the file
+  instead of a traceback.
+
 - **An ICS or CalDAV outage blanked the calendar and destroyed the cache.**
   Both backends swallowed every failure and returned `[]`, which
   `DataPipeline._resolve_source` cannot tell from "no events this week": it

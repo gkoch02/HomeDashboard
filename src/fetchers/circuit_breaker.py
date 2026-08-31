@@ -18,7 +18,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
-from src._io import atomic_write_json
+from src._io import locked_update_json
 from src._time import now_utc
 
 logger = logging.getLogger(__name__)
@@ -59,7 +59,7 @@ class CircuitBreaker:
             if self._cooldown_expired(st):
                 st.state = "half_open"
                 self._states[source] = st
-                self._save()
+                self._save(source)
                 logger.info("Circuit breaker for %s: OPEN → HALF_OPEN", source)
                 return True
             return False
@@ -75,7 +75,7 @@ class CircuitBreaker:
         st.last_failure_at = None
         st.state = "closed"
         self._states[source] = st
-        self._save()
+        self._save(source)
 
     def record_failure(self, source: str) -> None:
         """Record a failure; transition to OPEN after max_failures."""
@@ -97,7 +97,7 @@ class CircuitBreaker:
             logger.warning("Circuit breaker for %s: HALF_OPEN → OPEN", source)
 
         self._states[source] = st
-        self._save()
+        self._save(source)
 
     # --- Internal ---
 
@@ -142,16 +142,38 @@ class CircuitBreaker:
         except Exception as exc:
             logger.debug("Could not load breaker state: %s", exc)
 
-    def _save(self) -> None:
+    def _save(self, source: str) -> None:
+        """Merge *source*'s state into the file, under a cross-process lock.
+
+        The web UI's reset button rewrites this same file from a separate
+        process, and it is most likely to be pressed *while* a run is in
+        flight. Writing this instance's whole ``_states`` dict back would erase
+        a reset made since the file was loaded — the UI reporting success while
+        the breaker stayed open — so the read and write happen under one lock
+        and **only the one source that just changed** is written (#242).
+
+        Exactly one source, not a running set of every source touched so far:
+        with a set, the second save of a run rewrites the first source too,
+        from an in-memory copy that a reset in between has already made stale,
+        and the reset disappears. A multi-source fetch does that every run.
+        This instance's view of *source* is authoritative only at the moment
+        *source* changed, so that is the only entry it may write.
+        """
         path = self._state_dir / _STATE_FILENAME
+        st = self._states.get(source)
+        if st is None:
+            return
+
+        def _merge(raw: dict | None) -> dict:
+            merged = raw if isinstance(raw, dict) else {}
+            merged[source] = {
+                "consecutive_failures": st.consecutive_failures,
+                "last_failure_at": st.last_failure_at,
+                "state": st.state,
+            }
+            return merged
+
         try:
-            raw = {}
-            for source, st in self._states.items():
-                raw[source] = {
-                    "consecutive_failures": st.consecutive_failures,
-                    "last_failure_at": st.last_failure_at,
-                    "state": st.state,
-                }
-            atomic_write_json(path, raw, indent=2)
+            locked_update_json(path, _merge, default={}, indent=2)
         except Exception as exc:
             logger.warning("Could not save breaker state: %s", exc)

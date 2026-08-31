@@ -24,11 +24,18 @@ def _resolve_scheduled_theme(entries, now: _datetime) -> str | None:
     return active.theme if active is not None else None
 
 
+#: Theme values that name a rotation rather than a plate. ``resolve_theme_name``
+#: normally resolves these to a concrete pick; with ``persist=False`` it returns
+#: the pseudo name unchanged when no pick has been made for the current bucket.
+PSEUDO_THEMES: frozenset[str] = frozenset({"random", "random_daily", "random_hourly"})
+
+
 def resolve_theme_name(
     cfg,
     override_theme: str | None,
     now: _datetime | None = None,
     data: DashboardData | None = None,
+    persist: bool = True,
 ) -> str:
     """Resolve the concrete theme name to use for this run.
 
@@ -39,6 +46,13 @@ def resolve_theme_name(
        ``data`` is ``None``, so pre-fetch calls fall through cleanly.
     3. ``theme_schedule`` — latest matching HH:MM entry for the current time.
     4. ``cfg.theme`` — static config value (may be ``"random"``).
+
+    ``persist=False`` makes this a pure read: a random cadence reports the
+    theme already stored for the current bucket and returns the pseudo name
+    unchanged when there is none, rather than drawing one and writing it to
+    ``state/``. Reporting callers must use it — resolving a random theme is a
+    *decision about what the dashboard will show*, and the status page's
+    30-second poll was making it (#238).
     """
     if override_theme is not None:
         theme_name: str = override_theme
@@ -57,23 +71,29 @@ def resolve_theme_name(
     if theme_name in ("random", "random_daily"):
         from src.render.random_theme import pick_random_theme
 
+        pseudo_name = theme_name
         theme_name = pick_random_theme(
             include=cfg.random_theme.include,
             exclude=cfg.random_theme.exclude,
             output_dir=cfg.state_dir,
+            persist=persist,
             # Rotate on the configured-timezone date, not the system clock's
             # (#210) — without this the "new theme after midnight" flip lands
             # at the host-tz midnight, and --dry-run --date previews ignore
             # the date override for the daily variant.
             today=now.date() if now is not None else None,
         )
+        theme_name = theme_name or pseudo_name
     elif theme_name == "random_hourly":
         from src.render.random_theme import pick_random_theme_hourly
 
+        pseudo_name = theme_name
         theme_name = pick_random_theme_hourly(
             include=cfg.random_theme.include,
             exclude=cfg.random_theme.exclude,
             output_dir=cfg.state_dir,
             now=now,
+            persist=persist,
         )
+        theme_name = theme_name or pseudo_name
     return theme_name

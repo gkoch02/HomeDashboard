@@ -419,3 +419,109 @@ class TestResolveTz:
 
         assert tz == zoneinfo.ZoneInfo("UTC")
         assert "Could not determine local timezone" in caplog.text
+
+
+class TestEmptySections:
+    """A section header with nothing under it parses as None (#236).
+
+    Commenting a section's keys out one by one is exactly what a user does
+    while trying things, and ``load_config()`` has no error boundary above it —
+    an AttributeError here took down the renderer, ``--check-config`` and both
+    web pages at once.
+    """
+
+    SECTIONS = [
+        "google",
+        "weather",
+        "birthdays",
+        "display",
+        "schedule",
+        "cache",
+        "filters",
+        "purpleair",
+        "random_theme",
+        "photo",
+        "quotes",
+        "countdown",
+        "output",
+        "logging",
+        "theme_schedule",
+        "theme_rules",
+    ]
+
+    @pytest.mark.parametrize("section", SECTIONS)
+    def test_empty_section_falls_back_to_defaults(self, section, tmp_path):
+        p = tmp_path / "config.yaml"
+        p.write_text(f"{section}:\n")
+        cfg = load_config(str(p))
+        assert cfg == Config()
+
+    @pytest.mark.parametrize("section", SECTIONS)
+    def test_non_mapping_section_falls_back_to_defaults(self, section, tmp_path):
+        p = tmp_path / "config.yaml"
+        p.write_text(f"{section}: nonsense\n")
+        cfg = load_config(str(p))
+        assert cfg == Config()
+
+    def test_every_section_empty_at_once(self, tmp_path):
+        p = tmp_path / "config.yaml"
+        p.write_text("".join(f"{name}:\n" for name in self.SECTIONS))
+        cfg = load_config(str(p))
+        assert cfg == Config()
+
+    def test_empty_display_still_derives_model_dimensions(self, tmp_path):
+        p = tmp_path / "config.yaml"
+        p.write_text("display:\n")
+        cfg = load_config(str(p))
+        assert (cfg.display.width, cfg.display.height) == (800, 480)
+
+    @pytest.mark.parametrize(
+        "key,attr,default",
+        [
+            ("title", "title", "Home Dashboard"),
+            ("theme", "theme", "default"),
+            ("timezone", "timezone", "local"),
+            ("state_dir", "state_dir", "state"),
+        ],
+    )
+    def test_empty_scalar_key_keeps_default(self, key, attr, default, tmp_path):
+        """``title:`` with nothing after it parses as None.
+
+        ``str(None)`` would put the literal text "None" on the panel, and a
+        bare None title crashes the header component outright.
+        """
+        p = tmp_path / "config.yaml"
+        p.write_text(f"{key}:\n")
+        cfg = load_config(str(p))
+        assert getattr(cfg, attr) == default
+
+
+class TestPurpleAirSensorId:
+    def test_empty_sensor_id_reads_as_unset(self, tmp_path):
+        p = tmp_path / "config.yaml"
+        p.write_text("purpleair:\n  api_key: k\n  sensor_id:\n")
+        cfg = load_config(str(p))
+        assert cfg.purpleair.sensor_id == 0
+        assert cfg.purpleair.sensor_id_invalid == ""
+
+    def test_non_numeric_sensor_id_is_recorded_not_raised(self, tmp_path):
+        p = tmp_path / "config.yaml"
+        p.write_text("purpleair:\n  api_key: k\n  sensor_id: abc\n")
+        cfg = load_config(str(p))
+        assert cfg.purpleair.sensor_id == 0
+        assert cfg.purpleair.sensor_id_invalid == "'abc'"
+
+    def test_boolean_sensor_id_is_rejected(self, tmp_path):
+        """YAML 1.1 reads ``on`` as True, and int(True) is a plausible 1."""
+        p = tmp_path / "config.yaml"
+        p.write_text("purpleair:\n  api_key: k\n  sensor_id: on\n")
+        cfg = load_config(str(p))
+        assert cfg.purpleair.sensor_id == 0
+        assert cfg.purpleair.sensor_id_invalid == "True"
+
+    def test_valid_sensor_id_parses(self, tmp_path):
+        p = tmp_path / "config.yaml"
+        p.write_text("purpleair:\n  api_key: k\n  sensor_id: 12345\n")
+        cfg = load_config(str(p))
+        assert cfg.purpleair.sensor_id == 12345
+        assert cfg.purpleair.sensor_id_invalid == ""
