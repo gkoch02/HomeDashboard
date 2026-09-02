@@ -34,6 +34,16 @@ WORDMARK_X = 52
 WORDMARK_RIGHT = 980  # right edge available to the wordmark column
 MOTIF_X = 1010  # left edge of the motif column
 
+# The wordmark column is the shorter of the two. Oxanium is a wider face than
+# the one it replaced, so the wordmark sets at 100pt where the old face fit at
+# 130, and the column lost ~56px of height it cannot get back. Top-aligned it
+# left 131px of dead space beneath it against the motif column's 53, which read
+# as a layout fault rather than a short column. Dropping it by the difference of
+# the two columns' optical centres lets the pair balance. Derivation: the motif
+# column's ink spans y=74..327 (centre 200), the wordmark column's y=85..249
+# (centre 167).
+WORDMARK_DROP = 34
+
 
 def _font(filename: str, size: int, wght: int | None = None) -> ImageFont.FreeTypeFont:
     font = ImageFont.truetype(str(FONTS_DIR / filename), size)
@@ -74,7 +84,7 @@ def _draw_wordmark(draw: ImageDraw.ImageDraw) -> None:
     tagline = "eInk wall display for family logistics"
 
     # Eyebrow tracked above the wordmark with a hairline rule trailing it.
-    eyebrow_y = 78
+    eyebrow_y = 78 + WORDMARK_DROP
     eyebrow_w, _ = _text_size(draw, eyebrow, eyebrow_font)
     draw.text((WORDMARK_X, eyebrow_y), eyebrow, font=eyebrow_font, fill=BLACK)
     rule_x0 = WORDMARK_X + eyebrow_w + 16
@@ -85,7 +95,7 @@ def _draw_wordmark(draw: ImageDraw.ImageDraw) -> None:
 
     # Main wordmark.
     _, title_h = _text_size(draw, title, title_font)
-    title_y = 122
+    title_y = 122 + WORDMARK_DROP
     draw.text((WORDMARK_X, title_y), title, font=title_font, fill=BLACK)
 
     # Tagline beneath the wordmark.
