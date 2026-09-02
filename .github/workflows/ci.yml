@@ -27,9 +27,9 @@ jobs:
       - run: ruff check src/ tests/ scripts/ tools/
       - run: ruff format --check src/ tests/ scripts/ tools/
       # Validates markdown links and the canonical theme inventories in
-      # docs/themes.md and docs/previews.md. CONTRIBUTING asks contributors to
-      # run this, but nothing enforced it — which is how themes drifted out of
-      # the preview batch loop unnoticed.
+      # docs/themes.md, docs/inky-previews.md and docs/previews.md. CONTRIBUTING
+      # asks contributors to run this, but nothing enforced it — which is how
+      # themes drifted out of the preview batch loop unnoticed.
       - run: python scripts/check_docs.py
 
   test:

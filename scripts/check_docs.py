@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 DOC_FILES = [ROOT / "README.md", ROOT / "CONTRIBUTING.md"] + sorted((ROOT / "docs").glob("*.md"))
 LINK_RE = re.compile(r"\[[^\]]+\]\(([^)]+)\)")
 THEME_DETAIL_RE = re.compile(r"^####\s+(.+)$", re.MULTILINE)
+INKY_EMBED_RE = re.compile(r"assets/previews/theme_(\w+)_inky\.png")
 # The "full batch for all concrete themes" shell loop in docs/previews.md.
 PREVIEW_BATCH_RE = re.compile(r"for theme in ([^;]+); do", re.DOTALL)
 
@@ -71,7 +72,38 @@ def check_theme_inventory(theme_names: set[str]) -> list[str]:
     for name in extra_in_themes:
         errors.append(f"docs/themes.md: unexpected theme heading '{name}'")
 
+    errors.extend(check_inky_inventory(theme_names))
     errors.extend(check_preview_batch(theme_names))
+    return errors
+
+
+def check_inky_inventory(theme_names: set[str]) -> list[str]:
+    """Keep docs/inky-previews.md covering the same themes as docs/themes.md.
+
+    The color catalog is a second page rather than a second image per theme, so
+    nothing about rendering a new theme forces an entry onto it. Without this
+    check a new theme would get a Waveshare preview in themes.md and silently
+    no color one.
+    """
+    errors: list[str] = []
+    doc = ROOT / "docs" / "inky-previews.md"
+    if not doc.exists():
+        return ["docs/inky-previews.md: missing"]
+    text = doc.read_text()
+
+    # Same heading level as docs/themes.md, so one convention covers both pages:
+    # group headings are ###, per-theme entries are ####.
+    headings = {normalize_heading(h) for h in THEME_DETAIL_RE.findall(text)}
+    for name in sorted(theme_names - headings):
+        errors.append(f"docs/inky-previews.md: missing heading for theme '{name}'")
+    for name in sorted(headings - theme_names):
+        errors.append(f"docs/inky-previews.md: unexpected theme heading '{name}'")
+
+    embedded = set(INKY_EMBED_RE.findall(text))
+    for name in sorted(theme_names - embedded):
+        errors.append(f"docs/inky-previews.md: theme '{name}' has no _inky.png embed")
+    for name in sorted(embedded - theme_names):
+        errors.append(f"docs/inky-previews.md: unknown theme preview 'theme_{name}_inky.png'")
     return errors
 
 
