@@ -2,14 +2,14 @@
 
 # Theme Previews
 
-How to regenerate the per-theme preview PNGs that are embedded in
-[Themes](themes.md). Both the standard (Waveshare 1-bit) and Inky color
-(Spectra 6) variants live under `assets/previews/`.
+How to regenerate the per-theme preview PNGs embedded in the docs. There are two
+independent sets, both under `assets/previews/`: the monochrome Waveshare renders
+in [Themes](themes.md), and the Spectra 6 color renders in
+[Inky Previews](inky-previews.md).
 
 - [Overview](#overview)
 - [Standard preview set](#standard-preview-set)
 - [Inky color preview set](#inky-color-preview-set)
-- [Combined split previews](#combined-split-previews)
 - [Output files](#output-files)
 - [Notes and limitations](#notes-and-limitations)
 
@@ -140,48 +140,6 @@ This is the most accurate way to review:
 
 ---
 
-## Combined split previews
-
-[Themes](themes.md) embeds one image per theme rather than two, by combining each
-Waveshare and Inky pair into a single PNG. The split orientation is chosen per
-theme to keep both backends' distinguishing pixels visible — full-canvas centered
-themes use a vertical cut, themes with strong horizontal banding use a horizontal
-cut, and the rest fall back to the original anti-diagonal cut. After regenerating
-both `theme_<theme>.png` and `theme_<theme>_inky.png`, rebuild the combined images
-with:
-
-```bash
-make previews-split
-```
-
-That walks `assets/previews/`, pairs every `theme_<name>.png` with its `theme_<name>_inky.png`
-sibling, and writes `assets/previews/theme_<name>_split.png`. The script depends only on
-Pillow, so it runs against any Python environment with the project deps installed:
-
-```bash
-python3 scripts/build_split_previews.py
-```
-
-### Available split modes
-
-| mode             | Waveshare side       | Inky side             | divider           |
-|------------------|----------------------|-----------------------|-------------------|
-| `anti_diagonal`  | top-left triangle    | bottom-right triangle | TR ↔ BL (default) |
-| `main_diagonal`  | bottom-left triangle | top-right triangle    | TL ↔ BR           |
-| `vertical`       | left half            | right half            | mid-X, top→bottom |
-| `horizontal`     | top half             | bottom half           | mid-Y, left→right |
-
-### Per-theme overrides
-
-The mapping lives at the top of `scripts/build_split_previews.py` as
-`_THEME_SPLIT_MODES`. Themes not listed default to `anti_diagonal`. To change a
-theme's orientation, edit that dict and rerun `make previews-split`. When
-adding a new color theme, cross-reference `_INKY_THEME_KEY_COLORS` in
-`src/render/canvas.py` so themes with a real color story get a mode that
-showcases it.
-
----
-
 ## Output files
 
 Standard preview set:
@@ -191,10 +149,6 @@ Standard preview set:
 Inky color preview set:
 
 - `assets/previews/theme_<theme>_inky.png`
-
-Combined split previews (used by [Themes](themes.md)):
-
-- `assets/previews/theme_<theme>_split.png`
 
 Latest dry run from the last command:
 
@@ -208,8 +162,10 @@ Timestamped dry runs are also written automatically:
 
 ## Notes and limitations
 
-- `make previews` renders the Waveshare set; `make previews-inky` renders the Inky set.
-  Run both, then `make previews-split`, to refresh everything [Themes](themes.md) embeds.
+- `make previews` renders the Waveshare set embedded in [Themes](themes.md);
+  `make previews-inky` renders the Inky set embedded in
+  [Inky Previews](inky-previews.md). The two sets are independent — a change that
+  only affects one backend needs only that batch rerun.
 - The `message` and `countdown` themes need extra input to render anything but an
   empty-state placeholder. The script supplies both: a fixed preview message, and a
   pair of sample countdown targets when `countdown.events` is empty in the config.
@@ -222,5 +178,6 @@ Timestamped dry runs are also written automatically:
 - Inky previews are still PNG files on your computer. They are not a perfect simulation of the
   physical panel, but they do reflect the dashboard's final limited-palette render path.
 
-For the theme catalog and embedded previews, see [Themes](themes.md). For general
-dev commands and the Makefile, see [Development](development.md).
+For the theme catalog and its monochrome previews, see [Themes](themes.md); for
+the color catalog, see [Inky Previews](inky-previews.md). For general dev
+commands and the Makefile, see [Development](development.md).

@@ -1,4 +1,4 @@
-.PHONY: dry test coverage deploy setup install check previews previews-inky previews-split banner version release release-dry lint fmt docs-check \
+.PHONY: dry test coverage deploy setup install check previews previews-inky banner version release release-dry lint fmt docs-check \
         pi-install install-display-drivers pi-enable pi-status pi-logs configure \
         web-enable web-status web-logs
 
@@ -38,9 +38,6 @@ previews: _check-venv
 
 previews-inky: _check-venv
 	$(VENV) scripts/build_previews.py --provider inky
-
-previews-split: _check-venv
-	$(VENV) scripts/build_split_previews.py
 
 banner: _check-venv
 	$(VENV) scripts/build_banner.py

@@ -31,7 +31,8 @@ If the change touches **themes, components, or anything that renders**:
       `UPDATE_SNAPSHOTS=1 pytest tests/test_theme_pixel_snapshots.py`
       (a new theme fails the coverage guard without a baseline; regenerate under the
       Pillow version in the baseline's `reference_env` so unrelated hashes don't churn)
-- [ ] Preview PNGs regenerated for any theme whose appearance changed — see
+- [ ] Preview PNGs regenerated for any theme whose appearance changed — both sets
+      (`make previews` and `make previews-inky`); see
       [docs/previews.md](../docs/previews.md)
 - [ ] If a refactor was meant to be pixel-neutral, the unrelated theme hashes are
       confirmed **unchanged**
@@ -41,8 +42,9 @@ If the change touches **docs or user-facing behaviour**:
 - [ ] `make docs-check` passes
 - [ ] Canonical docs updated per the
       [Docs Update Policy](../CONTRIBUTING.md#docs-update-policy) — a new theme needs
-      an inventory entry, a table row, and a `#### <name>` block with its preview in
-      `docs/themes.md`, or `make docs-check` fails
+      an inventory entry, a table row, and a `#### <name>` block with its Waveshare
+      preview in `docs/themes.md`, plus a `#### <name>` entry with its `_inky.png` in
+      `docs/inky-previews.md`, or `make docs-check` fails
 - [ ] `CHANGELOG.md` entry under `## [Unreleased]`
 
 If the change adds a **config option**:

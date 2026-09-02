@@ -17,10 +17,10 @@ make previews       # Generate all theme preview PNGs → assets/previews/theme_
                     #   (scripts/build_previews.py — registry-driven, one process,
                     #    pinned render date; adding a theme needs no edit here)
 make previews-inky  # Same batch for Inky → assets/previews/theme_*_inky.png
-make previews-split # Combine Waveshare + Inky previews into assets/previews/theme_<name>_split.png
 make check          # Validate config/config.yaml
 make docs-check     # Run scripts/check_docs.py (markdown links + the canonical theme
-                    #   inventories in docs/themes.md and docs/previews.md). Enforced by
+                    #   inventories in docs/themes.md, docs/inky-previews.md and
+                    #   docs/previews.md). Enforced by
                     #   the `lint` CI job, so drift here blocks a merge.
 make version        # Print current version (e.g. main.py 5.2.0)
 make release-dry    # Show the next release (inferred from the CHANGELOG) — writes nothing
@@ -227,8 +227,11 @@ config/
 docs/
 ├── setup.md                   # Google Calendar, ICS feed, CalDAV, birthdays, Pi hardware setup
 ├── web-ui.md                  # Web UI setup, auth, pages, manual refresh, live preview, security
-├── themes.md                  # All themes, random rotation, schedule, custom themes; embeds Waveshare + Inky preview PNGs
-├── previews.md                # How to regenerate the Waveshare and Inky preview PNGs embedded in themes.md
+├── themes.md                  # All themes, random rotation, schedule, custom themes; embeds the
+│                              #   monochrome Waveshare preview PNGs
+├── inky-previews.md           # The same catalog in Inky Spectra 6 color: how color is assigned,
+│                              #   plus each theme's registered accent pair + _inky.png preview
+├── previews.md                # How to regenerate either preview set
 ├── configuration.md           # Full config.yaml reference
 ├── development.md             # Makefile, CLI, project structure, dependencies, registry recipes
 ├── faq.md                     # Frequently asked questions (quiet hours, troubleshooting, etc.)
@@ -242,7 +245,7 @@ tests/                         # test files, extensive mocking; `inkutils.py` ho
 tools/                         # check_naive_datetime.py — AST guard enforcing aware-datetime discipline
 fonts/                         # Bundled TTF fonts
 deploy/                        # Systemd service + timer + configure.sh + logrotate
-scripts/                       # Build/dev helpers: build_previews.py, build_split_previews.py,
+scripts/                       # Build/dev helpers: build_previews.py,
                                #   check_docs.py, build_banner.py
 assets/                        # Tracked image assets: banner.png (README hero) + previews/ (theme PNGs)
 state/                         # Runtime state: cache, breaker, quota, sync tokens (git-ignored)
@@ -465,7 +468,7 @@ default to `None` and fall back gracefully so adding a new field never breaks ex
 - `fuzzyclock` theme: time phrases snap to the nearest 5-minute bucket; the default systemd timer runs every 5 minutes; the image-hash check prevents eInk refreshes when the phrase hasn't changed
 - `fuzzyclock` component uses `style.font_bold` / `style.font_medium` for the phrase / date — font-agnostic so the theme can be re-skinned by swapping the style callables
 - `qotd_invert` and `fuzzyclock_invert` are inverted-color variants of their base themes; they are included in the random rotation pool by default
-- Theme preview PNGs live under `assets/previews/` (committed to git as a normal tracked directory — no `.gitignore` exceptions needed). `scripts/build_previews.py` (`make previews` / `make previews-inky`) and `scripts/build_split_previews.py` all write there. The preview batch is registry-driven, so a new theme needs no Makefile or script edit; `default` is named explicitly because it is a pseudo-name `all_theme_names()` does not list, and exclusions are the one `EXCLUDED` set in the script. The legacy `output/` directory is now purely a runtime-artifacts dir (dry-run scratch + `latest.png` + `last_success.txt`)
+- Theme preview PNGs live under `assets/previews/` (committed to git as a normal tracked directory — no `.gitignore` exceptions needed). `scripts/build_previews.py` (`make previews` / `make previews-inky`) writes both sets there. The preview batch is registry-driven, so a new theme needs no Makefile or script edit; `default` is named explicitly because it is a pseudo-name `all_theme_names()` does not list, and exclusions are the one `EXCLUDED` set in the script. The legacy `output/` directory is now purely a runtime-artifacts dir (dry-run scratch + `latest.png` + `last_success.txt`)
 - PurpleAir data surfaces in two themes: `weather` shows a compact AQI card + PM detail strip alongside weather data; `air_quality` devotes the full canvas to environmental health data (AQI hero + scale bar, PM1/PM2.5/PM10 row, ambient sensor cards, weather strip)
 - `_pm25_to_aqi()` in `purpleair.py` implements the EPA AQI piecewise linear formula with standard breakpoints; PM2.5 is truncated (not rounded) to one decimal before lookup, and AQI is applied to the 60-minute PM2.5 average (`pm2.5_60minute`) for a smoother, less noisy reading — the result is stored on `AirQualityData.aqi` at fetch time; `AirQualityData` also carries `pm1` (PM1.0) and `pm10` (PM10) for display in the `weather` theme detail strip
 - When `purpleair.api_key` or `purpleair.sensor_id` is `0`/`""`, the source is skipped silently (no circuit breaker entry, no cache miss); validation emits warnings only when one is set without the other
@@ -562,6 +565,5 @@ default to `None` and fall back gracefully so adding a new field never breaks ex
 - `OutputService.write_error_marker(exc)` writes `output/last_error.txt` with `{timestamp, exception_type, message}` on every failed run; the marker is intentionally NOT cleared on success — readers (the web UI status page) compare its timestamp to `output/last_success.txt` to decide whether the error is "current" or "stale".
 - Web in-memory config swap: `routes/config.py::_refresh_in_memory_config()` reloads the YAML and stages new `DASH_CFG` and `SOURCE_TTLS` values, then assigns both back-to-back inside `config_write_lock()` so a concurrent reader can't see a half-applied state. `config_write_lock()` is exposed as a public context manager in `web/config_editor.py` for exactly this kind of multi-step coordination — `apply_patch()` and `restore_latest_backup()` use the same lock internally. If the post-save reload fails, the app logs a warning and keeps the last-loaded config (process is not restarted).
 - The web `event_store` (`state/web_events.jsonl`) is append-only JSONL and self-trims to the newest 500 records once past 256 KB. `append_event()` serialises writes through **two** locks: a module-level `threading.Lock()` so two web requests can't interleave half-lines, and an advisory `fcntl.flock` on a `web_events.jsonl.lock` sidecar because the renderer writes this file too (run events, #218) from a separate process. The thread lock alone is not enough for the trim — it is read-all → tempfile → rename, and anything the other process appends inside that window is lost to the rename. The lock lives on a sidecar rather than the stream itself because the trim replaces the stream's inode. The temp file is `mkstemp`-unique, not a fixed `.tmp`, so two processes trimming at once can't rename each other's half-file. Missing `fcntl` degrades to the thread lock alone rather than failing a render.
-- `scripts/build_split_previews.py` (`make previews-split`) combines `assets/previews/theme_<name>.png` and `assets/previews/theme_<name>_inky.png` into `assets/previews/theme_<name>_split.png` for the docs. Each theme picks an orientation from `_THEME_SPLIT_MODES` (anti-diagonal default, plus `main_diagonal`, `vertical`, `horizontal`); the orientation is chosen to keep each theme's Inky color story visible — vertical for centered hero content, horizontal for banded layouts (weather strip, scorecard). Cross-reference `_INKY_THEME_KEY_COLORS` in `canvas.py` when adding entries.
-- `make previews` regenerates Waveshare previews for the curated theme list embedded in the Makefile rule (not every concrete theme); the Inky `_inky` previews and the moon-phase preview date pinning live in their own scripts/CI steps. Don't expect `make previews` alone to refresh every PNG referenced by `docs/themes.md`.
+- **The two preview sets back two separate doc pages.** `docs/themes.md` embeds only the monochrome `theme_<name>.png`; `docs/inky-previews.md` is the color catalog and embeds only `theme_<name>_inky.png`. The combined `theme_<name>_split.png` images and `scripts/build_split_previews.py` that produced them are gone — a diagonally-cut composite asked the reader to mentally un-shear two half-renders to compare them, and neither half was ever shown whole. `check_docs.check_inky_inventory()` holds the color page to the registry the same way `check_theme_inventory` holds `themes.md`: both pages use `### ` for group headings and `#### <theme>` for entries, so one regex checks both, and the color page must additionally embed a `_inky.png` per theme. A new theme therefore needs `make previews`, `make previews-inky`, and an entry on each page, or `make docs-check` fails.
 - `scripts/build_banner.py` (`make banner`) renders the README hero logo at `assets/banner.png`. It is a standalone PIL script that does **not** import the rest of the project — it draws a 1600×400 wordmark + tagline + motif strip at 8-bit greyscale and then quantizes to 1-bit via Floyd-Steinberg, mirroring `render/quantize.py::quantize_for_display()` so the on-screen result looks like authentic eInk output. The render is deterministic (no `datetime.now()`); re-running produces byte-identical output. **Because it does not import `render/fonts.py`, it loads faces by bare filename and is therefore the one place outside `fonts.py` that a font swap has to be applied by hand** — nothing imports it, so a dangling reference stays invisible until someone runs `make banner`. It pins a weight for variable faces for the same reason `fonts.py` does: Oxanium's default axis instance is ExtraLight, which dithers to hairlines at 1-bit.

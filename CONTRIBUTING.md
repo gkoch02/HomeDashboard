@@ -89,12 +89,15 @@ UPDATE_SNAPSHOTS=1 pytest tests/test_theme_pixel_snapshots.py
    Commit the updated `tests/snapshots/theme_pixel_hashes.json` alongside the source.
 
 7. If the theme is user-facing, update:
-   - `docs/themes.md` (add a `#### <name>` section with a short description and both
-     the Waveshare and Inky preview images — see existing entries for the pattern)
+   - `docs/themes.md` (add a `#### <name>` section with a short description and the
+     Waveshare preview image — see existing entries for the pattern)
+   - `docs/inky-previews.md` (add a `#### <name>` entry with the theme's registered
+     accent pair and the `_inky.png` preview)
    - any theme lists in config or setup docs that are intended to be exhaustive
-8. Regenerate the preview PNGs that `docs/themes.md` embeds — see
-   [docs/previews.md](docs/previews.md) for the Waveshare and Inky commands.
-   For a quick sanity check before committing previews:
+8. Regenerate both preview sets (`make previews` and `make previews-inky`) — see
+   [docs/previews.md](docs/previews.md) for the details. `make docs-check` fails if
+   either catalog page is missing the new theme. For a quick sanity check before
+   committing previews:
 
 ```bash
 venv/bin/python -m src.main --dry-run --dummy --theme my_theme
@@ -178,7 +181,9 @@ See `src/fetchers/calendar_caldav.py` plus the `_register()` block at the bottom
 
 When changing any of these areas, update the canonical docs in the same PR:
 
-- Theme inventory or behavior: `docs/themes.md` (which also embeds the preview images)
+- Theme inventory or behavior: `docs/themes.md` (which embeds the monochrome Waveshare
+  previews) **and** `docs/inky-previews.md` (the Spectra 6 color catalog) — `make docs-check`
+  holds both to the theme registry
 - Preview regeneration workflow: `docs/previews.md`
 - Config schema or defaults: `docs/configuration.md`
 - Setup, install, auth, or recovery flow: `README.md`, `docs/setup.md`, or `docs/web-ui.md`

@@ -38,6 +38,7 @@ sudo reboot
 | Choose between ICS and Google service-account calendar setup | [Setup Guide](docs/setup.md#ics-feed-no-gcp-required) |
 | Enable the optional browser control panel | [Web UI](docs/web-ui.md) |
 | Pick or schedule themes | [Themes](docs/themes.md) |
+| See the theme catalog in Inky Spectra 6 color | [Inky Previews](docs/inky-previews.md) |
 | See the full `config.yaml` reference | [Configuration Reference](docs/configuration.md) |
 | Regenerate the per-theme preview images | [Theme Previews](docs/previews.md) |
 | Upgrade from an older install | [Upgrading from v3](docs/upgrading-from-v3.md) |

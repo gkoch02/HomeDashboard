@@ -6,8 +6,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Changed
+
+- **The theme catalog is monochrome again, with a separate color page.**
+  `docs/themes.md` embedded one composite image per theme, cut diagonally
+  between the Waveshare and Inky renders. That asked the reader to mentally
+  un-shear two half-renders in order to compare them, and neither backend was
+  ever shown whole — the monochrome render most people actually run was only
+  ever visible as a triangle. Every preview on that page is now the plain
+  Waveshare 1-bit render, and the Inky Spectra 6 catalog moved to a new
+  [Inky Previews](docs/inky-previews.md) page, cross-linked from the themes
+  page, the README and `docs/previews.md`. The color page also documents how
+  color is assigned — the four semantic accent roles, and each theme's
+  registered `(primary, secondary)` accent pair.
+- `make docs-check` now holds `docs/inky-previews.md` to the theme registry the
+  same way it already held `docs/themes.md`: a theme with no entry, or an entry
+  with no `_inky.png` embed, fails the check. Both pages share one heading
+  convention (`###` for groups, `#### <theme>` for entries).
+
 ### Removed
 
+- **Combined split previews.** `scripts/build_split_previews.py`, the
+  `make previews-split` target, and the 37 `assets/previews/theme_*_split.png`
+  images are gone, superseded by the two independent preview sets above. The
+  script's `_THEME_SPLIT_MODES` orientation table went with it; it referenced
+  an `_INKY_THEME_KEY_COLORS` constant that no longer existed in
+  `src/render/canvas.py`.
 - **Five bundled display faces that carried no licence at all.**
   `Maratype.otf`, `NuCore.otf`, `NuCore Condensed.otf`, `Synthetic Genesis.otf`
   and `UESC Display.otf` shipped in `fonts/` with no accompanying licence file

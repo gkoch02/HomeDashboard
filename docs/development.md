@@ -32,7 +32,8 @@ Use this page for local workflow, dev commands, and repo orientation. For archit
 |---|---|
 | `make setup` | create venv, install deps, create config from template |
 | `make dry` | render `output/latest.png` with dummy data |
-| `make previews` | generate standard theme preview PNGs |
+| `make previews` | generate the monochrome Waveshare theme preview PNGs |
+| `make previews-inky` | generate the Inky Spectra 6 theme preview PNGs |
 | `make test` | run the full pytest suite |
 | `make coverage` | run pytest with coverage; prints missing lines and writes `htmlcov/index.html` |
 | `UPDATE_SNAPSHOTS=1 pytest tests/test_theme_pixel_snapshots.py` | regenerate theme pixel-hash baselines after an intentional theme change (commit the updated `tests/snapshots/theme_pixel_hashes.json`) |
@@ -78,8 +79,9 @@ This path needs no hardware, API keys, or credentials.
 ## Preview workflow
 
 - Use `make dry` for the default dummy preview.
-- Use `make previews` for the batch of standard preview PNGs.
-- Use [Theme Previews](previews.md) when you need to regenerate the Waveshare or Inky preview PNGs that are embedded in [Themes](themes.md).
+- Use `make previews` for the batch of monochrome Waveshare PNGs embedded in [Themes](themes.md).
+- Use `make previews-inky` for the Spectra 6 PNGs embedded in [Inky Previews](inky-previews.md).
+- See [Theme Previews](previews.md) for flags, the pinned render date, and single-theme renders.
 
 ---
 
@@ -150,7 +152,7 @@ failure paths — by driving the real script against throwaway git repos.
 
 ```text
 home-dashboard/
-├── assets/previews/ # committed per-theme preview PNGs (referenced by docs/themes.md)
+├── assets/previews/ # committed per-theme preview PNGs (docs/themes.md + docs/inky-previews.md)
 ├── config/          # example config, web config template, bundled quotes
 ├── deploy/          # systemd units and setup helpers
 ├── docs/            # operator and contributor docs
@@ -323,10 +325,11 @@ runs it, so a dangling reference stays invisible until someone runs
 `make banner`. Grep the whole tree for the filename, not just for its accessor,
 and regenerate `assets/banner.png` if the banner's own faces changed.
 
-If the theme should be embedded in `docs/themes.md`, regenerate its preview
-PNGs (`make previews`, plus an Inky render via the snippet in
-[Theme Previews](previews.md)) and the combined split image
-(`make previews-split`). All preview PNGs live under `assets/previews/`.
+If the theme should be embedded in the docs, regenerate both preview sets —
+`make previews` for the Waveshare PNG that `docs/themes.md` embeds, and
+`make previews-inky` for the color PNG that `docs/inky-previews.md` embeds.
+`make docs-check` fails if either page is missing an entry for the new theme.
+All preview PNGs live under `assets/previews/`.
 
 ### New component
 

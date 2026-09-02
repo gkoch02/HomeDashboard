@@ -11,6 +11,7 @@ Use this page to pick a theme, set up scheduled or context-aware switching, or b
 - [Built-in themes](#built-in-themes)
 - [Creating your own theme](#creating-your-own-theme)
 - [Typography](#typography)
+- [Inky color previews](inky-previews.md)
 - [Regenerating preview images](previews.md)
 
 ---
@@ -223,56 +224,54 @@ Rules that reference weather or calendar data silently skip on the first boot (n
 
 ### Theme details and previews
 
-Each theme is shown as a single image split between two renders: the
-**Waveshare** (1-bit black/white) render on one side and the **Inky** (Spectra 6
-limited-palette color) render on the other. The split orientation is picked
-per theme — diagonal, vertical, or horizontal — so the Inky color treatment
-stays visible no matter where the theme concentrates its accents. Both halves
-share the same layout; the Inky side just maps to the panel's color palette.
-See [Combined split previews](previews.md#combined-split-previews) for the
-list of available orientations and how to retune them.
+Every preview below is a **Waveshare** render — 1-bit black and white, the
+way the theme lands on a monochrome panel.
+
+> **On an Inky Impression?** The same themes map to the Spectra 6 palette, and
+> several of them carry a deliberate color story. See
+> [Inky Previews](inky-previews.md) for the full catalog in color.
 
 #### default
 
 Classic layout. Black text on white with a 7-day calendar grid and three bottom panels.
 
-[![Default theme — Waveshare/Inky split](../assets/previews/theme_default_split.png)](../assets/previews/theme_default_split.png)
+[![Default theme](../assets/previews/theme_default.png)](../assets/previews/theme_default.png)
 
 #### agenda
 
 High-visibility week view designed to be read from across a room. Dominant 7-day grid in heavy DM Sans Bold with a slim weather + birthdays strip at the bottom (no quote panel); red today/accent on Inky.
 
-[![Agenda theme — Waveshare/Inky split](../assets/previews/theme_agenda_split.png)](../assets/previews/theme_agenda_split.png)
+[![Agenda theme](../assets/previews/theme_agenda.png)](../assets/previews/theme_agenda.png)
 
 #### terminal
 
 High-contrast inverted week view with compact spacing and a retro terminal-inspired type system.
 
-[![Terminal theme — Waveshare/Inky split](../assets/previews/theme_terminal_split.png)](../assets/previews/theme_terminal_split.png)
+[![Terminal theme](../assets/previews/theme_terminal.png)](../assets/previews/theme_terminal.png)
 
 #### minimalist
 
 Border-light editorial layout focused on the calendar and weather, with birthdays hidden.
 
-[![Minimalist theme — Waveshare/Inky split](../assets/previews/theme_minimalist_split.png)](../assets/previews/theme_minimalist_split.png)
+[![Minimalist theme](../assets/previews/theme_minimalist.png)](../assets/previews/theme_minimalist.png)
 
 #### old_fashioned
 
 Victorian broadsheet layout with serif typography and decorative rules.
 
-[![Old Fashioned theme — Waveshare/Inky split](../assets/previews/theme_old_fashioned_split.png)](../assets/previews/theme_old_fashioned_split.png)
+[![Old Fashioned theme](../assets/previews/theme_old_fashioned.png)](../assets/previews/theme_old_fashioned.png)
 
 #### almanac
 
 Old-Farmer's-Almanac front page in **Astloch** (blackletter masthead and dateline) + Playfair Display (body) + Cinzel (section labels and small caps). An ornamental masthead carries a Roman-numeral volume, day-of-year issue number, and the day's name; below it, the date is set in a large editorial line ("MAY 6, 2026") between two triple rules. The body splits into four bordered editorial sections in a 2×2 grid: **The Heavens** (sunrise/sunset, day length, today's lengthening or shortening, moon phase + illumination, next full moon), **From the Sky** (a short prose weather observation with wind direction, alerts, and high/low), **The Week Ahead** (today's first event plus the next few timed events and birthdays), and **Next in the Garden** (season + day-of-year, sun lengthening/shortening, next named meteor shower with ZHR). A triple rule and the day's quote close the page in italic small-caps; a row of small ornaments stamps the very bottom. Reuses every existing data source — weather, `src.astronomy`, `src.render.moon`, calendar, birthdays, quote — with no new fetcher. On Inky the rules, ornaments, bullets, and attribution all render in red.
 
-[![Almanac theme — Waveshare/Inky split](../assets/previews/theme_almanac_split.png)](../assets/previews/theme_almanac_split.png)
+[![Almanac theme](../assets/previews/theme_almanac.png)](../assets/previews/theme_almanac.png)
 
 #### halftone
 
 Procedurally-drawn dithered weather plate evoking a 19th-century natural-history engraving. The 296-px hero region picks an illustration from the current OWM icon code: a rayed sun with halftone-graded sky (`01d`), a moon disc with smooth terminator shading and scattered stars (`01n`), overlapping cumulus for the partly-cloudy / overcast family (`02–04`), a dark cloud with stippled rain (`09`/`10`) or sharp lightning + heavy rain (`11`), a soft cloud with engraved snowflakes (`13`), or layered horizontal banding for fog (`50`). Below it, a 6-px ordered-Bayer rule separates a typeset margin band with a fixed-width left column for the temperature numeral plus a small "feels NN°" caption, and a right column split into three rows: **NOW** (condition in small caps + H + L), a hairline rule, **TODAY** (sunrise + sunset icons with times on the left, weekday · month · day · year on the right), and **NEXT** (the soonest upcoming non-all-day event). Every typeset element is set in **Righteous** so the engraved plate reads as one voice. Drawn in 8-bit greyscale and quantized to 1-bit via Floyd-Steinberg — the smooth gradients become the engraving's halftone texture. On Inky the sun and moon pick up a warm yellow accent ring. Pure-Python, no external assets.
 
-[![Halftone theme — Waveshare/Inky split](../assets/previews/theme_halftone_split.png)](../assets/previews/theme_halftone_split.png)
+[![Halftone theme](../assets/previews/theme_halftone.png)](../assets/previews/theme_halftone.png)
 
 #### halftone_agenda
 
@@ -284,19 +283,19 @@ A full-height vertical Bayer rule divides the panes. The **right pane** (422 px)
 
 Typography follows the split: Righteous for the weather pane and the agenda's chrome, DM Sans for the event rows — a weight heavier than the role each element fills, since at these sizes DM Sans lays down noticeably less ink than Righteous and the calendar side otherwise reads grey beside the weather side. On Inky, yellow rings the sun and moon and red marks the running event's bar and the next-up tick. Pure-Python, no external assets.
 
-[![Halftone agenda theme — Waveshare/Inky split](../assets/previews/theme_halftone_agenda_split.png)](../assets/previews/theme_halftone_agenda_split.png)
+[![Halftone agenda theme](../assets/previews/theme_halftone_agenda.png)](../assets/previews/theme_halftone_agenda.png)
 
 #### trends
 
 Stacked sparkline dashboard — the first chart/graph theme. A 32-px masthead carries today's date and current time; below it five evenly-stacked rows each visualise a different time series: **TEMP — 24h** (current observation + interpolated forecast across ±12 h), **AIR** (current AQI on a 6-zone health scale with progressive Bayer density per zone), **DAYLIGHT — 7d** (daily day-length for the next week, computed in-process via `src.astronomy`), **EVENTS — 14d** (per-day event count bars), and **MOON — 30d** (illumination curve through one synodic month, with the current phase glyph stamped at right). Each chart sits on a Bayer-filled area whose ordered dot pattern survives the eInk quantize step. Every row degrades gracefully when its data source is missing (no weather, no PurpleAir sensor, no lat/lon). On Inky the series render in blue with a yellow today-marker.
 
-[![Trends theme — Waveshare/Inky split](../assets/previews/theme_trends_split.png)](../assets/previews/theme_trends_split.png)
+[![Trends theme](../assets/previews/theme_trends.png)](../assets/previews/theme_trends.png)
 
 #### today
 
 Single-day agenda with a large date panel and roomy event list.
 
-[![Today theme — Waveshare/Inky split](../assets/previews/theme_today_split.png)](../assets/previews/theme_today_split.png)
+[![Today theme](../assets/previews/theme_today.png)](../assets/previews/theme_today.png)
 
 #### day_arc
 
@@ -310,43 +309,43 @@ After sunset the ribbon dims — the arc survives at reduced contrast rather tha
 
 Typography is split by role. Righteous — halftone's single display voice — carries the chrome, while DM Sans sets the agenda rows, since this theme puts far more small text on the plate than halftone does. On Inky, yellow marks the sun, the moon's limb and the daylight bar; red marks the NOW caret, the in-progress event and the birthday bullets. Pure-Python, no external assets.
 
-[![Day arc theme — Waveshare/Inky split](../assets/previews/theme_day_arc_split.png)](../assets/previews/theme_day_arc_split.png)
+[![Day arc theme](../assets/previews/theme_day_arc.png)](../assets/previews/theme_day_arc.png)
 
 #### fantasy
 
 Ornamental black-canvas week view with a fantasy-inspired visual system.
 
-[![Fantasy theme — Waveshare/Inky split](../assets/previews/theme_fantasy_split.png)](../assets/previews/theme_fantasy_split.png)
+[![Fantasy theme](../assets/previews/theme_fantasy.png)](../assets/previews/theme_fantasy.png)
 
 #### qotd
 
 Full-screen quote layout with a compact weather strip across the bottom.
 
-[![QOTD theme — Waveshare/Inky split](../assets/previews/theme_qotd_split.png)](../assets/previews/theme_qotd_split.png)
+[![QOTD theme](../assets/previews/theme_qotd.png)](../assets/previews/theme_qotd.png)
 
 #### qotd_invert
 
 Inverted version of `qotd` with white quote text on black.
 
-[![QOTD Invert theme — Waveshare/Inky split](../assets/previews/theme_qotd_invert_split.png)](../assets/previews/theme_qotd_invert_split.png)
+[![QOTD Invert theme](../assets/previews/theme_qotd_invert.png)](../assets/previews/theme_qotd_invert.png)
 
 #### weather
 
 Full-screen weather dashboard with current conditions, alerts, forecast, and optional AQI.
 
-[![Weather theme — Waveshare/Inky split](../assets/previews/theme_weather_split.png)](../assets/previews/theme_weather_split.png)
+[![Weather theme](../assets/previews/theme_weather.png)](../assets/previews/theme_weather.png)
 
 #### fuzzyclock
 
 Natural-language clock with a compact weather strip and no calendar panels.
 
-[![Fuzzyclock theme — Waveshare/Inky split](../assets/previews/theme_fuzzyclock_split.png)](../assets/previews/theme_fuzzyclock_split.png)
+[![Fuzzyclock theme](../assets/previews/theme_fuzzyclock.png)](../assets/previews/theme_fuzzyclock.png)
 
 #### fuzzyclock_invert
 
 Inverted version of `fuzzyclock`.
 
-[![Fuzzyclock Invert theme — Waveshare/Inky split](../assets/previews/theme_fuzzyclock_invert_split.png)](../assets/previews/theme_fuzzyclock_invert_split.png)
+[![Fuzzyclock Invert theme](../assets/previews/theme_fuzzyclock_invert.png)](../assets/previews/theme_fuzzyclock_invert.png)
 
 #### moonphase
 
@@ -360,14 +359,14 @@ appears when the full moon falls near perigee. Renders as smooth greyscale on
 Waveshare and a warm-yellow moon with cool earthshine on Inky. Moon position
 and phase are pure math (no API) via `src/render/moon.py` and `src/astronomy.py`.
 
-[![Moonphase theme — Waveshare/Inky split](../assets/previews/theme_moonphase_split.png)](../assets/previews/theme_moonphase_split.png)
+[![Moonphase theme](../assets/previews/theme_moonphase.png)](../assets/previews/theme_moonphase.png)
 
 #### moonphase_invert
 
 Parchment-engraving variant of `moonphase` — black ink on a light canvas, with
 the same procedural moon and lunar-data block.
 
-[![Moonphase Invert theme — Waveshare/Inky split](../assets/previews/theme_moonphase_invert_split.png)](../assets/previews/theme_moonphase_invert_split.png)
+[![Moonphase Invert theme](../assets/previews/theme_moonphase_invert.png)](../assets/previews/theme_moonphase_invert.png)
 
 #### moonphase_photo
 
@@ -381,92 +380,92 @@ greyscale on Inky. Drop your own centred full-moon image in at
 the pixel-snapshot baseline); it falls back to the procedural disc when the
 asset is absent.
 
-[![Moonphase Photo theme — Waveshare/Inky split](../assets/previews/theme_moonphase_photo_split.png)](../assets/previews/theme_moonphase_photo_split.png)
+[![Moonphase Photo theme](../assets/previews/theme_moonphase_photo.png)](../assets/previews/theme_moonphase_photo.png)
 
 #### photo
 
 Full-canvas photo theme driven by `photo.path`. Intended for custom-image displays rather than calendar-heavy use.
 
-[![Photo theme — Waveshare/Inky split](../assets/previews/theme_photo_split.png)](../assets/previews/theme_photo_split.png)
+[![Photo theme](../assets/previews/theme_photo.png)](../assets/previews/theme_photo.png)
 
 #### air_quality
 
 Full-screen PurpleAir-oriented AQI dashboard with particulate, ambient, weather, and forecast sections.
 
-[![Air Quality theme — Waveshare/Inky split](../assets/previews/theme_air_quality_split.png)](../assets/previews/theme_air_quality_split.png)
+[![Air Quality theme](../assets/previews/theme_air_quality.png)](../assets/previews/theme_air_quality.png)
 
 #### astronomy
 
 Four-quadrant "sky tonight" layout plus a dark-sky-window footer: sunrise, solar noon, sunset, day-length delta, moon phase with illumination and next full/new dates, civil/nautical/astronomical dusk times, and the next annual meteor shower with its peak date and approximate zenithal hourly rate. All data is computed locally from `src.astronomy`; no API calls beyond weather lat/lon. When `weather.latitude` / `weather.longitude` are not configured, the theme falls back to OWM-reported sunrise/sunset and hides the twilight section.
 
-[![Astronomy theme — Waveshare/Inky split](../assets/previews/theme_astronomy_split.png)](../assets/previews/theme_astronomy_split.png)
+[![Astronomy theme](../assets/previews/theme_astronomy.png)](../assets/previews/theme_astronomy.png)
 
 #### constellation_map
 
 Dark-canvas star chart of tonight's sky, projected for the configured `weather.latitude` / `weather.longitude` using a "looking up" equidistant azimuthal projection — zenith at the centre, horizon at the rim, North at top, East to the **left**, South at bottom, West to the right. The disc is framed by a Cinzel-labelled cardinal ring with dotted altitude rings at 30° and 60°. About 45 bright named stars from a curated Bright Star subset are sized by visual magnitude; seven of the most recognisable northern constellations (Ursa Major, Cassiopeia, Orion, Lyra, Cygnus, Boötes, Leo) are joined by thin lines and labelled in italic small caps. The moon is plotted at its current altitude/azimuth using a simplified Schlyter ephemeris — when above the horizon it appears as the actual phase glyph in a halo. During daylight, the chart auto-projects for tonight's solar midnight so it stays informative. The footer shows location, the moon's current phase name, and the next named meteor shower. On Inky the rim, cardinal labels, and constellation names render in yellow with blue constellation lines and altitude rings; Waveshare stays clean monochrome white-on-black. All sky math is pure Python — no API calls.
 
-[![Constellation Map theme — Waveshare/Inky split](../assets/previews/theme_constellation_map_split.png)](../assets/previews/theme_constellation_map_split.png)
+[![Constellation Map theme](../assets/previews/theme_constellation_map.png)](../assets/previews/theme_constellation_map.png)
 
 #### timeline
 
 Single-day hourly timeline that makes free blocks and overlaps easy to spot.
 
-[![Timeline theme — Waveshare/Inky split](../assets/previews/theme_timeline_split.png)](../assets/previews/theme_timeline_split.png)
+[![Timeline theme](../assets/previews/theme_timeline.png)](../assets/previews/theme_timeline.png)
 
 #### year_pulse
 
 Year progress plus a compact upcoming-items list for longer-horizon planning.
 
-[![Year Pulse theme — Waveshare/Inky split](../assets/previews/theme_year_pulse_split.png)](../assets/previews/theme_year_pulse_split.png)
+[![Year Pulse theme](../assets/previews/theme_year_pulse.png)](../assets/previews/theme_year_pulse.png)
 
 #### monthly
 
 Full-screen wall-calendar month view with day cells shaded by event density.
 Waveshare uses a crisp monochrome month grid with compact density indicators; Inky uses a warm yellow-orange-red ramp.
 
-[![Monthly theme — Waveshare/Inky split](../assets/previews/theme_monthly_split.png)](../assets/previews/theme_monthly_split.png)
+[![Monthly theme](../assets/previews/theme_monthly.png)](../assets/previews/theme_monthly.png)
 
 #### sunrise
 
 Sun arc and day/night split layout organized around daylight.
 
-[![Sunrise theme — Waveshare/Inky split](../assets/previews/theme_sunrise_split.png)](../assets/previews/theme_sunrise_split.png)
+[![Sunrise theme](../assets/previews/theme_sunrise.png)](../assets/previews/theme_sunrise.png)
 
 #### light_cycle
 
 Full-canvas 24-hour radial clock with the entire day arranged around a single dial. The rim carries hour ticks and 00 / 06 / 12 / 18 numerals; the twilight ring fills with progressively denser radial dashes from civil to nautical to astronomical twilight, and a solid wedge for true night. Today's timed events appear as small ticks just inside the ring, a triangular needle marks the current moment, and a sun (or moon, when below the horizon) glyph rides the rim at the current-time position. The center disc shows day name, big date numeral, month, and weather summary; a footer reports rise / set / event count. On Inky the title and accents render in yellow with a blue needle. All sun-time math is computed locally from `src.astronomy` using `weather.latitude` / `weather.longitude` (falls back to OWM-reported sunrise/sunset when coordinates are absent — twilight bands collapse to a single night band).
 
-[![Light Cycle theme — Waveshare/Inky split](../assets/previews/theme_light_cycle_split.png)](../assets/previews/theme_light_cycle_split.png)
+[![Light Cycle theme](../assets/previews/theme_light_cycle.png)](../assets/previews/theme_light_cycle.png)
 
 #### scorecard
 
 Big-number tile dashboard for weather, AQI, calendar, and system metrics.
 
-[![Scorecard theme — Waveshare/Inky split](../assets/previews/theme_scorecard_split.png)](../assets/previews/theme_scorecard_split.png)
+[![Scorecard theme](../assets/previews/theme_scorecard.png)](../assets/previews/theme_scorecard.png)
 
 #### tides
 
 Alternating horizontal bands with the densest multi-source layout in the theme set.
 
-[![Tides theme — Waveshare/Inky split](../assets/previews/theme_tides_split.png)](../assets/previews/theme_tides_split.png)
+[![Tides theme](../assets/previews/theme_tides.png)](../assets/previews/theme_tides.png)
 
 #### weatherglass
 
 Victorian weather-station instrument deck — a full-canvas brass-and-mahogany panel of procedural analog gauges. A **Rye** Western-saloon masthead carries the date and location across the top; below it three hero instruments sit side by side: a hero thermometer with a mercury column scaled to the current temperature (cold scale in blue, comfort band in green on Inky) and a large numeral with a feels-like caption, a round barometer dial whose needle points to the current pressure with a second trend needle showing the change since the last reading (rising in green, falling in blue), and a stacked hygrometer arc + UV-index bar. A secondary row of four smaller instruments follows: a wind compass rose, a sun arc with twilight bands and sunrise/sunset times, a moon porthole with a procedural terminator and phase name, and an optional AQI badge. When a weather alert is active an alert cartouche overlays the masthead. The L-mode canvas is supersampled 2× (1600×960) so the LANCZOS downsample anti-aliases every dial rim, tick mark, and engraved label; the final 1-bit step uses `threshold` (not Floyd-Steinberg) so the antialiased edges snap to crisp solid black rather than dithering into speckle. The barometer keeps a tiny rolling pressure history in `state/weatherglass_pressure_history.json` to drive the trend needle (not persisted on dry-run / dummy previews). Pure-Python — no new fetcher. On Inky the brass rims render in yellow and the mercury column + alert text render in red.
 
-[![Weatherglass theme — Waveshare/Inky split](../assets/previews/theme_weatherglass_split.png)](../assets/previews/theme_weatherglass_split.png)
+[![Weatherglass theme](../assets/previews/theme_weatherglass.png)](../assets/previews/theme_weatherglass.png)
 
 #### postcard
 
 Procedurally-drawn dithered postcard composed in two parts. The left two-thirds is a "view" scene picked from the current OWM icon and daypart — sky gradient, two-layer mountain silhouettes, water with ripple lines, foreground shore and reeds, plus sun, moon, clouds, rain streaks, lightning, snowflakes, or fog bands as the weather warrants. The right third is the postcard back: a cursive greeting, a circular red postmark with the current month and day, a perforated postage stamp carrying the moon-phase glyph, four ruled "address" lines listing today's events, and the daily quote as the signature. A 3 px white gutter with a dashed shadow forms the centre crease. Floyd-Steinberg quantization turns the procedural greyscale gradients into engraving-style halftone. On Inky the postmark and the stamp frame render in red.
 
-[![Postcard theme — Waveshare/Inky split](../assets/previews/theme_postcard_split.png)](../assets/previews/theme_postcard_split.png)
+[![Postcard theme](../assets/previews/theme_postcard.png)](../assets/previews/theme_postcard.png)
 
 #### naturalist
 
 Victorian botanical plate. **Astloch** blackletter masthead — `PLATE [Roman]` left, `[YEAR-roman] · [MONTH]` right — sits above a triple rule, with a Cinzel small-caps Latin specimen name (`QUERCUS VERNALIS`, `AESTIVALIS`, `AUTUMNALIS`, `HIBERNALIS` keyed to the current season, plus weather suffixes `· sub pluvia / fulmine / nive / nebula / gelu` for rain, storm, snow, fog, and frost). The hero specimen is a procedurally-drawn branch with a solid black trunk, white engraving-style highlight strokes, curving roots, and mixed filled/outlined almond leaves whose count and treatment vary by season — bare in winter, buds in spring, lush canopy in summer, fallen leaves on the ground in autumn — plus weather overlays for rain, storm, snow, frost, and fog. Four leader-line callouts (`FIG. I EVENT`, `FIG. II LUNA`, `FIG. III SOL`, `FIG. IV AER`) pin today's first event, the moon's phase, sunrise/sunset, and the current weather to anatomical features on the specimen. A triple-rule footer carries the daily quote in Playfair with the author in red Cinzel small caps. The branch geometry is RNG-seeded from `(season, modifier, today)` so the same day always renders the same specimen. Floyd-Steinberg quantization. On Inky the masthead rules, callout lines, footer rules, and author small caps render in red.
 
-[![Naturalist theme — Waveshare/Inky split](../assets/previews/theme_naturalist_split.png)](../assets/previews/theme_naturalist_split.png)
+[![Naturalist theme](../assets/previews/theme_naturalist.png)](../assets/previews/theme_naturalist.png)
 
 #### countdown
 
@@ -481,7 +480,7 @@ countdown:
       date: "2026-08-12"
 ```
 
-[![Countdown theme — Waveshare/Inky split](../assets/previews/theme_countdown_split.png)](../assets/previews/theme_countdown_split.png)
+[![Countdown theme](../assets/previews/theme_countdown.png)](../assets/previews/theme_countdown.png)
 
 #### message
 
@@ -491,13 +490,13 @@ Manual message display for reminders or announcements. Use:
 venv/bin/python -m src.main --dry-run --dummy --theme message --message "Dentist at 3pm"
 ```
 
-[![Message theme — Waveshare/Inky split](../assets/previews/theme_message_split.png)](../assets/previews/theme_message_split.png)
+[![Message theme](../assets/previews/theme_message.png)](../assets/previews/theme_message.png)
 
 #### diags
 
 Structured diagnostic readout for validating live data and system state.
 
-[![Diags theme — Waveshare/Inky split](../assets/previews/theme_diags_split.png)](../assets/previews/theme_diags_split.png)
+[![Diags theme](../assets/previews/theme_diags.png)](../assets/previews/theme_diags.png)
 
 ---
 
@@ -532,4 +531,6 @@ Bundled font families used by the current built-in themes:
 | Space Grotesk | `air_quality`, `message`, `year_pulse`, `scorecard` |
 | Share Tech Mono | `terminal` (all four base text slots — the theme's general body and data face: event rows, weather readings, birthday rows, header timestamp; the display faces above cover only the title, section-label, month-band, date-numeral and quote slots), `diags` (all data rows), `trends` (tabular numerals), select utility text |
 
-To regenerate the Waveshare and Inky preview images embedded above, see [Previews](previews.md).
+For the same catalog rendered in Inky Spectra 6 color, see
+[Inky Previews](inky-previews.md). To regenerate either set of preview images,
+see [Previews](previews.md).
