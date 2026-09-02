@@ -292,12 +292,22 @@ enforces this in both directions, and the rule is a licence condition rather
 than housekeeping: OFL 1.1 §2 requires the license text to accompany any
 redistribution, so a face bundled without its `OFL.txt` is a compliance failure
 in every clone and `make deploy` rsync. The suite also reads each font's own
-`name` table and fails a face that asserts no copyright, license description, or
-license URL of its own. That second check is the one that matters when
-evaluating a font found on a design-portfolio site: a sibling license file only
-proves someone put a file there, whereas the embedded record is the font's own
-claim about its terms. A face that makes no claim cannot be redistributed under
-this project's MIT grant, however good it looks.
+`name` table and fails a face that asserts no *licence* of its own — a licence
+description (nameID 13), a licence URL (14), or a grant stated inside the
+copyright string. That second check is the one that matters when evaluating a
+font found on a design-portfolio site: a sibling license file only proves
+someone put a file there, whereas the embedded record is the font's own claim
+about its terms. A face that makes no claim cannot be redistributed under this
+project's MIT grant, however good it looks.
+
+Note the bar is a licence and not a copyright. `Copyright (c) 2025 Foo` with
+both licence fields empty states who owns the font, not what anyone may do with
+it, so it fails. Two bundled families legitimately land there — Astloch and
+Tangerine are OFL upstream but ship builds that predate the convention of
+filling nameID 13/14 — and each is listed in `GRANT_VERIFIED_UPSTREAM` in the
+test module with the URL where the grant was read. Adding an entry means
+checking upstream yourself; it is not a way to quiet a font you have not
+verified.
 
 Also add the family to the bundled-typeface table in the **Third-party content**
 section of `LICENSE`. If it is variable, pin the weight explicitly in the
