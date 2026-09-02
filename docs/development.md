@@ -305,6 +305,14 @@ accessor — several variable fonts default to a thin axis instance (Oxanium's i
 ExtraLight 200), and an unpinned accessor renders as near-invisible hairlines on
 the panel.
 
+**Removing a font needs one extra grep.** `scripts/build_banner.py` is a
+standalone script that deliberately does not import `src/render/fonts.py`; it
+loads its faces by bare filename, so it is the only place a deleted `.ttf` can
+still be referenced after every accessor is gone. Nothing imports it and no test
+runs it, so a dangling reference stays invisible until someone runs
+`make banner`. Grep the whole tree for the filename, not just for its accessor,
+and regenerate `assets/banner.png` if the banner's own faces changed.
+
 If the theme should be embedded in `docs/themes.md`, regenerate its preview
 PNGs (`make previews`, plus an Inky render via the snippet in
 [Theme Previews](previews.md)) and the combined split image

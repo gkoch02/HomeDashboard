@@ -78,8 +78,9 @@ def weatherglass_theme() -> Theme:
             font_bold=playfair_semibold,
             # Rye Western-saloon masthead; Cinzel for engraved dial labels
             # and high-contrast instrument numerals (Cinzel Black has the
-            # full glyph coverage we need — NuCore's metrics are degenerate
-            # for pure-digit strings and degree-sign rendering).
+            # full glyph coverage we need — the condensed display face this
+            # theme originally reached for had degenerate metrics for
+            # pure-digit strings and degree-sign rendering).
             font_title=rye,
             font_section_label=cinzel_semibold,
             font_date_number=cinzel_black,

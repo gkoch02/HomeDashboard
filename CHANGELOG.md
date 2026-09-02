@@ -74,6 +74,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   still live code and still tested — `tests/test_week_view.py` drives it through
   a narrowed region and separately asserts that all twelve names fit.
 
+- **The README banner is re-set in the same replacement faces.**
+  `scripts/build_banner.py` loads its fonts by filename rather than through
+  `src/render/fonts.py`, so it held the only two remaining references to the
+  removed files and `make banner` would have failed at `ImageFont.truetype`.
+  The wordmark moves to **Oxanium Bold** and the temperature numeral to
+  **Antonio Bold**, and `assets/banner.png` is regenerated. Two details fell
+  out of the swap: the helper now pins a weight for variable faces (Oxanium's
+  default instance is ExtraLight, which dithers to hairlines at 1-bit), and the
+  temperature is set as a real `72°` — the drawn ring it replaces was a
+  workaround for the old face having no degree glyph, not the design echo of
+  `weather_panel.py` its comment claimed. The wordmark is set at 100pt rather
+  than 130: Oxanium is the wider face, and 100pt is the largest size at which
+  "HOME DASHBOARD" still fits the 928px wordmark zone.
+
 - **Releases are cut with one command instead of four manual edits.**
   `make release` (`scripts/release.py`) bumps `src/_version.py`, dates the
   `## [Unreleased]` block, commits, and creates the annotated `vX.Y.Z` tag.

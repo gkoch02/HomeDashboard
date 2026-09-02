@@ -129,3 +129,51 @@ def _name_table(path: Path) -> dict[int, str]:
             continue
         out.setdefault(name_id, value)
     return out
+
+
+def _font_filename_literals() -> list[tuple[Path, str]]:
+    """Every bare `"Something.ttf"` string literal under src/ and scripts/.
+
+    Deliberately a source scan rather than an import: `scripts/build_banner.py`
+    is standalone (it does not import `src.render.fonts`) and nothing in the
+    suite executes it, so an import-based check cannot see the filenames it
+    holds.
+    """
+    root = FONT_DIR.parent
+    pattern = re.compile(r'"([^"/]+\.(?:ttf|otf|ttc))"')
+    found: list[tuple[Path, str]] = []
+    for directory in ("src", "scripts"):
+        for path in sorted((root / directory).rglob("*.py")):
+            for name in pattern.findall(path.read_text(encoding="utf-8")):
+                found.append((path, name))
+    return found
+
+
+def test_the_scan_finds_the_font_loaders():
+    """Guard against the sweep below passing because the regex matched nothing."""
+    referenced = {name for _, name in _font_filename_literals()}
+    assert "weathericons-regular.ttf" in referenced
+    assert len(referenced) >= 20
+
+
+@pytest.mark.parametrize(
+    ("source", "name"),
+    _font_filename_literals(),
+    ids=lambda v: v.name if isinstance(v, Path) else v,
+)
+def test_every_font_named_in_source_is_bundled(source: Path, name: str):
+    """A deleted face must leave no dangling reference behind.
+
+    `src/render/fonts.py` is covered by its own accessor tests, but
+    `scripts/build_banner.py` loads faces by bare filename and is imported by
+    nothing — so a reference there survives the removal of the file it names and
+    stays invisible until someone runs `make banner`, where it surfaces as a
+    Pillow "cannot open resource". That happened: the banner still asked for two
+    faces this project removed for having no licence.
+    """
+    assert (FONT_DIR / name).is_file(), (
+        f"{source.name} loads {name!r}, which is not in fonts/. A font removed "
+        f"from the bundle has to be replaced everywhere it is named — including "
+        f"scripts/ that load faces by filename rather than through "
+        f"src/render/fonts.py."
+    )
