@@ -526,7 +526,10 @@ Bundled font families used by the current built-in themes:
 | Audiowide | `constellation_map` (cardinal letters, star + constellation labels) |
 | Astloch | `almanac` (masthead + dateline character font), `naturalist` (masthead character font) |
 | Antonio | `sunrise`, `tides` (condensed display title + section labels) |
+| Oxanium | `terminal` (dashboard title, day column headers, quote body) |
+| Rajdhani | `terminal` (month band, section labels, quote attribution) |
+| Orbitron | `terminal` (large today date numeral) |
 | Space Grotesk | `air_quality`, `message`, `year_pulse`, `scorecard` |
-| Share Tech Mono / terminal fonts | `terminal`, `diags`, `trends` (tabular numerals), select utility text |
+| Share Tech Mono | `terminal` (event body text), `diags` (all data rows), `trends` (tabular numerals), select utility text |
 
 To regenerate the Waveshare and Inky preview images embedded above, see [Previews](previews.md).
