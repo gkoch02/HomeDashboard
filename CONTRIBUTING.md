@@ -181,7 +181,9 @@ See `src/fetchers/calendar_caldav.py` plus the `_register()` block at the bottom
 
 When changing any of these areas, update the canonical docs in the same PR:
 
-- Theme inventory or behavior: `docs/themes.md` (which also embeds the preview images)
+- Theme inventory or behavior: `docs/themes.md` (which embeds the monochrome Waveshare
+  previews) **and** `docs/inky-previews.md` (the Spectra 6 color catalog) — `make docs-check`
+  holds both to the theme registry
 - Preview regeneration workflow: `docs/previews.md`
 - Config schema or defaults: `docs/configuration.md`
 - Setup, install, auth, or recovery flow: `README.md`, `docs/setup.md`, or `docs/web-ui.md`
