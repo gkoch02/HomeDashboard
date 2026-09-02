@@ -110,7 +110,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   workaround for the old face having no degree glyph, not the design echo of
   `weather_panel.py` its comment claimed. The wordmark is set at 100pt rather
   than 130: Oxanium is the wider face, and 100pt is the largest size at which
-  "HOME DASHBOARD" still fits the 928px wordmark zone.
+  "HOME DASHBOARD" still fits the 928px wordmark zone, which cost the wordmark
+  column ~56px of height it cannot get back. Top-aligned that left 131px of dead
+  space beneath it against the motif column's 53, reading as a layout fault
+  rather than a short column, so the column is dropped by `WORDMARK_DROP` (34px)
+  to share the motif column's optical centre — measured from the two columns'
+  ink extents rather than chosen by eye.
 
 - **Releases are cut with one command instead of four manual edits.**
   `make release` (`scripts/release.py`) bumps `src/_version.py`, dates the
