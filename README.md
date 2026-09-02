@@ -90,3 +90,14 @@ make pi-logs    # tail renderer logs
 ```
 
 If something looks off, go to [docs/setup.md](docs/setup.md#troubleshooting-and-recovery) and [docs/faq.md](docs/faq.md).
+
+## License
+
+MIT — see [LICENSE](LICENSE).
+
+The bundled typefaces under `fonts/` are third-party works under the SIL Open
+Font License 1.1, each shipped with its upstream license text; the quotation
+store in `config/quotes.json` collects short excerpts whose underlying text is
+not ours to license. The **Third-party content** section of
+[LICENSE](LICENSE) sets out both, along with the two non-permissive runtime
+dependencies (`recurring-ical-events`, `caldav`).

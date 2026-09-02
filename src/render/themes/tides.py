@@ -16,7 +16,7 @@ zebra-stripe visual that exploits eInk's crisp contrast.
 
 from __future__ import annotations
 
-from src.render.fonts import nucore_condensed, regular
+from src.render.fonts import antonio_bold, antonio_semibold, regular
 from src.render.theme import ComponentRegion, Theme, ThemeLayout, ThemeStyle
 
 
@@ -39,8 +39,8 @@ def tides_theme() -> Theme:
         ),
         style=ThemeStyle(
             font_regular=regular,
-            font_title=nucore_condensed,
-            font_section_label=nucore_condensed,
+            font_title=antonio_bold,
+            font_section_label=antonio_semibold,
             show_borders=False,
         ),
     )

@@ -5,7 +5,14 @@ weather panel for a data-heavy, information-dense terminal aesthetic.
 Uses Share Tech Mono for an authentic monospace terminal feel.
 """
 
-from src.render.fonts import cyber_mono, maratype, synthetic_genesis, uesc_display
+from src.render.fonts import (
+    cyber_mono,
+    orbitron_black,
+    oxanium,
+    oxanium_bold,
+    rajdhani,
+    rajdhani_semibold,
+)
 from src.render.theme import ComponentRegion, Theme, ThemeLayout, ThemeStyle
 
 
@@ -41,12 +48,16 @@ def terminal_theme() -> Theme:
             font_medium=cyber_mono,
             font_semibold=cyber_mono,
             font_bold=cyber_mono,
-            font_date_number=synthetic_genesis,
-            font_month_title=uesc_display,
-            font_title=maratype,
-            font_section_label=uesc_display,
-            font_quote=maratype,
-            font_quote_author=uesc_display,
+            # Display chrome is a three-face stack: Oxanium carries the
+            # title and quote body, Rajdhani the small chrome (month band,
+            # section labels, attribution), and Orbitron the one hero
+            # numeral.  Each is OFL-licensed and bundled with its license.
+            font_date_number=orbitron_black,
+            font_month_title=rajdhani_semibold,
+            font_title=oxanium_bold,
+            font_section_label=rajdhani_semibold,
+            font_quote=oxanium,
+            font_quote_author=rajdhani,
         ),
     )
 

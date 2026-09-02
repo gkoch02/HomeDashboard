@@ -1,5 +1,8 @@
 [build-system]
-requires = ["setuptools>=61"]
+# >=77 for PEP 639 (`license` as an SPDX expression + `license-files`).
+# On 61 the string form is not understood and the bundled OFL texts would
+# silently not ship in the wheel.
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -8,7 +11,11 @@ dynamic = ["version"]
 description = "Python eInk dashboard for Raspberry Pi — calendar, weather, birthdays, and daily quotes"
 readme = "README.md"
 requires-python = ">=3.10"
-license = {text = "MIT"}
+# PEP 639 form: an SPDX expression plus the license files to ship in the
+# wheel. `license-files` carries the bundled fonts' OFL texts too, so an
+# installed copy is self-documenting rather than pointing at a repo.
+license = "MIT"
+license-files = ["LICENSE", "fonts/*OFL*.txt"]
 dependencies = [
     "Pillow>=10.0",
     "google-api-python-client>=2.0",

@@ -525,7 +525,7 @@ Bundled font families used by the current built-in themes:
 | Righteous | `light_cycle` (centre date numeral), `halftone` (every typeset element), `day_arc` (chrome), `halftone_agenda` (weather pane + agenda chrome) |
 | Audiowide | `constellation_map` (cardinal letters, star + constellation labels) |
 | Astloch | `almanac` (masthead + dateline character font), `naturalist` (masthead character font) |
-| NuCore Condensed | `sunrise`, `tides` (high-contrast display numerals) |
+| Antonio | `sunrise`, `tides` (condensed display title + section labels) |
 | Space Grotesk | `air_quality`, `message`, `year_pulse`, `scorecard` |
 | Share Tech Mono / terminal fonts | `terminal`, `diags`, `trends` (tabular numerals), select utility text |
 

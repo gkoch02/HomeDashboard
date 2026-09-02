@@ -1,0 +1,131 @@
+"""Every bundled font ships with the license that permits bundling it.
+
+`docs/development.md` states the rule ("Don't ship a font without its license"),
+but nothing enforced it, and the tree drifted: 20 of 29 font files shipped with
+no license text at all, and five of those were display faces whose name tables
+carried no copyright, no license description, and no license URL — no grant of
+any kind. They were removed rather than documented, because a font you cannot
+show a licence for is not a font you can redistribute under this project's MIT
+grant.
+
+The SIL Open Font License makes this a licence condition rather than good
+housekeeping: OFL 1.1 §2 requires that the license text accompany any
+redistribution of the font, so an OFL face bundled without its `OFL.txt` is a
+compliance failure that ships in every clone, wheel, and `make deploy` rsync.
+"""
+
+from __future__ import annotations
+
+import re
+from pathlib import Path
+
+import pytest
+
+FONT_DIR = Path(__file__).parent.parent / "fonts"
+
+FONT_SUFFIXES = (".ttf", ".otf", ".ttc", ".woff", ".woff2")
+
+# A family's license file is named "<Family>-OFL.txt" beside the font, matching
+# the flat layout of fonts/. The family is the part of the filename before the
+# first "-" (PlayfairDisplay-Bold.ttf -> PlayfairDisplay), or the whole stem
+# when there is no weight suffix (Cinzel.ttf -> Cinzel).
+_LICENSE_RE = re.compile(r"-(OFL|LICENSE)\.txt$", re.IGNORECASE)
+
+
+def _family(font: Path) -> str:
+    return font.stem.split("-")[0]
+
+
+def _font_files() -> list[Path]:
+    return sorted(p for p in FONT_DIR.iterdir() if p.suffix.lower() in FONT_SUFFIXES)
+
+
+def _license_for(font: Path) -> Path | None:
+    family = _family(font).lower()
+    for candidate in FONT_DIR.iterdir():
+        if not _LICENSE_RE.search(candidate.name):
+            continue
+        if candidate.name.split("-")[0].lower() == family:
+            return candidate
+    return None
+
+
+def test_fonts_directory_is_not_empty():
+    """Guard against the sweep below passing because it found nothing."""
+    assert len(_font_files()) >= 20
+
+
+@pytest.mark.parametrize("font", _font_files(), ids=lambda p: p.name)
+def test_every_bundled_font_ships_its_license(font: Path):
+    licence = _license_for(font)
+    assert licence is not None, (
+        f"{font.name} is bundled with no license file. Add the upstream "
+        f"license text as fonts/{_family(font)}-OFL.txt (see the procedure in "
+        f"docs/development.md). If the upstream project grants no redistribution "
+        f"licence, the font cannot ship here at all."
+    )
+    text = licence.read_text(encoding="utf-8")
+    assert text.strip(), f"{licence.name} is empty"
+    assert "SIL OPEN FONT LICENSE" in text.upper(), (
+        f"{licence.name} does not contain the SIL Open Font License text. "
+        f"A face under different terms needs its own entry in the "
+        f"'Third-party content' section of LICENSE."
+    )
+
+
+@pytest.mark.parametrize("font", _font_files(), ids=lambda p: p.name)
+def test_every_bundled_font_declares_a_licence_in_its_metadata(font: Path):
+    """The font's own name table must carry a licence, not just a sibling file.
+
+    This is what actually caught the five unlicensed faces: each shipped a
+    plausible-looking display font whose name table held a designer URL and
+    nothing else — no copyright (nameID 0), no license description (13), no
+    license URL (14). A sibling `OFL.txt` proves only that someone put a file
+    there; the embedded record is the font's own claim about its terms.
+    """
+    names = _name_table(font)
+    has_claim = any(
+        names.get(nid, "").strip()
+        for nid in (0, 13, 14)  # copyright, license description, license URL
+    )
+    assert has_claim, (
+        f"{font.name} carries no copyright, license description, or license URL "
+        f"in its name table — the font itself asserts no terms. Verify its "
+        f"provenance before bundling it; do not rely on a sibling license file."
+    )
+
+
+def _name_table(path: Path) -> dict[int, str]:
+    """Minimal OpenType `name` table reader.
+
+    Hand-rolled rather than pulled from fontTools: this suite must not grow a
+    dependency purely to assert a licensing invariant, and the parse is a
+    fixed-layout table walk.
+    """
+    import struct
+
+    data = path.read_bytes()
+    (num_tables,) = struct.unpack(">H", data[4:6])
+    offset = None
+    for i in range(num_tables):
+        rec = 12 + 16 * i
+        tag, _checksum, off, _len = struct.unpack(">4sIII", data[rec : rec + 16])
+        if tag == b"name":
+            offset = off
+            break
+    if offset is None:
+        return {}
+
+    _fmt, count, string_offset = struct.unpack(">HHH", data[offset : offset + 6])
+    out: dict[int, str] = {}
+    for i in range(count):
+        rec = offset + 6 + 12 * i
+        platform, _enc, _lang, name_id, ln, str_off = struct.unpack(">HHHHHH", data[rec : rec + 12])
+        start = offset + string_offset + str_off
+        raw = data[start : start + ln]
+        try:
+            value = raw.decode("utf-16-be") if platform == 3 else raw.decode("latin-1")
+        except UnicodeDecodeError:
+            continue
+        out.setdefault(name_id, value)
+    return out

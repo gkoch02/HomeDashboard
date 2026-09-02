@@ -97,19 +97,56 @@ def cinzel_black(size: int) -> ImageFont.FreeTypeFont:
     return _get_cinzel(size, 900)
 
 
-# Maratype — display font for terminal theme dashboard title and day column headers.
-def maratype(size: int) -> ImageFont.FreeTypeFont:
-    return get_font("Maratype.otf", size)
+# Oxanium — techno/cyberpunk display sans whose squared geometric terminals read
+# as retro-future (Sev Meyer, OFL).  Carries the terminal theme's title, day
+# column headers, and quote body.  Chosen over the wider Orbitron for these roles
+# because it stays legible in a 14px day header and a wrapped quote line, where a
+# wide face would force the text size down.
+#
+# Variable font, wght 200-800, whose DEFAULT axis instance is ExtraLight (200) —
+# every accessor must pin a weight explicitly or the terminal theme renders as
+# near-invisible hairlines on the panel.
+@lru_cache(maxsize=32)
+def _get_oxanium(size: int, wght: int) -> ImageFont.FreeTypeFont:
+    font = ImageFont.truetype(str(FONT_DIR / "Oxanium-Variable.ttf"), size)
+    font.set_variation_by_axes([wght])
+    return font
 
 
-# Synthetic Genesis — sci-fi display font for the terminal theme date number.
-def synthetic_genesis(size: int) -> ImageFont.FreeTypeFont:
-    return get_font("Synthetic Genesis.otf", size)
+def oxanium(size: int) -> ImageFont.FreeTypeFont:
+    return _get_oxanium(size, 400)
 
 
-# UESC Display — clean display font for the terminal theme month title.
-def uesc_display(size: int) -> ImageFont.FreeTypeFont:
-    return get_font("UESC Display.otf", size)
+def oxanium_bold(size: int) -> ImageFont.FreeTypeFont:
+    return _get_oxanium(size, 700)
+
+
+# Orbitron — the canonical geometric sci-fi display face (Matt McInerney, OFL).
+# Very wide, so it is reserved for the terminal theme's single hero element: the
+# large today date numeral.  Variable font, wght 400-900; Black (900) gives the
+# numeral enough stroke mass to hold against the black canvas.
+@lru_cache(maxsize=32)
+def _get_orbitron(size: int, wght: int) -> ImageFont.FreeTypeFont:
+    font = ImageFont.truetype(str(FONT_DIR / "Orbitron-Variable.ttf"), size)
+    font.set_variation_by_axes([wght])
+    return font
+
+
+def orbitron_black(size: int) -> ImageFont.FreeTypeFont:
+    return _get_orbitron(size, 900)
+
+
+# Rajdhani — squarish semi-condensed techno sans drawn for UI legibility at small
+# sizes (Indian Type Foundry, OFL).  Carries the terminal theme's chrome: month
+# band, section labels (11px), and quote attribution.  Static weights rather than
+# the variable cut because only two are needed and the variable file also ships
+# Devanagari.
+def rajdhani(size: int) -> ImageFont.FreeTypeFont:
+    return get_font("Rajdhani-Regular.ttf", size)
+
+
+def rajdhani_semibold(size: int) -> ImageFont.FreeTypeFont:
+    return get_font("Rajdhani-SemiBold.ttf", size)
 
 
 # Space Grotesk — proportional sans derived from Space Mono; retains the
@@ -219,10 +256,20 @@ def rye(size: int) -> ImageFont.FreeTypeFont:
     return get_font("Rye-Regular.ttf", size)
 
 
-# NuCore — high-contrast display font for scorecard/sunrise/tides themes.
-def nucore(size: int) -> ImageFont.FreeTypeFont:
-    return get_font("NuCore.otf", size)
+# Antonio — tall narrow condensed sans (Vernon Adams, OFL).  Carries the
+# high-contrast condensed display role in the sunrise and tides themes: their
+# titles and section labels.  Variable font, wght 100-700; the accessors pin
+# Bold (700) and SemiBold (600) rather than relying on the axis default.
+@lru_cache(maxsize=32)
+def _get_antonio(size: int, wght: int) -> ImageFont.FreeTypeFont:
+    font = ImageFont.truetype(str(FONT_DIR / "Antonio-Variable.ttf"), size)
+    font.set_variation_by_axes([wght])
+    return font
 
 
-def nucore_condensed(size: int) -> ImageFont.FreeTypeFont:
-    return get_font("NuCore Condensed.otf", size)
+def antonio_semibold(size: int) -> ImageFont.FreeTypeFont:
+    return _get_antonio(size, 600)
+
+
+def antonio_bold(size: int) -> ImageFont.FreeTypeFont:
+    return _get_antonio(size, 700)
