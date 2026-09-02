@@ -35,8 +35,14 @@ WORDMARK_RIGHT = 980  # right edge available to the wordmark column
 MOTIF_X = 1010  # left edge of the motif column
 
 
-def _font(filename: str, size: int) -> ImageFont.FreeTypeFont:
-    return ImageFont.truetype(str(FONTS_DIR / filename), size)
+def _font(filename: str, size: int, wght: int | None = None) -> ImageFont.FreeTypeFont:
+    font = ImageFont.truetype(str(FONTS_DIR / filename), size)
+    if wght is not None:
+        # Variable faces must be pinned: Oxanium's default axis instance is
+        # ExtraLight (200), which renders as near-invisible hairlines once the
+        # banner is quantized to 1-bit.
+        font.set_variation_by_axes([wght])
+    return font
 
 
 def _text_size(
@@ -56,9 +62,10 @@ def _draw_frame(draw: ImageDraw.ImageDraw) -> None:
 
 
 def _draw_wordmark(draw: ImageDraw.ImageDraw) -> None:
-    # Wordmark in Maratype (the terminal theme's display face). 130pt fits
-    # "HOME DASHBOARD" comfortably within the wordmark zone (~930px wide).
-    title_font = _font("Maratype.otf", 130)
+    # Wordmark in Oxanium Bold (the terminal theme's display face). Oxanium is
+    # wider than the face this replaced, so 100pt is the largest size at which
+    # "HOME DASHBOARD" still fits the wordmark zone (917px against 928px).
+    title_font = _font("Oxanium-Variable.ttf", 100, wght=700)
     tagline_font = _font("DMSans.ttf", 30)
     eyebrow_font = _font("PlusJakartaSans-SemiBold.ttf", 22)
 
@@ -146,31 +153,20 @@ def _draw_weather_block(draw: ImageDraw.ImageDraw, origin: tuple[int, int]) -> N
     # Sunny weather glyph + temperature numeral, echoing weather_panel.py.
     x0, y0 = origin
     glyph_font = _font("weathericons-regular.ttf", 84)
-    # NuCore Condensed (same family as NuCore.otf used in sunrise/tides/scorecard);
-    # the non-condensed variant has an OpenType digit substitution that PIL's
-    # basic shaper can't resolve, leaving digits as zero-height glyphs.
-    temp_font = _font("NuCore Condensed.otf", 78)
+    # Antonio Bold — the condensed display face sunrise/tides use for their
+    # numerals.
+    temp_font = _font("Antonio-Variable.ttf", 78, wght=700)
     label_font = _font("DMSans.ttf", 16)
 
     glyph = ""  # Weather Icons font: OWM code "01d" (clear sky)
     draw.text((x0, y0), glyph, font=glyph_font, fill=BLACK)
     gw, _ = _text_size(draw, glyph, glyph_font)
 
-    # Temperature numeral immediately right of the glyph. The condensed font
-    # lacks a degree-symbol glyph, so we draw it as a small ring after the
-    # numeral — consistent with how weather_panel.py renders the °.
+    # Temperature numeral immediately right of the glyph. Antonio carries a
+    # real degree glyph, so the string is set the way weather_panel.py sets it
+    # rather than approximated with a drawn ring.
     tx = x0 + gw + 14
-    temp = "72"
-    draw.text((tx, y0 + 4), temp, font=temp_font, fill=BLACK)
-    tw, _ = _text_size(draw, temp, temp_font)
-    ring_x = tx + tw + 6
-    ring_y = y0 + 6
-    ring_r = 10
-    draw.ellipse(
-        [ring_x, ring_y, ring_x + 2 * ring_r, ring_y + 2 * ring_r],
-        outline=BLACK,
-        width=4,
-    )
+    draw.text((tx, y0 + 4), "72\u00b0", font=temp_font, fill=BLACK)
 
     # Label sits below the sun glyph (glyph bottom is y0+108 because the
     # weather-icons font has a 15-px top margin baked into the ink box).

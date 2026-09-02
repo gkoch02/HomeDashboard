@@ -23,7 +23,7 @@ and sunset, with today's events split into "daylight" and "evening" columns.
 
 from __future__ import annotations
 
-from src.render.fonts import nucore_condensed, regular
+from src.render.fonts import antonio_bold, antonio_semibold, regular
 from src.render.theme import ComponentRegion, Theme, ThemeLayout, ThemeStyle
 
 _HEADER_H = 36
@@ -50,8 +50,8 @@ def sunrise_theme() -> Theme:
             draw_order=["sunrise"],
         ),
         style=ThemeStyle(
-            font_title=nucore_condensed,
-            font_section_label=nucore_condensed,
+            font_title=antonio_bold,
+            font_section_label=antonio_semibold,
             font_regular=regular,
             invert_header=True,
             show_borders=True,

@@ -327,24 +327,48 @@ class TestDrawWeek:
         bbox = probe.textbbox((0, 0), name, font=theme.style.font_month_title(33))
         return bbox[2] - bbox[0]
 
-    def test_long_month_name_is_scaled_down_to_fit_the_cell(self):
-        """SEPTEMBER overflows the combined Sat/Sun date cell at the starting
-        33px size, so week_view's shrink loop must bring it back inside.
+    def test_every_month_name_fits_the_cell(self):
+        """The band's invariant: no month name ever overruns its cell.
 
-        Measured against the cell, not against a short month: SEPTEMBER has
-        three times MAY's letters and is legitimately wider on the plate even
-        after shrinking. The property that matters is that it *fits*.
+        Asserted for all twelve rather than for one long fixture, because the
+        month face is theme-owned and a future swap changes which name is the
+        widest — SEPTEMBER is not automatically the binding case.
         """
         from src.render.theme import load_theme
 
         theme = load_theme("terminal")
         cell_w = theme.layout.week_view.w // 7 * 2  # last two columns, merged
 
+        for month in range(1, 13):
+            band = self._month_band(theme, date(2026, month, 16))
+            assert band is not None, f"month {month}: the band must be drawn"
+            assert band[2] <= cell_w, (
+                f"{date(2026, month, 16):%B} renders {band[2]}px wide in a "
+                f"{cell_w}px cell — the font shrink loop did not bring it inside"
+            )
+
+    def test_long_month_name_is_scaled_down_to_fit_the_cell(self):
+        """week_view's shrink loop must pull an overflowing month back inside.
+
+        Driven through a deliberately narrow region rather than a long month
+        name: the band is set in Rajdhani, which is semi-condensed enough that
+        all twelve real names now clear the 228px cell at the full 33px start
+        size (the previous fixture, SEPTEMBER, measures 157px). Squeezing the
+        region is what still reaches the loop, and it exercises the same code
+        path draw_week runs in production.
+        """
+        from src.render.theme import ComponentRegion, load_theme
+
+        theme = load_theme("terminal")
+        full = theme.layout.week_view
+        narrow = ComponentRegion(full.x, full.y, 320, full.h)
+        cell_w = narrow.w // 7 * 2
+
         assert self._unscaled_month_width(theme, "SEPTEMBER") > cell_w, (
-            "fixture no longer exercises the shrink loop — pick a longer month"
+            "fixture no longer exercises the shrink loop — narrow the region"
         )
 
-        band = self._month_band(theme, date(2026, 9, 16))
+        band = self._month_band(theme, date(2026, 9, 16), region=narrow)
         assert band is not None, "the month band must actually be drawn"
         assert band[2] <= cell_w, (
             f"SEPTEMBER renders {band[2]}px wide in a {cell_w}px cell — "
@@ -369,11 +393,11 @@ class TestDrawWeek:
         )
 
     @staticmethod
-    def _month_band(theme, day):
+    def _month_band(theme, day, region=None):
         """Bounding box of the ink in the month band, as (x0, y0, width)."""
         img = Image.new("1", (800, 480), 1)
         draw = ImageDraw.Draw(img)
-        region = theme.layout.week_view
+        region = region if region is not None else theme.layout.week_view
         draw_week(draw, [], day, region=region, style=theme.style)
 
         header_h = max(24, region.h * 32 // 320)

@@ -280,11 +280,48 @@ that; see [Adding a Theme](../CONTRIBUTING.md#adding-a-theme). To author a greys
 reference).
 
 If the theme uses an OFL display font that isn't already in `fonts/`, drop the
-`.ttf` and the upstream `OFL.txt` license file into `fonts/`, add an accessor
-to `src/render/fonts.py`, and reference it via `style.font_title` /
+`.ttf` and the upstream `OFL.txt` license file into `fonts/` (named
+`<Family>-OFL.txt`, matching the flat layout there), add an accessor to
+`src/render/fonts.py`, and reference it via `style.font_title` /
 `style.font_section_label` / `style.font_date_number` (see `light_cycle`'s
 Righteous numeral, `almanac`'s Astloch masthead, or `constellation_map`'s
-Audiowide labels). Don't ship a font without its license.
+Audiowide labels).
+
+**Don't ship a font without its license** — `tests/test_font_licenses.py`
+enforces this in both directions, and the rule is a licence condition rather
+than housekeeping: OFL 1.1 §2 requires the license text to accompany any
+redistribution, so a face bundled without its `OFL.txt` is a compliance failure
+in every clone and `make deploy` rsync. The suite also reads each font's own
+`name` table and fails a face that asserts no *licence* of its own — a licence
+description (nameID 13), a licence URL (14), or a grant stated inside the
+copyright string. That second check is the one that matters when evaluating a
+font found on a design-portfolio site: a sibling license file only proves
+someone put a file there, whereas the embedded record is the font's own claim
+about its terms. A face that makes no claim cannot be redistributed under this
+project's MIT grant, however good it looks.
+
+Note the bar is a licence and not a copyright. `Copyright (c) 2025 Foo` with
+both licence fields empty states who owns the font, not what anyone may do with
+it, so it fails. Two bundled families legitimately land there — Astloch and
+Tangerine are OFL upstream but ship builds that predate the convention of
+filling nameID 13/14 — and each is listed in `GRANT_VERIFIED_UPSTREAM` in the
+test module with the URL where the grant was read. Adding an entry means
+checking upstream yourself; it is not a way to quiet a font you have not
+verified.
+
+Also add the family to the bundled-typeface table in the **Third-party content**
+section of `LICENSE`. If it is variable, pin the weight explicitly in the
+accessor — several variable fonts default to a thin axis instance (Oxanium's is
+ExtraLight 200), and an unpinned accessor renders as near-invisible hairlines on
+the panel.
+
+**Removing a font needs one extra grep.** `scripts/build_banner.py` is a
+standalone script that deliberately does not import `src/render/fonts.py`; it
+loads its faces by bare filename, so it is the only place a deleted `.ttf` can
+still be referenced after every accessor is gone. Nothing imports it and no test
+runs it, so a dangling reference stays invisible until someone runs
+`make banner`. Grep the whole tree for the filename, not just for its accessor,
+and regenerate `assets/banner.png` if the banner's own faces changed.
 
 If the theme should be embedded in `docs/themes.md`, regenerate its preview
 PNGs (`make previews`, plus an Inky render via the snippet in

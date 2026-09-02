@@ -6,7 +6,87 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Removed
+
+- **Five bundled display faces that carried no licence at all.**
+  `Maratype.otf`, `NuCore.otf`, `NuCore Condensed.otf`, `Synthetic Genesis.otf`
+  and `UESC Display.otf` shipped in `fonts/` with no accompanying licence file
+  and — the part that settles it — no copyright string, no licence description
+  and no licence URL in their own `name` tables. Each carried only a designer
+  link to a portfolio site. The project's MIT grant purports to let anyone
+  "use, copy, modify, merge, publish, distribute, sublicense, and/or sell"
+  everything in the repository, and that is not a claim this project could make
+  about those files. They are replaced below rather than documented. If a
+  written grant for any of them turns up, the face can come back.
+- `nucore` (the non-condensed accessor) is gone with the file. It had no
+  production caller — it was reached only by its own smoke test.
+
+### Added
+
+- **Licence texts for the nine families that were bundled without one.**
+  Playfair Display, Plus Jakarta Sans, DM Sans, Cinzel, Share Tech Mono, Space
+  Grotesk and Weather Icons had shipped with no `OFL.txt` — 20 of 29 font files
+  were uncovered. All are OFL-licensed upstream, so this was a compliance
+  failure rather than a licensing one: OFL 1.1 §2 requires the licence text to
+  accompany the font, so every clone and every `make deploy` rsync was shipping
+  them out of compliance. Every font in `fonts/` now has its licence beside it.
+- **`tests/test_font_licenses.py`** enforces that going forward, in both
+  directions: every bundled font must have a sibling licence file containing the
+  OFL text, *and* must assert terms in its own `name` table. The second check is
+  what distinguishes a font whose licence someone documented from a font that
+  actually carries one.
+- **A `Third-party content` section in `LICENSE`**, recording what the MIT grant
+  does not reach: the bundled typefaces and their licence files, the provenance
+  of `assets/moon_full.png` (an original photograph by the copyright holder) and
+  the generated images, the quotation collection in `config/quotes.json` (whose
+  selection and arrangement are MIT but whose underlying quotations are not the
+  copyright holder's to license), and the two non-permissive runtime
+  dependencies — `recurring-ical-events` (LGPL-3.0-or-later) and `caldav`
+  (GPL-3.0-or-later **or** Apache-2.0, relied on under Apache-2.0). A `License`
+  section in `README.md` points at it.
+- **PEP 639 packaging metadata.** `pyproject.toml` declares
+  `license = "MIT"` as an SPDX expression plus
+  `license-files = ["LICENSE", "fonts/*OFL*.txt"]`, so a built wheel carries
+  `License-Expression: MIT` and all eighteen bundled font licences in its
+  `dist-info`. The build requirement moves to `setuptools>=77`, below which the
+  string form is not understood and the OFL texts would silently not ship.
+
 ### Changed
+
+- **The `terminal`, `sunrise` and `tides` themes are re-set in OFL faces.**
+  `terminal` now uses **Oxanium** for its title, day column headers and quote
+  body, **Rajdhani** for the month band, section labels and quote attribution,
+  and **Orbitron Black** for the hero date numeral; `sunrise` and `tides` use
+  **Antonio** for their titles and section labels. The three-role split of the
+  original is preserved, and each face is bundled with its OFL text.
+
+  The date numeral is a visible improvement rather than a like-for-like swap:
+  Synthetic Genesis is a constructed-alphabet display face whose digits are not
+  legible as digits — its `6` renders as a bar, a diamond and a block — so
+  `terminal` had never actually shown a readable day of the month. Oxanium was
+  chosen over Orbitron for the body roles because Orbitron's width forces a
+  dense quote down to an unreadable size; Orbitron is kept for the one hero
+  element where width is an asset.
+
+  Consequence worth knowing: Rajdhani is semi-condensed, so no real month name
+  now overflows the `terminal` month band (SEPTEMBER measures 157px against a
+  228px cell) and its shrink loop no longer fires in production. The loop is
+  still live code and still tested — `tests/test_week_view.py` drives it through
+  a narrowed region and separately asserts that all twelve names fit.
+
+- **The README banner is re-set in the same replacement faces.**
+  `scripts/build_banner.py` loads its fonts by filename rather than through
+  `src/render/fonts.py`, so it held the only two remaining references to the
+  removed files and `make banner` would have failed at `ImageFont.truetype`.
+  The wordmark moves to **Oxanium Bold** and the temperature numeral to
+  **Antonio Bold**, and `assets/banner.png` is regenerated. Two details fell
+  out of the swap: the helper now pins a weight for variable faces (Oxanium's
+  default instance is ExtraLight, which dithers to hairlines at 1-bit), and the
+  temperature is set as a real `72°` — the drawn ring it replaces was a
+  workaround for the old face having no degree glyph, not the design echo of
+  `weather_panel.py` its comment claimed. The wordmark is set at 100pt rather
+  than 130: Oxanium is the wider face, and 100pt is the largest size at which
+  "HOME DASHBOARD" still fits the 928px wordmark zone.
 
 - **Releases are cut with one command instead of four manual edits.**
   `make release` (`scripts/release.py`) bumps `src/_version.py`, dates the
