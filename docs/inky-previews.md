@@ -23,7 +23,7 @@ Themes are authored in black and white. Nothing in a theme file names an RGB
 value — color is applied at render time, only when `display.provider: inky`, in
 two layers:
 
-**Semantic accent roles** map the same way for every theme:
+**Semantic accent roles** carry the same meaning everywhere, and default to:
 
 | Role | Ink | Typical use |
 |---|---|---|
@@ -32,10 +32,18 @@ two layers:
 | `accent_alert` | red | weather alerts, unhealthy AQI, the event in progress |
 | `accent_good` | green | healthy or nominal values |
 
+A theme may override any of those four for its own plate; where one does, the
+entry below says so. `qotd` is the only one today — it takes green for
+`accent_info`.
+
 **A per-theme accent pair** — `(primary, secondary)` — carries whatever that
 theme wants emphasized: the sun ring on `halftone`, the red rules on `almanac`,
-the green phosphor on `terminal`. The pair is registered next to the theme
-itself, and each entry below names it.
+the green phosphor on `terminal`. The pair is usually the one registered beside
+the theme, but an explicit `ThemeStyle.accent_primary` / `accent_secondary`
+wins over it — so each entry names what the theme *resolves* to, not what it
+registers. (`qotd` registers a red primary and then overrides it to blue.)
+`make docs-check` recomputes every line below from the theme modules and fails
+when one goes stale.
 
 Everything else falls back to black on white, so a theme with no color story
 still reads correctly on the panel.
@@ -97,7 +105,7 @@ Accents: **red** primary, **yellow** secondary · [description in Themes ↗](th
 
 #### qotd
 
-Accents: **red** primary, **blue** secondary · [description in Themes ↗](themes.md#qotd)
+Accents: **blue** primary, **blue** secondary · overrides `accent_info` → green · [description in Themes ↗](themes.md#qotd)
 
 [![QOTD theme on Inky](../assets/previews/theme_qotd_inky.png)](../assets/previews/theme_qotd_inky.png)
 

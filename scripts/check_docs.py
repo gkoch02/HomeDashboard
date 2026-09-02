@@ -11,7 +11,25 @@ ROOT = Path(__file__).resolve().parents[1]
 DOC_FILES = [ROOT / "README.md", ROOT / "CONTRIBUTING.md"] + sorted((ROOT / "docs").glob("*.md"))
 LINK_RE = re.compile(r"\[[^\]]+\]\(([^)]+)\)")
 THEME_DETAIL_RE = re.compile(r"^####\s+(.+)$", re.MULTILINE)
-INKY_EMBED_RE = re.compile(r"assets/previews/theme_(\w+)_inky\.png")
+# Deliberately requires Markdown *image* syntax, not just the path: a page that
+# merely links to theme_<name>_inky.png shows no image, and a check that accepted
+# a bare path would pass on a catalog page displaying nothing.
+INKY_EMBED_RE = re.compile(r"!\[[^\]]*\]\([^)]*?assets/previews/theme_(\w+)_inky\.png\)")
+INKY_ACCENT_RE = re.compile(r"^#### (\w+)\n\n(Accents: [^\n]*)$", re.MULTILINE)
+
+THEMES_DIR = ROOT / "src" / "render" / "themes"
+REGISTER_PALETTE_RE = re.compile(
+    r"""register_theme\(\s*["'](\w+)["']\s*,[^)]*?"""
+    r"inky_palette=\(\s*_?INKY_(\w+)\s*,\s*_?INKY_(\w+)\s*\)",
+    re.DOTALL,
+)
+ACCENT_ASSIGN_RE = re.compile(r"\baccent_(info|warn|alert|good|primary|secondary)=([^,\n]+)")
+INKY_TOKEN_RE = re.compile(r"^_?inky_([a-z]+)$", re.IGNORECASE)
+# canvas._resolve_style fills each unset semantic role with these.
+SEMANTIC_DEFAULTS = {"info": "blue", "warn": "yellow", "alert": "red", "good": "green"}
+# canvas._resolve_inky_palette falls back to this for a theme with no registration
+# — which is `default`, a pseudo-name with no module.
+FALLBACK_PALETTE = ("blue", "red")
 # The "full batch for all concrete themes" shell loop in docs/previews.md.
 PREVIEW_BATCH_RE = re.compile(r"for theme in ([^;]+); do", re.DOTALL)
 
@@ -73,7 +91,95 @@ def check_theme_inventory(theme_names: set[str]) -> list[str]:
         errors.append(f"docs/themes.md: unexpected theme heading '{name}'")
 
     errors.extend(check_inky_inventory(theme_names))
+    errors.extend(check_inky_accents(theme_names))
     errors.extend(check_preview_batch(theme_names))
+    return errors
+
+
+def effective_accents() -> tuple[dict[str, dict], list[str]]:
+    """Resolve each theme's Inky accents the way ``canvas._resolve_style`` does.
+
+    An explicit ``ThemeStyle.accent_*`` wins over both the registered
+    ``inky_palette`` pair and the semantic default — ``qotd`` sets
+    ``accent_primary`` to blue while registering ``(red, blue)``, so reading the
+    registration alone would document a red primary the panel never shows.
+
+    Returns ``(accents, errors)``; an accent value this cannot read is an error
+    rather than a silent omission, since a shape we can't parse is exactly the
+    case where the page would drift unnoticed.
+    """
+    accents: dict[str, dict] = {"default": {"pair": FALLBACK_PALETTE, "overrides": {}}}
+    errors: list[str] = []
+    for theme_file in sorted(THEMES_DIR.glob("*.py")):
+        if theme_file.name in {"__init__.py", "registry.py"}:
+            continue
+        text = theme_file.read_text()
+        registered = REGISTER_PALETTE_RE.search(text)
+        if registered is None:
+            continue
+        name = registered.group(1)
+        explicit: dict[str, str] = {}
+        for role, raw in ACCENT_ASSIGN_RE.findall(text):
+            token = INKY_TOKEN_RE.match(raw.strip())
+            if token is None:
+                errors.append(
+                    f"{theme_file.relative_to(ROOT)}: cannot read accent_{role}={raw.strip()!r} "
+                    f"— extend check_docs.effective_accents() so the docs stay checkable"
+                )
+                continue
+            explicit[role] = token.group(1).lower()
+        accents[name] = {
+            "pair": (
+                explicit.get("primary", registered.group(2).lower()),
+                explicit.get("secondary", registered.group(3).lower()),
+            ),
+            "overrides": {
+                role: value
+                for role, value in explicit.items()
+                if role in SEMANTIC_DEFAULTS and value != SEMANTIC_DEFAULTS[role]
+            },
+        }
+    return accents, errors
+
+
+def expected_accent_line(name: str, entry: dict) -> str:
+    primary, secondary = entry["pair"]
+    parts = [f"Accents: **{primary}** primary, **{secondary}** secondary"]
+    overrides = entry["overrides"]
+    for role in ("info", "warn", "alert", "good"):
+        if role in overrides:
+            parts.append(f"overrides `accent_{role}` \u2192 {overrides[role]}")
+    parts.append(f"[description in Themes \u2197](themes.md#{name})")
+    return " \u00b7 ".join(parts)
+
+
+def check_inky_accents(theme_names: set[str]) -> list[str]:
+    """Hold each color entry's stated accents to what the theme actually resolves.
+
+    The accent pair is the substance of the color page — a wrong one is worse
+    than none, and nothing about editing a theme's style would otherwise
+    prompt anyone to revisit the page.
+    """
+    doc = ROOT / "docs" / "inky-previews.md"
+    if not doc.exists():
+        return []
+    accents, errors = effective_accents()
+    found = dict(INKY_ACCENT_RE.findall(doc.read_text()))
+    for name in sorted(theme_names):
+        entry = accents.get(name)
+        if entry is None:
+            errors.append(f"docs/inky-previews.md: no resolvable accents for theme '{name}'")
+            continue
+        expected = expected_accent_line(name, entry)
+        actual = found.get(name)
+        if actual is None:
+            errors.append(f"docs/inky-previews.md: theme '{name}' has no 'Accents:' line")
+        elif actual != expected:
+            errors.append(
+                f"docs/inky-previews.md: theme '{name}' accents are stale\n"
+                f"    expected: {expected}\n"
+                f"    found:    {actual}"
+            )
     return errors
 
 
