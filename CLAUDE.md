@@ -354,7 +354,7 @@ The cooldown is `display.min_refresh_interval_seconds` (config), defaulting to 6
 |---|---|---|
 | `PlusJakartaSans-*.ttf` | `regular`, `medium`, `semibold`, `bold` | Default font for all themes |
 | `weathericons-regular.ttf` | `weather_icon` | Weather condition icons + moon phase glyphs (all themes) |
-| `ShareTechMono-Regular.ttf` | `cyber_mono` | `terminal` — event body text; `diags` — all data rows |
+| `ShareTechMono-Regular.ttf` | `cyber_mono` | `terminal` — all four base text slots (`font_regular`/`medium`/`semibold`/`bold`), so every element not claimed by a specialised slot: event rows, weather readings, birthday rows, header timestamp; `diags` — all data rows |
 | `Oxanium-Variable.ttf` (OFL, variable) | `oxanium`, `oxanium_bold` | `terminal` — dashboard title, day column headers, quote body |
 | `Rajdhani-Regular.ttf` / `Rajdhani-SemiBold.ttf` (OFL) | `rajdhani`, `rajdhani_semibold` | `terminal` — month band, section labels, quote attribution |
 | `Orbitron-Variable.ttf` (OFL, variable) | `orbitron_black` | `terminal` — large today date numeral |
