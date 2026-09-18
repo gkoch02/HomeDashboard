@@ -34,7 +34,9 @@ from src.render.components.halftone_agenda_panel import (
     agenda_metrics,
     draw_halftone_agenda,
     event_times,
+    inline_range,
     past_screen,
+    stacks_time,
     two_line_time_fits,
 )
 from src.render.quantize import INKY_SPECTRA6_PALETTE, flatten_pixels
@@ -195,6 +197,12 @@ class TestHelpers:
     def test_location_takes_first_segment(self):
         event = _event(9, location="Conference Room B, Floor 3, HQ")
         assert _location_text(event) == "Conference Room B"
+
+    def test_location_takes_first_line_before_first_segment(self):
+        # Google separates the business name from the street with a newline;
+        # the row shows the name, not the name and the street run together.
+        event = _event(9, location="Ultimate Condition Fitness\n535 W Hamilton Ave, Campbell")
+        assert _location_text(event) == "Ultimate Condition Fitness"
 
     def test_location_empty_when_absent(self):
         assert _location_text(_event(9)) == ""
@@ -567,6 +575,82 @@ class TestEventTimes:
         for _rows, _row_h, time_w, time_pt, _title_pt, _loc in _DENSITY_TIERS:
             box = probe.textbbox((0, 0), "11:30a –", font=style.font_semibold(time_pt))
             assert box[2] - box[0] <= time_w - 4, f"{time_pt}pt overruns its {time_w}px column"
+
+    def test_whole_hour_pair_sets_inline(self):
+        # Both ends on the hour: one line, tight en dash.
+        assert inline_range("10a", "12p") == "10a\u201312p"
+        assert inline_range("9a", "6p") == "9a\u20136p"
+
+    def test_minutes_on_either_end_stack(self):
+        # The moment either label needs its minutes, the pair stacks — an
+        # inline "11:30a–1:15p" would not fit the column its neighbours use.
+        assert inline_range("9:30a", "6p") is None
+        assert inline_range("9a", "6:30p") is None
+        assert inline_range("11:30a", "1:15p") is None
+        assert inline_range("10a", None) is None
+
+    def test_whole_hour_pair_is_inline_at_every_tier(self):
+        # Inline needs no vertical room, so the densest tier keeps the end
+        # time for a whole-hour pair even though it drops it for a stacked one.
+        for _rows, row_h, _w, time_pt, _t, _l in _DENSITY_TIERS:
+            assert stacks_time("10a", "12p", time_pt, row_h) is False
+        stacked = [stacks_time("9:30a", "6p", tier[3], tier[1]) for tier in _DENSITY_TIERS]
+        assert stacked == [True] * (len(_DENSITY_TIERS) - 1) + [False], stacked
+
+    def test_widest_inline_range_fits_every_column(self):
+        # The column was sized for one label plus a trailing dash; the tight en
+        # dash is what lets the widest real whole-hour pair fit inside that.
+        from PIL import ImageDraw
+
+        from src.render.primitives import fmt_time
+
+        probe = ImageDraw.Draw(Image.new("L", (10, 10)))
+        style = load_theme("halftone_agenda").style
+        labels = [fmt_time(MIDNIGHT + timedelta(hours=h)) for h in range(24)]
+        pairs = [inline_range(a, b) for i, a in enumerate(labels) for b in labels[i + 1 :]]
+        for _rows, _row_h, time_w, time_pt, _title_pt, _loc in _DENSITY_TIERS:
+            font = style.font_semibold(time_pt)
+            widest = max(pairs, key=lambda s: probe.textbbox((0, 0), s, font=font)[2])
+            assert widest == "10a\u201310p"
+            width = probe.textbbox((0, 0), widest, font=font)[2]
+            assert width <= time_w - 4, f"{widest!r} at {time_pt}pt overruns its {time_w}px column"
+
+    def test_whole_hour_cell_draws_one_line_and_keeps_its_end(self):
+        # Differential, per tier: a whole-hour pair runs exactly as deep as
+        # the start alone (one line) where a stacked pair runs deeper, and
+        # lays down more ink than the start alone — so the end time really is
+        # on line one, not dropped.
+        from PIL import ImageDraw, ImageOps
+
+        style = load_theme("halftone_agenda").style
+
+        def cell(start, end, time_w, time_pt, row_h):
+            tile = Image.new("L", (time_w + 60, row_h + 20), 255)
+            _draw_time_cell(
+                ImageDraw.Draw(tile),
+                start,
+                end,
+                style,
+                x0=0,
+                y=0,
+                time_pt=time_pt,
+                row_h=row_h,
+                fill=0,
+            )
+            return tile
+
+        def bottom(tile):
+            return ImageOps.invert(tile).getbbox()[3]
+
+        for _rows, row_h, time_w, time_pt, _title_pt, _loc in _DENSITY_TIERS:
+            # Both probes end in a descender so the bbox compares like with like.
+            inline = cell("10p", "11p", time_w, time_pt, row_h)
+            alone = cell("10p", None, time_w, time_pt, row_h)
+            assert bottom(inline) == bottom(alone), f"{time_pt}pt set a second line"
+            assert _ink_count(inline) > _ink_count(alone), f"{time_pt}pt dropped the end"
+            if two_line_time_fits(time_pt, row_h):
+                stacked = cell("10:30p", "11p", time_w, time_pt, row_h)
+                assert bottom(stacked) > bottom(inline)
 
     def test_time_cell_never_overflows_its_column(self):
         # The column is what separates the time from the tick; ink past it

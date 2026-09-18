@@ -12,6 +12,7 @@ from src.render.primitives import (
     draw_text_wrapped,
     filled_rect,
     hline,
+    location_line,
     text_height,
     text_width,
     vline,
@@ -549,9 +550,9 @@ def _draw_day_events(
             y += max(used_h, title_h)
 
             if show_location and event.location:
-                # Normalize location to a single visual line (collapse newlines/extra spaces)
-                # so y-advance stays consistent with measured single-line font height.
-                loc_text = " ".join(event.location.split(",")[0].split())
+                # Its first line only (business name or street), so the y-advance
+                # stays consistent with the measured single-line font height.
+                loc_text = location_line(event.location)
                 if loc_text and y - y_start + loc_h <= max_h - PAD:
                     y += 1
                     draw_text_truncated(

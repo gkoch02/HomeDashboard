@@ -157,7 +157,9 @@ class TestDrawWeek:
         draw_week(empty_draw, [], today)
         assert ink(img, WEEK_BOX) > ink(empty, WEEK_BOX), "the event was not drawn"
 
-    def test_location_newlines_are_normalized_before_truncation(self):
+    def test_location_shows_its_first_line_only(self):
+        # The street, not the street with the suite run on after it — a
+        # newline in the location is where the row ends, not a space.
         img, draw = self._make_draw()
         today = date(2024, 3, 15)
         events = [
@@ -180,7 +182,8 @@ class TestDrawWeek:
         ):
             draw_week(draw, events, today)
 
-        assert any("Suite 200" in t for t in seen_texts)
+        assert "123 Main St" in seen_texts
+        assert not any("Suite 200" in t for t in seen_texts)
         assert all("\n" not in t for t in seen_texts)
 
     def test_smoke_with_all_day_event(self):

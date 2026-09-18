@@ -640,6 +640,12 @@ class TestRenderStates:
         ev = _event(14, name="Standup", location="Conference Room B, Floor 3")
         assert _ink_count(_render(data=_data_for(events=[ev]))) > 1000
 
+    def test_location_row_is_the_first_line_only(self):
+        from src.render.components.day_arc_panel import _location_text
+
+        ev = _event(14, name="Gym", location="Ultimate Condition Fitness\n535 W Hamilton Ave")
+        assert _location_text(ev) == "Ultimate Condition Fitness"
+
     def test_no_weather_still_renders(self):
         # Unlike halftone, the ribbon's subject is time, not weather — it must
         # still draw a full plate with the weather source missing.

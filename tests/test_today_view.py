@@ -311,7 +311,9 @@ class TestDrawToday:
             _render([_timed(TODAY, 9, 10, "Doctor Visit")]), EVENTS
         )
 
-    def test_location_newlines_are_normalized_before_truncation(self):
+    def test_location_shows_its_first_line_only(self):
+        # The street, not the street with the suite run on after it — a
+        # newline in the location is where the row ends, not a space.
         img, draw = _make_draw()
         evt = _timed(TODAY, 9, 10, "Visit", location="123 Main St\nSuite 200, Springfield")
         seen_texts: list[str] = []
@@ -326,7 +328,8 @@ class TestDrawToday:
         ):
             draw_today(draw, [evt], TODAY)
 
-        assert any("Suite 200" in t for t in seen_texts)
+        assert "123 Main St" in seen_texts
+        assert not any("Suite 200" in t for t in seen_texts)
         assert all("\n" not in t for t in seen_texts)
 
     def test_smoke_event_with_long_title(self):

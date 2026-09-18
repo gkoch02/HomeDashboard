@@ -8,6 +8,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- **`halftone_agenda` sets whole-hour time ranges on one line.** A row whose
+  event starts and ends on the hour now reads `10a–12p` beside its title
+  instead of `10a –` over `12p`. Only a pair that needs minutes on either end
+  still stacks, because an inline `11:30a–1:15p` would not fit the column its
+  neighbours use. The inline form uses a tight en dash: the widest real
+  whole-hour pair, `10a–10p`, fits every density tier's column that way, and
+  the spaced dash overran the three roomiest. The densest tier, which drops a
+  stacked pair's end time for want of a second line, keeps it for a whole-hour
+  pair.
+- **Event locations show their first line only.** Google Calendar stores a
+  place as the business name, a newline, then the street and city separated
+  by commas. The `today`, week-view, `day_arc` and `halftone_agenda` rows cut
+  at the first comma but folded the newline into a space, so a gym booking
+  read `Ultimate Condition Fitness 535 W H…` — the name and the street run
+  together and ellipsized mid-street. The cut is now at whichever comes first,
+  the first line or its first comma segment, via one shared
+  `primitives.location_line()`, so the row reads `Ultimate Condition Fitness`
+  (or the street, when that is the first line).
 - **The theme catalog is monochrome again, with a separate color page.**
   `docs/themes.md` embedded one composite image per theme, cut diagonally
   between the Waveshare and Inky renders. That asked the reader to mentally

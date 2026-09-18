@@ -15,6 +15,7 @@ from src.render.primitives import (
     draw_text_truncated,
     draw_text_wrapped,
     filled_rect,
+    location_line,
     text_height,
     vline,
 )
@@ -213,11 +214,10 @@ def _draw_event_list(
             )
             y += max(used_h, title_h)
 
-            # Location (first segment only)
+            # Location: its first line only (business name or street), so the
+            # y-advance stays consistent with the measured single-line font height.
             if event.location:
-                # Normalize location to a single visual line (collapse newlines/extra spaces)
-                # so y-advance stays consistent with measured single-line font height.
-                loc_text = " ".join(event.location.split(",")[0].split())
+                loc_text = location_line(event.location)
                 if loc_text and y + text_height(loc_font) <= bottom:
                     y += 2
                     draw_text_truncated(draw, (x, y), loc_text, loc_font, max_w, fill=style.fg)
