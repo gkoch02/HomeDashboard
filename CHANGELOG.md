@@ -17,6 +17,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   the spaced dash overran the three roomiest. The densest tier, which drops a
   stacked pair's end time for want of a second line, keeps it for a whole-hour
   pair.
+- **Event locations show their first line only.** Google Calendar stores a
+  place as the business name, a newline, then the street and city separated
+  by commas. The `today`, week-view, `day_arc` and `halftone_agenda` rows cut
+  at the first comma but folded the newline into a space, so a gym booking
+  read `Ultimate Condition Fitness 535 W H…` — the name and the street run
+  together and ellipsized mid-street. The cut is now at whichever comes first,
+  the first line or its first comma segment, via one shared
+  `primitives.location_line()`, so the row reads `Ultimate Condition Fitness`
+  (or the street, when that is the first line).
 - **The theme catalog is monochrome again, with a separate color page.**
   `docs/themes.md` embedded one composite image per theme, cut diagonally
   between the Waveshare and Inky renders. That asked the reader to mentally

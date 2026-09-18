@@ -164,7 +164,8 @@ src/
     │                          #   (assets/moon_full.png) occluded per phase when use_photo=True
     │                          #   (moonphase_photo theme); mode-aware (L/RGB/1)
     ├── primitives.py          # Shared draw utilities (truncation, wrapping, colors, fmt_time,
-    │                          #   events_for_day, deg_to_compass)
+    │                          #   events_for_day, deg_to_compass, location_line — the one
+    │                          #   cut of an event location every panel row uses)
     ├── star_catalog.py        # Curated J2000 bright-star + constellation-outline catalogue
     │                          #   (~45 named stars); backs the constellation_map theme
     ├── themes/                # themes (37 — 36 concrete + `default` pseudo): standard week-view

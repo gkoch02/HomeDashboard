@@ -12,6 +12,7 @@ from src.render.primitives import (
     filled_rect,
     hline,
     inverted_text,
+    location_line,
     text_height,
     text_width,
     vline,
@@ -211,3 +212,31 @@ class TestInvertedText:
     def test_no_crash_with_empty_text(self, canvas, font):
         _, draw = canvas
         inverted_text(draw, rect=(5, 5, 80, 25), text="", font=font)
+
+
+class TestLocationLine:
+    """A panel row gets the location's first line: business name or street."""
+
+    def test_business_name_over_street(self):
+        # Google Calendar's shape: name, newline, street + city on one line.
+        loc = "Ultimate Condition Fitness\n535 W Hamilton Ave, Campbell, CA  95008, United States"
+        assert location_line(loc) == "Ultimate Condition Fitness"
+
+    def test_street_when_it_is_the_first_line(self):
+        assert location_line("123 Main St\nSuite 200, Springfield") == "123 Main St"
+
+    def test_first_comma_segment_of_a_single_line(self):
+        assert location_line("Conference Room B, Floor 3, HQ") == "Conference Room B"
+
+    def test_whitespace_collapsed(self):
+        assert location_line("  Blue   Bottle ,  Market St") == "Blue Bottle"
+
+    def test_leading_blank_lines_skipped(self):
+        assert location_line("\n  \nRooftop Lounge") == "Rooftop Lounge"
+
+    def test_crlf(self):
+        assert location_line("Studio 12\r\n1 Elm St") == "Studio 12"
+
+    @pytest.mark.parametrize("loc", [None, "", "   ", "\n", ", ,"])
+    def test_nothing_usable_is_empty(self, loc):
+        assert location_line(loc) == ""

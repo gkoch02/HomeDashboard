@@ -52,6 +52,7 @@ from src.render.primitives import (
     draw_text_truncated,
     events_for_day,
     fmt_time,
+    location_line,
     text_height,
     text_width,
 )
@@ -889,10 +890,8 @@ def agenda_metrics(n_events: int, avail_h: int) -> tuple[int, int, int, int, int
 
 
 def _location_text(event: CalendarEvent) -> str:
-    """First comma-segment of the location, whitespace-collapsed."""
-    if not event.location:
-        return ""
-    return " ".join(event.location.split(",")[0].split())
+    """The event's location cut to its first line; see ``primitives.location_line``."""
+    return location_line(event.location)
 
 
 def _draw_event_row(

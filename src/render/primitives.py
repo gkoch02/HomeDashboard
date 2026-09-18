@@ -214,6 +214,29 @@ def inverted_text(
     draw.text((tx, ty), text, font=font, fill=WHITE)
 
 
+def location_line(location: str | None) -> str:
+    """The one line of a location worth a row on a panel.
+
+    A calendar location is typically a business name, then the street, then
+    the city and the rest; the panels have room for the first of those and
+    nothing else. Google Calendar separates the name from the street with a
+    newline and everything after with commas, so the cut is at whichever comes
+    first: the first non-blank line, then that line's first comma segment,
+    whitespace-collapsed. ``"Ultimate Condition Fitness\\n535 W Hamilton Ave,
+    Campbell"`` gives ``"Ultimate Condition Fitness"``; ``"Conference Room B,
+    Floor 3"`` gives ``"Conference Room B"``. Splitting on commas alone folded
+    the newline into a space and set the name and the street as one run, which
+    then ellipsized mid-street.
+    """
+    if not location:
+        return ""
+    for line in location.splitlines():
+        head = " ".join(line.split(",")[0].split())
+        if head:
+            return head
+    return ""
+
+
 def fmt_time(dt: datetime) -> str:
     """Format a datetime as a compact am/pm string, e.g. '9:30a', '2p'."""
     s = dt.strftime("%-I:%M%p").lower().replace(":00", "")

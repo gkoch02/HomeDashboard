@@ -198,6 +198,12 @@ class TestHelpers:
         event = _event(9, location="Conference Room B, Floor 3, HQ")
         assert _location_text(event) == "Conference Room B"
 
+    def test_location_takes_first_line_before_first_segment(self):
+        # Google separates the business name from the street with a newline;
+        # the row shows the name, not the name and the street run together.
+        event = _event(9, location="Ultimate Condition Fitness\n535 W Hamilton Ave, Campbell")
+        assert _location_text(event) == "Ultimate Condition Fitness"
+
     def test_location_empty_when_absent(self):
         assert _location_text(_event(9)) == ""
 
