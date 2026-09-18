@@ -26,8 +26,9 @@ survives the narrower, nearly-square pane instead of simply shrinking.
 The agenda encodes each event's state in its rendering, the way ``day_arc``
 does: elapsed rows are perforated on a Bayer lattice, the event in progress
 inverts into a solid bar, the next one up carries an accented tick, and
-everything else is crisp. Rows still carry both ends of their event's time,
-stacked, and a rolled-over agenda sits behind an inverted TOMORROW chip.
+everything else is crisp. Rows still carry both ends of their event's time —
+on one line when both fall on the hour (``10a–12p``), stacked otherwise — and
+a rolled-over agenda sits behind an inverted TOMORROW chip.
 
 All four treatments were taken out at one point and put back (#222). They were
 removed because a filled bar reads as charcoal and a screened row as mud under
@@ -533,6 +534,20 @@ def _location_text(event: CalendarEvent) -> str:
     return " ".join(event.location.split(",")[0].split())
 
 
+def inline_range(start: str, end: str | None) -> str | None:
+    """Return ``start–end`` on one line when both labels fall on the hour.
+
+    ``fmt_time`` drops the ``:00`` from a whole hour, so ``10a`` and ``12p`` set
+    inline as ``10a–12p`` in the room a stacked ``11:30a –`` already takes — the
+    widest whole-hour pair, ``10a–10p``, fits every tier's column with the tight
+    en dash (the spaced one overruns the three roomiest). A pair needing minutes
+    on either end returns None and stacks instead; see :func:`_draw_time_cell`.
+    """
+    if end is None or ":" in start or ":" in end:
+        return None
+    return f"{start}–{end}"
+
+
 def two_line_time_fits(time_pt: int, row_h: int) -> bool:
     """Can a row set the start and end times on two lines?
 
@@ -540,6 +555,17 @@ def two_line_time_fits(time_pt: int, row_h: int) -> bool:
     True for every tier but the densest, whose 33-px rows are 4 px short.
     """
     return 2 * time_pt + 7 <= row_h - 2
+
+
+def stacks_time(start: str, end: str | None, time_pt: int, row_h: int) -> bool:
+    """Does this row set its end time on a second line?
+
+    Only a pair with minutes on either end stacks, and only where the tier has
+    the vertical room; a whole-hour pair sets inline at every tier.
+    """
+    return (
+        end is not None and inline_range(start, end) is None and two_line_time_fits(time_pt, row_h)
+    )
 
 
 def _draw_time_cell(
@@ -554,18 +580,24 @@ def _draw_time_cell(
     row_h: int,
     fill: int | tuple[int, int, int],
 ) -> None:
-    """Draw the start time, with the end time stacked underneath it.
+    """Draw the start time, with the end time inline or stacked underneath it.
 
-    Stacking rather than setting a range inline is what keeps the treatment
-    uniform: an inline range's width depends on the times themselves — a
-    meridiem-crossing pair like "11:30a-1:15p" is half again as wide as
-    "12:30-2p" — so some rows would show an end time and their neighbours
+    A whole-hour pair sets on one line (``10a–12p``): every such range fits the
+    column, so the treatment stays uniform across a tier. A pair with minutes
+    on either end stacks (``9:30a –`` / ``6p``) rather than setting inline,
+    because an inline range's width would then depend on the times themselves —
+    a meridiem-crossing pair like "11:30a–1:15p" is half again as wide as
+    "12:30–2p" — so some rows would show an end time and their neighbours
     wouldn't, at the same density. Stacked, the cell is never wider than one
     label, which every tier's column already fits, and the only question left
-    is vertical room. The densest tier has none and drops the end time; see
-    :func:`two_line_time_fits`.
+    is vertical room. The densest tier has none and drops the end time of a
+    stacked pair; see :func:`two_line_time_fits`.
     """
     time_font = style.font_semibold(time_pt)
+    inline = inline_range(start, end)
+    if inline is not None:
+        draw.text((x0, y + 4), inline, font=time_font, fill=fill)
+        return
     if end is None or not two_line_time_fits(time_pt, row_h):
         draw.text((x0, y + 4), start, font=time_font, fill=fill)
         return
@@ -636,7 +668,7 @@ def _draw_event_row(
     loc_font = style.font_medium(max(12, time_pt - 2))
 
     start_str, end_str = event_times(event)
-    two_line_time = end_str is not None and two_line_time_fits(time_pt, row_h)
+    two_line_time = stacks_time(start_str, end_str, time_pt, row_h)
     title_x = x0 + time_w + 12
     title_w = max(20, w - (time_w + 12))
     loc_y = 4 + text_height(title_font)
