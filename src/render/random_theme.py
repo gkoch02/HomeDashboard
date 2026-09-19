@@ -11,11 +11,15 @@ utility views, then filtered by the user's ``include`` / ``exclude`` lists:
 - Any theme in *exclude* is removed from the pool.
 - *include* is applied first, then *exclude*.
 
-Daily state is written to ``<output_dir>/random_theme_state.json``:
+Daily state is written to ``<state_dir>/random_theme_state.json``:
     {"date": "2026-03-22", "theme": "terminal"}
 
-Hourly state is written to ``<output_dir>/random_theme_hourly_state.json``:
+Hourly state is written to ``<state_dir>/random_theme_hourly_state.json``:
     {"hour": "2026-03-22T14", "theme": "minimalist"}
+
+(The ``output_dir`` parameter these functions take is the *state* directory —
+``services/theme.py`` passes ``cfg.state_dir``. The name is a v4 leftover from
+when state lived alongside the rendered PNGs.)
 
 A new theme is picked whenever the stored bucket key differs from the current one,
 which naturally rotates the theme at the start of each new day or hour.

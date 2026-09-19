@@ -57,8 +57,13 @@ fmt: _check-venv
 check: _check-venv
 	$(VENV) -m src.main --check-config
 
+# Prefers the venv, because check_docs.py imports src.config (for the
+# config.example.yaml field check) and `make setup` installs PyYAML only there —
+# a bare `python3` fails with ModuleNotFoundError on a correctly set-up machine.
+# Falls back to python3 so CI, which installs into the job's own environment and
+# creates no venv, keeps working.
 docs-check:
-	python3 scripts/check_docs.py
+	@if [ -x $(VENV) ]; then $(VENV) scripts/check_docs.py; else python3 scripts/check_docs.py; fi
 
 PI_USER ?= pi
 PI_HOST ?= dashboard

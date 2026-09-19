@@ -33,6 +33,33 @@ FALLBACK_PALETTE = ("blue", "red")
 # The "full batch for all concrete themes" shell loop in docs/previews.md.
 PREVIEW_BATCH_RE = re.compile(r"for theme in ([^;]+); do", re.DOTALL)
 
+EXAMPLE_CONFIG = ROOT / "config" / "config.example.yaml"
+# The delimited theme-name block in config.example.yaml. Group labels inside it
+# are UPPERCASE precisely so the lowercase token scan below picks up theme names
+# and nothing else.
+EXAMPLE_THEME_BLOCK_RE = re.compile(
+    r"^# --- theme names.*?$(.*?)^# --- end theme names", re.MULTILINE | re.DOTALL
+)
+EXAMPLE_THEME_TOKEN_RE = re.compile(r"[a-z][a-z0-9_]*")
+# Pseudo-names that are valid in `theme:` but are not registered themes.
+THEME_PSEUDO_NAMES = {"random", "random_daily", "random_hourly"}
+
+# Config fields that are deliberately absent from the example file.
+#   sensor_id_invalid — not a YAML key at all; load_config() sets it to carry a
+#                       malformed sensor_id through to validate_config().
+EXAMPLE_CONFIG_EXEMPT = {"purpleair.sensor_id_invalid"}
+# Top-level Config scalars that live under a section in YAML, as (section, key).
+EXAMPLE_CONFIG_RENAMED = {
+    "output_dir": ("output", "dry_run_dir"),
+    "log_level": ("logging", "level"),
+}
+# Container fields whose list items are documented by example rather than by key.
+EXAMPLE_CONFIG_CONTAINERS = {
+    "countdown.events",
+    "theme_schedule.entries",
+    "theme_rules.rules",
+}
+
 
 def normalize_heading(heading: str) -> str:
     return heading.strip("` ").lower().replace(" ", "_")
@@ -235,10 +262,166 @@ def check_preview_batch(theme_names: set[str]) -> list[str]:
     return errors
 
 
+def example_config_sections() -> tuple[dict[str, type], list[str]]:
+    """Return ``({section_name: dataclass}, scalar_field_names)`` for ``Config``.
+
+    Imported rather than scanned: the point of the check is that it tracks
+    ``src/config.py`` exactly, and a regex over dataclass bodies would be one
+    more thing to keep in sync.
+
+    A section is identified by its ``default_factory`` being a dataclass, not by
+    ``field.type``: ``src/config.py`` uses ``from __future__ import annotations``,
+    so every ``field.type`` is the *string* of the annotation and no type-based
+    test can ever fire.
+    """
+    import dataclasses
+
+    if str(ROOT) not in sys.path:
+        sys.path.insert(0, str(ROOT))
+    from src import config as config_module
+
+    sections: dict[str, type] = {}
+    scalars: list[str] = []
+    for f in dataclasses.fields(config_module.Config):
+        if dataclasses.is_dataclass(f.default_factory):
+            sections[f.name] = f.default_factory
+        else:
+            scalars.append(f.name)
+    # ThemeRuleCondition is not a Config field — it is the shape of a
+    # `theme_rules[].when` block, and its keys drifted out of the example once.
+    sections["theme_rules.when"] = config_module.ThemeRuleCondition
+    return sections, scalars
+
+
+def uncomment(line: str) -> str:
+    """Strip one leading comment marker, keeping the line's YAML indentation.
+
+    The example documents most options commented out, in two spellings — the
+    marker before the indent (``#   sensor_id: 12345``) and after it
+    (``  # quantization_mode: "threshold"``). Both have to normalise to the
+    indentation the key would have if it were live, because indentation is
+    what tells a section's key apart from a top-level one.
+    """
+    return re.sub(r"^(\s*)#+ ?", r"\1", line.rstrip("\n"))
+
+
+def example_config_regions(text: str) -> dict[str, str]:
+    """Split the example into one region of text per top-level key.
+
+    A region runs from the start of the comment block introducing a top-level
+    key to the start of the next one, so the prose above ``theme_rules:``
+    documenting its ``when:`` conditions counts as part of that section.
+
+    Scoping matters: searching the whole file for a bare key name lets one
+    section satisfy another's requirement, which is the failure Codex caught on
+    this PR — ``weather.api_key`` covered for a deleted ``purpleair.api_key``,
+    ``photo.path`` and ``quotes.path`` covered for each other, and a rule's
+    ``theme:`` covered for the top-level one. Those are exactly the omissions
+    this check exists to catch.
+    """
+    lines = text.splitlines()
+    top_level = re.compile(r"^([a-z_][a-z0-9_]*)\s*:")
+    # Index each top-level key to the first line of the comment block above it.
+    starts: list[tuple[int, str]] = []
+    for i, line in enumerate(lines):
+        match = top_level.match(uncomment(line))
+        if match is None:
+            continue
+        start = i
+        while start > 0 and lines[start - 1].lstrip().startswith("#"):
+            start -= 1
+        starts.append((start, match.group(1)))
+
+    regions: dict[str, str] = {}
+    for idx, (start, name) in enumerate(starts):
+        end = starts[idx + 1][0] if idx + 1 < len(starts) else len(lines)
+        # A key repeated at top level (none today) keeps the union of its blocks.
+        regions[name] = regions.get(name, "") + "\n".join(lines[start:end]) + "\n"
+    return regions
+
+
+def documents_key(text: str, key: str, *, top_level: bool = False) -> bool:
+    """True when *text* documents ``key:`` as a YAML key, commented or not.
+
+    Accepts the flow-mapping form too (``{ temp_at_most: 32 }``), which is how
+    the ``theme_rules`` conditions are written. With *top_level*, the key must
+    sit at indentation zero — without it a rule's nested ``theme:`` would stand
+    in for the top-level ``theme:``.
+    """
+    indent = r"" if top_level else r"[ \t]*"
+    for line in text.splitlines():
+        bare = uncomment(line)
+        if re.match(rf"^{indent}(?:- )?{re.escape(key)}\s*:", bare):
+            return True
+        if not top_level and re.search(rf"[{{,]\s*{re.escape(key)}\s*:", bare):
+            return True
+    return False
+
+
+def check_example_config_fields() -> list[str]:
+    """Fail when a config field exists in code but not in config.example.yaml.
+
+    The example file is what `make setup` copies, so an option missing from it
+    is effectively undiscoverable even when docs/configuration.md covers it.
+    Five fields had drifted out of it this way, three of them editable from the
+    web UI — a user could find them in the editor but not in the file the
+    editor writes.
+    """
+    import dataclasses
+
+    errors: list[str] = []
+    text = EXAMPLE_CONFIG.read_text()
+    regions = example_config_regions(text)
+    sections, scalars = example_config_sections()
+
+    for section, cls in sections.items():
+        # "theme_rules.when" is documented inside the theme_rules region.
+        region = regions.get(section.split(".", 1)[0], "")
+        for f in dataclasses.fields(cls):
+            path = f"{section}.{f.name}"
+            if path in EXAMPLE_CONFIG_EXEMPT or path in EXAMPLE_CONFIG_CONTAINERS:
+                continue
+            if not documents_key(region, f.name):
+                errors.append(
+                    f"config/config.example.yaml: no entry for '{path}' "
+                    f"— add it (commented out at its default if optional)"
+                )
+    for name in scalars:
+        section, key = EXAMPLE_CONFIG_RENAMED.get(name, ("", name))
+        scope = regions.get(section, "") if section else text
+        if not documents_key(scope, key, top_level=not section):
+            where = f"{section}.{key}" if section else f"top-level '{key}'"
+            errors.append(f"config/config.example.yaml: no entry for {where}")
+    return errors
+
+
+def check_example_config_themes(theme_names: set[str]) -> list[str]:
+    """Keep the theme list in config.example.yaml matching the registry.
+
+    docs/themes.md and docs/inky-previews.md are already held to the registry,
+    but the example config was not — and had fallen 12 themes behind, so a
+    third of the catalog was invisible to anyone reading only the template.
+    """
+    text = EXAMPLE_CONFIG.read_text()
+    match = EXAMPLE_THEME_BLOCK_RE.search(text)
+    if match is None:
+        return ["config/config.example.yaml: could not find the theme-names block"]
+
+    listed = set(EXAMPLE_THEME_TOKEN_RE.findall(match.group(1)))
+    errors: list[str] = []
+    for name in sorted(theme_names - listed):
+        errors.append(f"config/config.example.yaml: theme '{name}' missing from the theme list")
+    for name in sorted(listed - theme_names - THEME_PSEUDO_NAMES):
+        errors.append(f"config/config.example.yaml: unknown theme '{name}' in the theme list")
+    return errors
+
+
 def main() -> int:
     theme_names = load_theme_names()
     errors = check_links()
     errors.extend(check_theme_inventory(theme_names))
+    errors.extend(check_example_config_themes(theme_names))
+    errors.extend(check_example_config_fields())
     if errors:
         for err in errors:
             print(err)

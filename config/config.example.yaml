@@ -1,3 +1,14 @@
+# Home Dashboard — configuration template.
+#
+# Copy to config/config.yaml and edit (`make setup` does this for you), then
+# check your work with `make check`.
+#
+# Every option the dashboard accepts appears below, commented out at its
+# default where it is optional — scripts/check_docs.py fails the build if a
+# config field exists in src/config.py but is missing from this file, so this
+# list stays exhaustive. docs/configuration.md is the prose reference with the
+# longer explanations.
+
 display:
   # Display backend/provider.
   # "waveshare" = Waveshare e-Paper HATs using the waveshare_epd Python package.
@@ -16,6 +27,9 @@ display:
   # large filled areas come out closer to charcoal than to ink, and ghosting
   # accumulates. The dashboard renders on a timer, so the seconds saved rarely
   # matter; leave this off unless you specifically want the faster update.
+  # Waveshare only: Inky Impression panels always do a full refresh, so this
+  # has no effect when provider is "inky". Themes whose plate is dithered
+  # artwork opt out of it regardless and always take the full waveform.
   enable_partial_refresh: false
   # When partial refresh is on, force a full-waveform refresh after this many
   # partials. Lower it if blacks start looking washed out between full ones.
@@ -24,16 +38,22 @@ display:
   show_weather: true
   show_birthdays: true
   show_info_panel: true
-  # Partial refresh is only supported by some Waveshare models. Inky Impression
-  # panels always do full refreshes, so leave this false when provider: inky.
-  # Final quantization algorithm used when converting greyscale → 1-bit for display.
-  # "threshold"       – simple 128-level split; preserves strict black/white rendering
-  #                     (default; matches existing behaviour for all built-in themes)
-  # "floyd_steinberg" – error-diffusion dithering; better apparent grey for scaled output
-  #                     Note: current resize behaviour already uses floyd_steinberg via PIL
-  #                     default; set this to preserve that if you rely on non-default displays
+  # Final quantization algorithm used when converting greyscale → 1-bit for the
+  # Waveshare panel.  Ignored on Inky, which maps to its own palette instead.
+  # "threshold"       – simple 128-level split; crisp black and white (default,
+  #                     and what every built-in theme is designed against)
+  # "floyd_steinberg" – error-diffusion dithering; better apparent grey in
+  #                     photographic or shaded content, at the cost of speckle
+  #                     on fine type
   # "ordered"         – 4×4 Bayer ordered dithering; structured dot-matrix pattern
+  # A theme that declares its own preferred mode overrides this setting.
   # quantization_mode: "threshold"
+  # Minimum seconds between hardware refreshes.  Unset means the provider
+  # default: 60 on Inky, 0 on Waveshare.  A render whose content is unchanged
+  # is skipped regardless of this setting; the cooldown only rate-limits
+  # refreshes whose content *did* change.  Set 3600 on Inky to restore the v4
+  # "repaint at most once an hour" behaviour.
+  # min_refresh_interval_seconds: 60
 
 google:
   service_account_path: "credentials/service_account.json"
@@ -44,6 +64,8 @@ google:
   # Workspace Admin with the People API scope granted, and this field must
   # be set to the email of the user whose contacts should be read.
   # contacts_email: "you@yourdomain.com"
+  # Log a warning once the day's Google API call count passes this number.
+  # daily_quota_warning: 500
 
   # --- ICS feed (simpler alternative — no GCP project or credentials required) ---
   # When ical_url is set, calendar events are fetched from this URL instead of
@@ -54,7 +76,11 @@ google:
   #   Keep this URL private — anyone with it can read your calendar.
   #
   # ical_url: "https://calendar.google.com/calendar/ical/.../.../basic.ics"
-  # additional_ical_urls: []   # optional extra calendars
+  # additional_ical_urls: []   # optional extra calendars, merged with ical_url.
+  #                            # If any one feed fails the whole fetch fails and
+  #                            # the last complete calendar is rendered from cache
+  #                            # with a staleness indicator — a partial calendar
+  #                            # is never shown as if it were complete.
 
   # --- CalDAV alternative (Nextcloud / Radicale / Apple iCloud / Fastmail / ...) ---
   # When caldav_url is set, events are fetched from a CalDAV server. Both
@@ -83,14 +109,16 @@ weather:
   # See docs/configuration.md § Weather API tiers.
   one_call_version: "3.0"
 
-# PurpleAir air quality (optional).
-# When configured, an AQI metric card appears in the weather theme.
-purpleair:
-  # Get a free API key at develop.purpleair.com
-  api_key: "YOUR_PURPLEAIR_API_KEY"
-  # Find your sensor index at map.purpleair.com — click your sensor and note
-  # the number in the URL (e.g. ?select=12345 → sensor_id: 12345)
-  sensor_id: 12345
+# PurpleAir air quality (optional) — leave commented out unless you have a
+# sensor.  Both keys must be set for the source to be fetched at all; setting
+# them to placeholder values means every run tries a real API call, fails, and
+# trips the circuit breaker.
+# purpleair:  # uncomment this line to enable section
+#   # Get a free API key at develop.purpleair.com
+#   api_key: "YOUR_PURPLEAIR_API_KEY"
+#   # Find your sensor index at map.purpleair.com — click your sensor and note
+#   # the number in the URL (e.g. ?select=12345 → sensor_id: 12345)
+#   sensor_id: 12345
 
 birthdays:
   source: "file"  # "file", "calendar", or "contacts"
@@ -111,6 +139,11 @@ timezone: "local"
 output:
   dry_run_dir: "output"
 
+# Where runtime state lives: the data cache, circuit-breaker state, calendar
+# sync tokens, random-theme picks, and the refresh throttle.  Safe to delete —
+# everything in it is rebuilt on the next run.
+# state_dir: "state"
+
 logging:
   level: "INFO"
 
@@ -126,6 +159,11 @@ logging:
 #   birthdays_fetch_interval: 1440  # 24 hours
 #   air_quality_ttl_minutes: 30        # 30 minutes
 #   air_quality_fetch_interval: 15     # 15 minutes
+#   # Circuit breaker — stop calling a failing API for a while instead of
+#   # retrying it on every run.  Applied per source, so a dead weather API
+#   # never holds up the calendar.
+#   max_failures: 3               # consecutive failures before the breaker opens
+#   cooldown_minutes: 30          # wait this long before trying the source again
 #   # How often the displayed quote rotates. Uses a date-based hash so the same
 #   # slot always shows the same quote (stable within the bucket, varies between).
 #   # With 144 bundled quotes: daily ≈ 144-day cycle, twice_daily ≈ 72-day cycle,
@@ -156,20 +194,36 @@ logging:
 #   path: /home/pi/wallpaper.jpg
 
 # UI theme — controls overall layout, proportions, and visual style.
-# Options: default | agenda | terminal | minimalist | old_fashioned | today |
-#          fantasy | moonphase | moonphase_invert | qotd | qotd_invert |
-#          weather | air_quality | fuzzyclock | fuzzyclock_invert | diags |
-#          photo | timeline | year_pulse | monthly | sunrise | scorecard |
-#          tides | countdown | astronomy | random_daily | random_hourly
+# Previews of every theme: docs/themes.md (monochrome) and
+# docs/inky-previews.md (Inky Spectra 6 colour).
+#
+# --- theme names (kept in sync with the registry by scripts/check_docs.py) ---
+#   WEEK VIEW       default | agenda | terminal | minimalist | old_fashioned |
+#                   today | fantasy
+#   FULL SCREEN     qotd | qotd_invert | fuzzyclock | fuzzyclock_invert |
+#                   weather | moonphase | moonphase_invert | moonphase_photo
+#   SPECIALIZED     timeline | year_pulse | monthly | sunrise | light_cycle |
+#                   air_quality | astronomy | constellation_map | almanac |
+#                   scorecard | tides | halftone | halftone_agenda | day_arc |
+#                   trends | weatherglass
+#   DITHERED ART    postcard | naturalist
+#   PHOTO OVERLAY   photo
+#   UTILITY         countdown | message | diags
+#   ROTATION        random_daily | random_hourly
+# --- end theme names ---------------------------------------------------------
+#
 # "random_daily"  — rotate once per day (first refresh after midnight).
 # "random_hourly" — rotate once per hour (first refresh after the hour turns).
 # "random" is an alias for "random_daily".
 # Both random modes respect the include/exclude lists in random_theme below.
+# The countdown, diags, message and photo themes never appear in a rotation —
+# set them with `theme:` directly.
 # theme: default
 
 # Random theme rotation — only relevant when theme is "random_daily" or "random_hourly".
-# Daily state persists in output/random_theme_state.json.
-# Hourly state persists in output/random_theme_hourly_state.json.
+# Daily state persists in <state_dir>/random_theme_state.json.
+# Hourly state persists in <state_dir>/random_theme_hourly_state.json.
+# Delete the file to force a fresh pick before the bucket turns over.
 # random_theme:  # uncomment this line to enable section
 #   include: []  # Allowlist: only rotate among these themes (empty = all themes)
 #   exclude: []  # Denylist: never use these themes
@@ -206,7 +260,12 @@ logging:
 #            "upcoming_soon"  — next event starts within the next 30 minutes
 #            "busy"           — 5+ events scheduled today
 #            "birthday_today" — at least one birthday falls on today
-# Rules requiring weather or calendar data silently skip on first boot.
+#   temp_at_least / temp_at_most: inclusive temperature bounds, in the units set
+#            by weather.units (°F for imperial, °C for metric).  Set both for a band.
+#   aqi_at_least: inclusive EPA AQI floor.  Needs PurpleAir configured — without
+#            it the source is never fetched and the rule never fires.
+# Unset conditions do not constrain; all set conditions must match (AND).
+# Rules requiring weather, air-quality or calendar data silently skip on first boot.
 # theme_rules:  # uncomment this line to enable section
 #   - when: { weather_alert_present: true }
 #     theme: "message"
@@ -220,11 +279,11 @@ logging:
 #     theme: "weather"
 #   - when: { daypart: "night", weather: "clear" }
 #     theme: "moonphase"
-#   # Numeric thresholds are inclusive. Temperatures are in weather.units
-#   # (°F for imperial, °C for metric); aqi_at_least needs PurpleAir configured.
 #   - when: { aqi_at_least: 100 }
 #     theme: "air_quality"
 #   - when: { temp_at_most: 32 }
+#     theme: "weatherglass"
+#   - when: { temp_at_least: 95 }
 #     theme: "weatherglass"
 #   - when: { weekday: "weekend" }
 #     theme: "today"

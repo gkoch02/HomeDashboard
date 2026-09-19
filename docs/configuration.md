@@ -54,9 +54,11 @@ google:
   # Get the URL: Google Calendar → Settings → [calendar] → "Secret address in iCal format"
   # ical_url: "https://calendar.google.com/calendar/ical/.../.../basic.ics"
   # additional_ical_urls: []        # optional extra ICS URLs; events are merged
-                                    # with `ical_url`. Per-feed failure is non-fatal:
-                                    # any feed that returns an HTTP error is logged
-                                    # as a warning and skipped while the others render.
+                                    # with `ical_url`. A failure in any one feed
+                                    # fails the whole fetch — the last complete
+                                    # calendar is then rendered from cache with a
+                                    # staleness indicator, rather than a partial
+                                    # calendar being shown as if it were complete.
 
   # CalDAV alternative — Nextcloud / Radicale / Apple iCloud / Fastmail / Synology / etc.
   # When caldav_url is set, both the Google API and ical_url paths are bypassed.
@@ -196,6 +198,11 @@ same slot always maps to the same quote and repeats are possible.
 
 output:
   dry_run_dir: "output"
+
+# state_dir: "state"                 # runtime state: data cache, circuit-breaker
+                                     #   state, calendar sync tokens, random-theme
+                                     #   picks, refresh throttle. Safe to delete —
+                                     #   everything in it is rebuilt on next run.
 
 logging:
   level: "INFO"
