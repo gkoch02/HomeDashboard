@@ -48,8 +48,11 @@ THEME_PSEUDO_NAMES = {"random", "random_daily", "random_hourly"}
 #   sensor_id_invalid — not a YAML key at all; load_config() sets it to carry a
 #                       malformed sensor_id through to validate_config().
 EXAMPLE_CONFIG_EXEMPT = {"purpleair.sensor_id_invalid"}
-# Fields whose YAML key differs from the dataclass attribute name.
-EXAMPLE_CONFIG_RENAMED = {"output_dir": "dry_run_dir", "log_level": "level"}
+# Top-level Config scalars that live under a section in YAML, as (section, key).
+EXAMPLE_CONFIG_RENAMED = {
+    "output_dir": ("output", "dry_run_dir"),
+    "log_level": ("logging", "level"),
+}
 # Container fields whose list items are documented by example rather than by key.
 EXAMPLE_CONFIG_CONTAINERS = {
     "countdown.events",
@@ -290,15 +293,69 @@ def example_config_sections() -> tuple[dict[str, type], list[str]]:
     return sections, scalars
 
 
-def documents_key(text: str, key: str) -> bool:
+def uncomment(line: str) -> str:
+    """Strip one leading comment marker, keeping the line's YAML indentation.
+
+    The example documents most options commented out, in two spellings — the
+    marker before the indent (``#   sensor_id: 12345``) and after it
+    (``  # quantization_mode: "threshold"``). Both have to normalise to the
+    indentation the key would have if it were live, because indentation is
+    what tells a section's key apart from a top-level one.
+    """
+    return re.sub(r"^(\s*)#+ ?", r"\1", line.rstrip("\n"))
+
+
+def example_config_regions(text: str) -> dict[str, str]:
+    """Split the example into one region of text per top-level key.
+
+    A region runs from the start of the comment block introducing a top-level
+    key to the start of the next one, so the prose above ``theme_rules:``
+    documenting its ``when:`` conditions counts as part of that section.
+
+    Scoping matters: searching the whole file for a bare key name lets one
+    section satisfy another's requirement, which is the failure Codex caught on
+    this PR — ``weather.api_key`` covered for a deleted ``purpleair.api_key``,
+    ``photo.path`` and ``quotes.path`` covered for each other, and a rule's
+    ``theme:`` covered for the top-level one. Those are exactly the omissions
+    this check exists to catch.
+    """
+    lines = text.splitlines()
+    top_level = re.compile(r"^([a-z_][a-z0-9_]*)\s*:")
+    # Index each top-level key to the first line of the comment block above it.
+    starts: list[tuple[int, str]] = []
+    for i, line in enumerate(lines):
+        match = top_level.match(uncomment(line))
+        if match is None:
+            continue
+        start = i
+        while start > 0 and lines[start - 1].lstrip().startswith("#"):
+            start -= 1
+        starts.append((start, match.group(1)))
+
+    regions: dict[str, str] = {}
+    for idx, (start, name) in enumerate(starts):
+        end = starts[idx + 1][0] if idx + 1 < len(starts) else len(lines)
+        # A key repeated at top level (none today) keeps the union of its blocks.
+        regions[name] = regions.get(name, "") + "\n".join(lines[start:end]) + "\n"
+    return regions
+
+
+def documents_key(text: str, key: str, *, top_level: bool = False) -> bool:
     """True when *text* documents ``key:`` as a YAML key, commented or not.
 
     Accepts the flow-mapping form too (``{ temp_at_most: 32 }``), which is how
-    the ``theme_rules`` conditions are written.
+    the ``theme_rules`` conditions are written. With *top_level*, the key must
+    sit at indentation zero — without it a rule's nested ``theme:`` would stand
+    in for the top-level ``theme:``.
     """
-    block = re.compile(rf"^[\s#]*(?:-\s*)?\{{?\s*{re.escape(key)}\s*:", re.MULTILINE)
-    flow = re.compile(rf"[{{,]\s*{re.escape(key)}\s*:")
-    return bool(block.search(text) or flow.search(text))
+    indent = r"" if top_level else r"[ \t]*"
+    for line in text.splitlines():
+        bare = uncomment(line)
+        if re.match(rf"^{indent}(?:- )?{re.escape(key)}\s*:", bare):
+            return True
+        if not top_level and re.search(rf"[{{,]\s*{re.escape(key)}\s*:", bare):
+            return True
+    return False
 
 
 def check_example_config_fields() -> list[str]:
@@ -314,22 +371,27 @@ def check_example_config_fields() -> list[str]:
 
     errors: list[str] = []
     text = EXAMPLE_CONFIG.read_text()
+    regions = example_config_regions(text)
     sections, scalars = example_config_sections()
 
     for section, cls in sections.items():
+        # "theme_rules.when" is documented inside the theme_rules region.
+        region = regions.get(section.split(".", 1)[0], "")
         for f in dataclasses.fields(cls):
             path = f"{section}.{f.name}"
             if path in EXAMPLE_CONFIG_EXEMPT or path in EXAMPLE_CONFIG_CONTAINERS:
                 continue
-            if not documents_key(text, f.name):
+            if not documents_key(region, f.name):
                 errors.append(
                     f"config/config.example.yaml: no entry for '{path}' "
                     f"— add it (commented out at its default if optional)"
                 )
     for name in scalars:
-        key = EXAMPLE_CONFIG_RENAMED.get(name, name)
-        if not documents_key(text, key):
-            errors.append(f"config/config.example.yaml: no entry for top-level '{key}'")
+        section, key = EXAMPLE_CONFIG_RENAMED.get(name, ("", name))
+        scope = regions.get(section, "") if section else text
+        if not documents_key(scope, key, top_level=not section):
+            where = f"{section}.{key}" if section else f"top-level '{key}'"
+            errors.append(f"config/config.example.yaml: no entry for {where}")
     return errors
 
 
