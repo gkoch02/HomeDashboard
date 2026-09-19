@@ -102,6 +102,28 @@ class TestValidateConfigWarnings:
         raw = yaml.safe_load((root / "config" / "config.example.yaml").read_text())
         assert raw["display"]["enable_partial_refresh"] == DisplayConfig().enable_partial_refresh
 
+    def test_example_config_does_not_enable_purpleair(self):
+        """The example must not ship PurpleAir switched on with placeholders.
+
+        The source is fetched when ``api_key`` and ``sensor_id`` are both
+        truthy (``_air_quality_enabled`` in ``fetchers/purpleair.py``), and
+        placeholder strings are truthy. The example shipped both set, so every
+        install derived from it called the PurpleAir API with a bogus key on
+        every run, failed, and tripped the circuit breaker — while the comment
+        above the section called it optional.
+        """
+        import yaml
+
+        from src.config import load_config
+
+        root = Path(__file__).resolve().parents[1]
+        example = root / "config" / "config.example.yaml"
+        raw = yaml.safe_load(example.read_text())
+        assert "purpleair" not in raw
+
+        cfg = load_config(str(example))
+        assert not (cfg.purpleair.api_key and cfg.purpleair.sensor_id)
+
     def test_zero_coordinates_warns(self):
         cfg = Config(weather=WeatherConfig(latitude=0.0, longitude=0.0))
         _, warnings = validate_config(cfg)

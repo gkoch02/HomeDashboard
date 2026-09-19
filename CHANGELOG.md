@@ -6,6 +6,43 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **`config/config.example.yaml` is complete again, and stays that way.** The
+  template `make setup` copies had fallen behind the code: five parsed options
+  were missing from it entirely (`display.min_refresh_interval_seconds`,
+  `cache.max_failures`, `cache.cooldown_minutes`, `google.daily_quota_warning`
+  and the top-level `state_dir`), three of them editable from the web UI — so a
+  user could discover them in the editor but not in the file the editor writes.
+  `state_dir` was undocumented everywhere, `docs/configuration.md` included.
+  The `theme:` option list named 24 of 36 registered themes, hiding `almanac`,
+  `constellation_map`, `day_arc`, `halftone`, `halftone_agenda`, `light_cycle`,
+  `message`, `moonphase_photo`, `naturalist`, `postcard`, `trends` and
+  `weatherglass` from anyone reading only the template. `scripts/check_docs.py`
+  now holds the example to the config dataclasses *and* to the theme registry,
+  the same way it already held `docs/themes.md` — the drift was invisible
+  because nothing checked this file.
+- **The example no longer ships PurpleAir switched on with a placeholder key.**
+  The air-quality source is fetched when `api_key` and `sensor_id` are both
+  truthy, and placeholder strings are truthy, so every install derived from the
+  template called the PurpleAir API with a bogus key on each run, failed, and
+  tripped the circuit breaker — while the comment above the section called it
+  optional. It is now commented out like every other optional section.
+- **Three stale notes in the example corrected.** The `random_theme` comment
+  pointed at v4's `output/random_theme_state.json` (state moved to `state_dir`
+  in v5); the quantization block claimed the resize path "already uses
+  floyd_steinberg via PIL default", which stopped being true when
+  `quantize_for_display()` took over with a `threshold` default; and the
+  "partial refresh is Waveshare-only" note had drifted eight lines from
+  `enable_partial_refresh` to sit above `quantization_mode`, where it read as a
+  note about quantization. The same v4 path leak in `random_theme.py`'s module
+  docstring is fixed too.
+- **`docs/configuration.md` no longer describes pre-#234 ICS behaviour.** It
+  said a failing feed in `additional_ical_urls` "is logged as a warning and
+  skipped while the others render"; since #234 any feed failure raises
+  `CalendarFetchError` so the last complete calendar renders from cache with a
+  staleness indicator, rather than a partial calendar being shown as complete.
+
 ### Changed
 
 - **`halftone_agenda` sets whole-hour time ranges on one line.** A row whose
