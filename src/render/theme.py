@@ -193,6 +193,11 @@ class ThemeLayout:
     wide_forecast: ComponentRegion = field(
         default_factory=lambda: ComponentRegion(0, 0, 1360, 480, visible=False)
     )
+    # Used by the ``halftone_agenda_wide`` theme: the split-plate agenda at
+    # 1360x480 with a third pane for the rail.
+    halftone_agenda_wide: ComponentRegion = field(
+        default_factory=lambda: ComponentRegion(0, 0, 1360, 480, visible=False)
+    )
     draw_order: list[str] = field(
         default_factory=lambda: ["header", "week_view", "weather", "birthdays", "info"]
     )

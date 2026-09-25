@@ -172,7 +172,7 @@ src/
     │                          #   cut of an event location every panel row uses)
     ├── star_catalog.py        # Curated J2000 bright-star + constellation-outline catalogue
     │                          #   (~45 named stars); backs the constellation_map theme
-    ├── themes/                # themes (40 — 39 concrete + `default` pseudo): standard week-view
+    ├── themes/                # themes (41 — 40 concrete + `default` pseudo): standard week-view
     │                          #   (default, agenda, terminal, minimalist, old_fashioned, today,
     │                          #   fantasy); full-screen focused (qotd, qotd_invert, fuzzyclock,
     │                          #   fuzzyclock_invert, weather, moonphase, moonphase_invert,
@@ -182,13 +182,14 @@ src/
     │                          #   almanac, scorecard, tides, halftone, halftone_agenda,
     │                          #   day_arc, trends, weatherglass);
     │                          #   dithered art (postcard, naturalist); photo overlay (photo);
-    │                          #   panoramic 1360×480 (wide_week, wide_day, wide_forecast);
+    │                          #   panoramic 1360×480 (wide_week, wide_day, wide_forecast,
+    │                          #   halftone_agenda_wide);
     │                          #   utility (countdown, message, diags)
     │   ├── registry.py        # v5 theme plugin registry (register_theme + per-theme
     │   │                      #   inky_palette pair); adding a theme is one new file plus a
     │   │                      #   register_theme(...) call at its bottom
     │   └── __init__.py        # Side-effect imports of every theme module populate the registry
-    └── components/            # One file per UI region (33): header, week_view, weather_panel,
+    └── components/            # One file per UI region (34): header, week_view, weather_panel,
         │                      #   weather_full, birthday_bar, today_view, info_panel, qotd_panel,
         │                      #   fuzzyclock_panel, diags_panel, air_quality_panel,
         │                      #   astronomy_panel, constellation_map_panel, moonphase_panel,
@@ -197,7 +198,7 @@ src/
         │                      #   countdown_panel, almanac_panel, halftone_panel, trends_panel,
         │                      #   postcard_panel, naturalist_panel, weatherglass_panel,
         │                      #   day_arc_panel, halftone_agenda_panel, wide_day_panel,
-        │                      #   wide_forecast_panel
+        │                      #   wide_forecast_panel, halftone_agenda_wide_panel
         ├── registry.py        # v5 component plugin registry (RenderContext + @register_component)
         ├── _builtins.py       # Adapter registrations for the built-in components
         └── __init__.py        # Side-effect import of _builtins populates the component registry
@@ -489,6 +490,7 @@ default to `None` and fall back gracefully so adding a new field never breaks ex
 - **The Waveshare 10.85" (G) is a colour model inside the Waveshare provider.** `WAVESHARE_COLOR_MODELS` in `src/display/driver.py` maps `epd10in85g` to `WAVESHARE_G_PALETTE` (black, white, yellow, red — the order the G drivers' `getbuffer()` packs, 2 bits per pixel); its `DisplaySpec` has `render_mode="RGB"`, `palette` set, `supports_partial_refresh=False`, and `is_color` true. Themes are drawn in colour for it exactly as for Inky, but against `WAVESHARE_G_STYLE_PALETTE` (`src/render/quantize.py`): the six Spectra-6 style indices with blue and green folded onto black, and pure white as the ground rather than Inky's measured (161,164,165) — the ground matters because the final `quantize_to_palette_nearest()` is a hard cut, and pure white puts an antialiased glyph edge at the same mid-grey threshold the 1-bit path uses, so type keeps its weight. For neutral greys the nearest of the four inks is provably black or white (yellow needs the blue channel low, red needs green low), so no resize blur or antialiasing ever lands on a coloured ink; that is why the snap is not a dither. `WaveshareDisplay` forces `enable_partial=False` for colour models (the G drivers have no `init_fast()`) and hands the RGB image to `epd.getbuffer()`, whose own palette mapping is then exact. The module path `waveshare_epd.epd10in85g` follows the G-family convention (`epd7in3g`, `epd4in37g`) — it is the one line to touch if the panel's shipped library names it differently.
 - **`display.scaling` decides how an off-size canvas reaches the panel** (`fit_canvas()` in `src/display/backend.py`). Every version so far stretched, and `auto` (the default) still does unless `distortion()` — the ratio between the panel's aspect and the canvas's — exceeds `FIT_DISTORTION_THRESHOLD` (4/3): a 4:3 `epd13in3k` is 1.25 and renders byte-identically to before, the 1360×480 strip is 1.7 and fits. `fit` pads with the theme's `bg`, passed to the backend as `background=` in the canvas's own mode (`pad_value()` converts it); `stretch` and `fit` are explicit overrides, and an unknown value behaves as `auto` at render time while `validate_config()` reports it. The backend tests build their config as a `MagicMock`, which is why `resolve_scaling()` treats anything but the two explicit strings as auto rather than raising.
 - **The `wide_*` themes declare a 1360×480 canvas** (`wide_week`, `wide_day`, `wide_forecast`) and are the reason previews are rendered at the theme's canvas size (`scripts/build_previews.py` swaps `cfg.display` width/height for the layout's) — on an 800×480 config they letterbox to a 800×282 band, which is what the pixel-snapshot and idle-tick suites hash. `wide_week` is the standard five components at new regions; `wide_day` (`wide_day_panel.py`) packs bars into lanes by `pack_lanes()` over *bar-plus-label* pixel extents, not time spans — a thirty-minute meeting is 24 px on a sixteen-hour axis, so packing by time alone left a busy day as one lane of anonymous boxes — and is in `TIME_DRIVEN` (NOW marker) and `THEMES_NEEDING_TOMORROW` (its UP NEXT rail). `wide_forecast` (`wide_forecast_panel.py`) is idle-stable; its yellow precipitation fill is drawn only when `secondary_accent_fill()` differs from `fg` (`_tint()`), because on a monochrome plate a fill behind ink text is unreadable. All three name only red/yellow/black accents so the Inky preview and the four-ink panel agree.
+- **`halftone_agenda_wide` is `halftone_agenda` drawn for the strip, not a copy of it.** `halftone_agenda_wide_panel.py` imports the original's `_draw_weather_band`, `_draw_agenda_pane`, `_sun_times`, `_clock` and `event_times` (private names, deliberately — the two plates must read out the same things, and a second copy of the band or the agenda tiers would drift) and adds only the third pane: a rail with an alert bar, the next day's events, the forecast, birthdays, and an air-and-moon foot anchored to the rail's bottom (`FOOT_H`) so it can never be pushed off by a long birthday list — the birthdays cell takes whatever is left above it. The rail shows the day after tomorrow once the agenda has rolled over, so the theme needs two extra days of events: `src/app.py` now carries `EXTRA_EVENT_DAYS` (theme → days past the standard week) with `THEMES_NEEDING_TOMORROW` derived from its keys, and `_event_window_for_theme` returns `7 + extra`. Rail rows are 24 px with a 14-pt Righteous label over a 3-px Bayer rule; the whole rail is hardened like the agenda pane. It is in `DECLINES_PARTIAL` in `tests/test_theme_partial_refresh.py` for the same reason its sibling is.
 - **Calendar backend dispatch precedence** (highest → lowest, evaluated in `src/fetchers/calendar.py:fetch_events`):
   1. `google.caldav_url` set → CalDAV via `src/fetchers/calendar_caldav.py`
   2. `google.ical_url` set → ICS feed via `src/fetchers/calendar_ical.py`

@@ -289,6 +289,12 @@ Accents: **red** primary, **black** secondary · [description in Themes ↗](the
 
 [![Wide day theme on Inky](../assets/previews/theme_wide_day_inky.png)](../assets/previews/theme_wide_day_inky.png)
 
+#### halftone_agenda_wide
+
+Accents: **yellow** primary, **red** secondary · [description in Themes ↗](themes.md#halftone_agenda_wide)
+
+[![Halftone agenda wide theme on Inky](../assets/previews/theme_halftone_agenda_wide_inky.png)](../assets/previews/theme_halftone_agenda_wide_inky.png)
+
 #### wide_forecast
 
 Accents: **red** primary, **yellow** secondary · [description in Themes ↗](themes.md#wide_forecast)

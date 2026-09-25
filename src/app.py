@@ -29,7 +29,16 @@ logger = logging.getLogger(__name__)
 # Themes whose view can extend past the end of the standard Monday-anchored
 # week and therefore need one extra day of calendar events fetched. Both
 # themes here roll their agenda over to tomorrow after dark.
-THEMES_NEEDING_TOMORROW = frozenset({"day_arc", "halftone_agenda", "wide_day"})
+# Days past the standard week each theme's plate reaches. The rollover themes
+# show tomorrow after dark; halftone_agenda_wide's rail then shows the day
+# after that, so it needs one more.
+EXTRA_EVENT_DAYS: dict[str, int] = {
+    "day_arc": 1,
+    "halftone_agenda": 1,
+    "wide_day": 1,
+    "halftone_agenda_wide": 2,
+}
+THEMES_NEEDING_TOMORROW = frozenset(EXTRA_EVENT_DAYS)
 
 # State files that belong in state_dir (not output_dir)
 _STATE_FILES = [
@@ -264,13 +273,13 @@ class DashboardApp:
             grid_start = weeks[0][0]
             grid_end = weeks[-1][-1] + timedelta(days=1)
             return grid_start, (grid_end - grid_start).days
-        if theme_name in THEMES_NEEDING_TOMORROW:
-            # One day past the standard week. The default window is anchored to
-            # Monday and runs 7 days, so on a Sunday "tomorrow" (next Monday)
-            # falls outside it — and these themes roll their agenda over to
-            # tomorrow after dark, which would render "Nothing scheduled" every
-            # Sunday evening regardless of what is actually on Monday.
-            return None, 8
+        if theme_name in EXTRA_EVENT_DAYS:
+            # Past the standard week. The default window is anchored to Monday
+            # and runs 7 days, so on a Sunday "tomorrow" (next Monday) falls
+            # outside it — and these themes roll their agenda over to tomorrow
+            # after dark, which would render "Nothing scheduled" every Sunday
+            # evening regardless of what is actually on Monday.
+            return None, 7 + EXTRA_EVENT_DAYS[theme_name]
         return None, 7
 
     def _event_window(self, pre_theme: str, now: datetime) -> tuple[_date | None, int]:

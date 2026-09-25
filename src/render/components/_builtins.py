@@ -20,6 +20,7 @@ from src.render.components import (
     diags_panel,
     fuzzyclock_panel,
     halftone_agenda_panel,
+    halftone_agenda_wide_panel,
     halftone_panel,
     header,
     info_panel,
@@ -501,5 +502,18 @@ def _wide_forecast(ctx: RenderContext) -> None:
         ctx.today,
         ctx.now,
         region=ctx.layout.wide_forecast,
+        style=ctx.style,
+    )
+
+
+@register_component("halftone_agenda_wide")
+def _halftone_agenda_wide(ctx: RenderContext) -> None:
+    halftone_agenda_wide_panel.draw_halftone_agenda_wide(
+        ctx.draw,
+        ctx.data,
+        ctx.today,
+        ctx.now,
+        image=ctx.image,
+        region=ctx.layout.halftone_agenda_wide,
         style=ctx.style,
     )

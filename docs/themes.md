@@ -226,6 +226,7 @@ letterboxed instead (see [`display.scaling`](configuration.md#scaling)). On an
 |---|---|---|
 | `wide_week` | the standard dashboard on a strip | The same header, week grid, weather, birthdays and quote at 1360 × 480: seven columns of 128 px, and the three information panels stacked in a full-height rail beside the grid. No new component. |
 | `wide_day` | today, hour by hour | A time axis across the whole middle of the strip with every timed event as a bar over its real span, packed into lanes with its name attached; date and weather at the left end, the next few events and the week's birthdays at the right. A NOW marker and the bar states follow the clock. |
+| `halftone_agenda_wide` | the split-plate agenda on a strip | `halftone_agenda` drawn for the strip: the engraving and weather band at the left, today's agenda at half again its usual width in the middle, and a third pane for what the 800 × 480 plate leaves out — alerts, the next day's events, the forecast, birthdays, air quality and the moon. Same engraving, same treatments, same fonts. |
 | `wide_forecast` | weather station on a strip | Current conditions as a hero block with a detail grid, five forecast cards in a row with precipitation bars, and a band beneath for alerts, air quality and the moon. |
 
 ### Utility themes
@@ -498,6 +499,14 @@ The left end carries the weekday, a hero day-of-month numeral, the month, then t
 This is a time-driven plate: the marker and the bar states follow the clock, so the image changes every tick. On a colour panel, whose full refresh flashes for twenty seconds, set `display.min_refresh_interval_seconds` (900 spaces the writes to one a quarter hour); the throttle defers a change rather than dropping it. Red for the marker, the running event and the section labels; nothing on the plate asks for yellow.
 
 [![Wide day theme](../assets/previews/theme_wide_day.png)](../assets/previews/theme_wide_day.png)
+
+#### halftone_agenda_wide
+
+The split-plate agenda drawn for the strip. [`halftone_agenda`](#halftone_agenda) reaches the 10.85" panel either stretched, which pulls the engraving wide and the agenda type with it, or fitted, which leaves a third of the strip blank; this theme draws the same plate at the strip's own size, in three panes divided by full-height ordered-Bayer rules. The **art pane** (420 px) carries the procedural weather illustration at 0.8 scale over the same typeset weather band — temperature numeral, condition, high and low, sunrise, sunset, date and feels-like — imported from the original panel rather than copied, so the two plates cannot drift apart in what they read out. The **agenda pane** (560 px) is the original's agenda at half again its width, with every treatment intact: elapsed rows perforated, the event in progress inverted into a solid bar, the next one up ticked, and the after-dark rollover to `TOMORROW`. The **rail** (368 px) holds what the 800 × 480 plate has no room for, top to bottom: an inverted alert bar per active weather alert; the next day's first events (headed `TOMORROW`, or the weekday name once the agenda has rolled over and the rail shows the day after — the theme fetches two extra days for it); the forecast, one row per day with glyph, high, low and chance of rain; the coming birthdays, with a birthday today inverted in the accent; and a foot anchored to the rail's bottom pairing the air-quality index with the moon's phase and illumination.
+
+Same fonts as the original — Righteous for display type, DM Sans one weight up for the rows — and the same yellow-and-red pair, so a household running both sees one theme on two panels. On the four-ink panel yellow rings the sun and red marks the running event, the alert bar and a birthday today. Nothing in the rail reads the clock except through the rollover, so an idle tick renders byte-identically and costs no panel write. Declines partial refresh like its sibling (the engraving dithers). On an 800 × 480 panel it letterboxes.
+
+[![Halftone agenda wide theme](../assets/previews/theme_halftone_agenda_wide.png)](../assets/previews/theme_halftone_agenda_wide.png)
 
 #### wide_forecast
 

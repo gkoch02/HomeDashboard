@@ -49,6 +49,7 @@ DECLINES_PARTIAL = {
     "fantasy",
     "halftone",
     "halftone_agenda",
+    "halftone_agenda_wide",
     "naturalist",
     "photo",
     "postcard",

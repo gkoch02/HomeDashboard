@@ -32,6 +32,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   bars, and a band for alerts, air quality and the moon). On an 800 × 480 panel
   they letterbox. `scripts/build_previews.py` renders every theme at its own
   canvas size and takes `--model` / `--suffix` for a four-ink preview set.
+- **`halftone_agenda_wide`** — the split-plate agenda drawn for the 1360 × 480
+  strip. The engraving and weather band at the left, today's agenda at half
+  again its usual width in the middle (the original's `_draw_agenda_pane`,
+  every treatment intact), and a rail for what the 800 × 480 plate leaves out:
+  alerts, the next day's events, the forecast, birthdays, air quality and the
+  moon. The theme fetches two days past the week (`EXTRA_EVENT_DAYS` in
+  `src/app.py`, which now generalises `THEMES_NEEDING_TOMORROW`) because the
+  rail shows the day after tomorrow once the agenda has rolled over.
 
 ### Fixed
 

@@ -214,7 +214,7 @@ logging:
 #                   scorecard | tides | halftone | halftone_agenda | day_arc |
 #                   trends | weatherglass
 #   DITHERED ART    postcard | naturalist
-#   PANORAMIC       wide_week | wide_day | wide_forecast
+#   PANORAMIC       wide_week | wide_day | wide_forecast | halftone_agenda_wide
 #   PHOTO OVERLAY   photo
 #   UTILITY         countdown | message | diags
 #   ROTATION        random_daily | random_hourly

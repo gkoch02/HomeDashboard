@@ -118,7 +118,7 @@ Example full batch for all concrete themes:
 
 ```bash
 for theme in agenda air_quality almanac astronomy constellation_map countdown day_arc default diags fantasy fuzzyclock \
-             fuzzyclock_invert halftone halftone_agenda light_cycle message minimalist monthly moonphase moonphase_invert moonphase_photo \
+             fuzzyclock_invert halftone halftone_agenda halftone_agenda_wide light_cycle message minimalist monthly moonphase moonphase_invert moonphase_photo \
              naturalist old_fashioned photo postcard qotd qotd_invert scorecard sunrise terminal tides timeline today trends \
              weather weatherglass wide_day wide_forecast wide_week year_pulse; do
   if [ "$theme" = "message" ]; then
