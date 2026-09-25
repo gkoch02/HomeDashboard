@@ -4,7 +4,8 @@ After=dashboard.timer
 
 [Path]
 # When the web UI touches this file, systemd immediately starts dashboard.service.
-# The service deletes the file via ExecStartPost so it's ready for the next trigger.
+# The service removes the file in ExecStartPre — before the run, so a run that
+# fails cannot leave it behind and re-trigger itself — ready for the next request.
 PathExists=__INSTALL_DIR__/state/web_trigger
 Unit=dashboard.service
 

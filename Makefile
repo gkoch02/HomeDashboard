@@ -75,10 +75,19 @@ PI_DIR  ?= /home/$(PI_USER)/home-dashboard
 # never touches).
 QUOTES_FILE ?=
 
+# The Pi's runtime state and secrets are never pushed: state/ (cache, breaker,
+# sync tokens, refresh throttle, web events), output/ (renders, logs and the
+# health markers /api/health reads), config/web.yaml and the config backups
+# (this machine's password hash and API keys), plus local tool caches. A dev
+# box that has ever run `make dry` has all of these, and shipping them reset
+# the Pi's cache and stamped a dev-box "last success" over its real one (#264).
 deploy:
-	rsync -avz --exclude='venv' --exclude='output/*.png' \
-		--exclude='__pycache__' --exclude='.git' \
+	rsync -avz --exclude='venv' --exclude='.venv' --exclude='output/' \
+		--exclude='state/' --exclude='__pycache__' --exclude='.git' \
 		--exclude='credentials/' --exclude='config/config.yaml' \
+		--exclude='config/web.yaml' --exclude='config/*.bak*' \
+		--exclude='.pytest_cache' --exclude='.ruff_cache' --exclude='.mypy_cache' \
+		--exclude='htmlcov' --exclude='*.egg-info' --exclude='.coverage' \
 		$(if $(QUOTES_FILE),--exclude='$(QUOTES_FILE)',) \
 		. $(PI_USER)@$(PI_HOST):$(PI_DIR)/
 

@@ -241,7 +241,7 @@ If the web UI has authentication enabled (recommended), add `-u user:pass` to bo
 
 ## Manual refresh
 
-Clicking **Refresh Now** on the status page causes the web server to touch `state/web_trigger`. The `dashboard-trigger.path` systemd unit watches for this file and immediately starts `dashboard.service`. The dashboard run deletes the trigger file when it finishes, ready for the next request.
+Clicking **Refresh Now** on the status page causes the web server to touch `state/web_trigger`. The `dashboard-trigger.path` systemd unit watches for this file and immediately starts `dashboard.service`. The service removes the trigger file as it starts (`ExecStartPre=`), so a run that fails cannot leave the file behind and re-trigger itself; the next click creates a fresh one.
 
 This approach requires no `sudo` and no inter-process communication — it is purely file-based.
 
