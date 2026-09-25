@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 # Themes whose view can extend past the end of the standard Monday-anchored
 # week and therefore need one extra day of calendar events fetched. Both
 # themes here roll their agenda over to tomorrow after dark.
-THEMES_NEEDING_TOMORROW = frozenset({"day_arc", "halftone_agenda"})
+THEMES_NEEDING_TOMORROW = frozenset({"day_arc", "halftone_agenda", "wide_day"})
 
 # State files that belong in state_dir (not output_dir)
 _STATE_FILES = [

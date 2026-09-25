@@ -6,6 +6,33 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added
+
+- **Waveshare 10.85" e-Paper (G) support** — `display.model: epd10in85g`, a
+  1360 × 480 strip with four inks (black, white, yellow, red). The new
+  `WaveshareColorBackend` renders themes in colour the way the Inky path does,
+  folds the two Spectra 6 inks the panel lacks (blue, green) onto black, and
+  snaps the final image to the panel's four inks by nearest colour so the
+  driver's own palette mapping is exact; greyscale art themes keep their
+  dither. Colour models never take the fast waveform (`enable_partial_refresh`
+  is ignored, with a config warning). `DisplaySpec` gains `palette` and
+  `is_color`; `canvas.py` decides colour by the display spec rather than by
+  `provider == "inky"`.
+- **`display.scaling`** — `auto` (default) / `stretch` / `fit`. Until now every
+  off-size panel got the 800 × 480 canvas stretched, which on a 1360 × 480 strip
+  pulls a week grid 1.7× wide. `fit` keeps the canvas shape and pads with the
+  theme's background; `auto` stretches unless the distortion would exceed a
+  third, so 4:3 panels render exactly as before and the strip fits. Web-editable.
+- **Three panoramic themes** for the strip, each with a native 1360 × 480 canvas:
+  `wide_week` (the standard dashboard reflowed — 128-px week columns and a
+  full-height rail of weather, birthdays and quote), `wide_day` (today as a
+  timeline across the plate, events as lanes of bars with their labels packed
+  alongside, a NOW marker, an up-next rail that reaches into tomorrow) and
+  `wide_forecast` (hero conditions, five forecast cards with precipitation
+  bars, and a band for alerts, air quality and the moon). On an 800 × 480 panel
+  they letterbox. `scripts/build_previews.py` renders every theme at its own
+  canvas size and takes `--model` / `--suffix` for a four-ink preview set.
+
 ### Fixed
 
 - **`config/config.example.yaml` is complete again, and stays that way.** The

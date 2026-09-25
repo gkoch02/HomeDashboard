@@ -13,7 +13,7 @@ from src.render.components import (
     _builtins as _component_builtins,  # noqa: F401  registers components
 )
 from src.render.components.registry import RenderContext, get_component
-from src.render.quantize import INKY_SPECTRA6_PALETTE
+from src.render.quantize import INKY_SPECTRA6_PALETTE, WAVESHARE_G_STYLE_PALETTE
 from src.render.theme import (
     INKY_BLACK as _INKY_BLACK,
 )
@@ -58,20 +58,36 @@ def _resolve_inky_palette(theme: Theme) -> tuple[int, int]:
 def _resolve_inky_explicit_color(
     value: int | tuple[int, int, int] | None,
     fallback: tuple[int, int, int],
+    palette: list[tuple[int, int, int]] = INKY_SPECTRA6_PALETTE,
 ) -> tuple[int, int, int]:
-    """Resolve an explicit theme color for Inky RGB output.
+    """Resolve an explicit theme color for a colour panel's RGB canvas.
 
     Themes may specify an RGB tuple directly or use a Spectra 6 palette index
     to override an accent role without baking backend-specific RGB values into
-    the theme module.
+    the theme module. *palette* is the display's own reading of those indices
+    — Spectra-6 on Inky, the four "G" inks (blue and green folded onto black)
+    on a Waveshare colour panel.
     """
     if value is None:
         return fallback
     if isinstance(value, tuple):
         return value
-    if 0 <= value < len(INKY_SPECTRA6_PALETTE):
-        return INKY_SPECTRA6_PALETTE[value]
+    if 0 <= value < len(palette):
+        return palette[value]
     return fallback
+
+
+def _is_color_display(config: DisplayConfig) -> bool:
+    """Whether the configured panel shows more than black and white."""
+    spec = get_display_spec(config.provider, config.model)
+    return spec is not None and spec.is_color
+
+
+def _style_palette(config: DisplayConfig) -> list[tuple[int, int, int]]:
+    """The RGB values the Spectra-6 style indices resolve to on this panel."""
+    if config.provider == "inky":
+        return INKY_SPECTRA6_PALETTE
+    return WAVESHARE_G_STYLE_PALETTE
 
 
 def _resolve_mono_explicit_color(
@@ -103,7 +119,7 @@ def _resolve_render_mode(layout_mode: str, config: DisplayConfig) -> str:
 
 def _resolve_style(theme: Theme, render_mode: str, config: DisplayConfig):
     style = theme.style
-    if config.provider != "inky":
+    if not _is_color_display(config):
         allow_grayscale = render_mode == "L"
         return replace(
             style,
@@ -129,18 +145,20 @@ def _resolve_style(theme: Theme, render_mode: str, config: DisplayConfig):
             ),
         )
     if render_mode == "RGB":
-        pal = INKY_SPECTRA6_PALETTE
+        pal = _style_palette(config)
         primary, secondary = _resolve_inky_palette(theme)
         return replace(
             style,
             fg=pal[_INKY_BLACK] if style.fg == 0 else pal[_INKY_WHITE],
             bg=pal[_INKY_BLACK] if style.bg == 0 else pal[_INKY_WHITE],
-            accent_info=_resolve_inky_explicit_color(style.accent_info, pal[_INKY_BLUE]),
-            accent_warn=_resolve_inky_explicit_color(style.accent_warn, pal[_INKY_YELLOW]),
-            accent_alert=_resolve_inky_explicit_color(style.accent_alert, pal[_INKY_RED]),
-            accent_good=_resolve_inky_explicit_color(style.accent_good, pal[_INKY_GREEN]),
-            accent_primary=_resolve_inky_explicit_color(style.accent_primary, pal[primary]),
-            accent_secondary=(_resolve_inky_explicit_color(style.accent_secondary, pal[secondary])),
+            accent_info=_resolve_inky_explicit_color(style.accent_info, pal[_INKY_BLUE], pal),
+            accent_warn=_resolve_inky_explicit_color(style.accent_warn, pal[_INKY_YELLOW], pal),
+            accent_alert=_resolve_inky_explicit_color(style.accent_alert, pal[_INKY_RED], pal),
+            accent_good=_resolve_inky_explicit_color(style.accent_good, pal[_INKY_GREEN], pal),
+            accent_primary=_resolve_inky_explicit_color(style.accent_primary, pal[primary], pal),
+            accent_secondary=(
+                _resolve_inky_explicit_color(style.accent_secondary, pal[secondary], pal)
+            ),
         )
     return replace(
         style,
@@ -179,7 +197,8 @@ def render_dashboard(
     themes, ``"L"`` for new greyscale themes that opt in).
 
     If the configured display differs from the canvas size, the image is scaled to native
-    resolution via LANCZOS resampling.  The final quantization step (``"L"`` → ``"1"``)
+    resolution via LANCZOS resampling — stretched, or fitted on a background-padded plate,
+    per ``config.scaling``.  The final quantization step (``"L"`` → ``"1"``)
     is applied whenever a resize occurred OR the canvas mode is ``"L"``.  The algorithm
     used is controlled by ``config.quantization_mode`` (default: ``"threshold"``).
 
@@ -191,7 +210,7 @@ def render_dashboard(
 
     layout = theme.layout
     render_mode = _resolve_render_mode(layout.canvas_mode, config)
-    if config.provider == "inky" and layout.canvas_mode == "L" and layout.prefer_color_on_inky:
+    if layout.canvas_mode == "L" and layout.prefer_color_on_inky and _is_color_display(config):
         render_mode = "RGB"
     style = _resolve_style(theme, render_mode, config)
 
@@ -251,6 +270,7 @@ def render_dashboard(
         image,
         canvas_size=(layout.canvas_w, layout.canvas_h),
         layout=layout,
+        background=style.bg,
     )
 
     return image

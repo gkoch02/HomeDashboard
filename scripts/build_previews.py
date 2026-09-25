@@ -17,12 +17,17 @@ Usage::
     python3 scripts/build_previews.py --provider inky    # Inky Spectra-6 set
     python3 scripts/build_previews.py --theme moonphase --theme qotd
     python3 scripts/build_previews.py --date 2026-04-06  # pin the render date
+    python3 scripts/build_previews.py --model epd10in85g --suffix _g   # four-ink set
+
+Every theme is rendered at its own canvas size rather than the panel's, so a
+panoramic theme previews as a native strip.
 """
 
 from __future__ import annotations
 
 import argparse
 import sys
+from dataclasses import replace
 from datetime import date as _date
 from datetime import datetime
 from pathlib import Path
@@ -31,6 +36,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
 from src.config import CountdownEvent, load_config  # noqa: E402
+from src.display.driver import get_display_spec  # noqa: E402
 from src.dummy_data import generate_dummy_data  # noqa: E402
 from src.render.canvas import render_dashboard  # noqa: E402
 from src.render.theme import load_theme  # noqa: E402
@@ -68,16 +74,18 @@ PREVIEW_COUNTDOWNS = [
 _SUFFIX = {"waveshare": "", "inky": "_inky"}
 
 
-def _build_config(provider: str, config_path: str):
+def _build_config(provider: str, config_path: str, model: str | None = None):
     """Load *config_path* and point it at the requested display."""
     cfg = load_config(config_path)
     cfg.display.provider = provider
-    cfg.display.model = "impression_7_3_2025" if provider == "inky" else "epd7in5_V2"
-    # Auto-derived native dimensions follow the model, so clear any width and
-    # height the example config pinned for the other provider.
-    cfg.display.width, cfg.display.height = (
-        (800, 480) if provider == "inky" else (cfg.display.width, cfg.display.height)
-    )
+    if model is None:
+        model = "impression_7_3_2025" if provider == "inky" else "epd7in5_V2"
+    spec = get_display_spec(provider, model)
+    if spec is None:
+        raise SystemExit(f"Unknown display model {model!r} for provider {provider!r}")
+    cfg.display.model = model
+    # Native dimensions follow the model, whatever the config pinned.
+    cfg.display.width, cfg.display.height = spec.width, spec.height
     return cfg
 
 
@@ -98,6 +106,11 @@ def render_preview(theme_name: str, cfg, now: datetime, out_path: Path) -> None:
     if theme_name == "photo":
         theme.style.photo_path = cfg.photo.path
 
+    # A preview shows the theme at its own canvas size, not letterboxed or
+    # stretched onto the panel: the panoramic themes declare 1360x480 and a
+    # 800x480 rendering of one is a band across the middle of a blank plate.
+    display = replace(cfg.display, width=theme.layout.canvas_w, height=theme.layout.canvas_h)
+
     # Same (0.0, 0.0) == "unset" convention DashboardApp uses, so a config
     # without coordinates previews the graceful-degradation path rather than
     # silently borrowing coordinates this script invented.
@@ -106,7 +119,7 @@ def render_preview(theme_name: str, cfg, now: datetime, out_path: Path) -> None:
 
     image = render_dashboard(
         data,
-        cfg.display,
+        display,
         title=cfg.title,
         theme=theme,
         quote_refresh=cfg.cache.quote_refresh,
@@ -130,6 +143,19 @@ def main(argv: list[str] | None = None) -> int:
         choices=("waveshare", "inky"),
         default="waveshare",
         help="Display backend to render for (default: waveshare).",
+    )
+    parser.add_argument(
+        "--model",
+        default=None,
+        help=(
+            "Display model to render for (default: the provider's reference panel). "
+            "A colour Waveshare model such as epd10in85g renders the four-ink set."
+        ),
+    )
+    parser.add_argument(
+        "--suffix",
+        default=None,
+        help="File-name suffix before .png (default: '' for waveshare, '_inky' for inky).",
     )
     parser.add_argument(
         "--theme",
@@ -162,9 +188,9 @@ def main(argv: list[str] | None = None) -> int:
         hour=DEFAULT_TIME[0], minute=DEFAULT_TIME[1]
     )
 
-    cfg = _build_config(args.provider, args.config)
+    cfg = _build_config(args.provider, args.config, args.model)
     out_dir = Path(args.out_dir)
-    suffix = _SUFFIX[args.provider]
+    suffix = _SUFFIX[args.provider] if args.suffix is None else args.suffix
 
     names = _theme_names(args.themes)
     failures: list[str] = []

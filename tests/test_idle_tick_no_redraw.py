@@ -43,6 +43,8 @@ TIME_DRIVEN = {
     "sunrise",
     "tides",
     "trends",
+    # The NOW marker on a panoramic timeline; see wide_day_panel.
+    "wide_day",
 }
 
 # Themes that always redraw for reasons this test cannot model. `diags` reports

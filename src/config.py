@@ -181,6 +181,13 @@ class DisplayConfig:
     show_birthdays: bool = True
     show_info_panel: bool = True
     quantization_mode: str = "threshold"
+    # How a theme canvas that is not the panel's size reaches it: "stretch"
+    # (LANCZOS to the panel, the historical behaviour), "fit" (scale to fit,
+    # keeping the aspect ratio, and pad the remainder with the theme's
+    # background), or "auto" — stretch until the stretch would bend the aspect
+    # ratio by more than a third, then fit. Only "auto" and "fit" put an
+    # 800x480 theme on a 1360x480 panoramic panel legibly.
+    scaling: str = "auto"
     # Minimum seconds between hardware refreshes. None ⇒ provider default
     # (60 for Inky, 0 for Waveshare). Set 3600 on Inky to restore the v4
     # "exactly once an hour" hourly throttle.
@@ -486,6 +493,7 @@ def load_config(path: str = "config/config.yaml") -> Config:
             show_birthdays=d.get("show_birthdays", True),
             show_info_panel=d.get("show_info_panel", True),
             quantization_mode=d.get("quantization_mode", "threshold"),
+            scaling=str(d.get("scaling", "auto")),
             min_refresh_interval_seconds=d.get("min_refresh_interval_seconds"),
         )
 

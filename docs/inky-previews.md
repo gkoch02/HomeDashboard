@@ -12,6 +12,7 @@ black and white.
   - [Full-screen focused themes](#full-screen-focused-themes)
   - [Specialized themes](#specialized-themes)
   - [Dithered art themes](#dithered-art-themes)
+  - [Panoramic themes](#panoramic-themes)
   - [Utility themes](#utility-themes)
 - [Regenerating these images](#regenerating-these-images)
 
@@ -268,6 +269,31 @@ Accents: **red** primary, **black** secondary · [description in Themes ↗](the
 Accents: **red** primary, **black** secondary · [description in Themes ↗](themes.md#naturalist)
 
 [![Naturalist theme on Inky](../assets/previews/theme_naturalist_inky.png)](../assets/previews/theme_naturalist_inky.png)
+
+### Panoramic themes
+
+These declare a 1360 × 480 canvas for the Waveshare 10.85" (G) strip, whose
+four inks are black, white, yellow and red — so each names only red and yellow
+accents, and the previews below (rendered at the canvas size through the
+Spectra 6 mapping) show the same colours that panel does.
+
+#### wide_week
+
+Accents: **red** primary, **black** secondary · [description in Themes ↗](themes.md#wide_week)
+
+[![Wide week theme on Inky](../assets/previews/theme_wide_week_inky.png)](../assets/previews/theme_wide_week_inky.png)
+
+#### wide_day
+
+Accents: **red** primary, **black** secondary · [description in Themes ↗](themes.md#wide_day)
+
+[![Wide day theme on Inky](../assets/previews/theme_wide_day_inky.png)](../assets/previews/theme_wide_day_inky.png)
+
+#### wide_forecast
+
+Accents: **red** primary, **yellow** secondary · [description in Themes ↗](themes.md#wide_forecast)
+
+[![Wide forecast theme on Inky](../assets/previews/theme_wide_forecast_inky.png)](../assets/previews/theme_wide_forecast_inky.png)
 
 ### Utility themes
 

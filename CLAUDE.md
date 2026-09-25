@@ -106,8 +106,10 @@ src/
 ├── display/
 │   ├── driver.py              # DisplayDriver ABC → DryRunDisplay, WaveshareDisplay, InkyDisplay;
 │   │                          #   provider/model specs + image_changed()
-│   ├── backend.py             # DisplayBackend ABC → WaveshareBackend, InkyBackend; unifies the
-│   │                          #   resize + finalize step (canvas.py no longer forks on provider)
+│   ├── backend.py             # DisplayBackend ABC → WaveshareBackend, WaveshareColorBackend
+│   │                          #   (four-ink "G" panels), InkyBackend; unifies the resize +
+│   │                          #   finalize step (canvas.py no longer forks on provider), and
+│   │                          #   fit_canvas() stretches or fits-and-pads per display.scaling
 │   └── refresh_tracker.py     # Partial vs full refresh state machine
 ├── fetchers/
 │   ├── registry.py            # v5 fetcher plugin registry (Fetcher dataclass + FetchContext);
@@ -170,7 +172,7 @@ src/
     │                          #   cut of an event location every panel row uses)
     ├── star_catalog.py        # Curated J2000 bright-star + constellation-outline catalogue
     │                          #   (~45 named stars); backs the constellation_map theme
-    ├── themes/                # themes (37 — 36 concrete + `default` pseudo): standard week-view
+    ├── themes/                # themes (40 — 39 concrete + `default` pseudo): standard week-view
     │                          #   (default, agenda, terminal, minimalist, old_fashioned, today,
     │                          #   fantasy); full-screen focused (qotd, qotd_invert, fuzzyclock,
     │                          #   fuzzyclock_invert, weather, moonphase, moonphase_invert,
@@ -180,12 +182,13 @@ src/
     │                          #   almanac, scorecard, tides, halftone, halftone_agenda,
     │                          #   day_arc, trends, weatherglass);
     │                          #   dithered art (postcard, naturalist); photo overlay (photo);
+    │                          #   panoramic 1360×480 (wide_week, wide_day, wide_forecast);
     │                          #   utility (countdown, message, diags)
     │   ├── registry.py        # v5 theme plugin registry (register_theme + per-theme
     │   │                      #   inky_palette pair); adding a theme is one new file plus a
     │   │                      #   register_theme(...) call at its bottom
     │   └── __init__.py        # Side-effect imports of every theme module populate the registry
-    └── components/            # One file per UI region (31): header, week_view, weather_panel,
+    └── components/            # One file per UI region (33): header, week_view, weather_panel,
         │                      #   weather_full, birthday_bar, today_view, info_panel, qotd_panel,
         │                      #   fuzzyclock_panel, diags_panel, air_quality_panel,
         │                      #   astronomy_panel, constellation_map_panel, moonphase_panel,
@@ -193,7 +196,8 @@ src/
         │                      #   sunrise_panel, light_cycle_panel, scorecard_panel, tides_panel,
         │                      #   countdown_panel, almanac_panel, halftone_panel, trends_panel,
         │                      #   postcard_panel, naturalist_panel, weatherglass_panel,
-        │                      #   day_arc_panel, halftone_agenda_panel
+        │                      #   day_arc_panel, halftone_agenda_panel, wide_day_panel,
+        │                      #   wide_forecast_panel
         ├── registry.py        # v5 component plugin registry (RenderContext + @register_component)
         ├── _builtins.py       # Adapter registrations for the built-in components
         └── __init__.py        # Side-effect import of _builtins populates the component registry
@@ -297,7 +301,7 @@ Theme-resolution priority (highest → lowest): **CLI `--theme` > `theme_rules` 
 ### Rendering
 Components are pure functions: `draw_*(draw, data, region, style) -> None`. No global state. Same input produces the same PNG. The component registry wraps each in an adapter `(ctx: RenderContext) -> None` that pulls the right kwargs from `ctx`.
 
-`render_dashboard()` creates the canvas in a mode derived from theme + display provider. After drawing and any optional overlay, the rendered canvas is handed to `build_display_backend(config).resize_and_finalize(...)` from `src/display/backend.py`. `WaveshareBackend` does LANCZOS-resize-then-quantize-to-1-bit; `InkyBackend` does an RGB resize and defers palette mapping to the Inky library at write time. `canvas.py` no longer branches on `config.provider`. The SHA-256 image hash used for refresh suppression is computed on the final backend-ready image bytes.
+`render_dashboard()` creates the canvas in a mode derived from theme + display spec (`_is_color_display()` — a `DisplaySpec` whose `render_mode` is `"RGB"`, which is Inky and the Waveshare "G" models; `canvas.py` no longer tests `provider == "inky"`). After drawing and any optional overlay, the rendered canvas is handed to `build_display_backend(config).resize_and_finalize(..., background=style.bg)` from `src/display/backend.py`. `WaveshareBackend` does LANCZOS-resize-then-quantize-to-1-bit; `WaveshareColorBackend` (four-ink "G" panels) runs a greyscale plate through that same pipeline and promotes it, or resizes a colour plate in RGB and snaps every pixel to the panel's inks by nearest colour; `InkyBackend` does an RGB resize and defers palette mapping to the Inky library at write time. All three resize through `fit_canvas()`, which stretches (the historical behaviour) or fits-and-pads with the theme background per `display.scaling` (`auto` = stretch unless the distortion would exceed a third). The SHA-256 image hash used for refresh suppression is computed on the final backend-ready image bytes.
 
 ### Display refresh throttle (v5)
 `OutputService.publish()` skips hardware writes when both:
@@ -481,7 +485,10 @@ default to `None` and fall back gracefully so adding a new field never breaks ex
 - `air_quality` theme uses `draw_air_quality_full()` in `air_quality_panel.py`, which receives the full `DashboardData` object (same pattern as `diags_panel`); the component dispatches via the `air_quality_full` region on `ThemeLayout`
 - `retry_fetch()` in `data_pipeline.py` retries only likely transient failures and does not retry likely permanent config/data errors (`RuntimeError`, `ValueError`, `TypeError`, `KeyError`)
 - `gpiozero` pin factory is set to `lgpio` for Pi hardware runtime (required for modern Pi OS)
-- Supported display providers/models: `waveshare` → `epd7in5` (640×384), `epd7in5_V2` (800×480, default), `epd7in5_V3` (800×480), `epd7in5b_V2` (800×480), `epd7in5_HD` (880×528), `epd9in7` (1200×825), `epd13in3k` (1600×1200); `inky` → `impression_7_3_2025` (800×480). Set via `display.provider` + `display.model`; canvas renders at 800×480 and scales when needed.
+- Supported display providers/models: `waveshare` → `epd7in5` (640×384), `epd7in5_V2` (800×480, default), `epd7in5_V3` (800×480), `epd7in5b_V2` (800×480), `epd7in5_HD` (880×528), `epd9in7` (1200×825), `epd13in3k` (1600×1200), `epd10in85g` (1360×480, four inks); `inky` → `impression_7_3_2025` (800×480). Set via `display.provider` + `display.model`; canvas renders at 800×480 (1360×480 for the `wide_*` themes) and scales when needed.
+- **The Waveshare 10.85" (G) is a colour model inside the Waveshare provider.** `WAVESHARE_COLOR_MODELS` in `src/display/driver.py` maps `epd10in85g` to `WAVESHARE_G_PALETTE` (black, white, yellow, red — the order the G drivers' `getbuffer()` packs, 2 bits per pixel); its `DisplaySpec` has `render_mode="RGB"`, `palette` set, `supports_partial_refresh=False`, and `is_color` true. Themes are drawn in colour for it exactly as for Inky, but against `WAVESHARE_G_STYLE_PALETTE` (`src/render/quantize.py`): the six Spectra-6 style indices with blue and green folded onto black, and pure white as the ground rather than Inky's measured (161,164,165) — the ground matters because the final `quantize_to_palette_nearest()` is a hard cut, and pure white puts an antialiased glyph edge at the same mid-grey threshold the 1-bit path uses, so type keeps its weight. For neutral greys the nearest of the four inks is provably black or white (yellow needs the blue channel low, red needs green low), so no resize blur or antialiasing ever lands on a coloured ink; that is why the snap is not a dither. `WaveshareDisplay` forces `enable_partial=False` for colour models (the G drivers have no `init_fast()`) and hands the RGB image to `epd.getbuffer()`, whose own palette mapping is then exact. The module path `waveshare_epd.epd10in85g` follows the G-family convention (`epd7in3g`, `epd4in37g`) — it is the one line to touch if the panel's shipped library names it differently.
+- **`display.scaling` decides how an off-size canvas reaches the panel** (`fit_canvas()` in `src/display/backend.py`). Every version so far stretched, and `auto` (the default) still does unless `distortion()` — the ratio between the panel's aspect and the canvas's — exceeds `FIT_DISTORTION_THRESHOLD` (4/3): a 4:3 `epd13in3k` is 1.25 and renders byte-identically to before, the 1360×480 strip is 1.7 and fits. `fit` pads with the theme's `bg`, passed to the backend as `background=` in the canvas's own mode (`pad_value()` converts it); `stretch` and `fit` are explicit overrides, and an unknown value behaves as `auto` at render time while `validate_config()` reports it. The backend tests build their config as a `MagicMock`, which is why `resolve_scaling()` treats anything but the two explicit strings as auto rather than raising.
+- **The `wide_*` themes declare a 1360×480 canvas** (`wide_week`, `wide_day`, `wide_forecast`) and are the reason previews are rendered at the theme's canvas size (`scripts/build_previews.py` swaps `cfg.display` width/height for the layout's) — on an 800×480 config they letterbox to a 800×282 band, which is what the pixel-snapshot and idle-tick suites hash. `wide_week` is the standard five components at new regions; `wide_day` (`wide_day_panel.py`) packs bars into lanes by `pack_lanes()` over *bar-plus-label* pixel extents, not time spans — a thirty-minute meeting is 24 px on a sixteen-hour axis, so packing by time alone left a busy day as one lane of anonymous boxes — and is in `TIME_DRIVEN` (NOW marker) and `THEMES_NEEDING_TOMORROW` (its UP NEXT rail). `wide_forecast` (`wide_forecast_panel.py`) is idle-stable; its yellow precipitation fill is drawn only when `secondary_accent_fill()` differs from `fg` (`_tint()`), because on a monochrome plate a fill behind ink text is unreadable. All three name only red/yellow/black accents so the Inky preview and the four-ink panel agree.
 - **Calendar backend dispatch precedence** (highest → lowest, evaluated in `src/fetchers/calendar.py:fetch_events`):
   1. `google.caldav_url` set → CalDAV via `src/fetchers/calendar_caldav.py`
   2. `google.ical_url` set → ICS feed via `src/fetchers/calendar_ical.py`

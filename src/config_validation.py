@@ -297,6 +297,18 @@ def validate_config(
             )
         )
 
+    # --- Display scaling ---
+    from src.display.backend import SCALING_MODES
+
+    if cfg.display.scaling not in SCALING_MODES:
+        errors.append(
+            ConfigError(
+                field="display.scaling",
+                message=f"Unknown scaling mode: '{cfg.display.scaling}'",
+                hint=f"Valid modes: {', '.join(SCALING_MODES)}",
+            )
+        )
+
     # --- Display provider/model ---
     from src.display.driver import get_display_spec, supported_display_models
 

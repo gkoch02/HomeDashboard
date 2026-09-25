@@ -118,6 +118,7 @@ _SAMPLE_VALUES: dict[str, object] = {
     "display.week_days": 5,
     "display.enable_partial_refresh": True,
     "display.max_partials_before_full": 99,
+    "display.scaling": "fit",
     "schedule.quiet_hours_start": 21,
     "schedule.quiet_hours_end": 7,
     "weather.latitude": 37.7749,

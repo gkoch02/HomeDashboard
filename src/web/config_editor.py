@@ -161,6 +161,7 @@ def get_config_for_web(config_path: str) -> dict:
             "week_days": cfg.display.week_days,
             "enable_partial_refresh": cfg.display.enable_partial_refresh,
             "max_partials_before_full": cfg.display.max_partials_before_full,
+            "scaling": cfg.display.scaling,
         },
         "schedule": {
             "quiet_hours_start": cfg.schedule.quiet_hours_start,

@@ -22,6 +22,28 @@ WAVESHARE_MODELS: dict[str, tuple[str, int, int]] = {
     "epd7in5_HD": ("waveshare_epd.epd7in5_HD", 880, 528),
     "epd9in7": ("waveshare_epd.epd9in7", 1200, 825),
     "epd13in3k": ("waveshare_epd.epd13in3k", 1600, 1200),
+    # 10.85" e-Paper (G): a 1360x480 panoramic strip with four inks. Module
+    # name follows Waveshare's convention for the "G" family (epd7in3g,
+    # epd4in37g): the demo code that ships with the panel installs it as
+    # ``waveshare_epd.epd10in85g``.
+    "epd10in85g": ("waveshare_epd.epd10in85g", 1360, 480),
+}
+
+# The physical inks of a Waveshare "G" panel, in the order the driver's
+# ``getbuffer()`` packs them (black=00, white=01, yellow=10, red=11). A model
+# listed here is a colour model: the backend snaps the rendered image to these
+# exact values before it reaches the driver, and ``WaveshareDisplay.show()``
+# always drives it with the full waveform — the G drivers expose no
+# ``init_fast()``, and a 4-ink refresh is a full repaint by nature.
+WAVESHARE_G_PALETTE: tuple[tuple[int, int, int], ...] = (
+    (0, 0, 0),
+    (255, 255, 255),
+    (255, 255, 0),
+    (255, 0, 0),
+)
+
+WAVESHARE_COLOR_MODELS: dict[str, tuple[tuple[int, int, int], ...]] = {
+    "epd10in85g": WAVESHARE_G_PALETTE,
 }
 
 INKY_MODELS: dict[str, tuple[int, int]] = {
@@ -48,18 +70,29 @@ class DisplaySpec:
     height: int
     render_mode: str
     supports_partial_refresh: bool
+    # The panel's inks, for a colour model whose driver takes an image it maps
+    # onto a fixed palette (the Waveshare "G" family). ``None`` for 1-bit
+    # panels and for Inky, whose palette lives with its quantizer.
+    palette: tuple[tuple[int, int, int], ...] | None = None
+
+    @property
+    def is_color(self) -> bool:
+        """Whether the panel shows more than black and white."""
+        return self.render_mode == "RGB"
 
 
 def _build_display_specs() -> dict[tuple[str, str], DisplaySpec]:
     specs: dict[tuple[str, str], DisplaySpec] = {}
     for model, (_, width, height) in WAVESHARE_MODELS.items():
+        palette = WAVESHARE_COLOR_MODELS.get(model)
         specs[("waveshare", model)] = DisplaySpec(
             provider="waveshare",
             model=model,
             width=width,
             height=height,
-            render_mode="1",
-            supports_partial_refresh=True,
+            render_mode="RGB" if palette is not None else "1",
+            supports_partial_refresh=palette is None,
+            palette=palette,
         )
     for model, (width, height) in INKY_MODELS.items():
         specs[("inky", model)] = DisplaySpec(
@@ -205,10 +238,15 @@ class WaveshareDisplay(DisplayDriver):
                 f"Unknown Waveshare model '{model}'. Supported models: {sorted(WAVESHARE_MODELS)}"
             )
         self.model = model
-        self.enable_partial = enable_partial
+        # A colour ("G") panel has no fast waveform to opt into.
+        self.enable_partial = enable_partial and model not in WAVESHARE_COLOR_MODELS
         self.max_partials = max_partials
         self.state_dir = state_dir
         self._epd = None
+
+    @property
+    def is_color(self) -> bool:
+        return self.model in WAVESHARE_COLOR_MODELS
 
     @property
     def native_width(self) -> int:
@@ -241,6 +279,10 @@ class WaveshareDisplay(DisplayDriver):
         try:
             if force_full or not self.enable_partial or tracker.needs_full_refresh():
                 epd.init()
+                # A "G" driver's getbuffer() maps RGB onto the panel's four
+                # inks itself; the backend has already snapped every pixel to
+                # one of them, so that mapping is exact. A 1-bit driver wants
+                # the "1" image the mono backend produced.
                 epd.display(epd.getbuffer(image))
                 tracker.record_full()
             else:

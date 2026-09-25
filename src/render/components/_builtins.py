@@ -40,6 +40,8 @@ from src.render.components import (
     weather_panel,
     weatherglass_panel,
     week_view,
+    wide_day_panel,
+    wide_forecast_panel,
     year_pulse_panel,
 )
 from src.render.components.registry import RenderContext, register_component
@@ -476,4 +478,28 @@ def _weatherglass(ctx: RenderContext) -> None:
         latitude=ctx.latitude,
         longitude=ctx.longitude,
         state_dir=ctx.state_dir,
+    )
+
+
+@register_component("wide_day")
+def _wide_day(ctx: RenderContext) -> None:
+    wide_day_panel.draw_wide_day(
+        ctx.draw,
+        ctx.data,
+        ctx.today,
+        ctx.now,
+        region=ctx.layout.wide_day,
+        style=ctx.style,
+    )
+
+
+@register_component("wide_forecast")
+def _wide_forecast(ctx: RenderContext) -> None:
+    wide_forecast_panel.draw_wide_forecast(
+        ctx.draw,
+        ctx.data,
+        ctx.today,
+        ctx.now,
+        region=ctx.layout.wide_forecast,
+        style=ctx.style,
     )
