@@ -105,9 +105,10 @@ _LABEL_PT = 14
 
 # --- Agenda pane geometry. The pane is 520 px of content, half again the
 # original's, and the extra width is spent on data rather than on bigger
-# type: a duration column against the right margin, a schedule strip under
-# the header, and room for a location under every title at every tier but
-# the densest.
+# lettering — a duration column against the right margin, a schedule strip
+# under the header, and room for a location under every title at every tier
+# but the densest. (A comment line must not begin with "type:", which mypy
+# reads as a type comment.)
 STRIP_H = 30  # schedule strip: 16-px bar + hour labels
 STRIP_MIN_HOUR = 6
 STRIP_MAX_HOUR = 22
@@ -547,7 +548,8 @@ def _draw_wide_agenda(
     visible: list[CalendarEvent] = []
     used_h = 0
     for i, evt in enumerate(day_events):
-        need = row_h + (gap_h if gaps[i] is not None and gaps[i] >= GAP_MIN_MINUTES else 0)
+        gap = gaps[i]
+        need = row_h + (gap_h if gap is not None and gap >= GAP_MIN_MINUTES else 0)
         if used_h + need > rows_h or len(visible) >= max_rows:
             break
         visible.append(evt)

@@ -585,8 +585,8 @@ def _draw_right_rail(
     if not rows:
         draw.text((rx, by), "None this week", font=style.font_regular(14), fill=style.fg)
         return
-    for when, bday in rows:
-        day_label = "Today" if when == today else when.strftime("%a %-d")
+    for on, bday in rows:
+        day_label = "Today" if on == today else on.strftime("%a %-d")
         text = f"{day_label} · {bday.name}"
         if bday.age is not None:
             text += f" ({bday.age})"
