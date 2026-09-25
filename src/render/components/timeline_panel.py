@@ -201,10 +201,17 @@ def axis_hours(timed: list[CalendarEvent], today: date) -> tuple[int, int]:
     first event begins in; the end is the later of ``_END_HOUR`` and the whole
     hour the last event ends by. Both are clamped to the calendar day, so an
     event running past midnight widens the axis to ``24`` and its overnight
-    tail is cut there. Only the part of an event that falls on *today* counts.
+    tail is cut there. Only the part of an event that falls on *today* counts,
+    and an event covering all of today does not widen the axis at all.
     """
     start_hour, end_hour = _START_HOUR, _END_HOUR
     for event in timed:
+        if event.start.date() < today and event.end.date() > today:
+            # A timed event spanning the whole day (a multi-day conference)
+            # says nothing about when today's schedule starts or ends; it
+            # is drawn full-height either way, so it must not stretch the
+            # axis to 00-24 and compress the real events.
+            continue
         if event.start.date() < today:
             start_hour = 0
         elif event.start.date() == today:

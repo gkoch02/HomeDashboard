@@ -222,9 +222,11 @@ def fetch_google_events(
                 exc,
             )
             last_exc = exc
-            if not stored:
-                # No previously-synced events to stand in for this calendar
-                # (first run, or a newly added additional_calendars entry).
+            if cal_id not in sync_state:
+                # This calendar has never synced (first run, or a newly added
+                # additional_calendars entry). A calendar that synced before
+                # and simply had no events keeps its (empty) stored list as
+                # the fallback rather than failing the whole fetch.
                 # Returning the siblings' events would hand the pipeline a
                 # calendar missing this source as the complete answer: it
                 # would be cached, marked FRESH and counted as a breaker

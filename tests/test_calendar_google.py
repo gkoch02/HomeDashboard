@@ -907,6 +907,44 @@ class TestFetchGoogleEvents:
             fetch_google_events(cfg)
         assert "secondary@group.v.calendar.google.com" in str(info.value)
 
+    def test_previously_synced_empty_calendar_falls_back_instead_of_raising(self, tmp_path):
+        """The #278 raise is for a calendar that has *never* synced. One that
+        synced before and simply had no events keeps its empty stored list as
+        the fallback: a transient error on an empty calendar must not fail the
+        whole fetch and push every sibling onto the stale cache."""
+        from src.fetchers.calendar_google import _SYNC_STATE_FILENAME
+
+        today = _today(None)
+        window_start = today - timedelta(days=today.weekday())
+        window_end = window_start + timedelta(days=7)
+        existing_state = {
+            "secondary@group.v.calendar.google.com": {
+                "sync_token": "sec_tok",
+                "events": [],
+                "window_start": window_start.isoformat(),
+                "window_end": window_end.isoformat(),
+            }
+        }
+        (tmp_path / _SYNC_STATE_FILENAME).write_text(json.dumps(existing_state))
+
+        primary_items = [_allday_item("Primary event", "2024-03-15", "2024-03-16", "p1")]
+        primary_result = {"items": primary_items, "summary": "Primary", "nextSyncToken": "t"}
+        list_mock = MagicMock()
+        list_mock.execute.side_effect = [
+            primary_result,
+            OSError("DNS failure"),
+            OSError("DNS failure"),
+        ]
+        events_mock = MagicMock()
+        events_mock.list.return_value = list_mock
+        svc = MagicMock()
+        svc.events.return_value = events_mock
+
+        cfg = _google_cfg(additional_calendars=["secondary@group.v.calendar.google.com"])
+        with self._patch_build_service(svc):
+            events = fetch_google_events(cfg, cache_dir=str(tmp_path))
+        assert [e.summary for e in events] == ["Primary event"]
+
     def test_multi_calendar_partial_failure_uses_stored_events(self, tmp_path):
         """On partial failure, the failing calendar's previously-synced events
         (from the sync_state file) are used so long-running setups don't

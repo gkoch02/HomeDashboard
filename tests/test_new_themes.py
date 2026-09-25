@@ -551,8 +551,22 @@ class TestTimelineAxisHours:
         from src.render.components.timeline_panel import axis_hours
 
         d = date(2026, 4, 6)
-        evts = [self._evt(datetime(2026, 4, 5, 23), datetime(2026, 4, 7, 2))]
-        assert axis_hours(evts, d) == (0, 24)
+        overnight_in = [self._evt(datetime(2026, 4, 5, 23), datetime(2026, 4, 6, 2))]
+        assert axis_hours(overnight_in, d) == (0, 21)
+        overnight_out = [self._evt(datetime(2026, 4, 6, 23), datetime(2026, 4, 7, 2))]
+        assert axis_hours(overnight_out, d) == (7, 24)
+
+    def test_event_covering_the_whole_day_does_not_widen_the_window(self):
+        """A multi-day timed event (kept by the #275 overlap filter) is drawn
+        full-height whatever the axis is; letting it stretch the axis to
+        00-24 compressed the day's real schedule into a third of the strip."""
+        from src.render.components.timeline_panel import axis_hours
+
+        d = date(2026, 4, 6)
+        conference = self._evt(datetime(2026, 4, 5, 9), datetime(2026, 4, 7, 17))
+        assert axis_hours([conference], d) == (7, 21)
+        dinner = self._evt(datetime(2026, 4, 6, 21, 30), datetime(2026, 4, 6, 22, 15))
+        assert axis_hours([conference, dinner], d) == (7, 23)
 
     def test_evening_event_is_drawn(self):
         """A 10 PM dinner was clamped to nothing and silently dropped."""
