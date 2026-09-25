@@ -1396,3 +1396,51 @@ def test_save_route_reports_unreadable_config_and_writes_nothing(client, app):
     assert body["saved"] is False
     assert body["errors"][0]["field"] == "config"
     assert cfg_path.read_text() == broken
+
+
+# ---------------------------------------------------------------------------
+# #281 — the read → validate → write sequence is one critical section
+# ---------------------------------------------------------------------------
+
+
+def test_apply_patch_reads_the_config_under_the_write_lock(tmp_path, monkeypatch):
+    """Two saves from two tabs must not interleave read → patch → write: the
+    later write silently discarded the earlier patch while both said "saved".
+    The read has to happen inside the lock, not just the write (#281)."""
+    from src.web import config_editor
+
+    cfg = tmp_path / "config.yaml"
+    cfg.write_text("title: Old\n")
+    seen: list[bool] = []
+    real_load = config_editor._load_raw_yaml
+
+    def spying_load(path):
+        seen.append(config_editor._write_lock.locked())
+        return real_load(path)
+
+    monkeypatch.setattr(config_editor, "_load_raw_yaml", spying_load)
+    monkeypatch.setattr(config_editor, "validate_config", lambda cfg, **kw: ([], []))
+    saved, errors, _ = config_editor.apply_patch(str(cfg), {"title": "New"})
+    assert saved and not errors
+    assert seen == [True], "config was read outside the write lock"
+
+
+def test_restore_latest_backup_runs_under_the_write_lock(tmp_path, monkeypatch):
+    from src.web import config_editor
+
+    cfg = tmp_path / "config.yaml"
+    cfg.write_text("title: Current\n")
+    (tmp_path / "config.yaml.bak").write_text("title: Backup\n")
+    seen: list[bool] = []
+    real_load = config_editor._load_raw_yaml
+
+    def spying_load(path):
+        seen.append(config_editor._write_lock.locked())
+        return real_load(path)
+
+    monkeypatch.setattr(config_editor, "_load_raw_yaml", spying_load)
+    monkeypatch.setattr(config_editor, "validate_config", lambda cfg, **kw: ([], []))
+    restored, message = config_editor.restore_latest_backup(str(cfg))
+    assert restored, message
+    assert seen == [True], "backup was read outside the write lock"
+    assert "Backup" in cfg.read_text()

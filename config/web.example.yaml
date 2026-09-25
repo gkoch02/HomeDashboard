@@ -9,7 +9,11 @@ port: 8080
 host: "0.0.0.0"
 
 # Flask session secret used for CSRF/session protection.
-# Set this to a long random string on any real install.
+# Set this to a long random string on any real install, e.g. the output of
+#   python -c "import secrets; print(secrets.token_hex(32))"
+# The placeholder below (and any key shorter than 16 characters) is treated as
+# unset: the server warns and uses a random per-process key, so sessions and
+# CSRF tokens reset on every restart until you replace it.
 secret_key: "replace-me-with-a-random-secret"
 
 # HTTP Basic Auth credentials.

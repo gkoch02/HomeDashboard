@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from pathlib import Path
+from urllib.parse import urlparse
 
 from flask import Blueprint, current_app, jsonify, render_template, request
 
@@ -266,6 +267,15 @@ def _calendar_backend(cfg) -> str:
     return "google"
 
 
+def _url_host(url: str) -> str:
+    """The hostname of *url*, or a placeholder when it has none."""
+    try:
+        host = urlparse(url).hostname
+    except ValueError:
+        host = None
+    return host or "(unparseable URL)"
+
+
 def _calendar_integration(cfg, backend: str) -> dict:
     """One row describing the active calendar source."""
     if backend == "caldav":
@@ -277,7 +287,11 @@ def _calendar_integration(cfg, backend: str) -> dict:
 
     if backend == "ics":
         extra = len(cfg.google.additional_ical_urls)
-        detail = f"Using ICS feed: {cfg.google.ical_url}"
+        # Only the host. A private Google/iCloud feed URL carries its access
+        # token in the path, and the config editor already withholds the URL
+        # from the browser (the schema marks it secret); the status page must
+        # not print it to every viewer or into the status JSON (#279).
+        detail = f"Using ICS feed: {_url_host(cfg.google.ical_url)}"
         if extra:
             detail += f" (+{extra} additional feed{'s' if extra != 1 else ''})"
         return {"name": "Calendar (ICS)", "status": "ok", "detail": detail}

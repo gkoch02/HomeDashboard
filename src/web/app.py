@@ -45,6 +45,19 @@ def _load_web_config(path: str | None) -> dict:
         return {}
 
 
+# The value config/web.example.yaml ships; accepting it verbatim signs every
+# derived install's cookies with a string anyone can read off GitHub.
+PLACEHOLDER_SECRET_KEY = "replace-me-with-a-random-secret"
+MIN_SECRET_KEY_LENGTH = 16
+
+
+def _usable_secret_key(value: object) -> bool:
+    """True when *value* is a configured key worth signing sessions with."""
+    if not isinstance(value, str):
+        return False
+    return value != PLACEHOLDER_SECRET_KEY and len(value) >= MIN_SECRET_KEY_LENGTH
+
+
 def create_app(
     web_config_path: str | None = None,
     app_config_path: str | None = None,
@@ -60,17 +73,22 @@ def create_app(
     # --- Load configs ---
     web_cfg = _load_web_config(web_config_path)
     secret_key = web_cfg.get("secret_key")
-    if not secret_key:
-        # No configured key: generate a random per-process key instead of falling
+    if not _usable_secret_key(secret_key):
+        # No usable key: generate a random per-process key instead of falling
         # back to a shared, publicly-known constant (which would let anyone forge a
         # signed session cookie and defeat CSRF protection on mutating endpoints).
-        # Sessions won't survive a restart, which is fine for this admin UI.
+        # The template's placeholder counts as no key — it is published in the
+        # repo, so every install that only filled in the password was signing
+        # its cookies with it (#282). Sessions won't survive a restart, which is
+        # fine for this admin UI.
         import secrets
 
         secret_key = secrets.token_hex(32)
         logger.warning(
-            "No 'secret_key' set in web config; generated a random ephemeral key. "
-            "Set 'secret_key' in web.yaml to keep sessions stable across restarts."
+            "No usable 'secret_key' in web config (missing, the template placeholder, or "
+            "shorter than %d characters); generated a random ephemeral key. Set a long "
+            "random 'secret_key' in web.yaml to keep sessions stable across restarts.",
+            MIN_SECRET_KEY_LENGTH,
         )
     app.secret_key = secret_key
     # Harden session cookies: never send over plain navigation cross-site, and keep

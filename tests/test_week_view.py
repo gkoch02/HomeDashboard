@@ -595,6 +595,59 @@ class TestDrawDayEvents:
         )
         assert ink(img) > 0, "the allday_font=None fallback drew nothing"
 
+    def test_unbreakable_title_stays_inside_its_column(self):
+        """A 200-char title with no spaces was drawn across the whole plate (#288)."""
+        from src.render.components.week_view import _draw_day_events
+        from src.render.fonts import regular, semibold
+
+        img, draw = self._make_draw()
+        _draw_day_events(
+            draw=draw,
+            events=[self._timed(9, 10, summary="A" * 200)],
+            cx=0,
+            y_start=40,
+            col_w=114,
+            max_h=280,
+            time_font=regular(10),
+            title_font=semibold(13),
+        )
+        assert ink(img, (0, 40, 114, 320)) > 0, "the row was not drawn at all"
+        assert ink(img, (114, 40, 800, 320)) == 0, "the title ran past the column"
+
+    def test_overflow_marker_stays_inside_the_column(self):
+        """ "+N more" printed below the column, over the panel beneath (#289)."""
+        from src.render.components.week_view import _draw_day_events
+        from src.render.fonts import regular, semibold
+
+        img, draw = self._make_draw()
+        events = [self._timed(h, h + 1, summary=f"Meeting {h}") for h in range(0, 23)]
+        for e in events:
+            e.location = "12 Some Street"
+        _draw_day_events(
+            draw=draw,
+            events=events,
+            cx=0,
+            y_start=40,
+            col_w=114,
+            max_h=280,
+            time_font=regular(10),
+            title_font=semibold(13),
+        )
+        assert ink(img, (0, 320, 114, 360)) == 0, "ink below the column's bottom edge"
+        few, few_draw = self._make_draw()
+        _draw_day_events(
+            draw=few_draw,
+            events=events[:2],
+            cx=0,
+            y_start=40,
+            col_w=114,
+            max_h=280,
+            time_font=regular(10),
+            title_font=semibold(13),
+        )
+        # The marker occupies the foot of the column, which two events leave blank.
+        assert ink(img, (0, 300, 114, 320)) > ink(few, (0, 300, 114, 320))
+
     def test_overflow_indicator_shown_when_events_exceed_space(self):
         """When events don't fit, '+N more' is shown (lines 404-406)."""
         from src.render.components.week_view import _draw_day_events

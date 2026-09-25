@@ -150,11 +150,15 @@ def restore_latest_backup(config_path: str) -> tuple[bool, str]:
 
     backup_path = path.parent / backups[0]["name"]
     try:
-        raw = _load_raw_yaml(str(backup_path))
-        _cfg, errors_obj, _warnings_obj = _validate_raw(raw)
-        if errors_obj:
-            return False, "Latest backup failed validation and was not restored."
-        _write_raw_yaml(config_path, raw, rotate_backup=False)
+        # The whole read → validate → write runs under the lock: a Save
+        # from another tab interleaving here would be discarded by this
+        # write while both requests reported success (#281).
+        with _write_lock:
+            raw = _load_raw_yaml(str(backup_path))
+            _cfg, errors_obj, _warnings_obj = _validate_raw(raw)
+            if errors_obj:
+                return False, "Latest backup failed validation and was not restored."
+            _write_raw_yaml(config_path, raw, rotate_backup=False)
         return True, f"Restored {backup_path.name}."
     except Exception as exc:
         return False, str(exc)
@@ -325,26 +329,32 @@ def apply_patch(config_path: str, patch: dict) -> tuple[bool, list[dict], list[d
     patch, parse_errors = _normalise_patch(patch)
     safe_patch = {k: v for k, v in patch.items() if k in EDITABLE_FIELD_PATHS}
 
-    try:
-        raw = _load_raw_yaml(config_path)
-    except ConfigReadError as exc:
-        return False, [_read_error(exc)], []
-    updated_raw = _apply_to_raw(raw, safe_patch)
-
-    _cfg, errors_obj, warnings_obj = _validate_raw(updated_raw)
-
-    errors = parse_errors + [
-        {"field": e.field, "message": e.message, "hint": e.hint} for e in errors_obj
-    ]
-    warnings = [{"field": w.field, "message": w.message, "hint": w.hint} for w in warnings_obj]
-
-    if not errors_obj and not parse_errors:
+    # Read → patch → validate → write is one critical section. Locking only
+    # the write let two saves (or a save and a restore) from different tabs
+    # interleave: the later write silently discarded the earlier patch while
+    # both responded ``saved: true``, and the .bak rotation raced on the same
+    # filenames. Validation is a temp-file parse, cheap enough to serialise
+    # (#281).
+    with _write_lock:
         try:
-            with _write_lock:
+            raw = _load_raw_yaml(config_path)
+        except ConfigReadError as exc:
+            return False, [_read_error(exc)], []
+        updated_raw = _apply_to_raw(raw, safe_patch)
+
+        _cfg, errors_obj, warnings_obj = _validate_raw(updated_raw)
+
+        errors = parse_errors + [
+            {"field": e.field, "message": e.message, "hint": e.hint} for e in errors_obj
+        ]
+        warnings = [{"field": w.field, "message": w.message, "hint": w.hint} for w in warnings_obj]
+
+        if not errors_obj and not parse_errors:
+            try:
                 _write_raw_yaml(config_path, updated_raw)
-        except ConfigBackupError as exc:
-            return False, [_backup_error(exc)], warnings
-        return True, errors, warnings
+            except ConfigBackupError as exc:
+                return False, [_backup_error(exc)], warnings
+            return True, errors, warnings
 
     return False, errors, warnings
 

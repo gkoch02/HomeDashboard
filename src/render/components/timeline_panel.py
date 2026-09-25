@@ -21,10 +21,14 @@ from src.render.primitives import (
 )
 from src.render.theme import ComponentRegion, ThemeStyle
 
-# Visible hour range on the timeline
+# Default visible hour range on the timeline. The axis widens past it to cover
+# any timed event on the day: with a fixed 07:00–21:00 window a 9:30 PM dinner
+# or a 6 AM flight was clamped to a zero-length span and silently skipped —
+# not drawn, not counted, nothing (#290).
 _START_HOUR = 7  # 7 AM
 _END_HOUR = 21  # 9 PM (exclusive top boundary)
 _VISIBLE_HOURS = _END_HOUR - _START_HOUR  # 14 hours
+_LABEL_EVERY_HOUR_MIN_PX = 22  # below this many px per hour, label every other hour
 
 # Layout constants
 _AXIS_W = 52  # width of the left hour-label axis
@@ -67,35 +71,41 @@ def draw_timeline(
     timeline_w = w - _AXIS_W - _PAD_RIGHT
 
     # Pixels per minute within the visible range
-    total_minutes = _VISIBLE_HOURS * 60
+    start_hour, end_hour = axis_hours(timed, today)
+    total_minutes = (end_hour - start_hour) * 60
     px_per_min = timeline_h / total_minutes
 
     label_font = style.font_regular(11)
     label_h = text_height(label_font)
+    label_step = 1 if px_per_min * 60 >= _LABEL_EVERY_HOUR_MIN_PX else 2
 
     # --- Hour grid lines and labels ---
-    for hour in range(_START_HOUR, _END_HOUR + 1):
-        offset_min = (hour - _START_HOUR) * 60
+    for hour in range(start_hour, end_hour + 1):
+        offset_min = (hour - start_hour) * 60
         y = timeline_top + int(offset_min * px_per_min)
         if y > y0 + h:
             break
 
         # Hour label (right-aligned in axis)
-        if hour < 12:
-            label = f"{hour}a"
-        elif hour == 12:
-            label = "12p"
-        else:
-            label = f"{hour - 12}p"
+        if (hour - start_hour) % label_step == 0:
+            draw_hour = hour % 24
+            if draw_hour == 0:
+                label = "12a"
+            elif draw_hour < 12:
+                label = f"{draw_hour}a"
+            elif draw_hour == 12:
+                label = "12p"
+            else:
+                label = f"{draw_hour - 12}p"
 
-        lb = draw.textbbox((0, 0), label, font=label_font)
-        lw = lb[2] - lb[0]
-        lx = x0 + _AXIS_W - lw - 6 - lb[0]
-        ly = y - label_h // 2 - lb[1]
-        draw.text((lx, ly), label, font=label_font, fill=style.fg)
+            lb = draw.textbbox((0, 0), label, font=label_font)
+            lw = lb[2] - lb[0]
+            lx = x0 + _AXIS_W - lw - 6 - lb[0]
+            ly = y - label_h // 2 - lb[1]
+            draw.text((lx, ly), label, font=label_font, fill=style.fg)
 
         # Subtle grid line across timeline area
-        if hour < _END_HOUR:
+        if hour < end_hour:
             hline(draw, y, timeline_x, timeline_x + timeline_w, fill=style.fg)
 
     # Vertical axis separator
@@ -143,8 +153,8 @@ def draw_timeline(
         ex0 = timeline_x + col_idx * col_w + 1
         ex1 = ex0 + col_w - 2
 
-        start_min = _minutes_from_start(event.start, today)
-        end_min = _minutes_from_start(event.end, today)
+        start_min = _minutes_from_start(event.start, today, start_hour, end_hour)
+        end_min = _minutes_from_start(event.end, today, start_hour, end_hour)
 
         # Clamp to visible range
         start_min = max(start_min, 0)
@@ -170,7 +180,7 @@ def draw_timeline(
 
     # --- Current-time indicator ---
     if today == now.date():
-        now_min = (now.hour - _START_HOUR) * 60 + now.minute
+        now_min = (now.hour - start_hour) * 60 + now.minute
         if 0 <= now_min <= total_minutes:
             ny = timeline_top + int(now_min * px_per_min)
             # Dashed line: 4px on, 3px off
@@ -184,16 +194,41 @@ def draw_timeline(
                 x += 7
 
 
-def _minutes_from_start(dt: datetime, today: date) -> int:
-    """Return minutes offset from _START_HOUR on *today*.
+def axis_hours(timed: list[CalendarEvent], today: date) -> tuple[int, int]:
+    """The visible hour range: the default window widened to cover *timed*.
+
+    The start is the earlier of ``_START_HOUR`` and the whole hour the day's
+    first event begins in; the end is the later of ``_END_HOUR`` and the whole
+    hour the last event ends by. Both are clamped to the calendar day, so an
+    event running past midnight widens the axis to ``24`` and its overnight
+    tail is cut there. Only the part of an event that falls on *today* counts.
+    """
+    start_hour, end_hour = _START_HOUR, _END_HOUR
+    for event in timed:
+        if event.start.date() < today:
+            start_hour = 0
+        elif event.start.date() == today:
+            start_hour = min(start_hour, event.start.hour)
+        if event.end.date() > today:
+            end_hour = 24
+        elif event.end.date() == today:
+            end_minutes = event.end.hour * 60 + event.end.minute
+            end_hour = max(end_hour, -(-end_minutes // 60))  # ceil to the hour
+    return max(0, start_hour), min(24, max(end_hour, start_hour + 1))
+
+
+def _minutes_from_start(
+    dt: datetime, today: date, start_hour: int = _START_HOUR, end_hour: int = _END_HOUR
+) -> int:
+    """Return minutes offset from *start_hour* on *today*.
 
     Off-day events clamp to the start (previous day) or end (next day) of the
     visible window so they don't render outside it.
     """
     dt_date = dt.date()
     if dt_date != today:
-        return 0 if dt_date < today else _VISIBLE_HOURS * 60
-    return (dt.hour - _START_HOUR) * 60 + dt.minute
+        return 0 if dt_date < today else (end_hour - start_hour) * 60
+    return (dt.hour - start_hour) * 60 + dt.minute
 
 
 def _assign_columns(events: list[CalendarEvent]) -> dict[int, int]:

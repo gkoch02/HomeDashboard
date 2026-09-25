@@ -392,9 +392,16 @@ def _autofit_font(
     min_size: int = 9,
 ):
     """Return the given font, stepping down until all words fit in max_w and
-    the wrapped text fits within max_lines."""
+    the wrapped text fits within max_lines.
+
+    A word that fits at no size (a URL, a long code) does not drag the type
+    down to *min_size* for nothing: ``draw_text_wrapped`` breaks it by
+    character, so the largest size whose *broken* line count fits is used
+    instead (#288).
+    """
     current = font
     size = current.size
+    fallback = None
     while size > min_size:
         words = text.split()
         words_fit = all(
@@ -402,11 +409,14 @@ def _autofit_font(
             <= max_w
             for w in words
         )
-        if words_fit and _wrap_line_count(draw, text, current, max_w) <= max_lines:
+        lines_fit = _wrap_line_count(draw, text, current, max_w) <= max_lines
+        if words_fit and lines_fit:
             return current
+        if lines_fit and fallback is None:
+            fallback = current
         size -= 1
         current = style.font_medium(size)
-    return current
+    return fallback if fallback is not None else current
 
 
 def _event_date_range(e: CalendarEvent) -> tuple[date, date]:
@@ -478,14 +488,41 @@ def _draw_day_events(
     loc_font = style.font_regular(10)
     loc_h = text_height(loc_font)
 
+    bottom = y_start + max_h - PAD
     for idx, event in enumerate(events):
-        if y - y_start + title_h > max_h - PAD:
+        is_last = idx == len(events) - 1
+        # The "+N more" marker needs a row of its own at the foot of the
+        # column, so a row that is not the last one may only be drawn if the
+        # marker would still fit below it; otherwise the marker took the
+        # current y, which after a location line already sat past the
+        # column's bottom, and "+27 more" printed over the panel beneath
+        # (#289). The row's own height is measured first for the same reason:
+        # a two-line title was checked as one.
+        if event.is_all_day:
+            bar_h = text_height(allday_font) + allday_pad
+            need_h = bar_h
+            fitted_font = None
+        else:
+            fitted_font = _autofit_font(
+                draw,
+                event.summary,
+                title_font,
+                style,
+                max_w,
+                max_lines=max_title_lines,
+            )
+            n_lines = min(
+                max_title_lines, max(1, _wrap_line_count(draw, event.summary, fitted_font, max_w))
+            )
+            need_h = time_h + 1 + max(n_lines * (text_height(fitted_font) + 1), title_h)
+        reserve = 0 if is_last else time_h
+        if y + need_h > bottom - reserve:
             remaining = len(events) - idx
-            draw.text((cx + PAD, y), f"+{remaining} more", font=time_font, fill=style.fg)
+            marker_y = min(y, bottom - time_h)
+            draw.text((cx + PAD, marker_y), f"+{remaining} more", font=time_font, fill=style.fg)
             break
 
         if event.is_all_day:
-            bar_h = text_height(allday_font) + allday_pad
             if style.invert_allday_bars:
                 filled_rect(
                     draw,
@@ -529,14 +566,6 @@ def _draw_day_events(
                 fill=style.fg,
             )
             y += time_h + 1
-            fitted_font = _autofit_font(
-                draw,
-                event.summary,
-                title_font,
-                style,
-                max_w,
-                max_lines=max_title_lines,
-            )
             used_h = draw_text_wrapped(
                 draw,
                 (cx + PAD, y),
@@ -553,7 +582,7 @@ def _draw_day_events(
                 # Its first line only (business name or street), so the y-advance
                 # stays consistent with the measured single-line font height.
                 loc_text = location_line(event.location)
-                if loc_text and y - y_start + loc_h <= max_h - PAD:
+                if loc_text and y + loc_h <= bottom - reserve:
                     y += 1
                     draw_text_truncated(
                         draw,

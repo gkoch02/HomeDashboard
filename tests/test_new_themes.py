@@ -518,3 +518,57 @@ class TestMonthlyPanel:
         data = DashboardData(events=[])
         draw_monthly(draw, data, date(2026, 4, 5))
         assert ink(img) > 0, "the empty-month grid drew nothing"
+
+
+# ---------------------------------------------------------------------------
+# Timeline axis covers the day's events (#290)
+# ---------------------------------------------------------------------------
+
+
+class TestTimelineAxisHours:
+    def _evt(self, start, end, summary="e"):
+        return CalendarEvent(summary=summary, start=start, end=end)
+
+    def test_default_window_when_events_fit(self):
+        from src.render.components.timeline_panel import axis_hours
+
+        d = date(2026, 4, 6)
+        evts = [self._evt(datetime(2026, 4, 6, 9), datetime(2026, 4, 6, 10))]
+        assert axis_hours(evts, d) == (7, 21)
+        assert axis_hours([], d) == (7, 21)
+
+    def test_late_and_early_events_widen_the_window(self):
+        from src.render.components.timeline_panel import axis_hours
+
+        d = date(2026, 4, 6)
+        evts = [
+            self._evt(datetime(2026, 4, 6, 5, 30), datetime(2026, 4, 6, 6)),
+            self._evt(datetime(2026, 4, 6, 21, 30), datetime(2026, 4, 6, 22, 15)),
+        ]
+        assert axis_hours(evts, d) == (5, 23)
+
+    def test_window_is_clamped_to_the_day(self):
+        from src.render.components.timeline_panel import axis_hours
+
+        d = date(2026, 4, 6)
+        evts = [self._evt(datetime(2026, 4, 5, 23), datetime(2026, 4, 7, 2))]
+        assert axis_hours(evts, d) == (0, 24)
+
+    def test_evening_event_is_drawn(self):
+        """A 10 PM dinner was clamped to nothing and silently dropped."""
+        from PIL import ImageDraw
+
+        from src.render.components.timeline_panel import draw_timeline
+        from src.render.theme import ComponentRegion
+
+        d = date(2026, 4, 6)
+        now = datetime(2026, 4, 6, 10, 30)
+        region = ComponentRegion(0, 40, 800, 340)
+        dinner = self._evt(datetime(2026, 4, 6, 22), datetime(2026, 4, 7, 0), "Dinner")
+        with_evt = Image.new("1", (800, 480), 1)
+        draw_timeline(ImageDraw.Draw(with_evt), [dinner], d, now, region=region)
+        without = Image.new("1", (800, 480), 1)
+        draw_timeline(ImageDraw.Draw(without), [], d, now, region=region)
+        # The event block is a solid inverted bar in the lower part of the axis.
+        lower = (60, 300, 794, 380)
+        assert ink(with_evt, lower) > ink(without, lower) + 500

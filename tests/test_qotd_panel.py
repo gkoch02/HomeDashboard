@@ -88,12 +88,17 @@ class TestWrapLines:
         lines = _wrap_lines("", font, max_width=400)
         assert lines == []
 
-    def test_single_long_word_stays_on_one_line(self):
-        """A single word that is too long to fit should still be placed on its own line."""
+    def test_single_long_word_is_broken_to_fit(self):
+        """A word wider than the column is broken by character, not overflowed.
+
+        It used to be kept whole on its own line and drawn past the edge
+        (#288); now every line fits, and nothing of the word is lost.
+        """
         font = self._font(20)
-        lines = _wrap_lines("superlongword", font, max_width=1)
-        assert len(lines) == 1
-        assert lines[0] == "superlongword"
+        lines = _wrap_lines("superlongword", font, max_width=40)
+        assert len(lines) > 1
+        assert all(font.getlength(line) <= 40 for line in lines)
+        assert "".join(lines) == "superlongword"
 
     def test_each_line_within_max_width(self):
         font = self._font(16)

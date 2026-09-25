@@ -511,8 +511,20 @@ google:
     def test_ics_reports_ics_and_suppresses_service_account(self, tmp_path):
         rows = _integrations_for(tmp_path, _ICS_YAML)
         assert rows["Calendar (ICS)"]["status"] == "ok"
-        assert "feed.ics" in rows["Calendar (ICS)"]["detail"]
+        assert "example.com" in rows["Calendar (ICS)"]["detail"]
         assert "Google service account" not in rows
+
+    def test_ics_detail_shows_the_host_not_the_url(self, tmp_path):
+        """A private feed URL carries its token in the path; never print it (#279)."""
+        rows = _integrations_for(
+            tmp_path,
+            'google:\n  ical_url: "https://calendar.google.com/calendar/ical/'
+            'user%40example.com/private-0123456789abcdef/basic.ics"\n',
+        )
+        detail = rows["Calendar (ICS)"]["detail"]
+        assert "calendar.google.com" in detail
+        assert "private-0123456789abcdef" not in detail
+        assert "basic.ics" not in detail
 
     def test_ics_detail_counts_additional_feeds(self, tmp_path):
         rows = _integrations_for(
