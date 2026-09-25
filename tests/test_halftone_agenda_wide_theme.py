@@ -247,3 +247,118 @@ class TestAgenda:
     def test_style_default(self):
         img = _plate(_data(), style=ThemeStyle(fg=0, bg=255))
         assert ink(img) > 1000
+
+
+# ---------------------------------------------------------------------------
+# The wide agenda: strip, durations, gaps, next-up accent
+# ---------------------------------------------------------------------------
+
+AGENDA_X0 = hw.ART_W + hw.DIVIDER_W + hw.AGENDA_PAD_X
+AGENDA_X1 = hw.RAIL_X - hw.DIVIDER_W - hw.AGENDA_PAD_X
+STRIP_BAND = (AGENDA_X0, 44, AGENDA_X1, 80)
+ROWS_BAND = (AGENDA_X0, 100, AGENDA_X1, 456)
+
+
+def _agenda_data(events, now=FIXED_NOW):
+    d = _data(events=events, content_at=FIXED_NOW - timedelta(minutes=12))
+    return d
+
+
+class TestAgendaHelpers:
+    def test_fmt_duration(self):
+        assert hw.fmt_duration(45) == "45m"
+        assert hw.fmt_duration(60) == "1h"
+        assert hw.fmt_duration(90) == "1h 30m"
+        assert hw.fmt_duration(0) == "0m"
+
+    def test_booked_minutes_counts_overlaps_once(self):
+        a = _event(9, mins=120)  # 9–11
+        b = _event(10, mins=120)  # 10–12
+        assert hw.booked_minutes([a, b]) == 180
+        allday = _event(0, mins=24 * 60, is_all_day=True)
+        assert hw.booked_minutes([a, allday]) == 120
+
+    def test_gap_after(self):
+        events = [_event(9, mins=60), _event(10, minute=30, mins=30), _event(14, mins=60)]
+        assert hw.gap_after(events, 0) == 30
+        assert hw.gap_after(events, 1) == 180
+        assert hw.gap_after(events, 2) is None
+
+    def test_gap_after_measures_from_the_latest_end(self):
+        long = _event(9, mins=240)  # 9–1p
+        short = _event(10, mins=30)  # inside it
+        later = _event(14, mins=60)
+        assert hw.gap_after([long, short, later], 1) == 60  # from 1p, not 10:30
+
+    def test_gap_after_skips_all_day(self):
+        allday = _event(0, mins=24 * 60, is_all_day=True)
+        events = [allday, _event(9, mins=60), _event(12, mins=60)]
+        assert hw.gap_after(events, 0) is None
+        assert hw.gap_after(events, 1) == 120
+
+    def test_wide_metrics_drops_gaps_before_shrinking_type_too_far(self):
+        roomy = hw.wide_metrics(2, 1, 340)
+        assert roomy[0] == 3 and roomy[6] is True
+        dense = hw.wide_metrics(9, 8, 340)
+        assert dense[6] is False
+        assert hw.wide_metrics(40, 0, 340) == hw._WIDE_TIERS[-1]
+
+    def test_strip_hours(self):
+        assert hw.strip_hours([], TODAY) == (6, 22)
+        assert hw.strip_hours([_event(5, mins=30)], TODAY)[0] == 5
+        assert hw.strip_hours([_event(22, mins=90)], TODAY)[1] == 24
+
+
+class TestAgendaRender:
+    def test_schedule_strip_has_a_block_per_event(self):
+        busy = _plate(_agenda_data([_event(9, mins=60), _event(15, mins=120)]))
+        empty = _plate(_agenda_data([]))
+        assert ink(busy, STRIP_BAND) > ink(empty, STRIP_BAND) + 500
+
+    def test_gap_marker_appears_for_a_long_gap_only(self):
+        # Both events upcoming and on whole hours either way, so the rows share
+        # one treatment and one time-cell shape; only the marker differs.
+        short_gap = _plate(_agenda_data([_event(13, mins=60), _event(14, mins=60)]))
+        long_gap = _plate(_agenda_data([_event(13, mins=60), _event(17, mins=60)]))
+        # Same two rows either way; the long gap adds a labelled rule between them.
+        assert ink(long_gap, ROWS_BAND) > ink(short_gap, ROWS_BAND) + 150
+
+    def test_duration_column_at_the_right_margin(self):
+        timed = _plate(_agenda_data([_event(15, mins=90, name="Review")]))
+        allday = _plate(_agenda_data([_event(0, mins=24 * 60, name="Review", is_all_day=True)]))
+        column = (AGENDA_X1 - hw.DURATION_W, 100, AGENDA_X1, 200)
+        assert ink(timed, column) > ink(allday, column) + 100
+
+    def test_next_event_title_takes_the_accent_on_a_colour_panel(self):
+        from src.render.canvas import render_dashboard as _render
+
+        data = _agenda_data([_event(15, mins=60, name="Design review")])
+        cfg = DisplayConfig(model="epd10in85g", width=1360, height=480)
+        img = _render(data, cfg, theme=load_theme("halftone_agenda_wide"))
+        title_box = img.crop((AGENDA_X0 + 120, 100, AGENDA_X1 - hw.DURATION_W, 180))
+        assert (255, 0, 0) in set(flatten_pixels(title_box))
+        # Once the event has passed there is nothing "next", and no red in the rows.
+        later = FIXED_NOW.replace(hour=17)
+        data.fetched_at = later
+        img = _render(data, cfg, theme=load_theme("halftone_agenda_wide"))
+        title_box = img.crop((AGENDA_X0 + 120, 100, AGENDA_X1 - hw.DURATION_W, 180))
+        assert (255, 0, 0) not in set(flatten_pixels(title_box))
+
+    def test_header_meta_reports_booked_time_and_next(self):
+        one = _plate(_agenda_data([_event(15, mins=60)]))
+        none = _plate(_agenda_data([]))
+        meta = (AGENDA_X1 - 320, 14, AGENDA_X1, 44)
+        assert ink(one, meta) > ink(none, meta) + 200
+
+    def test_overflow_line_when_the_day_runs_past_the_pane(self):
+        many = [_event(7 + i, mins=45, name=f"Event {i}") for i in range(14)]
+        img = _plate(_agenda_data(many))
+        few = _plate(_agenda_data(many[:3]))
+        bottom = (AGENDA_X0, 420, AGENDA_X1, 456)
+        assert ink(img, bottom) > ink(few, bottom)
+
+    def test_idle_tick_is_still_byte_identical(self):
+        d = _agenda_data([_event(9, mins=60), _event(13, mins=60)])
+        a = _plate(d, now=FIXED_NOW)
+        b = _plate(d, now=FIXED_NOW + timedelta(minutes=4))
+        assert a.tobytes() == b.tobytes()

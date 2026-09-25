@@ -52,7 +52,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   alerts, the next day's events, the forecast, birthdays, air quality and the
   moon. The theme fetches two days past the week (`EXTRA_EVENT_DAYS` in
   `src/app.py`, which now generalises `THEMES_NEEDING_TOMORROW`) because the
-  rail shows the day after tomorrow once the agenda has rolled over.
+  rail shows the day after tomorrow once the agenda has rolled over. The
+  agenda pane spends its width on data: a header dateline with the day's
+  totals, a schedule strip with a block per event in the row treatments, a
+  duration column, `— Nh Nm free` markers between events, the next event's
+  title in the accent, and condensed Antonio time cells so titles get the
+  room.
 
 ### Fixed
 
