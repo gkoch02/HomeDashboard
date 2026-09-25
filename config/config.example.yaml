@@ -15,8 +15,8 @@ display:
   # "inky"      = Pimoroni Inky Impression panels using the inky Python package.
   provider: "waveshare"
   # Display model — sets native resolution automatically.
-  # Waveshare models: epd7in5 (640x384), epd7in5_V2 (800x480), epd7in5_V3 (800x480),
-  #   epd7in5b_V2 (800x480), epd7in5_HD (880x528), epd9in7 (1200x825), epd13in3k (1600x1200),
+  # Waveshare models: epd7in5 (640x384), epd7in5_V2 (800x480), epd7in5b_V2 (800x480),
+  #   epd7in5_HD (880x528), epd13in3k (960x680),
   #   epd10in85g (1360x480 — black/white/yellow/red; see the wide_* themes)
   # Inky models: impression_7_3_2025 (800x480)
   model: "epd7in5_V2"

@@ -9,7 +9,7 @@ from urllib.parse import urlparse
 
 import requests  # type: ignore[import-untyped]
 
-from src._time import day_start_utc, week_start
+from src._time import event_window_utc, week_start
 from src.data.models import CalendarEvent
 from src.fetchers.calendar_google import _today
 from src.fetchers.errors import CalendarFetchError
@@ -68,8 +68,7 @@ def fetch_from_ical(
 
     today = _today(tz)
     window_start = start_date if start_date is not None else week_start(today)
-    time_min = day_start_utc(window_start, tz)
-    time_max = time_min + timedelta(days=days)
+    time_min, time_max = event_window_utc(window_start, days, tz)
 
     all_events: list[CalendarEvent] = []
     for url in urls:
@@ -91,7 +90,7 @@ def fetch_from_ical(
             raise CalendarFetchError(f"ICS feed {_url_hostname(url)} could not be read: {exc}")
 
         try:
-            cal = ICalendar.from_ical(resp.text)
+            cal = ICalendar.from_ical(_feed_body(resp))
         except Exception as exc:
             logger.warning("Failed to parse ICS feed %s: %s", url, exc)
             raise CalendarFetchError(f"ICS feed {_url_hostname(url)} could not be parsed: {exc}")
@@ -99,35 +98,66 @@ def fetch_from_ical(
         # Prefer X-WR-CALNAME if present, fall back to URL hostname
         cal_name = str(cal.get("X-WR-CALNAME", "")) or _url_hostname(url)
 
+        feed_events: list[CalendarEvent] = []
         for component in _expand_components(cal, time_min, time_max, url):
             event = _parse_ical_event(component, cal_name, tz=tz)
-            if event is None:
-                continue
-            # Filter to week window
-            if event.is_all_day:
-                s = event.start.date() if isinstance(event.start, datetime) else event.start
-                e = event.end.date() if isinstance(event.end, datetime) else event.end
-                win_start_date = time_min.astimezone(tz).date() if tz else time_min.date()
-                win_end_date = time_max.astimezone(tz).date() if tz else time_max.date()
-                if s < win_end_date and e > win_start_date:
-                    all_events.append(event)
-            else:
-                start = event.start
-                if start.tzinfo is not None:
-                    if time_min <= start < time_max:
-                        all_events.append(event)
-                else:
-                    if tz is not None:
-                        win_start = time_min.astimezone(tz).replace(tzinfo=None)
-                        win_end = time_max.astimezone(tz).replace(tzinfo=None)
-                    else:
-                        win_start = time_min.replace(tzinfo=None)
-                        win_end = time_max.replace(tzinfo=None)
-                    if win_start <= start < win_end:
-                        all_events.append(event)
+            if event is not None and _in_window(event, time_min, time_max, tz):
+                feed_events.append(event)
+        all_events.extend(_cap_runaway_series(feed_events, url))
 
     all_events.sort(key=lambda e: e.start)
     return all_events
+
+
+def _feed_body(resp) -> bytes | str:
+    """Return the payload to hand to ``Calendar.from_ical``.
+
+    RFC 5545 mandates UTF-8, but ``resp.text`` decodes with whatever requests
+    infers, and for ``text/calendar`` with no ``charset`` parameter (common
+    for iCloud/Nextcloud/Google exports behind CDNs) that is ISO-8859-1 per
+    RFC 2616 — so "Café" reached the panel as "CafÃ©" (#274). The raw bytes
+    let ``icalendar`` decode UTF-8 itself; ``resp.text`` is used only when the
+    server names a charset. A response whose ``content`` is not bytes (a test
+    double that sets only ``.text``) falls back to the text.
+    """
+    content_type = str(resp.headers.get("content-type", "")) if resp.headers else ""
+    body = getattr(resp, "content", None)
+    if "charset=" in content_type.lower() or not isinstance(body, (bytes, bytearray)):
+        return resp.text
+    return bytes(body)
+
+
+def _in_window(event: CalendarEvent, time_min, time_max, tz: tzinfo | None) -> bool:
+    """True if *event* overlaps the half-open window ``[time_min, time_max)``.
+
+    Both all-day and timed events use overlap semantics — an event is in the
+    window if it starts before the window ends and ends after it starts.
+    Timed events used to be filtered on ``start`` alone, so a timed conference
+    running Sunday 09:00 → Tuesday 17:00 vanished from a Monday-anchored week
+    while Google's full sync (whose ``timeMin`` bounds the *end*) and CalDAV's
+    server search both kept it (#275).
+    """
+    if event.is_all_day:
+        s = event.start.date() if isinstance(event.start, datetime) else event.start
+        e = event.end.date() if isinstance(event.end, datetime) else event.end
+        win_start_date = time_min.astimezone(tz).date() if tz else time_min.date()
+        win_end_date = time_max.astimezone(tz).date() if tz else time_max.date()
+        return s < win_end_date and e > win_start_date
+
+    start, end = event.start, event.end
+    if start.tzinfo is not None:
+        win_start, win_end = time_min, time_max
+        if end.tzinfo is None:
+            end = end.replace(tzinfo=start.tzinfo)
+    elif tz is not None:
+        win_start = time_min.astimezone(tz).replace(tzinfo=None)
+        win_end = time_max.astimezone(tz).replace(tzinfo=None)
+    else:
+        win_start = time_min.replace(tzinfo=None)
+        win_end = time_max.replace(tzinfo=None)
+    if end.tzinfo is not None and start.tzinfo is None:
+        end = end.replace(tzinfo=None)
+    return start < win_end and end > win_start
 
 
 def _drop_unusable_vevents(cal, url: str) -> None:
@@ -188,7 +218,7 @@ def _expand_one_by_one(cal, module, time_min, time_max, url: str) -> list:
     return out
 
 
-def _cap_runaway_series(components: list, url: str) -> list:
+def _cap_runaway_series(events: list[CalendarEvent], url: str) -> list[CalendarEvent]:
     """Drop occurrences past ``_MAX_OCCURRENCES_PER_SERIES`` for any one UID.
 
     An unbounded rule (``FREQ=MINUTELY`` with no COUNT/UNTIL, whether broken
@@ -201,18 +231,25 @@ def _cap_runaway_series(components: list, url: str) -> list:
     occurrences grouped by series, not in chronological order: a flat
     head-of-list cap would keep the whole runaway series and silently drop the
     real ones that happen to sort after it.
+
+    It runs on the parsed events *after* the window filter, not on the padded
+    expansion. The expansion span starts a day before the window, so capping
+    there kept up to a day of pre-window occurrences and let the filter throw
+    most of them away — "keeping the first 500" was logged while 80 reached
+    the caller on a western-zone host (#271). Counting only in-window events
+    makes the number in the log the number the caller gets.
     """
     seen: dict[str, int] = {}
     over: set[str] = set()
-    kept: list = []
-    for component in components:
-        uid = str(component.get("UID", ""))
+    kept: list[CalendarEvent] = []
+    for event in events:
+        uid = event.event_id or ""
         count = seen.get(uid, 0) + 1
         seen[uid] = count
         if count > _MAX_OCCURRENCES_PER_SERIES:
             over.add(uid)
             continue
-        kept.append(component)
+        kept.append(event)
     for uid in sorted(over):
         logger.warning(
             "Series %r in %s expands to %d occurrences in the fetch window; "
@@ -263,14 +300,12 @@ def _expand_components(cal, time_min, time_max, url: str) -> list:
     span_min = time_min - _EXPAND_PAD
     span_max = time_max + _EXPAND_PAD
     try:
-        expanded = list(recurring_ical_events.of(cal).between(span_min, span_max))
-        return _cap_runaway_series(expanded, url)
+        return list(recurring_ical_events.of(cal).between(span_min, span_max))
     except Exception as exc:
         logger.warning("Recurrence expansion failed for %s: %s — retrying event by event", url, exc)
 
     try:
-        expanded = _expand_one_by_one(cal, recurring_ical_events, span_min, span_max, url)
-        return _cap_runaway_series(expanded, url)
+        return _expand_one_by_one(cal, recurring_ical_events, span_min, span_max, url)
     except Exception as exc:
         logger.warning("Per-event expansion failed for %s: %s — using raw events", url, exc)
         return _raw_vevents(cal)

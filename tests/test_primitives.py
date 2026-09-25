@@ -130,6 +130,31 @@ class TestDrawTextWrapped:
         )
         assert h_three >= h_one
 
+    def test_unbreakable_word_is_bounded_by_max_width(self, canvas, font):
+        """A word with no spaces used to be drawn at full width, straight
+        across every column of the week view (#288)."""
+        img, draw = canvas
+        draw_text_wrapped(draw, (0, 0), "A" * 200, font, max_width=80, max_lines=2)
+        extent = ink_x_extent(img, (0, 0, img.width, img.height))
+        assert extent is not None
+        assert extent[1] - extent[0] <= 80
+
+    def test_unbreakable_word_ellipsizes_past_max_lines(self, canvas, font):
+        img, draw = canvas
+        h = draw_text_wrapped(draw, (0, 0), "A" * 200, font, max_width=80, max_lines=2)
+        one_line = draw_text_wrapped(
+            ImageDraw.Draw(Image.new("1", (10, 10), 1)), (0, 0), "A", font, max_width=80
+        )
+        assert h == 2 * one_line, "more than max_lines were drawn"
+
+    def test_wrap_lines_breaks_an_over_wide_word(self, font):
+        from src.render.primitives import wrap_lines
+
+        lines = wrap_lines("short " + "B" * 120 + " tail", font, 80)
+        assert len(lines) > 3
+        assert all(font.getlength(line) <= 80 for line in lines)
+        assert "".join(lines).replace(" ", "") == "short" + "B" * 120 + "tail"
+
     def test_single_word_no_wrap(self, canvas, font):
         _, draw = canvas
         h = draw_text_wrapped(draw, (0, 0), "Hello", font, max_width=200)

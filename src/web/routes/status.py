@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from pathlib import Path
+from urllib.parse import urlparse
 
 from flask import Blueprint, current_app, jsonify, render_template, request
 
@@ -121,11 +122,21 @@ def _one_call_summary(health: dict, configured_version: str) -> dict | None:
     }
 
 
+def _failed_run_message(last_error: dict) -> str:
+    """One line naming the exception the last run died with."""
+    exc_type = last_error.get("exception_type") or "Error"
+    message = (last_error.get("message") or "").strip()
+    if len(message) > 160:
+        message = message[:157] + "..."
+    return f"{exc_type}: {message}" if message else exc_type
+
+
 def _overall_health(
     last_run_seconds: int | None,
     quiet_hours_active: bool,
     sources: dict[str, dict],
     one_call: dict | None = None,
+    last_error: dict | None = None,
 ) -> dict:
     issues: list[dict] = []
     status = "healthy"
@@ -139,7 +150,20 @@ def _overall_health(
         title = "Quiet hours active"
         detail = "Display refresh is paused by schedule."
 
-    if last_run_seconds is None:
+    # A crashed run is the most actionable thing on the page, so it is the
+    # first issue and it sets the headline outright — including over quiet
+    # hours, because the failure needs fixing before the morning refresh.
+    # Until #263 only /api/health read the marker; the page a person looks at
+    # kept reporting "healthy" for the two hours the last_success threshold
+    # allows, while every 5-minute tick was dying.
+    failed_run = bool(last_error and last_error.get("is_current"))
+    if failed_run:
+        status = "needs_attention"
+        severity = "bad"
+        title = "Last dashboard run failed"
+        detail = _failed_run_message(last_error)  # type: ignore[arg-type]
+        issues.append({"kind": "last_run", "severity": "bad", "message": detail})
+    elif last_run_seconds is None:
         status = "degraded"
         severity = "warn"
         title = "No successful run recorded yet"
@@ -167,7 +191,7 @@ def _overall_health(
         summary = _source_summary(name, source)
         source["summary"] = summary
         if summary["severity"] == "bad":
-            if status != "paused":
+            if status != "paused" and not failed_run:
                 status = "needs_attention"
                 severity = "bad"
                 title = "Dashboard needs attention"
@@ -243,6 +267,15 @@ def _calendar_backend(cfg) -> str:
     return "google"
 
 
+def _url_host(url: str) -> str:
+    """The hostname of *url*, or a placeholder when it has none."""
+    try:
+        host = urlparse(url).hostname
+    except ValueError:
+        host = None
+    return host or "(unparseable URL)"
+
+
 def _calendar_integration(cfg, backend: str) -> dict:
     """One row describing the active calendar source."""
     if backend == "caldav":
@@ -254,7 +287,11 @@ def _calendar_integration(cfg, backend: str) -> dict:
 
     if backend == "ics":
         extra = len(cfg.google.additional_ical_urls)
-        detail = f"Using ICS feed: {cfg.google.ical_url}"
+        # Only the host. A private Google/iCloud feed URL carries its access
+        # token in the path, and the config editor already withholds the URL
+        # from the browser (the schema marks it secret); the status page must
+        # not print it to every viewer or into the status JSON (#279).
+        detail = f"Using ICS feed: {_url_host(cfg.google.ical_url)}"
         if extra:
             detail += f" (+{extra} additional feed{'s' if extra != 1 else ''})"
         return {"name": "Calendar (ICS)", "status": "ok", "detail": detail}
@@ -378,7 +415,10 @@ def _build_status() -> dict:
     one_call = _one_call_summary(
         one_call_health.read_health(state_dir), cfg.weather.one_call_version
     )
-    overall = _overall_health(last_run["seconds_since"], quiet_hours_active, sources, one_call)
+    last_error = read_last_error(output_dir, last_success=last_run)
+    overall = _overall_health(
+        last_run["seconds_since"], quiet_hours_active, sources, one_call, last_error
+    )
     # persist=False keeps this a read. Resolving a random cadence normally
     # *draws* the theme and writes state/random_theme_state.json, so the page's
     # 30-second poll was deciding what the dashboard would show — and winning
@@ -390,6 +430,9 @@ def _build_status() -> dict:
     return {
         "last_run": last_run["timestamp"],
         "seconds_since_run": last_run["seconds_since"],
+        # The renderer's failure marker. ``is_current`` means it is newer than
+        # the last success, i.e. the most recent run died.
+        "last_error": last_error,
         "current_theme": effective_theme,
         "quiet_hours_active": quiet_hours_active,
         "quiet_hours_start": cfg.schedule.quiet_hours_start,

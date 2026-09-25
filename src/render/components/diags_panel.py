@@ -21,6 +21,7 @@ from src.render.primitives import (
     text_height,
     text_width,
     vline,
+    wind_unit,
 )
 from src.render.theme import ComponentRegion, ThemeStyle
 
@@ -198,7 +199,7 @@ def _weather_section(draw, x, y, w, weather, style) -> int:
         y = _kv(draw, x, y, "Feels like", f"{weather.feels_like:.0f}°", style, w)
     y = _kv(draw, x, y, "Humidity", f"{weather.humidity}%", style, w)
     if weather.wind_speed is not None:
-        wind = f"{weather.wind_speed:.0f} mph"
+        wind = f"{weather.wind_speed:.0f} {wind_unit(weather)}"
         if weather.wind_deg is not None:
             wind += f"  {deg_to_compass(weather.wind_deg)}"
         y = _kv(draw, x, y, "Wind", wind, style, w)

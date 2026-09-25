@@ -164,7 +164,6 @@ def read_cache_ages(state_dir: str, ttls: dict[str, int]) -> dict[str, dict]:
         except Exception as exc:
             logger.debug("Could not read cache: %s", exc)
 
-    now_local = datetime.now()  # allow-naive-datetime — naive local for cache age display
     now_utc = datetime.now(timezone.utc)
     result: dict[str, dict] = {}
     for source in source_names():
@@ -174,13 +173,16 @@ def read_cache_ages(state_dir: str, ttls: dict[str, int]) -> dict[str, dict]:
             continue
         try:
             fetched_at = datetime.fromisoformat(block["fetched_at"])
+            # A naive (pre-v5) timestamp is UTC — the convention every other
+            # reader follows (cache._normalise_fetched_at, read_last_success).
+            # Measuring it against the host's local clock put the age off by
+            # the UTC offset on any non-UTC host, so a source the renderer
+            # still held fresh showed "expired" here, or the reverse (#280).
             if fetched_at.tzinfo is None:
-                age_minutes = (now_local - fetched_at).total_seconds() / 60
-                staleness = check_staleness(fetched_at, ttls.get(source, 60), now=now_local)
-            else:
-                fetched_at_utc = fetched_at.astimezone(timezone.utc)
-                age_minutes = (now_utc - fetched_at_utc).total_seconds() / 60
-                staleness = check_staleness(fetched_at_utc, ttls.get(source, 60), now=now_utc)
+                fetched_at = fetched_at.replace(tzinfo=timezone.utc)
+            fetched_at_utc = fetched_at.astimezone(timezone.utc)
+            age_minutes = (now_utc - fetched_at_utc).total_seconds() / 60
+            staleness = check_staleness(fetched_at_utc, ttls.get(source, 60), now=now_utc)
             result[source] = {
                 "cache_age_minutes": round(age_minutes, 1),
                 "staleness": staleness.value,

@@ -15,7 +15,7 @@ from datetime import date, timedelta, tzinfo
 from pathlib import Path
 from typing import Any
 
-from src._time import day_start_utc
+from src._time import event_window_utc
 from src.config import BirthdayConfig, GoogleConfig
 from src.data.models import Birthday, CalendarEvent
 
@@ -265,13 +265,26 @@ def _parse_birthday_entry(entry: dict, today: date, lookahead: date) -> Birthday
     return Birthday(name=name, date=this_year, age=age)
 
 
+def _strip_birthday_keyword(summary: str, keyword: str) -> str:
+    """Return the name in a birthday event summary with *keyword* removed.
+
+    Case-insensitive, and it removes an optional possessive attached to the
+    name — ``"James's Birthday"`` and ``"Sam's birthday"`` both give the name.
+    ``str.replace`` was case-sensitive, so ``"Sam's birthday"`` kept the
+    keyword; and ``.strip(" :'s")`` strips a *character set*, so ``"James"``
+    became ``"Jame"`` (#259).
+    """
+    pattern = r"\s*(?:'s|’s)?\s*" + re.escape(keyword) + r"\s*"
+    name = re.sub(pattern, " ", summary, flags=re.IGNORECASE)
+    return name.strip(" :-–—")
+
+
 def _birthdays_from_calendar(
     google_cfg: GoogleConfig, birthday_cfg: BirthdayConfig, tz: tzinfo | None = None
 ) -> list[Birthday]:
     service = _build_service(google_cfg)
     today = _today(tz)
-    time_min = day_start_utc(today, tz)
-    time_max = time_min + timedelta(days=birthday_cfg.lookahead_days)
+    time_min, time_max = event_window_utc(today, birthday_cfg.lookahead_days, tz)
 
     # API errors (DNS/auth/network/HTTP) propagate so the data pipeline can fall
     # back to the previously-cached birthday list rather than overwriting it with
@@ -299,7 +312,7 @@ def _birthdays_from_calendar(
         summary = item.get("summary", "")
         if birthday_cfg.calendar_keyword.lower() not in summary.lower():
             continue
-        name = summary.replace(birthday_cfg.calendar_keyword, "").strip(" :'s")
+        name = _strip_birthday_keyword(summary, birthday_cfg.calendar_keyword)
         start_raw = item.get("start", {})
         if "date" in start_raw:
             bday_date = date.fromisoformat(start_raw["date"])

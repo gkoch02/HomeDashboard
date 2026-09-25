@@ -160,6 +160,23 @@ class TestValidateConfigWarnings:
         _, warnings = validate_config(cfg)
         assert any(w.field == "display.enable_partial_refresh" for w in warnings)
 
+    def test_waveshare_model_without_fast_waveform_partial_refresh_warns(self):
+        # epd7in5_HD ships only init(); its DisplaySpec now says so (#268).
+        cfg = Config(display=DisplayConfig(model="epd7in5_HD", enable_partial_refresh=True))
+        _, warnings = validate_config(cfg)
+        assert any(
+            w.field == "display.enable_partial_refresh" and "not supported" in w.message
+            for w in warnings
+        )
+
+    def test_waveshare_v2_partial_refresh_does_not_warn_unsupported(self):
+        cfg = Config(display=DisplayConfig(model="epd7in5_V2", enable_partial_refresh=True))
+        _, warnings = validate_config(cfg)
+        assert not any(
+            w.field == "display.enable_partial_refresh" and "not supported" in w.message
+            for w in warnings
+        )
+
     def test_missing_birthday_file_warns(self, tmp_path):
         cfg = Config(birthdays=BirthdayConfig(source="file", file_path=str(tmp_path / "nope.json")))
         _, warnings = validate_config(cfg)
@@ -805,3 +822,62 @@ class TestPurpleAirSensorIdValidation:
         errors, warnings = validate_config(load_config(path), config_path=path)
         assert "purpleair.sensor_id" not in [e.field for e in errors]
         assert "purpleair.sensor_id" not in [w.field for w in warnings]
+
+
+class TestPartialRefreshWarningExpandsPseudoThemes:
+    """A schedule row or rule naming a rotation pseudo-theme selects from the
+    pool, so the pool's partial-refresh opt-outs count (#273)."""
+
+    def _cfg(self, **overrides) -> Config:
+        return Config(
+            theme="default",
+            display=DisplayConfig(
+                provider="waveshare", model="epd7in5_V2", enable_partial_refresh=True
+            ),
+            **overrides,
+        )
+
+    def _warning(self, cfg: Config):
+        _, warnings = validate_config(cfg)
+        return next(
+            (
+                w
+                for w in warnings
+                if w.field == "display.enable_partial_refresh" and "full refresh" in w.message
+            ),
+            None,
+        )
+
+    def test_random_rule_counts_the_pool(self):
+        from src.config import ThemeRule, ThemeRuleCondition, ThemeRulesConfig
+
+        cfg = self._cfg(
+            theme_rules=ThemeRulesConfig(
+                rules=[ThemeRule(when=ThemeRuleCondition(weather="rain"), theme="random_daily")]
+            )
+        )
+        warning = self._warning(cfg)
+        assert warning is not None
+        # The pool's opt-outs are listed (the message names the first three).
+        assert "day_arc" in warning.message
+
+    def test_random_schedule_row_counts_the_pool(self):
+        from src.config import ThemeScheduleConfig, ThemeScheduleEntry
+
+        cfg = self._cfg(
+            theme_schedule=ThemeScheduleConfig(
+                entries=[ThemeScheduleEntry(time="22:00", theme="random_hourly")]
+            )
+        )
+        assert self._warning(cfg) is not None
+
+    def test_pseudo_name_itself_is_not_listed(self):
+        from src.config import ThemeRule, ThemeRuleCondition, ThemeRulesConfig
+
+        cfg = self._cfg(
+            theme_rules=ThemeRulesConfig(
+                rules=[ThemeRule(when=ThemeRuleCondition(weather="rain"), theme="random_daily")]
+            )
+        )
+        warning = self._warning(cfg)
+        assert warning is not None and "random_daily" not in warning.message

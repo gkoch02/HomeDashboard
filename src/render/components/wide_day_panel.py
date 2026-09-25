@@ -56,6 +56,7 @@ from src.render.primitives import (
     text_height,
     text_width,
     vline,
+    wind_unit,
 )
 from src.render.theme import ComponentRegion, ThemeStyle
 
@@ -86,6 +87,7 @@ LANE_GAP = 6
 # capped at this width.
 LABEL_PAD = 8
 MAX_BESIDE_LABEL_W = 220
+MIN_BESIDE_LABEL_W = 12  # narrower than this and a beside-label is unreadable
 
 UP_NEXT_MAX = 4
 BIRTHDAY_MAX = 3
@@ -304,8 +306,7 @@ def _draw_left_block(
             f"↑ {fmt_time(_naive(weather.sunrise, now))}  ↓ {fmt_time(_naive(weather.sunset, now))}"
         )
     if weather.wind_speed is not None:
-        unit = "m/s" if weather.units == "metric" else "mph"
-        wind = f"Wind {weather.wind_speed:.0f} {unit}"
+        wind = f"Wind {weather.wind_speed:.0f} {wind_unit(weather)}"
         if weather.wind_deg is not None:
             wind += f" {deg_to_compass(weather.wind_deg)}"
         parts.append(wind)
@@ -405,8 +406,19 @@ def _draw_timeline(
         label_w = max(text_width(draw, title, title_font), text_width(draw, detail, time_font))
         inside = bx1 - bx0 >= label_w + 2 * LABEL_PAD
         beside_w = 0 if inside else min(label_w, MAX_BESIDE_LABEL_W) + LABEL_PAD
-        bar = _Bar(evt, bx0, bx1, inside, min(ax1, bx1 + beside_w))
-        items.append((bx0, bar.extent_x1 + LABEL_PAD, bar))
+        room_right = ax1 - (bx1 + LABEL_PAD)
+        room_left = (bx0 - LABEL_PAD) - ax0
+        if inside:
+            bar = _Bar(evt, bx0, bx1, "inside", bx0, bx1)
+        elif room_right >= beside_w or room_right >= room_left:
+            # The label goes after the bar unless the axis end cuts it
+            # shorter than the room before the bar would — a 22:30 call with
+            # 30 px to the right and 700 px to the left used to set a "..."
+            # stub on the right.
+            bar = _Bar(evt, bx0, bx1, "right", bx0, min(ax1, bx1 + beside_w))
+        else:
+            bar = _Bar(evt, bx0, bx1, "left", max(ax0, bx0 - beside_w), bx1)
+        items.append((bar.extent_x0 - LABEL_PAD, bar.extent_x1 + LABEL_PAD, bar))
     lanes = pack_lanes(items)
     max_lanes = max(1, (lanes_bottom - lanes_top) // (LANE_H + LANE_GAP))
     shown, hidden = lanes[:max_lanes], lanes[max_lanes:]
@@ -473,16 +485,32 @@ def _draw_allday_chips(
 
 
 class _Bar:
-    """One event's bar on the axis and where its label goes."""
+    """One event's bar on the axis and where its label goes.
 
-    __slots__ = ("evt", "x0", "x1", "inside", "extent_x1")
+    ``side`` is ``"inside"`` when the bar is wide enough to carry its label,
+    ``"right"`` when the label sits after the bar, and ``"left"`` when there is
+    no room after it — a bar ending at or near the axis end (every event that
+    runs to midnight) had its label squeezed into the few px before the axis
+    edge and then dropped as unreadable, leaving an anonymous box (#291).
+    ``extent_x0``/``extent_x1`` are the outer edges of bar plus label, which
+    is what the lanes are packed by.
+    """
 
-    def __init__(self, evt: CalendarEvent, x0: int, x1: int, inside: bool, extent_x1: int):
+    __slots__ = ("evt", "x0", "x1", "side", "extent_x0", "extent_x1")
+
+    def __init__(
+        self, evt: CalendarEvent, x0: int, x1: int, side: str, extent_x0: int, extent_x1: int
+    ):
         self.evt = evt
         self.x0 = x0
         self.x1 = x1
-        self.inside = inside  # label inside the bar, else beside it
-        self.extent_x1 = extent_x1  # right edge of bar + beside-label
+        self.side = side
+        self.extent_x0 = extent_x0
+        self.extent_x1 = extent_x1
+
+    @property
+    def inside(self) -> bool:
+        return self.side == "inside"
 
 
 def _bar_text(evt: CalendarEvent) -> tuple[str, str]:
@@ -519,11 +547,20 @@ def _draw_bar(
         title_font = style.font_regular(15)
 
     title, detail = _bar_text(bar.evt)
-    if bar.inside:
+    if bar.side == "inside":
         tx, max_w, fill = bx0 + LABEL_PAD, bx1 - bx0 - 2 * LABEL_PAD, inside_fill
-    else:
+    elif bar.side == "right":
         tx, max_w, fill = bx1 + LABEL_PAD, bar.extent_x1 - (bx1 + LABEL_PAD), style.fg
-    if max_w < 12:
+    else:
+        max_w, fill = bx0 - LABEL_PAD - bar.extent_x0, style.fg
+        if max_w < MIN_BESIDE_LABEL_W:
+            return
+        # Right-aligned against the bar: a truncated line fills max_w exactly.
+        for text, font, ty in ((title, title_font, by0 + 4), (detail, time_font, by0 + 23)):
+            width = min(text_width(draw, text, font), max_w)
+            draw_text_truncated(draw, (bx0 - LABEL_PAD - width, ty), text, font, max_w, fill=fill)
+        return
+    if max_w < MIN_BESIDE_LABEL_W:
         return
     draw_text_truncated(draw, (tx, by0 + 4), title, title_font, max_w, fill=fill)
     draw_text_truncated(draw, (tx, by0 + 23), detail, time_font, max_w, fill=fill)

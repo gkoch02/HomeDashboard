@@ -73,6 +73,118 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Fixed
 
+- **A failure in post-fetch bookkeeping is no longer a fetch failure.** The
+  cache write, breaker and quota saves and the success log ran inside the
+  same `try` as the fetch, so an exception there was logged as a fetch error,
+  counted against the breaker and threw the fetched data away (#272).
+- **A `theme_rules` / `theme_schedule` entry may name a rotation pseudo-theme.**
+  `random`, `random_daily` and `random_hourly` are expanded to the panel-aware
+  pool when sizing the calendar event window and the partial-refresh warning,
+  so a post-fetch pick of `monthly` or a rollover theme renders from a window
+  that was fetched (#273).
+- **ICS feeds served without a charset decode as UTF-8** (RFC 5545) instead of
+  requests' ISO-8859-1 default, which turned "Café" into "CafÃ©" (#274).
+- **Timed events that began before the week but overlap it are kept** on ICS
+  and Google incremental sync, matching CalDAV and Google full sync (#275).
+- **Today's high can no longer sit below the current temperature.** The
+  forecast grid only holds the remaining 3-hour slots; the current reading and
+  period extremes are folded in (#276).
+- **PM2.5 → AQI uses the May 2024 EPA breakpoints.** Displayed AQI values
+  change: 10 µg/m³ is now 53 Moderate (was 42 Good), 100 µg/m³ is 182 (was
+  174), and `aqi_at_least` rules fire at the revised thresholds (#277).
+- **A Google calendar that fails with nothing previously synced fails the
+  fetch** (`CalendarFetchError`) instead of being silently omitted and the
+  partial calendar cached as fresh (#278).
+- **The status page prints only the ICS feed's hostname.** The URL carries the
+  access token and the config editor already withholds it (#279).
+- **Cache ages treat a legacy naive `fetched_at` as UTC**, as the renderer
+  does, instead of host-local (#280).
+- **Concurrent web saves and restores no longer discard each other.** The
+  whole read → patch → validate → write sequence runs under the write lock
+  (#281).
+- **The template's placeholder `secret_key` is ignored.** It, and any key
+  shorter than 16 characters, is treated as unset with a warning and an
+  ephemeral key, instead of signing sessions with a string published in the
+  repo (#282).
+- **`dashboard-web.log` is rotated**, and the renderer stanza's `weekly`
+  interval is live again alongside `maxsize` (#283).
+- **`.gitignore` covers runtime logs and tool caches**, so a Pi checkout stays
+  clean and `make release` is not blocked by `output/dashboard.log` (#284).
+- **`docs/setup.md` and `docs/faq.md` describe the v5 refresh throttle.** Five
+  passages still promised the v4 "once an hour on Inky" behaviour and the
+  fuzzyclock allowlist (#285).
+- **A malformed refresh-tracker state file no longer aborts every Waveshare
+  write** (#286).
+- **Colour-panel art-region dithering is ~4× faster.** The pure-Python
+  serial Floyd-Steinberg loop replaces the per-pixel numpy variant; output is
+  pixel-identical on every shipped art preview (#287).
+- **A title with no spaces no longer runs across the whole plate.** Words
+  wider than the column are broken by character in every wrapped-text site,
+  and the week view's autofit picks the largest size whose broken line count
+  fits instead of collapsing to 9 px (#288).
+- **The week view's "+N more" marker stays inside its column** instead of
+  overprinting the panel below (#289).
+- **The `timeline` theme shows events before 7 AM and after 9 PM.** The axis
+  widens to cover the day's timed events instead of silently dropping them
+  (#290).
+- **`wide_day` labels bars that end near midnight.** The label goes on
+  whichever side of the bar has more room (#291).
+- **Two tests no longer depend on the host timezone** (#271).
+- **The calendar window ends on a local midnight.** All three calendar
+  backends computed `time_max` as `time_min + days × 24 h`, which across a DST
+  change is not `days` local days: the fall-back week ended at Sunday 23:00
+  local, so every Sunday all-day event and any late-evening timed event was
+  filtered out on ICS, CalDAV and Google incremental sync. Both bounds now
+  come from `_time.event_window_utc()` (#258).
+- **Calendar-sourced birthday names keep their trailing "s".** The keyword was
+  removed with a case-sensitive `replace` and a character-set `strip`, so
+  "James's Birthday" became "Jame" and "Sam's birthday" kept the keyword
+  (#259).
+- **A web save can no longer wipe `config.yaml`.** When the file could not be
+  read or parsed the editor merged the form into an empty mapping and wrote
+  only the patched keys back, reporting "Saved". The save is now refused with
+  an error naming the cause, and a failed pre-write backup aborts it (#260).
+- **A failing web-triggered run no longer locks the renderer.** The trigger
+  file was removed in `ExecStartPost`, which a oneshot runs only on success,
+  so a crash left it for the path unit to re-fire on until the start limit
+  disabled the unit, the timer and every later "Refresh Now". It is removed
+  in `ExecStartPre` and the oneshot has no `Restart=` (#261).
+- **The config page's change summary reports only the fields edited.** It
+  compared the flat patch against the nested config, so an untouched form
+  listed every field as changed and the confirmation dialog buried real
+  edits (#262).
+- **The status page shows when the last run failed.** `output/last_error.txt`
+  was read only by `/api/health`; the health card reported "healthy" through
+  any number of consecutive crashes until the two-hour threshold (#263).
+- **`make deploy` leaves the Pi's runtime state alone.** The rsync now
+  excludes `state/`, `output/`, `config/web.yaml`, the config backups and
+  local tool caches; a dev box that had ever rendered was resetting the Pi's
+  cache, breaker and sync state and stamping its own "last success" (#264).
+- **`make configure` writes the PurpleAir key.** The wizard looked for an
+  uncommented `purpleair:` block the template never ships, dropped the key
+  silently and appended `sensor_id` at the top level; it now uncomments or
+  inserts the section and exits non-zero without touching the file when a
+  key cannot be located (#265).
+- **Waveshare models match the vendor library.** `epd13in3k` is 960 × 680,
+  not 1600 × 1200 — with the wrong size `getbuffer()` returned a blank buffer
+  and the panel stayed white with no error. `epd9in7` and `epd7in5_V3` are
+  removed: no such modules exist upstream (#266).
+- **`epd7in5b_V2` displays.** Its `display()` takes a black and a red plane
+  and its fast init is `init_Fast`; every write raised `TypeError`. The
+  driver now sends the mono buffer with a blank red plane (#267).
+- **Partial refresh is a per-model fact.** Only `epd7in5_V2` and
+  `epd7in5b_V2` have a fast full-frame waveform; on any other model
+  `enable_partial_refresh` raised `AttributeError` on the second run and
+  stuck there. Those models now drop the option with a warning (#268).
+- **`load_config()` no longer crashes on plausible YAML.** Quoted numbers
+  (`"23"`, `"40.7"`, `"30"`) are coerced; an unreadable number or list keeps
+  its default and is reported by `validate_config()` as a `ConfigError`
+  instead of a `TypeError` out of the validator; an empty list key reads as
+  `[]` instead of `None` (which failed every calendar fetch); and a
+  non-mapping `theme_schedule` entry is skipped and named (#269).
+- **Wind speed is labelled in the units it was fetched in.** Five panels
+  hardcoded "mph", so a metric install read "Wind 12mph" for a 12 m/s wind.
+  One `primitives.wind_unit()` helper now serves every wind label (#270).
 - **`config/config.example.yaml` is complete again, and stays that way.** The
   template `make setup` copies had fallen behind the code: five parsed options
   were missing from it entirely (`display.min_refresh_interval_seconds`,

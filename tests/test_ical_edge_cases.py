@@ -2,8 +2,9 @@
 
 import sys
 import zoneinfo
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -795,9 +796,14 @@ class TestRunawaySeriesCap:
         "RRULE:FREQ=DAILY\r\nEND:VEVENT\r\n"
     )
 
-    def _fetch(self, mock_get, body):
+    def _fetch(self, mock_get, body, tz=timezone.utc):
+        # The window is anchored in an explicit zone: with ``tz=None`` it
+        # starts at the *host's* midnight, and the count of in-window
+        # occurrences then depended on where the test machine sat (#271).
         mock_get.return_value = _mock_response(_make_ical_response(body))
-        return fetch_from_ical(["https://example.com/cal.ics"], days=7, start_date=date(2026, 4, 6))
+        return fetch_from_ical(
+            ["https://example.com/cal.ics"], days=7, start_date=date(2026, 4, 6), tz=tz
+        )
 
     @patch("src.fetchers.calendar_ical.requests.get")
     def test_unbounded_rule_is_capped_and_warns(self, mock_get, caplog):
@@ -807,6 +813,20 @@ class TestRunawaySeriesCap:
             events = self._fetch(mock_get, self._SPAM)
         assert len(events) == _MAX_OCCURRENCES_PER_SERIES
         assert "check its RRULE" in caplog.text
+
+    @patch("src.fetchers.calendar_ical.requests.get")
+    def test_cap_counts_only_in_window_occurrences(self, mock_get):
+        """The cap runs after the window filter. The expansion span starts a
+        day early, so capping the expansion kept a day of pre-window
+        occurrences and the filter then discarded them — 80 events reached the
+        caller while the log said 500 (#271). A series that began the day
+        before the window still yields the full cap inside it."""
+        early = self._SPAM.replace("DTSTART:20260406T000000Z", "DTSTART:20260405T000000Z").replace(
+            "DTEND:20260406T000100Z", "DTEND:20260405T000100Z"
+        )
+        events = self._fetch(mock_get, early, tz=ZoneInfo("America/Los_Angeles"))
+        assert len(events) == _MAX_OCCURRENCES_PER_SERIES
+        assert min(e.start for e in events) >= datetime(2026, 4, 6, 0, 0)
 
     @patch("src.fetchers.calendar_ical.requests.get")
     def test_cap_is_per_series_so_real_events_survive(self, mock_get):
@@ -957,3 +977,63 @@ class TestExpansionFallbackTiers:
             )
         # Out-of-window raw events are filtered out, leaving an empty list.
         assert events == []
+
+
+class TestFeedEncoding:
+    """RFC 5545 mandates UTF-8; requests decodes text/calendar with no charset
+    as ISO-8859-1 (#274)."""
+
+    _CAFE = (
+        "BEGIN:VEVENT\r\nUID:cafe\r\nSUMMARY:Caf\u00e9 au lait\r\n"
+        "DTSTART:20260406T100000Z\r\nDTEND:20260406T110000Z\r\nEND:VEVENT\r\n"
+    )
+
+    def _resp(self, content_type: str):
+        import requests
+
+        raw = _make_ical_response(self._CAFE).encode("utf-8")
+        resp = requests.Response()
+        resp.status_code = 200
+        resp._content = raw
+        resp.headers["Content-Type"] = content_type
+        # HTTPAdapter.build_response() sets this from the headers; requests
+        # maps a charset-less text/* to ISO-8859-1.
+        resp.encoding = requests.utils.get_encoding_from_headers(resp.headers)
+        return resp
+
+    @patch("src.fetchers.calendar_ical.requests.get")
+    def test_utf8_without_charset_is_decoded_as_utf8(self, mock_get):
+        mock_get.return_value = self._resp("text/calendar")
+        # Sanity: this is the response shape that mis-decodes via .text.
+        assert "\u00c3" in mock_get.return_value.text
+        events = fetch_from_ical(["https://example.com/cal.ics"], start_date=date(2026, 4, 6))
+        assert events[0].summary == "Caf\u00e9 au lait"
+
+    @patch("src.fetchers.calendar_ical.requests.get")
+    def test_explicit_charset_is_honoured(self, mock_get):
+        mock_get.return_value = self._resp("text/calendar; charset=utf-8")
+        events = fetch_from_ical(["https://example.com/cal.ics"], start_date=date(2026, 4, 6))
+        assert events[0].summary == "Caf\u00e9 au lait"
+
+
+class TestTimedEventOverlap:
+    """A timed event that began before the window but runs into it is in the
+    window (#275) — matching Google full sync and CalDAV."""
+
+    _CONF = (
+        "BEGIN:VEVENT\r\nUID:conf\r\nSUMMARY:Conference\r\n"
+        "DTSTART:20260405T090000Z\r\nDTEND:20260407T170000Z\r\nEND:VEVENT\r\n"
+    )
+    _BEFORE = (
+        "BEGIN:VEVENT\r\nUID:old\r\nSUMMARY:Ended before\r\n"
+        "DTSTART:20260405T090000Z\r\nDTEND:20260405T170000Z\r\nEND:VEVENT\r\n"
+    )
+
+    @pytest.mark.parametrize("tz", [None, timezone.utc, ZoneInfo("America/New_York")])
+    @patch("src.fetchers.calendar_ical.requests.get")
+    def test_spanning_event_is_kept_and_finished_event_is_not(self, mock_get, tz):
+        mock_get.return_value = _mock_response(_make_ical_response(self._CONF + self._BEFORE))
+        events = fetch_from_ical(
+            ["https://example.com/cal.ics"], days=7, start_date=date(2026, 4, 6), tz=tz
+        )
+        assert [e.summary for e in events] == ["Conference"]

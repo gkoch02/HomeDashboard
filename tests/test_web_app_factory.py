@@ -9,6 +9,8 @@ from __future__ import annotations
 import logging
 from unittest.mock import patch
 
+import pytest
+
 from src.config import Config
 from src.web.app import _load_web_config, create_app
 
@@ -109,6 +111,32 @@ def test_create_app_uses_secret_key_from_web_config(tmp_path):
 
     app = create_app(web_config_path=str(web_yaml), app_config_path=str(cfg_yaml))
     assert app.secret_key == "super-secret-string"
+
+
+@pytest.mark.parametrize(
+    "configured",
+    [
+        "replace-me-with-a-random-secret",  # the value web.example.yaml ships
+        "short",  # too short to be a real secret
+        "",
+    ],
+)
+def test_create_app_treats_the_placeholder_and_short_keys_as_unset(tmp_path, configured, caplog):
+    """The template placeholder is published in the repo, so signing cookies
+    with it lets anyone forge a session; it must count as no key (#282)."""
+    import logging
+
+    web_yaml = tmp_path / "web.yaml"
+    web_yaml.write_text(f"secret_key: {configured!r}\n")
+    cfg_yaml = tmp_path / "config.yaml"
+    cfg_yaml.write_text("")
+    with caplog.at_level(logging.WARNING, logger="src.web.app"):
+        app1 = create_app(web_config_path=str(web_yaml), app_config_path=str(cfg_yaml))
+        app2 = create_app(web_config_path=str(web_yaml), app_config_path=str(cfg_yaml))
+    assert app1.secret_key != configured
+    assert len(app1.secret_key) >= 32
+    assert app1.secret_key != app2.secret_key
+    assert "secret_key" in caplog.text
 
 
 def test_create_app_generates_random_secret_when_unset(tmp_path):

@@ -303,7 +303,9 @@ class DashboardApp:
         anchor, so the common single-candidate case returns exactly what it
         did before and no cached events window is needlessly invalidated.
         """
-        candidates = {pre_theme} | {rule.theme for rule in self.cfg.theme_rules.rules}
+        candidates = self._expand_pseudo_themes(
+            {pre_theme} | {rule.theme for rule in self.cfg.theme_rules.rules}
+        )
         default_anchor = week_start(now.date())
 
         spans = []
@@ -315,6 +317,33 @@ class DashboardApp:
         start = min(span[0] for span in spans)
         end = max(span[1] for span in spans)
         return (None if start == default_anchor else start), (end - start).days
+
+    def _expand_pseudo_themes(self, names: set[str]) -> set[str]:
+        """Replace ``random`` / ``random_daily`` / ``random_hourly`` with the pool.
+
+        A ``theme_rules`` entry may name a rotation pseudo-theme, and
+        ``resolve_theme_name`` then draws from the whole pool post-fetch —
+        ``monthly`` (the 35–42-day grid) or a rollover theme (+1/+2 days)
+        included. Sizing the window for the pseudo-name itself gave it the
+        plain 7-day default, so the pick rendered from a window that was never
+        fetched (#273). The pool is the same panel-aware one the picker uses.
+        """
+        pseudo = {"random", "random_daily", "random_hourly"}
+        if not names & pseudo:
+            return names
+        from src.render.random_theme import eligible_themes
+
+        pool = set(
+            eligible_themes(
+                self.cfg.random_theme.include,
+                self.cfg.random_theme.exclude,
+                (self.cfg.display.width, self.cfg.display.height),
+            )
+        )
+        # pick_random_theme() resolves an empty pool to "default"; the window
+        # has to cover that fallback too, or a pre-fetch `monthly` pick on a
+        # month ending Saturday stops short of the week `default` shows.
+        return (names - pseudo) | (pool or {"default"})
 
     def _apply_filters(self, data):
         if (

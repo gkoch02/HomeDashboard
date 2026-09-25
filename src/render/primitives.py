@@ -82,6 +82,54 @@ def draw_text_truncated(
     return int(bbox[2] - bbox[0])
 
 
+def _break_word(word: str, measure, max_width: float) -> list[str]:
+    """Split one word wider than *max_width* into pieces that each fit.
+
+    A word-wrap that only breaks on whitespace has no bound on its output: a
+    URL, a hashtag or a long product code as an event title was drawn at full
+    width straight across the plate — over every day column of the week view
+    (#288). Pieces are cut by character; the caller decides how many lines it
+    can afford and ellipsizes the last one.
+    """
+    pieces: list[str] = []
+    current = ""
+    for ch in word:
+        test = current + ch
+        if measure(test) <= max_width or not current:
+            current = test
+        else:
+            pieces.append(current)
+            current = ch
+    if current:
+        pieces.append(current)
+    return pieces
+
+
+def _wrap_words(text: str, measure, max_width: float) -> list[str]:
+    """Word-wrap *text* by *measure* (str → px), breaking over-wide words."""
+    lines: list[str] = []
+    current = ""
+    for word in text.split():
+        if measure(word) > max_width:
+            if current:
+                lines.append(current)
+                current = ""
+            pieces = _break_word(word, measure, max_width)
+            lines.extend(pieces[:-1])
+            current = pieces[-1]
+            continue
+        test = f"{current} {word}".strip()
+        if measure(test) <= max_width:
+            current = test
+        else:
+            if current:
+                lines.append(current)
+            current = word
+    if current:
+        lines.append(current)
+    return lines
+
+
 def draw_text_wrapped(
     draw: ImageDraw.ImageDraw,
     xy: tuple[float, float],
@@ -92,32 +140,25 @@ def draw_text_wrapped(
     line_spacing: int = 2,
     fill: Fill = BLACK,
 ) -> int:
-    """Draw wrapped text. Returns total height used."""
-    words = text.split()
-    lines: list[str] = []
-    current_line = ""
+    """Draw wrapped text. Returns total height used.
 
-    for word in words:
-        test = f"{current_line} {word}".strip()
-        bbox = draw.textbbox((0, 0), test, font=font)
-        if bbox[2] - bbox[0] <= max_width:
-            current_line = test
-        else:
-            if current_line:
-                lines.append(current_line)
-            current_line = word
+    Every drawn line fits *max_width*: words wrap, a word wider than the
+    column is broken by character, and when the text needs more than
+    *max_lines* the last kept line is ellipsized.
+    """
 
-    if current_line:
-        lines.append(current_line)
+    def measure(t: str) -> float:
+        bbox = draw.textbbox((0, 0), t, font=font)
+        return bbox[2] - bbox[0]
 
-    lines = lines[:max_lines]
-    if len(lines) == max_lines and len(words) > sum(len(ln.split()) for ln in lines):
+    all_lines = _wrap_words(text, measure, max_width)
+    lines = all_lines[:max_lines]
+    if len(all_lines) > max_lines and lines:
         # Truncate last line with ellipsis
         last = lines[-1]
         while last:
             test = last + "..."
-            bbox = draw.textbbox((0, 0), test, font=font)
-            if bbox[2] - bbox[0] <= max_width:
+            if measure(test) <= max_width:
                 lines[-1] = test
                 break
             last = last[:-1]
@@ -264,21 +305,13 @@ def content_time(data, now: datetime) -> datetime:
 
 
 def wrap_lines(text: str, font, max_width: int) -> list[str]:
-    """Word-wrap *text* into lines that each fit within *max_width* pixels."""
-    words = text.split()
-    lines: list[str] = []
-    current = ""
-    for word in words:
-        test = f"{current} {word}".strip()
-        if font.getlength(test) <= max_width:
-            current = test
-        else:
-            if current:
-                lines.append(current)
-            current = word
-    if current:
-        lines.append(current)
-    return lines
+    """Word-wrap *text* into lines that each fit within *max_width* pixels.
+
+    A word wider than *max_width* is broken by character, the same rule
+    :func:`draw_text_wrapped` draws by, so a line count measured here is the
+    line count that will be drawn.
+    """
+    return _wrap_words(text, font.getlength, max_width)
 
 
 def next_birthday(bday_date: date, today: date) -> date:
@@ -335,6 +368,22 @@ def draw_staleness_glyph(draw: ImageDraw.ImageDraw, region, style) -> None:
     tx = gx + (glyph_w - (bbox[2] - bbox[0])) // 2 - bbox[0]
     ty = gy + (glyph_h - (bbox[3] - bbox[1])) // 2 - bbox[1]
     draw.text((tx, ty), "!", font=warn_font, fill=style.bg)
+
+
+def wind_unit(weather) -> str:
+    """Return the wind-speed unit label for the units *weather* was fetched in.
+
+    OpenWeatherMap reports wind in m/s for ``metric`` **and** ``standard`` and
+    in mph only for ``imperial``; ``WeatherData.units`` records which. A
+    ``None`` weather or a missing/unknown ``units`` (older cache entries) falls
+    back to mph, the historical default. Every panel that prints a wind speed
+    labels it through this one helper so a metric install can't read "mph"
+    on one theme and "m/s" on another (#270).
+    """
+    units = getattr(weather, "units", None)
+    if units in ("metric", "standard"):
+        return "m/s"
+    return "mph"
 
 
 def deg_to_compass(deg: float) -> str:

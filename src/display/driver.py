@@ -13,21 +13,49 @@ from PIL import Image
 logger = logging.getLogger(__name__)
 
 # Registry of supported Waveshare eInk display models.
-# Maps model name → (waveshare_epd module path, native width px, native height px)
+# Maps model name → (waveshare_epd module path, native width px, native height px).
+# Every entry names a module that exists in waveshare/e-Paper's
+# ``RaspberryPi_JetsonNano/python/lib/waveshare_epd`` (except ``epd10in85g``,
+# see below), and its dimensions are the driver's own ``EPD_WIDTH`` /
+# ``EPD_HEIGHT``. They have to be: a driver's ``getbuffer()`` compares the
+# image against those constants and returns a blank buffer on a mismatch, so a
+# wrong size here is a white panel with no error (#266). ``epd9in7`` and
+# ``epd7in5_V3`` used to be listed; neither module exists upstream (the 9.7"
+# panel is IT8951-driven), so selecting them failed at import on the first
+# hardware write.
 WAVESHARE_MODELS: dict[str, tuple[str, int, int]] = {
     "epd7in5": ("waveshare_epd.epd7in5", 640, 384),
     "epd7in5_V2": ("waveshare_epd.epd7in5_V2", 800, 480),
-    "epd7in5_V3": ("waveshare_epd.epd7in5_V3", 800, 480),
     "epd7in5b_V2": ("waveshare_epd.epd7in5b_V2", 800, 480),
     "epd7in5_HD": ("waveshare_epd.epd7in5_HD", 880, 528),
-    "epd9in7": ("waveshare_epd.epd9in7", 1200, 825),
-    "epd13in3k": ("waveshare_epd.epd13in3k", 1600, 1200),
+    "epd13in3k": ("waveshare_epd.epd13in3k", 960, 680),
     # 10.85" e-Paper (G): a 1360x480 panoramic strip with four inks. Module
     # name follows Waveshare's convention for the "G" family (epd7in3g,
     # epd4in37g): the demo code that ships with the panel installs it as
     # ``waveshare_epd.epd10in85g``.
     "epd10in85g": ("waveshare_epd.epd10in85g", 1360, 480),
 }
+
+# The name of the fast full-frame waveform each vendor driver exposes, for the
+# models that have one. This is the method ``WaveshareDisplay.show()`` calls
+# on a partial refresh, and a model absent from this dict does not support
+# partial refresh: ``epd7in5`` and ``epd7in5_HD`` ship only ``init()``, the
+# 13.3" K has an ``init_Part`` LUT meant for its windowed ``display_Partial``
+# rather than a full-frame repaint, and the G drivers repaint all four inks
+# every time. Until this was a per-model fact, every mono model claimed the
+# fast path and all but ``epd7in5_V2`` raised ``AttributeError`` on the first
+# partial refresh — and kept raising every tick, because the failed run never
+# recorded a partial and so never reached the next full one (#268).
+WAVESHARE_FAST_INIT: dict[str, str] = {
+    "epd7in5_V2": "init_fast",
+    "epd7in5b_V2": "init_Fast",
+}
+
+# Tri-colour (black/white/red) drivers whose ``display()`` takes two planes,
+# ``(imageblack, imagered)``. The dashboard renders monochrome, so the red
+# plane it sends is empty; see ``WaveshareDisplay._blank_red_plane`` for why
+# "empty" is all-zero bytes and not 0xFF (#267).
+WAVESHARE_TRICOLOR_MODELS: frozenset[str] = frozenset({"epd7in5b_V2"})
 
 # The physical inks of a Waveshare "G" panel, in the order the driver's
 # ``getbuffer()`` packs them (black=00, white=01, yellow=10, red=11). A model
@@ -91,7 +119,7 @@ def _build_display_specs() -> dict[tuple[str, str], DisplaySpec]:
             width=width,
             height=height,
             render_mode="RGB" if palette is not None else "1",
-            supports_partial_refresh=palette is None,
+            supports_partial_refresh=model in WAVESHARE_FAST_INIT,
             palette=palette,
         )
     for model, (width, height) in INKY_MODELS.items():
@@ -238,8 +266,16 @@ class WaveshareDisplay(DisplayDriver):
                 f"Unknown Waveshare model '{model}'. Supported models: {sorted(WAVESHARE_MODELS)}"
             )
         self.model = model
-        # A colour ("G") panel has no fast waveform to opt into.
-        self.enable_partial = enable_partial and model not in WAVESHARE_COLOR_MODELS
+        # Only a model with a fast full-frame waveform can honour the option;
+        # the colour ("G") panels and the mono models that ship only ``init()``
+        # take the full waveform on every write whatever the config says.
+        self.enable_partial = enable_partial and model in WAVESHARE_FAST_INIT
+        if enable_partial and not self.enable_partial:
+            logger.warning(
+                "Partial refresh is not supported on Waveshare model %s (its driver has "
+                "no fast waveform); every write uses the full refresh.",
+                model,
+            )
         self.max_partials = max_partials
         self.state_dir = state_dir
         self._epd = None
@@ -247,6 +283,52 @@ class WaveshareDisplay(DisplayDriver):
     @property
     def is_color(self) -> bool:
         return self.model in WAVESHARE_COLOR_MODELS
+
+    @property
+    def is_tricolor(self) -> bool:
+        return self.model in WAVESHARE_TRICOLOR_MODELS
+
+    @staticmethod
+    def _blank_red_plane(black: bytes | bytearray | list) -> bytearray:
+        """An all-white red plane the same size as *black*.
+
+        The tri-colour driver's ``getbuffer()`` XORs every byte with 0xFF, so
+        a white image comes out of it as 0x00 bytes; ``display()`` XORs the
+        black plane back before writing it but sends the red plane as given.
+        Waveshare's own demo builds the red plane by running a white image
+        through ``getbuffer()``, so "no red" is all-zero bytes. An all-0xFF
+        plane would paint the whole panel red.
+        """
+        return bytearray(len(black))
+
+    def _write_frame(self, epd, image: Image.Image) -> None:
+        """Push one frame through the vendor driver's ``display()``."""
+        # A "G" driver's getbuffer() maps RGB onto the panel's four inks
+        # itself; the backend has already snapped every pixel to one of them,
+        # so that mapping is exact. A 1-bit driver wants the "1" image the
+        # mono backend produced.
+        black = epd.getbuffer(image)
+        if self.is_tricolor:
+            # display(imageblack, imagered): the dashboard is monochrome, so
+            # the red plane is blank. Calling display() with one buffer, as
+            # every other model takes, raised TypeError on every write (#267).
+            epd.display(black, self._blank_red_plane(black))
+        else:
+            epd.display(black)
+
+    def _fast_init(self, epd):
+        """Return the driver's fast full-frame init, or ``None`` if it has none.
+
+        Looked up by the name the registry records for the model, then by the
+        two spellings the vendor library uses (``init_fast`` on the 7.5" V2,
+        ``init_Fast`` on the tri-colour 7.5"), so a driver whose author picked
+        the other case still gets its fast path.
+        """
+        names = [WAVESHARE_FAST_INIT.get(self.model), "init_fast", "init_Fast"]
+        for name in names:
+            if name and callable(getattr(epd, name, None)):
+                return getattr(epd, name)
+        return None
 
     @property
     def native_width(self) -> int:
@@ -277,21 +359,32 @@ class WaveshareDisplay(DisplayDriver):
         tracker = RefreshTracker.load(max_partials=self.max_partials, state_path=state_path)
 
         try:
-            if force_full or not self.enable_partial or tracker.needs_full_refresh():
+            fast_init = self._fast_init(epd) if self.enable_partial else None
+            if self.enable_partial and fast_init is None:
+                # The registry said this model has a fast waveform but the
+                # installed driver does not expose one (an older or renamed
+                # vendor library). Fall back rather than fail every tick.
+                logger.warning(
+                    "Waveshare driver for %s has no fast waveform method; using a full "
+                    "refresh instead of the requested partial refresh.",
+                    self.model,
+                )
+            if (
+                force_full
+                or not self.enable_partial
+                or fast_init is None
+                or tracker.needs_full_refresh()
+            ):
                 epd.init()
-                # A "G" driver's getbuffer() maps RGB onto the panel's four
-                # inks itself; the backend has already snapped every pixel to
-                # one of them, so that mapping is exact. A 1-bit driver wants
-                # the "1" image the mono backend produced.
-                epd.display(epd.getbuffer(image))
+                self._write_frame(epd, image)
                 tracker.record_full()
             else:
                 # Fast waveform: quicker, but it does not drive black as
                 # deeply as a full init, so solid fills read closer to
                 # charcoal than to ink and ghosting accumulates. Reached only
                 # when the user opts into partial refresh.
-                epd.init_fast()
-                epd.display(epd.getbuffer(image))
+                fast_init()
+                self._write_frame(epd, image)
                 tracker.record_partial()
         finally:
             try:

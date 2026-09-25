@@ -212,3 +212,74 @@ def test_describe_theme_mode_scheduled_before_first_entry_uses_first_entry():
     assert info["mode"] == "scheduled"
     assert info["next_scheduled_change"] == {"time": "08:00", "theme": "terminal"}
     assert info["schedule_count"] == 2
+
+
+# ---------------------------------------------------------------------------
+# #263 — the renderer's error marker must reach the status page
+# ---------------------------------------------------------------------------
+
+
+def _current_error(message="OWM returned 401"):
+    return {
+        "timestamp": "2026-09-24T10:05:00+00:00",
+        "exception_type": "RuntimeError",
+        "message": message,
+        "is_current": True,
+    }
+
+
+def test_overall_health_current_error_is_needs_attention():
+    sources = {"weather": _healthy_source(), "events": _healthy_source()}
+    result = _overall_health(300, False, sources, last_error=_current_error())
+    assert result["status"] == "needs_attention"
+    assert result["severity"] == "bad"
+    assert result["title"] == "Last dashboard run failed"
+    assert result["detail"] == "RuntimeError: OWM returned 401"
+    assert result["issues"][0] == {
+        "kind": "last_run",
+        "severity": "bad",
+        "message": "RuntimeError: OWM returned 401",
+    }
+
+
+def test_overall_health_stale_error_is_ignored():
+    """An error older than the last success is history, not a current problem."""
+    sources = {"weather": _healthy_source()}
+    stale = dict(_current_error(), is_current=False)
+    result = _overall_health(300, False, sources, last_error=stale)
+    assert result["status"] == "healthy"
+    assert result["issues"] == []
+
+
+def test_overall_health_current_error_overrides_quiet_hours():
+    """A crash needs fixing before the morning refresh, so it beats 'paused'."""
+    result = _overall_health(300, True, {"weather": _healthy_source()}, last_error=_current_error())
+    assert result["status"] == "needs_attention"
+    assert result["title"] == "Last dashboard run failed"
+
+
+def test_overall_health_current_error_keeps_headline_over_bad_source():
+    """A bad source is listed, but the crash stays the headline and the first issue."""
+    sources = {"weather": _bad_source(), "events": _healthy_source()}
+    result = _overall_health(300, False, sources, last_error=_current_error())
+    assert result["title"] == "Last dashboard run failed"
+    assert [i["kind"] for i in result["issues"]] == ["last_run", "weather"]
+
+
+def test_overall_health_current_error_suppresses_missing_run_notice():
+    """With no success marker at all, the crash explains it — one issue, not two."""
+    result = _overall_health(
+        None, False, {"weather": _healthy_source()}, last_error=_current_error()
+    )
+    assert [i["kind"] for i in result["issues"]] == ["last_run"]
+    assert result["issues"][0]["severity"] == "bad"
+
+
+def test_failed_run_message_truncates_long_messages():
+    from src.web.routes.status import _failed_run_message
+
+    long = _failed_run_message({"exception_type": "ValueError", "message": "x" * 500})
+    assert long.startswith("ValueError: ")
+    assert len(long) < 200
+    assert long.endswith("...")
+    assert _failed_run_message({"exception_type": None, "message": ""}) == "Error"

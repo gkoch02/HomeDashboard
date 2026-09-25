@@ -74,7 +74,13 @@ auth:
   password_hash: "scrypt:..."
 ```
 
-Use a long random value for `secret_key` on any persistent install.
+Use a long random value for `secret_key` on any persistent install — for
+example `python -c "import secrets; print(secrets.token_hex(32))"`. The
+template's `replace-me-with-a-random-secret` placeholder, and any key shorter
+than 16 characters, is treated as **no key**: the server logs a warning and
+signs sessions with a random per-process key instead, so logins and CSRF
+tokens are invalidated on every restart until a real key is set. A key that
+is published in this repository would let anyone forge a session cookie.
 
 ### Step 4 — Install and start the systemd service
 
@@ -133,7 +139,7 @@ HTTP Basic Auth is used. Credentials are checked on every request.
 venv/bin/python -m src.web.auth --set-password
 ```
 
-Passwords are hashed with `scrypt` (N=2¹⁵, r=8, p=1, 32-byte key) — intentionally slow to resist brute-force.
+Passwords are hashed with `scrypt` (N=2¹⁴, r=8, p=1, 32-byte key) — intentionally slow to resist brute-force.
 
 **No credentials configured:** the server starts with a warning in the log and all routes are publicly accessible. Suitable only for a trusted local network.
 
@@ -241,7 +247,7 @@ If the web UI has authentication enabled (recommended), add `-u user:pass` to bo
 
 ## Manual refresh
 
-Clicking **Refresh Now** on the status page causes the web server to touch `state/web_trigger`. The `dashboard-trigger.path` systemd unit watches for this file and immediately starts `dashboard.service`. The dashboard run deletes the trigger file when it finishes, ready for the next request.
+Clicking **Refresh Now** on the status page causes the web server to touch `state/web_trigger`. The `dashboard-trigger.path` systemd unit watches for this file and immediately starts `dashboard.service`. The service removes the trigger file as it starts (`ExecStartPre=`), so a run that fails cannot leave the file behind and re-trigger itself; the next click creates a fresh one.
 
 This approach requires no `sudo` and no inter-process communication — it is purely file-based.
 
@@ -380,7 +386,7 @@ venv/bin/python -m src.web --port 9000
 ## Security considerations
 
 - **Use a password.** Anyone on your local network can reach port 8080 by default.
-- **Set `secret_key` in `web.yaml`.** This protects Flask session integrity and CSRF token handling.
+- **Set `secret_key` in `web.yaml`.** This protects Flask session integrity and CSRF token handling. The template placeholder and short keys are ignored (an ephemeral key is generated and a warning logged), so a copied `web.example.yaml` never signs cookies with a value anyone can read off GitHub.
 - **CSRF protection is enabled for mutating routes.** Browser clients must send the UI-provided CSRF token for config saves and action buttons.
 - **The config editor can modify `config.yaml`.** It cannot touch API keys or credential file paths (those are never sent to the browser), but it can change dashboard behavior, theme, filters, cache timings, and schedules.
 - **The Refresh Now button triggers a dashboard run.** It cannot execute arbitrary commands.

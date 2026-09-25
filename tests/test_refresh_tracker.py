@@ -124,3 +124,24 @@ class TestSaveLoad:
                 tracker.save()
 
         assert list(_patch_state_file.parent.glob("*.tmp")) == []
+
+
+class TestLoadMalformedState:
+    """A malformed state file must never abort WaveshareDisplay.show() (#286)."""
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            '{"partial_count": 1, "last_full": "not-a-date"}',
+            "[]",
+            '{"partial_count": 1, "last_full": 12345}',
+            '"just a string"',
+        ],
+        ids=["bad-iso", "list", "wrong-type", "scalar"],
+    )
+    def test_load_malformed_file_returns_fresh(self, _patch_state_file, text):
+        _patch_state_file.write_text(text)
+        t = RefreshTracker.load(max_partials=4)
+        assert t.partial_count == 0
+        assert t.last_full is None
+        assert t.max_partials == 4

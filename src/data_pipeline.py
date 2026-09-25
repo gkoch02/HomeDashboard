@@ -140,6 +140,9 @@ class DataPipeline:
         self.cfg = cfg
         self.cache_dir = cache_dir
         self.tz = tz
+        # Reset per fetch(); created here too so _resolve_source() never
+        # trips on a missing attribute when driven directly.
+        self._content_at: dict[str, datetime] = {}
         self.force_refresh = force_refresh
         self.ignore_breakers = ignore_breakers
         self.event_window_start = event_window_start
@@ -174,7 +177,7 @@ class DataPipeline:
         self._cache_blob = load_cache_blob(self.cache_dir)
         # Per-source timestamp of the data actually used this run, whether it
         # came off the wire or out of the cache. Drives DashboardData.content_at.
-        self._content_at: dict[str, datetime] = {}
+        self._content_at = {}
 
         enabled = [f for f in all_fetchers() if f.enabled(self.cfg)]
 
@@ -410,15 +413,6 @@ class DataPipeline:
             return current
         try:
             data = future.result(timeout=120)
-            metadata = self._cache_metadata_for(source)
-            save_source(source, data, self.fetched_at, self.cache_dir, metadata=metadata)
-            self.source_staleness[source] = StalenessLevel.FRESH
-            self._content_at[source] = self.fetched_at
-            self.breaker.record_success(source)
-            self.quota.record_call(source)
-            if success_log_fn:
-                success_log_fn(data)
-            return data
         except Exception as exc:
             logger.error("%s fetch failed: %s", source.capitalize(), exc)
             self.breaker.record_failure(source)
@@ -431,6 +425,40 @@ class DataPipeline:
                 )
                 return cached_data
             return current
+
+        # The fetch succeeded; everything from here is bookkeeping about a
+        # value we already hold. It used to share the try above, so a
+        # serializer bug, a full disk under the cache, or a raise inside the
+        # success formatter was logged as "<source> fetch failed", counted
+        # against the breaker (three of them opened it for a source whose API
+        # was fine) and threw the fetched data away in favour of the cache
+        # (#272). Each step now fails alone, at WARNING, and the data is
+        # returned regardless.
+        self.source_staleness[source] = StalenessLevel.FRESH
+        self._content_at[source] = self.fetched_at
+        self._after_fetch(source, "cache write", self._save_fetched, source, data)
+        self._after_fetch(source, "breaker update", self.breaker.record_success, source)
+        self._after_fetch(source, "quota update", self.quota.record_call, source)
+        if success_log_fn:
+            self._after_fetch(source, "success log", success_log_fn, data)
+        return data
+
+    def _save_fetched(self, source: str, data) -> None:
+        metadata = self._cache_metadata_for(source)
+        save_source(source, data, self.fetched_at, self.cache_dir, metadata=metadata)
+
+    @staticmethod
+    def _after_fetch(source: str, step: str, fn, *args) -> None:
+        """Run one post-fetch bookkeeping step, logging rather than raising."""
+        try:
+            fn(*args)
+        except Exception as exc:
+            logger.warning(
+                "%s %s failed after a successful fetch (data kept): %s",
+                source.capitalize(),
+                step,
+                exc,
+            )
 
     def _cache_metadata_for(self, source: str) -> dict | None:
         """Return per-source cache metadata to persist alongside the value."""

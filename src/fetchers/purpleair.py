@@ -42,15 +42,19 @@ _FIELD_NAMES = [
 _FIELDS = ",".join(_FIELD_NAMES)
 _TIMEOUT = 10
 
-# EPA PM2.5 AQI breakpoints: (C_lo, C_hi, I_lo, I_hi)
+# EPA PM2.5 AQI breakpoints: (C_lo, C_hi, I_lo, I_hi). The May 2024 revision
+# of the PM NAAQS (89 FR 16202) tightened the Good/Moderate cut from 12.0 to
+# 9.0 µg/m³, the Unhealthy band to 55.5–125.4, Very Unhealthy to 125.5–225.4,
+# and Hazardous to 225.5 and up, with no separate 401–500 band. The old table
+# read 10 µg/m³ as "42 Good" where AirNow and PurpleAir's own map say
+# "55 Moderate", so aqi_at_least theme rules fired late (#277).
 _PM25_BP = [
-    (0.0, 12.0, 0, 50),
-    (12.1, 35.4, 51, 100),
+    (0.0, 9.0, 0, 50),
+    (9.1, 35.4, 51, 100),
     (35.5, 55.4, 101, 150),
-    (55.5, 150.4, 151, 200),
-    (150.5, 250.4, 201, 300),
-    (250.5, 350.4, 301, 400),
-    (350.5, 500.4, 401, 500),
+    (55.5, 125.4, 151, 200),
+    (125.5, 225.4, 201, 300),
+    (225.5, 325.4, 301, 500),
 ]
 
 _AQI_CATEGORIES = [
@@ -74,7 +78,7 @@ def _pm25_to_aqi(pm25: float) -> tuple[int, str]:
         if c_lo <= pm25 <= c_hi:
             aqi = round((i_hi - i_lo) / (c_hi - c_lo) * (pm25 - c_lo) + i_lo)
             return aqi, _aqi_category(aqi)
-    # Above 500.4 µg/m³ — clamp to Hazardous
+    # Beyond the top breakpoint — clamp to the AQI ceiling
     return 500, "Hazardous"
 
 

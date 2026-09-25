@@ -1,7 +1,7 @@
 """Tests for src/app.py — DashboardApp and _migrate_state_files."""
 
 from argparse import Namespace
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -1250,3 +1250,48 @@ class TestRunEvents:
         with patch.object(builtins, "__import__", _boom):
             app.run()  # must not raise
         assert _events(app) == []
+
+
+class TestEventWindowPseudoThemeRules:
+    """A theme_rules entry may name random/random_daily/random_hourly, and the
+    post-fetch pick then comes from the whole pool — so the window is sized
+    for the pool, not for the pseudo-name (#273)."""
+
+    def test_random_rule_widens_the_window_to_the_pool(self, tmp_path):
+        from src.config import ThemeRule
+
+        app = _make_app(tmp_path)
+        app.cfg.theme_rules.rules = [ThemeRule(when={"weather": "rain"}, theme="random_daily")]
+        app.cfg.random_theme.include = []
+        app.cfg.random_theme.exclude = []
+        app.cfg.display.width, app.cfg.display.height = 800, 480
+        start, days = app._event_window("default", datetime(2026, 4, 11, 10, 0))
+        # monthly is in the pool: its Sunday-first grid anchors on Mar 29.
+        assert start == date(2026, 3, 29)
+        assert days >= 35
+
+    def test_empty_pool_covers_the_default_fallback(self, tmp_path):
+        """pick_random_theme() resolves an empty pool to "default", so the
+        window must reach the end of the week even when the pre-fetch pick
+        is `monthly` on a month whose grid ends before Sunday."""
+        from src.config import ThemeRule
+
+        app = _make_app(tmp_path)
+        app.cfg.theme_rules.rules = [ThemeRule(when={"weather": "rain"}, theme="random_daily")]
+        app.cfg.random_theme.include = ["no_such_theme"]
+        app.cfg.random_theme.exclude = []
+        app.cfg.display.width, app.cfg.display.height = 800, 480
+        # 2026-01-31 is a Saturday; monthly's grid ends that day, default's week on Sunday.
+        start, days = app._event_window("monthly", datetime(2026, 1, 31, 10, 0))
+        anchor = start or date(2026, 1, 26)  # None means the fetchers' Monday anchor
+        assert anchor + timedelta(days=days) >= date(2026, 2, 2)
+
+    def test_excluded_pool_members_do_not_widen_it(self, tmp_path):
+        from src.config import ThemeRule
+
+        app = _make_app(tmp_path)
+        app.cfg.theme_rules.rules = [ThemeRule(when={"weather": "rain"}, theme="random_hourly")]
+        app.cfg.random_theme.include = ["default", "agenda"]
+        app.cfg.random_theme.exclude = []
+        app.cfg.display.width, app.cfg.display.height = 800, 480
+        assert app._event_window("default", datetime(2026, 4, 11, 10, 0)) == (None, 7)

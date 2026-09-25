@@ -6,6 +6,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 from zoneinfo import ZoneInfo
 
+from src.config import resolve_tz
 from src.web.state_reader import (
     config_tz,
     is_quiet_hours_now,
@@ -150,8 +151,13 @@ def test_read_cache_ages_missing(tmp_path):
         assert result[source]["staleness"] == "unknown"
 
 
+def _naive_utc_ago(**delta) -> str:
+    """A legacy (pre-v5) cache stamp: naive ISO text that means UTC."""
+    return (datetime.now(timezone.utc) - timedelta(**delta)).replace(tzinfo=None).isoformat()
+
+
 def test_read_cache_ages_fresh(tmp_path):
-    fetched_at = (datetime.now() - timedelta(minutes=5)).isoformat()
+    fetched_at = _naive_utc_ago(minutes=5)
     raw = {
         "schema_version": 2,
         "weather": {"fetched_at": fetched_at, "data": {}},
@@ -166,7 +172,7 @@ def test_read_cache_ages_fresh(tmp_path):
 
 
 def test_read_cache_ages_stale(tmp_path):
-    fetched_at = (datetime.now() - timedelta(minutes=200)).isoformat()
+    fetched_at = _naive_utc_ago(minutes=200)
     raw = {
         "schema_version": 2,
         "weather": {"fetched_at": fetched_at, "data": {}},
@@ -174,6 +180,35 @@ def test_read_cache_ages_stale(tmp_path):
     (tmp_path / "dashboard_cache.json").write_text(json.dumps(raw))
     result = read_cache_ages(str(tmp_path), {"weather": 60})
     assert result["weather"]["staleness"] in ("stale", "expired")
+
+
+def test_read_cache_ages_naive_timestamp_is_utc_not_host_local(tmp_path, monkeypatch):
+    """A naive stamp is UTC, as every other reader treats it (#280).
+
+    Measured against the host's local clock on a UTC-7 host, a stamp written
+    five minutes ago read as seven hours in the future — "fresh" here while
+    the renderer's own arithmetic (cache._normalise_fetched_at) agreed with
+    neither the age nor, once the offset flipped sign, the staleness badge.
+    """
+    import time
+
+    monkeypatch.setenv("TZ", "America/Los_Angeles")
+    time.tzset()
+    try:
+        raw = {
+            "schema_version": 2,
+            "weather": {"fetched_at": _naive_utc_ago(minutes=5), "data": {}},
+            "events": {"fetched_at": _naive_utc_ago(minutes=200), "data": []},
+        }
+        (tmp_path / "dashboard_cache.json").write_text(json.dumps(raw))
+        result = read_cache_ages(str(tmp_path), {"weather": 60, "events": 60})
+        assert 4 <= result["weather"]["cache_age_minutes"] <= 6
+        assert result["weather"]["staleness"] == "fresh"
+        assert 199 <= result["events"]["cache_age_minutes"] <= 201
+        assert result["events"]["staleness"] in ("stale", "expired")
+    finally:
+        monkeypatch.delenv("TZ")
+        time.tzset()
 
 
 def test_read_cache_ages_timezone_aware_timestamp(tmp_path):
@@ -262,8 +297,13 @@ def test_config_tz_falls_back_to_utc_on_an_unknown_zone():
     assert config_tz(SimpleNamespace(timezone="Mars/Olympus_Mons")) == timezone.utc
 
 
-def test_config_tz_falls_back_to_utc_when_the_field_is_missing():
-    assert config_tz(SimpleNamespace()) == timezone.utc
+def test_config_tz_missing_field_means_local_like_the_renderer():
+    """No ``timezone`` attribute behaves as ``"local"`` — Config's own default.
+
+    UTC is the fallback for a zone that *cannot be resolved*; a missing field
+    is not that. Asserting UTC here only held on a UTC host (#271).
+    """
+    assert config_tz(SimpleNamespace()) == resolve_tz("local")
 
 
 # ---------------------------------------------------------------------------

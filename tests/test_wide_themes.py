@@ -271,6 +271,19 @@ class TestWideDayRender:
         beside = (485, 92, 640, 138)
         assert ink(with_label, beside) > ink(without, beside) + 150
 
+    def test_bar_ending_at_midnight_keeps_its_label_to_the_left(self):
+        """No room after a bar that runs to the axis end: the label sits before
+        it instead of being dropped (#291)."""
+        late = _event("Ends at midnight", 22, 24)
+        img, d = _plate()
+        wd.draw_wide_day(d, _day_data([late]), TODAY, FIXED_NOW)
+        # The late event widens the axis to midnight, so an empty day is not
+        # a like-for-like baseline; the empty second lane on the same plate
+        # is — it carries the same dashed hour rules and nothing else.
+        before_bar_lane1 = (760, 92, 985, 138)
+        before_bar_lane2 = (760, 138, 985, 184)
+        assert ink(img, before_bar_lane1) > ink(img, before_bar_lane2) + 150
+
     def test_overnight_event_gets_a_bar_from_the_axis_start(self):
         """Started yesterday, still running: the bar is clipped to today, not dropped."""
         overnight = _event("Night shift", 22, 31, day=TODAY - timedelta(days=1))  # 10p–7a

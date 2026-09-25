@@ -14,10 +14,13 @@ from src.web.app import create_app
 from src.web.config_editor import (
     _MAX_ROTATED_BACKUPS,
     EDITABLE_FIELD_PATHS,
+    ConfigBackupError,
+    ConfigReadError,
     _apply_to_raw,
     _load_raw_yaml,
     _write_raw_yaml,
     apply_patch,
+    build_patched_config,
     get_config_for_web,
     list_config_backups,
     restore_latest_backup,
@@ -636,14 +639,28 @@ def test_load_raw_yaml_returns_empty_for_empty_file(tmp_path):
     assert _load_raw_yaml(str(p)) == {}
 
 
-def test_load_raw_yaml_swallows_parse_error(tmp_path, caplog):
+def test_load_raw_yaml_raises_on_parse_error(tmp_path):
+    """A file that cannot be parsed is an error, not an empty config (#260)."""
     p = tmp_path / "broken.yaml"
     p.write_text(":::not valid yaml:::\n- [unbalanced\n")
 
-    with caplog.at_level(logging.WARNING, logger="src.web.config_editor"):
-        result = _load_raw_yaml(str(p))
-    assert result == {}
-    assert any("Could not load" in rec.message for rec in caplog.records)
+    with pytest.raises(ConfigReadError, match="not valid YAML"):
+        _load_raw_yaml(str(p))
+
+
+def test_load_raw_yaml_raises_on_non_mapping(tmp_path):
+    p = tmp_path / "list.yaml"
+    p.write_text("- just\n- a list\n")
+    with pytest.raises(ConfigReadError, match="mapping"):
+        _load_raw_yaml(str(p))
+
+
+def test_load_raw_yaml_raises_on_unreadable_file(tmp_path):
+    p = tmp_path / "locked.yaml"
+    p.write_text("title: Secret\n")
+    with patch("src.web.config_editor.open", side_effect=PermissionError("denied"), create=True):
+        with pytest.raises(ConfigReadError, match="Could not read"):
+            _load_raw_yaml(str(p))
 
 
 def test_apply_to_raw_silently_drops_unknown_fields():
@@ -779,22 +796,21 @@ def test_write_raw_yaml_cleans_up_tempfile_on_yaml_dump_failure(tmp_path):
     assert not cfg_path.exists()
 
 
-def test_write_raw_yaml_backup_io_error_is_non_fatal(tmp_path, caplog):
-    """A failing backup step should log a warning but allow the save to proceed."""
+def test_write_raw_yaml_backup_io_error_is_fatal(tmp_path, caplog):
+    """A backup that cannot be taken stops the write before the target is touched (#260)."""
     cfg_path = tmp_path / "config.yaml"
     cfg_path.write_text("title: Original\n")
 
-    # Force Path.read_bytes (the backup copy step) to raise — the save must still
-    # succeed after logging a warning.
     with caplog.at_level(logging.WARNING, logger="src.web.config_editor"):
         with patch(
             "src.web.config_editor.Path.read_bytes",
             side_effect=OSError("cannot read source for backup"),
         ):
-            _write_raw_yaml(str(cfg_path), {"title": "After"})
+            with pytest.raises(ConfigBackupError):
+                _write_raw_yaml(str(cfg_path), {"title": "After"})
 
-    # The target file was still updated despite the backup failure.
-    assert yaml.safe_load(cfg_path.read_text())["title"] == "After"
+    assert yaml.safe_load(cfg_path.read_text())["title"] == "Original"
+    assert not (tmp_path / "config.yaml.bak").exists()
     assert any("Could not write config backup" in rec.message for rec in caplog.records)
 
 
@@ -873,9 +889,10 @@ def test_restore_latest_backup_wraps_unexpected_exception(tmp_path):
 
 
 def test_write_raw_yaml_swallows_backup_temp_cleanup_error(tmp_path, caplog):
-    """If the backup write fails AND the temp cleanup also fails, the save still proceeds.
+    """If the backup write fails AND the temp cleanup also fails, the write is still refused.
 
-    Exercises lines 281-282 (``except OSError: pass`` after backup tempfile cleanup).
+    The cleanup failure must not mask the backup failure with a different
+    exception, and the target must be untouched either way.
     """
     import logging
 
@@ -903,9 +920,10 @@ def test_write_raw_yaml_swallows_backup_temp_cleanup_error(tmp_path, caplog):
         patch("src.web.config_editor.os.unlink", side_effect=unlink_fails),
         caplog.at_level(logging.WARNING),
     ):
-        _write_raw_yaml(str(cfg), {"title": "After"})
+        with pytest.raises(ConfigBackupError):
+            _write_raw_yaml(str(cfg), {"title": "After"})
 
-    # Save proceeded (warning logged, but no exception).
+    assert yaml.safe_load(cfg.read_text())["title"] == "Existing"
     assert any("backup" in rec.message.lower() for rec in caplog.records)
 
 
@@ -1266,3 +1284,163 @@ def test_config_page_renders_a_quotes_path_control(tmp_path):
         Path(__file__).resolve().parent.parent / "src" / "web" / "templates" / "config.html"
     ).read_text()
     assert 'data-field="quotes.path"' in template
+
+
+# ---------------------------------------------------------------------------
+# #260 — a save must never start from an empty config it could not read
+# ---------------------------------------------------------------------------
+
+_SECRET_CONFIG = "title: Keep me\nweather:\n  api_key: SECRET-KEY\n  latitude: 40.7\n"
+
+
+def test_apply_patch_refuses_when_config_is_unreadable(tmp_path):
+    """A read failure blocks the save and leaves the file byte-for-byte intact."""
+    p = tmp_path / "config.yaml"
+    p.write_text(_SECRET_CONFIG)
+
+    with (
+        patch(_VALIDATE_PATCH, _no_errors),
+        patch("src.web.config_editor.open", side_effect=PermissionError("denied"), create=True),
+    ):
+        saved, errors, warnings = apply_patch(str(p), {"title": "New"})
+
+    assert saved is False
+    assert errors and errors[0]["field"] == "config"
+    assert "Could not read" in errors[0]["message"]
+    assert p.read_text() == _SECRET_CONFIG
+    assert not (tmp_path / "config.yaml.bak").exists()
+
+
+def test_apply_patch_refuses_when_config_is_unparseable(tmp_path):
+    """A YAML syntax error on disk blocks the save instead of being replaced by the patch."""
+    p = tmp_path / "config.yaml"
+    broken = _SECRET_CONFIG + "theme: [unbalanced\n"
+    p.write_text(broken)
+
+    with patch(_VALIDATE_PATCH, _no_errors):
+        saved, errors, _warnings = apply_patch(str(p), {"title": "New"})
+
+    assert saved is False
+    assert errors[0]["field"] == "config"
+    assert "not valid YAML" in errors[0]["message"]
+    assert p.read_text() == broken
+
+
+def test_apply_patch_refuses_when_backup_cannot_be_written(tmp_path):
+    p = tmp_path / "config.yaml"
+    p.write_text(_SECRET_CONFIG)
+
+    with (
+        patch(_VALIDATE_PATCH, _no_errors),
+        patch(
+            "src.web.config_editor.Path.read_bytes",
+            side_effect=OSError("disk full"),
+        ),
+    ):
+        saved, errors, _warnings = apply_patch(str(p), {"title": "New"})
+
+    assert saved is False
+    assert errors[0]["field"] == "config"
+    assert "backup" in errors[0]["message"]
+    assert p.read_text() == _SECRET_CONFIG
+
+
+def test_build_patched_config_refuses_unparseable_config(tmp_path):
+    """The live-preview path must not preview a config built from nothing either."""
+    p = tmp_path / "config.yaml"
+    p.write_text("title: [unbalanced\n")
+
+    with patch(_VALIDATE_PATCH, _no_errors):
+        cfg, errors, _warnings = build_patched_config(str(p), {"title": "New"})
+
+    assert cfg is None
+    assert errors[0]["field"] == "config"
+
+
+def test_restore_latest_backup_refuses_unparseable_backup(tmp_path):
+    cfg = tmp_path / "config.yaml"
+    cfg.write_text(_SECRET_CONFIG)
+    (tmp_path / "config.yaml.bak").write_text("title: [unbalanced\n")
+
+    with patch(_VALIDATE_PATCH, _no_errors):
+        ok, msg = restore_latest_backup(str(cfg))
+
+    assert ok is False
+    assert "not valid YAML" in msg
+    assert cfg.read_text() == _SECRET_CONFIG
+
+
+def test_get_config_for_web_tolerates_unparseable_theme_rules_source(tmp_path):
+    """The read side degrades: theme_rules text is empty rather than the page 500-ing."""
+    p = tmp_path / "config.yaml"
+    p.write_text("title: T\n")
+    with patch(
+        "src.web.config_editor._load_raw_yaml",
+        side_effect=ConfigReadError("boom"),
+    ):
+        data = get_config_for_web(str(p))
+    assert data["theme_rules_yaml"] == ""
+
+
+def test_save_route_reports_unreadable_config_and_writes_nothing(client, app):
+    """POST /api/config surfaces the read error as a structured, blocking error."""
+    cfg_path = Path(app.config["APP_CONFIG_PATH"])
+    headers = _csrf_headers(client)  # the page was opened while the file was still good
+    broken = "title: Test Dashboard\nweather:\n  api_key: SECRET\ntheme: [unbalanced\n"
+    cfg_path.write_text(broken)
+
+    resp = client.post("/api/config", json={"title": "New"}, headers=headers)
+
+    assert resp.status_code == 200
+    body = json.loads(resp.data)
+    assert body["saved"] is False
+    assert body["errors"][0]["field"] == "config"
+    assert cfg_path.read_text() == broken
+
+
+# ---------------------------------------------------------------------------
+# #281 — the read → validate → write sequence is one critical section
+# ---------------------------------------------------------------------------
+
+
+def test_apply_patch_reads_the_config_under_the_write_lock(tmp_path, monkeypatch):
+    """Two saves from two tabs must not interleave read → patch → write: the
+    later write silently discarded the earlier patch while both said "saved".
+    The read has to happen inside the lock, not just the write (#281)."""
+    from src.web import config_editor
+
+    cfg = tmp_path / "config.yaml"
+    cfg.write_text("title: Old\n")
+    seen: list[bool] = []
+    real_load = config_editor._load_raw_yaml
+
+    def spying_load(path):
+        seen.append(config_editor._write_lock.locked())
+        return real_load(path)
+
+    monkeypatch.setattr(config_editor, "_load_raw_yaml", spying_load)
+    monkeypatch.setattr(config_editor, "validate_config", lambda cfg, **kw: ([], []))
+    saved, errors, _ = config_editor.apply_patch(str(cfg), {"title": "New"})
+    assert saved and not errors
+    assert seen == [True], "config was read outside the write lock"
+
+
+def test_restore_latest_backup_runs_under_the_write_lock(tmp_path, monkeypatch):
+    from src.web import config_editor
+
+    cfg = tmp_path / "config.yaml"
+    cfg.write_text("title: Current\n")
+    (tmp_path / "config.yaml.bak").write_text("title: Backup\n")
+    seen: list[bool] = []
+    real_load = config_editor._load_raw_yaml
+
+    def spying_load(path):
+        seen.append(config_editor._write_lock.locked())
+        return real_load(path)
+
+    monkeypatch.setattr(config_editor, "_load_raw_yaml", spying_load)
+    monkeypatch.setattr(config_editor, "validate_config", lambda cfg, **kw: ([], []))
+    restored, message = config_editor.restore_latest_backup(str(cfg))
+    assert restored, message
+    assert seen == [True], "backup was read outside the write lock"
+    assert "Backup" in cfg.read_text()

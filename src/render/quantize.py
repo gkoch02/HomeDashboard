@@ -342,53 +342,25 @@ def quantize_to_palette_fs(
 
     Returns:
         PIL Image in ``"RGB"`` mode with all pixels snapped to *colors*.
+
+    Floyd-Steinberg is inherently serial — every pixel's input depends on the
+    error its left neighbour just emitted — so there is no row-vectorised form
+    of it. The per-pixel loop therefore runs on plain Python floats: a numpy
+    version that did the same arithmetic with per-pixel array slices spent
+    almost all of its time in numpy's per-call overhead and was ~4× slower
+    (1.5 s vs 0.4 s for halftone's 800×296 art region, 4.3 s vs 1.0 s for a
+    1360×480 plate — #287), for output that is pixel-identical on every
+    shipped art region. Numpy is used only for the cheap bulk conversions at
+    the edges when it is present.
     """
-    try:
-        import numpy as np
-
-        return _quantize_palette_fs_numpy(image, colors, np)
-    except ImportError:
-        return _quantize_palette_fs_python(image, colors)
-
-
-def _quantize_palette_fs_numpy(
-    image: Image.Image,
-    colors: list[tuple[int, int, int]],
-    np,  # passed in to avoid re-importing
-) -> Image.Image:
-    w, h = image.size
-    # Float32 buffer accumulates error in-place across the whole image.
-    buf = np.array(image.convert("RGB"), dtype=np.float32)  # H×W×3
-    pal = np.array(colors, dtype=np.float32)  # N×3
-
-    for y in range(h):
-        for x in range(w):
-            old = buf[y, x].clip(0.0, 255.0)
-            # Nearest palette color by Euclidean squared distance.
-            diff = pal - old  # N×3
-            dist = (diff * diff).sum(axis=1)  # N
-            idx = int(dist.argmin())
-            new = pal[idx]
-            buf[y, x] = new
-            err = old - new  # quantization error
-            # Distribute error: right=7/16, below-left=3/16, below=5/16, below-right=1/16
-            if x + 1 < w:
-                buf[y, x + 1] += err * (7.0 / 16.0)
-            if y + 1 < h:
-                if x > 0:
-                    buf[y + 1, x - 1] += err * (3.0 / 16.0)
-                buf[y + 1, x] += err * (5.0 / 16.0)
-                if x + 1 < w:
-                    buf[y + 1, x + 1] += err * (1.0 / 16.0)
-
-    return Image.fromarray(buf.clip(0.0, 255.0).astype(np.uint8), mode="RGB")
+    return _quantize_palette_fs_python(image, colors)
 
 
 def _quantize_palette_fs_python(
     image: Image.Image,
     colors: list[tuple[int, int, int]],
 ) -> Image.Image:
-    """Pure-Python Floyd-Steinberg fallback (no numpy required)."""
+    """Floyd-Steinberg onto *colors* on plain Python floats (see quantize_to_palette_fs)."""
     w, h = image.size
     raw = cast("list[tuple[int, int, int]]", flatten_pixels(image.convert("RGB")))
     # Mutable float buffer; each entry is [r, g, b].

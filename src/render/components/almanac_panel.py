@@ -530,13 +530,14 @@ def _draw_sky(
         sentence = "Conditions unsettled at the time of going to press."
 
     if weather.wind_speed:
-        from src.render.primitives import deg_to_compass
+        from src.render.primitives import deg_to_compass, wind_unit
 
+        unit = wind_unit(weather)
         compass = deg_to_compass(weather.wind_deg) if weather.wind_deg is not None else ""
         wind_phrase = (
-            f"{compass} winds at {weather.wind_speed:.0f} mph"
+            f"{compass} winds at {weather.wind_speed:.0f} {unit}"
             if compass
-            else (f"Winds {weather.wind_speed:.0f} mph")
+            else (f"Winds {weather.wind_speed:.0f} {unit}")
         )
         sentence += f" {wind_phrase}."
 

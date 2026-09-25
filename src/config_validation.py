@@ -68,6 +68,19 @@ def validate_config(
         )
         return errors, warnings  # Can't validate further without a config file
 
+    # --- Values load_config() could not read ---
+    # The parser keeps the default for these rather than raising (a quoted
+    # number used to reach the range checks below as text and TypeError out
+    # of this very function). Each one is a typo the user needs named.
+    for path, message in list(getattr(cfg, "unreadable", ()) or ()):
+        errors.append(
+            ConfigError(
+                field=path,
+                message=f"{path} {message}",
+                hint="Fix the value in config.yaml (numbers unquoted, lists as '- item' lines).",
+            )
+        )
+
     # --- Google / Calendar ---
     using_caldav = bool(cfg.google.caldav_url)
     using_ical = bool(cfg.google.ical_url)
@@ -712,21 +725,23 @@ def _themes_declining_partial_refresh(cfg) -> list[str]:
     from src.render.theme import AVAILABLE_THEMES, theme_supports_partial_refresh
 
     pseudo = {"random", "random_daily", "random_hourly"}
-    candidates: set[str] = set()
-    if cfg.theme in pseudo:
+    # A theme_schedule row or a theme_rules entry may name a pseudo-theme too,
+    # and resolve_theme_name() then draws from the pool for it — so the pool
+    # has to be counted for those as well, not just for cfg.theme (#273).
+    named: set[str] = {cfg.theme}
+    named.update(entry.theme for entry in cfg.theme_schedule.entries)
+    named.update(rule.theme for rule in cfg.theme_rules.rules)
+    candidates: set[str] = named - pseudo
+    if named & pseudo:
         from src.render.random_theme import eligible_themes
 
-        candidates.update(
-            eligible_themes(
-                cfg.random_theme.include,
-                cfg.random_theme.exclude,
-                (cfg.display.width, cfg.display.height),
-            )
+        pool = eligible_themes(
+            cfg.random_theme.include,
+            cfg.random_theme.exclude,
+            (cfg.display.width, cfg.display.height),
         )
-    else:
-        candidates.add(cfg.theme)
-    candidates.update(entry.theme for entry in cfg.theme_schedule.entries)
-    candidates.update(rule.theme for rule in cfg.theme_rules.rules)
+        # An empty pool resolves to "default" in the picker.
+        candidates.update(pool or ["default"])
     return sorted(
         name
         for name in candidates - pseudo

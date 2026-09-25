@@ -164,12 +164,12 @@ class TestLoadConfig:
 
     def test_model_auto_derives_dimensions(self, tmp_path):
         p = tmp_path / "config.yaml"
-        p.write_text(yaml.dump({"display": {"model": "epd9in7"}}))
+        p.write_text(yaml.dump({"display": {"model": "epd7in5_HD"}}))
         cfg = load_config(str(p))
         assert cfg.display.provider == "waveshare"
-        assert cfg.display.model == "epd9in7"
-        assert cfg.display.width == 1200
-        assert cfg.display.height == 825
+        assert cfg.display.model == "epd7in5_HD"
+        assert cfg.display.width == 880
+        assert cfg.display.height == 528
 
     def test_inky_model_auto_derives_dimensions(self, tmp_path):
         p = tmp_path / "config.yaml"
@@ -183,7 +183,7 @@ class TestLoadConfig:
     def test_model_explicit_dimensions_override(self, tmp_path):
         """Explicit width/height in YAML take precedence over model defaults."""
         p = tmp_path / "config.yaml"
-        p.write_text(yaml.dump({"display": {"model": "epd9in7", "width": 600, "height": 400}}))
+        p.write_text(yaml.dump({"display": {"model": "epd7in5_HD", "width": 600, "height": 400}}))
         cfg = load_config(str(p))
         assert cfg.display.width == 600
         assert cfg.display.height == 400
@@ -202,8 +202,8 @@ class TestLoadConfig:
         p.write_text(yaml.dump({"display": {"model": "epd13in3k"}}))
         cfg = load_config(str(p))
         assert cfg.display.model == "epd13in3k"
-        assert cfg.display.width == 1600
-        assert cfg.display.height == 1200
+        assert cfg.display.width == 960
+        assert cfg.display.height == 680
 
     def test_quantization_mode_from_yaml(self, tmp_path):
         p = tmp_path / "config.yaml"

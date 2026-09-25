@@ -83,6 +83,11 @@ def _ink(img: Image.Image, box: tuple[int, int, int, int] | None = None) -> int:
     return sum(1 for y in range(y0, y1) for x in range(x0, x1) if px[y * width + x] == 0)
 
 
+def _row(img: Image.Image, box: tuple[int, int, int, int]) -> list[int]:
+    """The flattened pixels inside *box*, for exact equality between renders."""
+    return list(flatten_pixels(img.crop(box)))
+
+
 def _ink_bbox(img: Image.Image, box: tuple[int, int, int, int] | None = None):
     """Bounding box of ink pixels as (x0, y0, x1, y1), or None if there is none.
 
@@ -220,6 +225,22 @@ class TestDrawWeatherDetails:
     def test_wind_speed_renders(self):
         row3 = _bands()["row3"]
         assert _ink(_render(wind_speed=15.0), row3) != _ink(_render(), row3)
+
+    def test_wind_label_follows_units(self):
+        """A metric install reads "m/s", not the imperial "mph" (#270).
+
+        Differential: the same speed rendered under ``metric`` and ``imperial``
+        must differ in the wind row (the label is the only thing that changes),
+        and ``standard`` — which OWM also reports in m/s — must match metric.
+        """
+        row3 = _bands()["row3"]
+        imperial = _render(wind_speed=12.0, units="imperial")
+        metric = _render(wind_speed=12.0, units="metric")
+        standard = _render(wind_speed=12.0, units="standard")
+        legacy = _render(wind_speed=12.0, units=None)  # pre-units cache entry
+        assert _ink(metric, row3) != _ink(imperial, row3)
+        assert _row(metric, row3) == _row(standard, row3)
+        assert _row(imperial, row3) == _row(legacy, row3)
 
     def test_both_feels_like_and_wind_renders(self):
         """Both set joins them, so row 3 carries more ink than either alone."""

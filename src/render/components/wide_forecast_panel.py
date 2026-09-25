@@ -46,6 +46,7 @@ from src.render.primitives import (
     text_height,
     text_width,
     vline,
+    wind_unit,
 )
 from src.render.theme import ComponentRegion, ThemeStyle
 
@@ -181,10 +182,9 @@ def _draw_hero(
     val_font = style.font_semibold(17)
     col_w = inner_w // 2
     row_h = 34
-    wind_unit = "m/s" if weather.units == "metric" else "mph"
     wind = "—"
     if weather.wind_speed is not None:
-        wind = f"{weather.wind_speed:.0f} {wind_unit}"
+        wind = f"{weather.wind_speed:.0f} {wind_unit(weather)}"
         if weather.wind_deg is not None:
             wind += f" {deg_to_compass(weather.wind_deg)}"
     cells = [

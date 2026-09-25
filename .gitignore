@@ -14,6 +14,10 @@ output/*.png
 !output/latest.png
 output/*.json
 output/*.txt
+# The systemd units append the renderer's and the web service's logs here,
+# and logrotate leaves compressed copies beside them.
+output/*.log
+output/*.log.*
 
 # Runtime state (cache, breaker, quota, sync tokens, theme state)
 state/
@@ -29,6 +33,11 @@ config/*.yaml.bak
 config/*.yaml.bak.*
 config/*.yaml.bak-v*
 credentials/
+
+# Tool caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
 
 # Misc
 *.egg-info/

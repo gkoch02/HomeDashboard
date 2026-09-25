@@ -75,10 +75,22 @@ PI_DIR  ?= /home/$(PI_USER)/home-dashboard
 # never touches).
 QUOTES_FILE ?=
 
+# The Pi's runtime state and secrets are never pushed: state/ (cache, breaker,
+# sync tokens, refresh throttle, web events), output/ (renders, logs and the
+# health markers /api/health reads), config/web.yaml and the config backups
+# (this machine's password hash and API keys), plus local tool caches. A dev
+# box that has ever run `make dry` has all of these, and shipping them reset
+# the Pi's cache and stamped a dev-box "last success" over its real one (#264).
+# Because output/ is no longer shipped, `install` and `pi-enable` create it:
+# dashboard.service appends its log there and systemd opens that file before
+# the renderer runs, so a missing directory fails the unit.
 deploy:
-	rsync -avz --exclude='venv' --exclude='output/*.png' \
-		--exclude='__pycache__' --exclude='.git' \
+	rsync -avz --exclude='venv' --exclude='.venv' --exclude='output/' \
+		--exclude='state/' --exclude='__pycache__' --exclude='.git' \
 		--exclude='credentials/' --exclude='config/config.yaml' \
+		--exclude='config/web.yaml' --exclude='config/*.bak*' \
+		--exclude='.pytest_cache' --exclude='.ruff_cache' --exclude='.mypy_cache' \
+		--exclude='htmlcov' --exclude='*.egg-info' --exclude='.coverage' \
 		$(if $(QUOTES_FILE),--exclude='$(QUOTES_FILE)',) \
 		. $(PI_USER)@$(PI_HOST):$(PI_DIR)/
 
@@ -88,6 +100,7 @@ install:
 	ssh $(PI_USER)@$(PI_HOST) " \
 		sudo systemctl stop dashboard.timer 2>/dev/null || true; \
 		REMOTE_DIR='$(PI_DIR)'; \
+		mkdir -p \"\$$REMOTE_DIR/output\" \"\$$REMOTE_DIR/state\"; \
 		sed -e \"s|__INSTALL_DIR__|\$$REMOTE_DIR|g\" \
 		    -e \"s|__USER__|$(PI_USER)|g\" \
 		    /tmp/dashboard.service | sudo tee /etc/systemd/system/dashboard.service > /dev/null && \
@@ -149,6 +162,7 @@ pi-install:
 
 pi-enable:
 	@echo "==> Installing systemd units with current paths..."
+	@mkdir -p output state
 	@INSTALL_DIR="$$(pwd)"; USER_NAME="$$(whoami)"; \
 	sed -e "s|__INSTALL_DIR__|$$INSTALL_DIR|g" \
 	    -e "s|__USER__|$$USER_NAME|g" \

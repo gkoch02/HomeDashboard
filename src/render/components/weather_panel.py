@@ -18,6 +18,7 @@ from src.render.primitives import (
     hline,
     text_width,
     vline,
+    wind_unit,
 )
 from src.render.primitives import (
     fmt_time as _fmt_time,
@@ -180,7 +181,7 @@ def draw_weather(
     if weather.feels_like is not None:
         detail3_parts.append(f"Feels {weather.feels_like:.0f}°")
     if weather.wind_speed is not None:
-        wind_str = f"Wind {weather.wind_speed:.0f}mph"
+        wind_str = f"Wind {weather.wind_speed:.0f}{wind_unit(weather)}"
         if weather.wind_deg is not None:
             wind_str += f" {deg_to_compass(weather.wind_deg)}"
         detail3_parts.append(wind_str)

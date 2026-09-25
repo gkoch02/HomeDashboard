@@ -56,6 +56,21 @@ def day_start_utc(day: date, tz: tzinfo | None = None) -> datetime:
     return datetime.combine(day, time.min, tzinfo=tz).astimezone(timezone.utc)
 
 
+def event_window_utc(
+    window_start: date, days: int, tz: tzinfo | None = None
+) -> tuple[datetime, datetime]:
+    """Return the ``[time_min, time_max)`` UTC bounds of a *days*-long local window.
+
+    Both bounds are local midnights: ``time_max`` is the start of the day
+    *days* after *window_start*, resolved in *tz* like ``time_min``. Adding
+    ``timedelta(days=days)`` to ``time_min`` instead gives ``days × 24 h``, which
+    is not *days* local days across a DST change — in the fall-back week the
+    window ended at Sunday 23:00 local, so ``win_end_date`` became Sunday and
+    every all-day event that day was filtered out (#258).
+    """
+    return day_start_utc(window_start, tz), day_start_utc(window_start + timedelta(days=days), tz)
+
+
 def week_start(day: date) -> date:
     """Return the Monday of *day*'s week.
 

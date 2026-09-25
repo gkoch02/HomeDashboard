@@ -43,21 +43,23 @@ class TestPm25ToAqi:
     @pytest.mark.parametrize(
         "pm25,expected_aqi,expected_cat",
         [
+            # 2024 EPA PM2.5 breakpoints (89 FR 16202), see _PM25_BP (#277)
             (0.0, 0, "Good"),
-            (6.0, 25, "Good"),
-            (12.0, 50, "Good"),
-            (12.1, 51, "Moderate"),
+            (4.5, 25, "Good"),
+            (9.0, 50, "Good"),
+            (9.1, 51, "Moderate"),
+            (10.0, 53, "Moderate"),
             (35.4, 100, "Moderate"),
             (35.5, 101, "Unhealthy for Sensitive Groups"),
             (55.4, 150, "Unhealthy for Sensitive Groups"),
             (55.5, 151, "Unhealthy"),
-            (150.4, 200, "Unhealthy"),
-            (150.5, 201, "Very Unhealthy"),
-            (250.4, 300, "Very Unhealthy"),
-            (250.5, 301, "Hazardous"),
-            (350.4, 400, "Hazardous"),
-            (350.5, 401, "Hazardous"),
-            (500.4, 500, "Hazardous"),
+            (100.0, 182, "Unhealthy"),
+            (125.4, 200, "Unhealthy"),
+            (125.5, 201, "Very Unhealthy"),
+            (225.4, 300, "Very Unhealthy"),
+            (225.5, 301, "Hazardous"),
+            (325.4, 500, "Hazardous"),
+            (400.0, 500, "Hazardous"),
         ],
     )
     def test_breakpoints(self, pm25, expected_aqi, expected_cat):
@@ -72,9 +74,9 @@ class TestPm25ToAqi:
 
     def test_truncates_to_one_decimal(self):
         # EPA requires truncation to 1dp before lookup
-        aqi1, _ = _pm25_to_aqi(12.049)  # truncates to 12.0 → Good
-        aqi2, _ = _pm25_to_aqi(12.099)  # truncates to 12.0 → Good
-        aqi3, _ = _pm25_to_aqi(12.199)  # truncates to 12.1 → Moderate
+        aqi1, _ = _pm25_to_aqi(9.049)  # truncates to 9.0 → Good
+        aqi2, _ = _pm25_to_aqi(9.099)  # truncates to 9.0 → Good
+        aqi3, _ = _pm25_to_aqi(9.199)  # truncates to 9.1 → Moderate
         assert aqi1 == 50
         assert aqi2 == 50
         assert aqi3 == 51
@@ -131,7 +133,7 @@ class TestFetchAirQuality:
         assert result.pm10 == 12.2
         assert result.pm1 == 5.0
         assert result.sensor_id == cfg.sensor_id
-        assert result.aqi == 35  # AQI for 8.5 µg/m³
+        assert result.aqi == 47  # AQI for 8.5 µg/m³ on the 2024 table
         assert result.category == "Good"
 
     def test_fetch_without_pm10(self, cfg):

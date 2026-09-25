@@ -142,29 +142,20 @@ class TestDrawMessageSmoke:
         )
         assert len(short_lines) < len(long_lines)
 
-    def test_narrow_region_overflows_rather_than_wrapping(self):
-        """A very narrow region renders but does NOT stay inside itself.
+    def test_narrow_region_stays_inside_itself(self):
+        """Even a region narrower than one word keeps its text inside.
 
-        Documenting the real behaviour, because the old name for this test
-        ("falls back gracefully") claimed the opposite and its assertion could
-        not tell. Two causes compound: `h_pad` is a hardcoded 52px each side,
-        so `max_w` goes negative below a 105px region; and `_wrap_lines` never
-        breaks inside a word, so any word wider than `max_w` overflows
-        regardless. Measured overflow past the region edge: 2475px at w=60,
-        629 at w=120, 47 at w=200, and 0 by w=300.
-
-        No theme configures a narrow message region — the message theme uses
-        the full canvas — so this is characterised rather than fixed. If that
-        ever changes, this test says what has to be dealt with.
+        This used to document the opposite: ``_wrap_lines`` never broke inside
+        a word, so any word wider than ``max_w`` ran past the region edge
+        (2475 px of overflow at w=60). ``wrap_lines`` now breaks an over-wide
+        word by character (#288), so the only thing left that can push text
+        out is the hardcoded 52 px ``h_pad`` — and at these widths it doesn't.
         """
         text = "Hello world this is a longer message"
-        narrow = _render(text, region=ComponentRegion(0, 0, 60, 400))
-        assert _ink(narrow, (0, 0, 60, 400)) > 0, "nothing drawn at all"
-        assert _ink(narrow, (60, 0, 800, 400)) > 0, "the overflow this documents is gone"
-        # Wider regions overflow strictly less, and 300px is clean.
-        assert _ink(
-            _render(text, region=ComponentRegion(0, 0, 120, 400)), (120, 0, 800, 400)
-        ) < _ink(narrow, (60, 0, 800, 400))
+        for w in (60, 120, 200, 300):
+            img = _render(text, region=ComponentRegion(0, 0, w, 400))
+            assert _ink(img, (0, 0, w, 400)) > 0, f"nothing drawn at all at w={w}"
+            assert _ink(img, (w, 0, 800, 400)) == 0, f"text overflowed the region at w={w}"
         assert _ink(_render(text, region=ComponentRegion(0, 0, 300, 400)), (300, 0, 800, 400)) == 0
 
     def test_unfittable_message_uses_size_20_fallback(self):
