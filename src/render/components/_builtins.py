@@ -382,6 +382,7 @@ def _constellation_map(ctx: RenderContext) -> None:
 
 @register_component("day_arc")
 def _day_arc(ctx: RenderContext) -> None:
+    ctx.dither_regions.append(day_arc_panel.art_rect(ctx.layout.day_arc))
     day_arc_panel.draw_day_arc(
         ctx.draw,
         ctx.data,
@@ -397,6 +398,7 @@ def _day_arc(ctx: RenderContext) -> None:
 
 @register_component("halftone")
 def _halftone(ctx: RenderContext) -> None:
+    ctx.dither_regions.append(halftone_panel.art_rect(ctx.layout.halftone))
     halftone_panel.draw_halftone(
         ctx.draw,
         ctx.data,
@@ -410,6 +412,7 @@ def _halftone(ctx: RenderContext) -> None:
 
 @register_component("halftone_agenda")
 def _halftone_agenda(ctx: RenderContext) -> None:
+    ctx.dither_regions.append(halftone_agenda_panel.art_rect(ctx.layout.halftone_agenda))
     halftone_agenda_panel.draw_halftone_agenda(
         ctx.draw,
         ctx.data,
@@ -508,6 +511,7 @@ def _wide_forecast(ctx: RenderContext) -> None:
 
 @register_component("halftone_agenda_wide")
 def _halftone_agenda_wide(ctx: RenderContext) -> None:
+    ctx.dither_regions.append(halftone_agenda_wide_panel.art_rect(ctx.layout.halftone_agenda_wide))
     halftone_agenda_wide_panel.draw_halftone_agenda_wide(
         ctx.draw,
         ctx.data,

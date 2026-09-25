@@ -32,6 +32,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   bars, and a band for alerts, air quality and the moon). On an 800 × 480 panel
   they letterbox. `scripts/build_previews.py` renders every theme at its own
   canvas size and takes `--model` / `--suffix` for a four-ink preview set.
+- **Art regions dither in colour.** A panel that draws artwork can declare the
+  rectangle it occupies (`RenderContext.dither_regions`, filled by the
+  adapter from the panel's pure `art_rect()`), and the colour backends
+  error-diffuse those rectangles onto the panel's inks instead of snapping
+  them. Until now a colour panel flattened the halftone family's sky ramp to a
+  single ink (nearest colour) while the monochrome path kept its engraving;
+  now the gradient is a halftone of the inks on both, and a tone the panel
+  has no ink for — orange over yellow and red — becomes a mixture rather than
+  whichever ink is nearest. Type and rules outside the regions stay solid.
+  Registered for `halftone`, `halftone_agenda`, `halftone_agenda_wide` and
+  `day_arc`; the four Inky previews are regenerated. Applies on the 10.85" G
+  panel and on Inky (where the diffusion targets the measured Spectra 6
+  values so the driver's own mapping is the identity on them).
 - **`halftone_agenda_wide`** — the split-plate agenda drawn for the 1360 × 480
   strip. The engraving and weather band at the left, today's agenda at half
   again its usual width in the middle (the original's `_draw_agenda_pane`,

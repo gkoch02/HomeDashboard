@@ -49,6 +49,16 @@ when one goes stale.
 Everything else falls back to black on white, so a theme with no color story
 still reads correctly on the panel.
 
+**Art regions mix the inks.** The Inky driver maps each pixel to its nearest
+ink, which is right for type and wrong for an illustration: a shaded sky
+flattens to one ink. A panel that draws artwork declares the rectangle it
+occupies, and the backend error-diffuses that rectangle onto the six inks
+instead — the halftone family's engraving keeps its halftone here, and a tone
+the panel has no ink for (an orange, a pink) renders as a mixture of the inks
+it has. Type outside the declared regions is untouched. `halftone`,
+`halftone_agenda`, `halftone_agenda_wide` and `day_arc` declare their art
+panes; the same mechanism drives the four-ink Waveshare 10.85" (G) panel.
+
 > **Note:** these are PNGs on a computer, not photographs of hardware. They go
 > through the dashboard's real limited-palette render path, so the ink
 > assignments are accurate — but a physical Spectra 6 panel is lower-contrast

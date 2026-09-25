@@ -271,6 +271,7 @@ def render_dashboard(
         canvas_size=(layout.canvas_w, layout.canvas_h),
         layout=layout,
         background=style.bg,
+        dither_regions=ctx.dither_regions,
     )
 
     return image

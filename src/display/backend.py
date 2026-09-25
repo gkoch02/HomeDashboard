@@ -27,9 +27,15 @@ from PIL import Image
 
 from src.config import DisplayConfig
 from src.display.driver import get_display_spec
-from src.render.quantize import quantize_for_display, quantize_to_palette_nearest
+from src.render.quantize import (
+    INKY_SPECTRA6_PALETTE,
+    quantize_for_display,
+    quantize_to_palette_fs,
+    quantize_to_palette_nearest,
+)
 
 Fill = int | tuple[int, int, int]
+Rect = tuple[int, int, int, int]
 
 SCALING_MODES: tuple[str, ...] = ("auto", "stretch", "fit")
 
@@ -88,6 +94,105 @@ def pad_value(background: Fill | None, image_mode: str, to_mode: str) -> Fill:
     return lum
 
 
+def placement(
+    canvas_size: tuple[int, int], target: tuple[int, int], scaling: str
+) -> tuple[float, float, int, int]:
+    """``(scale_x, scale_y, offset_x, offset_y)`` mapping canvas coordinates onto the panel.
+
+    The same arithmetic :func:`fit_canvas` uses to place the resized canvas,
+    exposed so a rectangle declared in canvas coordinates (an art region) can
+    be found again on the finished plate.
+    """
+    cw, ch = canvas_size
+    tw, th = target
+    if (cw, ch) == (tw, th):
+        return (1.0, 1.0, 0, 0)
+    if scaling != "fit":
+        return (tw / cw, th / ch, 0, 0)
+    scale = min(tw / cw, th / ch)
+    nw = max(1, round(cw * scale))
+    nh = max(1, round(ch * scale))
+    return (scale, scale, (tw - nw) // 2, (th - nh) // 2)
+
+
+def map_rect(rect: Rect, place: tuple[float, float, int, int], bounds: tuple[int, int]) -> Rect:
+    """Carry a canvas-coordinate *rect* onto the panel through *place*, clipped to *bounds*."""
+    sx, sy, ox, oy = place
+    x0, y0, x1, y1 = rect
+    bw, bh = bounds
+    return (
+        max(0, min(bw, round(x0 * sx) + ox)),
+        max(0, min(bh, round(y0 * sy) + oy)),
+        max(0, min(bw, round(x1 * sx) + ox)),
+        max(0, min(bh, round(y1 * sy) + oy)),
+    )
+
+
+#: A pixel whose channels differ by no more than this is neutral: it is
+#: diffused against black and white alone, never a coloured ink.
+NEUTRAL_SPREAD = 8
+
+
+def _neutral_inks(palette: list[tuple[int, int, int]]) -> tuple[tuple[int, int, int], ...]:
+    """The palette's darkest and lightest entries, as the two neutral inks."""
+    darkest = min(palette, key=sum)
+    lightest = max(palette, key=sum)
+    return (darkest, lightest)
+
+
+def dither_art_regions(
+    source: Image.Image,
+    plate: Image.Image,
+    regions: list[Rect] | None,
+    place: tuple[float, float, int, int],
+    palette: list[tuple[int, int, int]],
+) -> Image.Image:
+    """Floyd-Steinberg the declared art *regions* onto *plate*, in the panel's inks.
+
+    A colour panel shows a handful of inks, and the finalize step snaps every
+    pixel to the nearest one — right for type and rules, which must stay
+    solid, and wrong for an illustration, whose gradients flatten to one ink
+    and whose tones outside the ink set (an orange sky over yellow and red)
+    are lost. A panel that draws artwork declares the rectangle it occupies
+    via ``RenderContext.dither_regions``; here each such rectangle is cut from
+    *source* — the resized canvas *before* any snap — error-diffused onto the
+    palette so mixed tones become halftone mixtures of the inks, and pasted
+    over *plate*. Everything outside the regions is left as the caller
+    finalized it.
+
+    Neutral pixels (channels within ``NEUTRAL_SPREAD`` of each other) are
+    diffused against black and white only, which is exactly what the same
+    themes' greyscale path does, so the engraving matches across panels.
+    Diffusing them against the whole palette instead lets the accumulated
+    error drift in hue and sprinkles a dark sky with red and green dots.
+    Coloured pixels take the full palette, where a tone the panel lacks
+    becomes a mixture of the inks it has; diffusion has no error to spread on
+    an exact ink, so a solid yellow disc stays solid.
+    """
+    if not regions:
+        return plate
+    import numpy as np
+
+    dark, light = _neutral_inks(palette)
+    for rect in regions:
+        x0, y0, x1, y1 = map_rect(rect, place, plate.size)
+        if x1 - x0 < 1 or y1 - y0 < 1:
+            continue
+        tile = source.crop((x0, y0, x1, y1)).convert("RGB")
+        arr = np.asarray(tile, dtype=np.int16)
+        neutral = (arr.max(axis=2) - arr.min(axis=2)) <= NEUTRAL_SPREAD
+        # Greys: the 1-bit engraving, mapped onto the panel's two neutral inks.
+        bilevel = np.asarray(tile.convert("L").convert("1", dither=Image.Dither.FLOYDSTEINBERG))
+        grey = np.where(bilevel[:, :, None], np.array(light, np.uint8), np.array(dark, np.uint8))
+        if neutral.all():
+            out = grey
+        else:
+            colour = np.asarray(quantize_to_palette_fs(tile, palette), dtype=np.uint8)
+            out = np.where(neutral[:, :, None], grey, colour)
+        plate.paste(Image.fromarray(out.astype(np.uint8), mode="RGB"), (x0, y0))
+    return plate
+
+
 def fit_canvas(
     image: Image.Image,
     target: tuple[int, int],
@@ -108,14 +213,13 @@ def fit_canvas(
         return image
     if scaling != "fit":
         return image.resize(target, Image.Resampling.LANCZOS)
+    sx, sy, ox, oy = placement(image.size, target, scaling)
     cw, ch = image.size
-    tw, th = target
-    scale = min(tw / cw, th / ch)
-    nw = max(1, round(cw * scale))
-    nh = max(1, round(ch * scale))
-    scaled = image.resize((nw, nh), Image.Resampling.LANCZOS)
+    scaled = image.resize(
+        (max(1, round(cw * sx)), max(1, round(ch * sy))), Image.Resampling.LANCZOS
+    )
     plate = Image.new(image.mode, target, background)
-    plate.paste(scaled, ((tw - nw) // 2, (th - nh) // 2))
+    plate.paste(scaled, (ox, oy))
     return plate
 
 
@@ -130,6 +234,7 @@ class DisplayBackend(ABC):
         canvas_size: tuple[int, int],
         layout,
         background: Fill | None = None,
+        dither_regions: list[Rect] | None = None,
     ) -> Image.Image:
         """Resize *image* to the configured display size and finalize it.
 
@@ -137,7 +242,11 @@ class DisplayBackend(ABC):
         the optional ``preferred_quantization_mode``). Kept ``Any`` to
         avoid an import cycle on ``src.render.theme``. ``background`` is the
         theme's ``bg`` in the canvas's own mode; it fills the bands when
-        ``display.scaling`` resolves to ``fit``.
+        ``display.scaling`` resolves to ``fit``. ``dither_regions`` are the
+        canvas-coordinate rectangles panels declared as artwork; a colour
+        backend error-diffuses those onto its inks instead of snapping them
+        (see :func:`dither_art_regions`). The 1-bit backend ignores them —
+        its whole plate already dithers per the theme's quantizer.
         """
 
 
@@ -166,7 +275,9 @@ class WaveshareBackend(DisplayBackend):
         canvas_size: tuple[int, int],
         layout,
         background: Fill | None = None,
+        dither_regions: list[Rect] | None = None,
     ) -> Image.Image:
+        del dither_regions  # a 1-bit plate dithers as a whole, per the theme's quantizer
         target = _target(self._config)
         needs_resize = target != canvas_size
         if needs_resize:
@@ -206,6 +317,7 @@ class WaveshareColorBackend(DisplayBackend):
         canvas_size: tuple[int, int],
         layout,
         background: Fill | None = None,
+        dither_regions: list[Rect] | None = None,
     ) -> Image.Image:
         target = _target(self._config)
         needs_resize = target != canvas_size
@@ -224,7 +336,10 @@ class WaveshareColorBackend(DisplayBackend):
         if needs_resize:
             pad = pad_value(background, image.mode, "RGB")
             rgb = fit_canvas(rgb, target, scaling=scaling, background=pad)
-        return quantize_to_palette_nearest(rgb, self._palette)
+        plate = quantize_to_palette_nearest(rgb, self._palette)
+        return dither_art_regions(
+            rgb, plate, dither_regions, placement(canvas_size, target, scaling), self._palette
+        )
 
 
 class InkyBackend(DisplayBackend):
@@ -246,15 +361,27 @@ class InkyBackend(DisplayBackend):
         canvas_size: tuple[int, int],
         layout,
         background: Fill | None = None,
+        dither_regions: list[Rect] | None = None,
     ) -> Image.Image:
         target = _target(self._config)
+        scaling = _scaling(self._config, canvas_size)
         if target != canvas_size:
             pad = pad_value(background, image.mode, "RGB")
             image = fit_canvas(
                 image.convert("RGB"),
                 target,
-                scaling=_scaling(self._config, canvas_size),
+                scaling=scaling,
                 background=pad,
+            )
+        if image.mode == "RGB" and dither_regions:
+            # Diffuse onto the panel's measured inks, so the driver's own
+            # nearest-colour mapping at write time is the identity on them.
+            image = dither_art_regions(
+                image,
+                image.copy(),
+                dither_regions,
+                placement(canvas_size, target, scaling),
+                INKY_SPECTRA6_PALETTE,
             )
         return image
 

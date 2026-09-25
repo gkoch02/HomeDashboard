@@ -99,6 +99,12 @@ _CELL_GAP = 8
 FOOT_H = 52
 
 
+def art_rect(region: ComponentRegion) -> tuple[int, int, int, int]:
+    """The illustration's rectangle — the part of the plate that may dither in colour."""
+    art_w = min(ART_W, max(1, region.w - DIVIDER_W))
+    return (region.x, region.y, region.x + art_w, region.y + min(HERO_H, region.h))
+
+
 def draw_halftone_agenda_wide(
     draw: ImageDraw.ImageDraw,
     data: DashboardData,

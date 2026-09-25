@@ -81,6 +81,11 @@ FOOTER_H = 22
 # ---------------------------------------------------------------------------
 
 
+def art_rect(region: ComponentRegion) -> tuple[int, int, int, int]:
+    """The hero engraving's rectangle — the part of the plate that may dither in colour."""
+    return (region.x, region.y, region.x + region.w, region.y + min(HERO_H, region.h))
+
+
 def draw_halftone(
     draw: ImageDraw.ImageDraw,
     data: DashboardData,
