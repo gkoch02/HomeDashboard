@@ -11,10 +11,13 @@ import json
 import zoneinfo
 from datetime import date, datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch
+from zoneinfo import ZoneInfo
 
 import pytest
 
+from src._time import event_window_utc
 from src.config import GoogleConfig
+from src.data.models import CalendarEvent
 from src.fetchers.calendar_google import (
     _apply_delta,
     _deser_sync_event,
@@ -29,6 +32,7 @@ from src.fetchers.calendar_google import (
     clear_service_caches,
     fetch_google_events,
 )
+from src.fetchers.errors import CalendarFetchError
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -873,11 +877,14 @@ class TestFetchGoogleEvents:
             persisted = json.load(f)
         assert persisted == existing_state
 
-    def test_multi_calendar_partial_failure_returns_successful_calendars(self):
-        """Regression for issue #145 review: a transient failure on one
-        calendar must NOT abort the whole fetch loop — sibling calendars
-        that succeeded should still return their events (critical on cold
-        starts where the top-level events cache is empty)."""
+    def test_multi_calendar_failure_with_no_stored_events_raises(self):
+        """A calendar that fails with nothing synced before cannot be omitted:
+        the pipeline would cache the siblings' events as the complete,
+        FRESH answer with no staleness glyph (#278). It raises so the last
+        complete calendar is served from cache instead. (Until #278 this
+        returned the siblings' events — the #145 behaviour — which the
+        stored-events test below still covers for a calendar that *has*
+        prior sync state.)"""
         primary_items = [_allday_item("Primary event", "2024-03-15", "2024-03-16", "p1")]
         primary_result = {
             "items": primary_items,
@@ -896,12 +903,9 @@ class TestFetchGoogleEvents:
         svc.events.return_value = events_mock
 
         cfg = _google_cfg(additional_calendars=["secondary@group.v.calendar.google.com"])
-        with self._patch_build_service(svc):
-            events = fetch_google_events(cfg)
-
-        # Primary's event survives even though secondary failed.
-        assert len(events) == 1
-        assert events[0].summary == "Primary event"
+        with self._patch_build_service(svc), pytest.raises(CalendarFetchError) as info:
+            fetch_google_events(cfg)
+        assert "secondary@group.v.calendar.google.com" in str(info.value)
 
     def test_multi_calendar_partial_failure_uses_stored_events(self, tmp_path):
         """On partial failure, the failing calendar's previously-synced events
@@ -982,7 +986,7 @@ class TestFetchGoogleEvents:
         svc.events.return_value = events_mock
 
         cfg = _google_cfg(additional_calendars=["secondary@group.v.calendar.google.com"])
-        with self._patch_build_service(svc), pytest.raises(OSError):
+        with self._patch_build_service(svc), pytest.raises(CalendarFetchError):
             fetch_google_events(cfg)
 
     def test_sync_token_expired_falls_back_to_full(self, tmp_path):
@@ -1043,3 +1047,34 @@ class TestClearServiceCaches:
     def test_clear_is_idempotent(self):
         clear_service_caches()
         clear_service_caches()  # no error on second call
+
+
+class TestFilterToWindowOverlap:
+    """Timed events use overlap semantics, like the all-day branch (#275)."""
+
+    def _stored(self, start: datetime, end: datetime) -> dict:
+        from src.fetchers.calendar_google import _ser_sync_event
+
+        return _ser_sync_event(
+            CalendarEvent(
+                summary="x",
+                start=start,
+                end=end,
+                is_all_day=False,
+                location=None,
+                calendar_name="c",
+                event_id="x",
+            )
+        )
+
+    def test_timed_event_started_before_window_is_kept(self):
+        from src.fetchers.calendar_google import _filter_to_window
+
+        tz = ZoneInfo("America/New_York")
+        time_min, time_max = event_window_utc(date(2026, 4, 6), 7, tz)
+        spanning = self._stored(datetime(2026, 4, 5, 9, 0), datetime(2026, 4, 7, 17, 0))
+        finished = self._stored(datetime(2026, 4, 5, 9, 0), datetime(2026, 4, 5, 17, 0))
+        kept = _filter_to_window([spanning, finished], time_min, time_max, tz=tz)
+        assert [(e.start, e.end) for e in kept] == [
+            (datetime(2026, 4, 5, 9, 0), datetime(2026, 4, 7, 17, 0))
+        ]

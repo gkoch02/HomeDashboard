@@ -738,3 +738,51 @@ class TestCacheIsRecentUnregisteredSource:
             assert data == {"v": 1}
         finally:
             unregister_fetcher("__no_meta_228__")
+
+
+# ---------------------------------------------------------------------------
+# _resolve_source: post-fetch bookkeeping never masquerades as a fetch failure (#272)
+# ---------------------------------------------------------------------------
+
+
+class TestResolveSourceBookkeeping:
+    def _fetched(self, tmp_path):
+        pipeline = _make_pipeline(tmp_path, api_key="key", sensor_id=123)
+        future = Future()
+        data = AirQualityData(aqi=25, category="Good", pm25=5.0)
+        future.set_result(data)
+        return pipeline, future, data
+
+    def test_success_log_failure_keeps_the_data_and_the_breaker(self, tmp_path, caplog):
+        pipeline, future, data = self._fetched(tmp_path)
+
+        def bad_formatter(_):
+            raise ValueError("formatter bug")
+
+        import logging
+
+        with caplog.at_level(logging.WARNING):
+            result = pipeline._resolve_source("air_quality", future, None, bad_formatter)
+
+        assert result is data
+        assert pipeline.source_staleness["air_quality"] is StalenessLevel.FRESH
+        assert (
+            pipeline.breaker._states.get("air_quality") is None
+            or pipeline.breaker._states["air_quality"].consecutive_failures == 0
+        )
+        assert "fetch failed" not in caplog.text
+        assert "success log failed" in caplog.text
+
+    def test_cache_write_failure_keeps_the_data(self, tmp_path):
+        pipeline, future, data = self._fetched(tmp_path)
+        with (
+            patch("src.data_pipeline.save_source", side_effect=OSError("disk full")),
+            patch.object(pipeline, "_use_cache") as use_cache,
+        ):
+            result = pipeline._resolve_source("air_quality", future, None)
+        assert result is data
+        use_cache.assert_not_called()
+        assert (
+            pipeline.breaker._states.get("air_quality") is None
+            or pipeline.breaker._states["air_quality"].consecutive_failures == 0
+        )

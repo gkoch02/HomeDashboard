@@ -514,3 +514,45 @@ class TestAlertsAndUvEndpoint:
         alerts, uv = _fetch_alerts_and_uv(session, {"appid": "k"})
         assert alerts == []
         assert uv is None
+
+
+class TestTodayExtremesNeverContradictNow:
+    """The forecast grid only holds the *remaining* slots, so in the evening
+    today's high came from one slot and the panel read "85° now, H:78" (#276)."""
+
+    @patch("src.fetchers.weather.requests.Session")
+    def test_high_and_low_include_the_current_reading(self, mock_session_cls, cfg):
+        from datetime import timedelta
+
+        current_resp = MagicMock()
+        current_resp.json.return_value = {
+            "main": {"temp": 85.0, "temp_max": 86.0, "temp_min": 60.0, "humidity": 40},
+            "weather": [{"icon": "01d", "description": "clear sky"}],
+        }
+        current_resp.raise_for_status = MagicMock()
+
+        # One remaining slot today, an hour from now, cooler than the present.
+        now = datetime.now(timezone.utc)
+        late = now + timedelta(hours=1)
+        slot = {
+            "dt": int(late.timestamp()),
+            "main": {"temp": 76.0, "temp_max": 78.0, "temp_min": 76.0},
+            "weather": [{"icon": "01n", "description": "clear sky"}],
+        }
+        forecast_resp = MagicMock()
+        forecast_resp.json.return_value = {"list": [slot]}
+        forecast_resp.raise_for_status = MagicMock()
+
+        alerts_resp = MagicMock()
+        alerts_resp.json.return_value = {}
+        alerts_resp.raise_for_status = MagicMock()
+
+        session = MagicMock()
+        session.get.side_effect = [current_resp, forecast_resp, alerts_resp]
+        mock_session_cls.return_value.__enter__ = MagicMock(return_value=session)
+        mock_session_cls.return_value.__exit__ = MagicMock(return_value=False)
+
+        result = fetch_weather(cfg)
+
+        assert result.high == 86.0  # never below the 85° reading or its period max
+        assert result.low == 60.0  # the period min, below the remaining slot's 76

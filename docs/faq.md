@@ -33,9 +33,11 @@ venv/bin/python -m src.main --config config/config.yaml
 
 Add `--force-full-refresh` to force a full eInk refresh and bypass fetch intervals.
 
-If you use `display.provider: inky`, normal non-fuzzyclock themes are also limited to
-one hardware update per hour because the Inky Impression does not support partial refresh.
-`fuzzyclock` and `fuzzyclock_invert` bypass that hourly limit.
+On every display a hardware write is skipped when the rendered image is identical to the
+last one written, and otherwise held back until `display.min_refresh_interval_seconds` has
+elapsed since the previous write (default 60 s on Inky and the colour Waveshare model, 0 s on
+monochrome Waveshare). `--force-full-refresh` bypasses both checks. See
+[Configuration → Conditional display refresh](configuration.md#conditional-display-refresh).
 
 ### How long is stale data kept?
 
@@ -54,7 +56,8 @@ air quality 30 min. All configurable in `config.yaml` under `cache:`.
 
 ### Where are the log files?
 
-- **Dashboard log**: `output/dashboard.log` (or wherever `output.dry_run_dir` points)
+- **Dashboard log**: `output/dashboard.log` (the systemd unit appends stdout/stderr there;
+  the web UI's is `output/dashboard-web.log`)
 - **Systemd journal**: `journalctl -u dashboard.service` (if using systemd)
 - **Quick tail**: `make pi-logs` from the project directory
 
@@ -209,8 +212,10 @@ Or wait for the automatic full refresh that happens after
 `max_partials_before_full` partial refreshes (default: 20).
 
 That partial-refresh setting applies to Waveshare only. Inky Impression panels always do
-full refreshes, and the dashboard instead limits non-fuzzyclock hardware writes to once
-per hour.
+full refreshes; how often one is written is governed by the content-hash check and
+`display.min_refresh_interval_seconds` (default 60 s on Inky — set 3600 for at most one
+write an hour). See
+[Configuration → Conditional display refresh](configuration.md#conditional-display-refresh).
 
 ## Display
 
@@ -256,10 +261,13 @@ the dithered art themes decline partial refresh outright rather than refreshing 
 more often — see
 [Themes that always refresh fully](configuration.md#themes-that-always-refresh-fully).
 
-For `display.provider: inky`, the panel does not support partial refresh at all.
-The dashboard therefore treats Inky differently: non-fuzzyclock themes are
-limited to one hardware update per hour, while `fuzzyclock` and
-`fuzzyclock_invert` continue updating normally.
+For `display.provider: inky`, the panel does not support partial refresh at all, so
+every write is a full refresh. The dashboard limits how many there are with the
+content-hash check (an unchanged image is never rewritten) and the
+`display.min_refresh_interval_seconds` cooldown (default 60 s; 3600 restores the old
+"once an hour" behaviour). A theme whose content only changes every five minutes, such
+as `fuzzyclock`, therefore refreshes about that often; a static one refreshes when its
+data changes.
 
 ### Which displays are supported?
 

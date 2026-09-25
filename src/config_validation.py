@@ -725,8 +725,14 @@ def _themes_declining_partial_refresh(cfg) -> list[str]:
     from src.render.theme import AVAILABLE_THEMES, theme_supports_partial_refresh
 
     pseudo = {"random", "random_daily", "random_hourly"}
-    candidates: set[str] = set()
-    if cfg.theme in pseudo:
+    # A theme_schedule row or a theme_rules entry may name a pseudo-theme too,
+    # and resolve_theme_name() then draws from the pool for it — so the pool
+    # has to be counted for those as well, not just for cfg.theme (#273).
+    named: set[str] = {cfg.theme}
+    named.update(entry.theme for entry in cfg.theme_schedule.entries)
+    named.update(rule.theme for rule in cfg.theme_rules.rules)
+    candidates: set[str] = named - pseudo
+    if named & pseudo:
         from src.render.random_theme import eligible_themes
 
         candidates.update(
@@ -736,10 +742,6 @@ def _themes_declining_partial_refresh(cfg) -> list[str]:
                 (cfg.display.width, cfg.display.height),
             )
         )
-    else:
-        candidates.add(cfg.theme)
-    candidates.update(entry.theme for entry in cfg.theme_schedule.entries)
-    candidates.update(rule.theme for rule in cfg.theme_rules.rules)
     return sorted(
         name
         for name in candidates - pseudo

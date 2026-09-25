@@ -26,6 +26,7 @@ from src._io import atomic_write_json
 from src._time import event_window_utc, week_start
 from src.config import GoogleConfig
 from src.data.models import CalendarEvent
+from src.fetchers.errors import CalendarFetchError
 
 logger = logging.getLogger(__name__)
 
@@ -221,14 +222,27 @@ def fetch_google_events(
                 exc,
             )
             last_exc = exc
+            if not stored:
+                # No previously-synced events to stand in for this calendar
+                # (first run, or a newly added additional_calendars entry).
+                # Returning the siblings' events would hand the pipeline a
+                # calendar missing this source as the complete answer: it
+                # would be cached, marked FRESH and counted as a breaker
+                # success, with no staleness glyph and no retry before the
+                # next fetch interval — the failure mode #234 removed from
+                # ICS/CalDAV. Fail instead so the pipeline serves the last
+                # complete calendar from cache and flags it stale (#278).
+                raise CalendarFetchError(
+                    f"Calendar {cal_id} could not be fetched and has no previously "
+                    f"synced events to fall back on: {exc}"
+                ) from exc
             stored_window_events = _filter_to_window(stored, time_min, time_max, tz=tz)
-            if stored_window_events:
-                events.extend(stored_window_events)
-                logger.info(
-                    "Using %d previously-synced events for %s",
-                    len(stored_window_events),
-                    cal_id,
-                )
+            events.extend(stored_window_events)
+            logger.info(
+                "Using %d previously-synced events for %s",
+                len(stored_window_events),
+                cal_id,
+            )
 
     # If every calendar failed, bubble up so callers (data_pipeline._resolve_source)
     # can fall back to the top-level events cache and mark the source stale.
@@ -396,7 +410,11 @@ def _filter_to_window(
     time_max: datetime,
     tz: tzinfo | None = None,
 ) -> list[CalendarEvent]:
-    """Deserialise stored event dicts and filter to those overlapping [time_min, time_max)."""
+    """Deserialise stored event dicts and filter to those overlapping ``[time_min, time_max)``.
+
+    Both all-day and timed events use overlap semantics (start before the
+    window ends and end after it starts).
+    """
     # Convert UTC window bounds to naive local for comparison with naive event datetimes
     if tz is not None:
         win_start = time_min.astimezone(tz).replace(tzinfo=None)
@@ -420,14 +438,23 @@ def _filter_to_window(
             if s < win_end_date and e > win_start_date:
                 result.append(event)
         else:
-            start = event.start
+            # Overlap, not start-in-window: the full-sync API call bounds the
+            # *end* with timeMin, so a timed event that began before the window
+            # and runs into it (a Sunday→Tuesday conference) is in the first
+            # sync's result; filtering on start alone dropped it from every
+            # incremental sync after (#275).
+            start, end = event.start, event.end
             if start.tzinfo is not None:
                 # tz-aware: compare directly with UTC window
-                if time_min <= start < time_max:
+                if end.tzinfo is None:
+                    end = end.replace(tzinfo=start.tzinfo)
+                if start < time_max and end > time_min:
                     result.append(event)
             else:
                 # naive local wall-clock
-                if win_start <= start < win_end:
+                if end.tzinfo is not None:
+                    end = end.replace(tzinfo=None)
+                if start < win_end and end > win_start:
                     result.append(event)
     return result
 

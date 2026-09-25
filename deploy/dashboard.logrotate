@@ -1,11 +1,18 @@
 # Logrotate config for Home Dashboard
 # Installed by `make pi-enable` to /etc/logrotate.d/dashboard
-__INSTALL_DIR__/output/dashboard.log {
+#
+# Both logs: the renderer's (a 5-minute timer job) and the web service's (a
+# long-running process appending forever). The web log had no stanza at all
+# and grew without bound on the SD card (#283). `maxsize` rotates whenever a
+# file passes 5 MB *or* the weekly interval elapses — `size` alone replaces the
+# interval, so the old `weekly` line was dead.
+__INSTALL_DIR__/output/dashboard.log
+__INSTALL_DIR__/output/dashboard-web.log {
     weekly
+    maxsize 5M
     rotate 4
     compress
     missingok
     notifempty
     copytruncate
-    size 5M
 }

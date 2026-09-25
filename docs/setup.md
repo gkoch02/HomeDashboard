@@ -402,7 +402,7 @@ The timer fires every 5 minutes. The app handles scheduling internally:
 |---|---|
 | `quiet_hours_start` to `quiet_hours_end` | Process exits immediately -- no fetch, render, or display write |
 | First run after quiet hours end | Forces a full eInk refresh |
-| All other active hours | Waveshare refreshes only when image content changes; Inky also applies a one-refresh-per-hour cap except for `fuzzyclock` themes; API calls remain gated by per-source fetch intervals |
+| All other active hours | The panel is written only when the image content changes and `display.min_refresh_interval_seconds` has elapsed since the last write (default 60 s on Inky, 0 s on monochrome Waveshare); API calls remain gated by per-source fetch intervals |
 
 Configure quiet hours:
 
@@ -454,8 +454,10 @@ resolution and scales to the display's native resolution when needed — stretch
 with padding when the shapes differ too much, per `display.scaling` (see
 [Configuration → Scaling](configuration.md#scaling)). The panoramic `wide_*` themes render at
 1360x480 for the 10.85" strip. Inky Impression panels
-do not support partial refresh; non-fuzzyclock themes are therefore throttled to one hardware
-update per hour unless `--force-full-refresh` is used.
+do not support partial refresh; every write is a full refresh, held to at most one per
+`display.min_refresh_interval_seconds` (default 60 s; see
+[Configuration → Conditional display refresh](configuration.md#conditional-display-refresh))
+unless `--force-full-refresh` is used.
 
 ---
 
@@ -507,12 +509,12 @@ See [CLI flags](development.md#cli-flags) for the full flag reference.
 
 For symptom-driven diagnostics ("weather isn't loading", "calendar shows no events",
 "display isn't updating", staleness badges, and so on), see the
-[FAQ](faq.md#general). The pointers below cover only the recovery actions specific
-to v4's runtime state files.
+[FAQ](faq.md#general). The pointers below cover only the recovery actions for the
+runtime state files.
 
 ### Reset cached data or sync state
 
-State files live in `state/` (auto-migrated from `output/` on the first v4 run):
+State files live in `state/` (auto-migrated from `output/` on the first run after upgrading from v3):
 
 - `state/dashboard_cache.json` — per-source data cache
 - `state/calendar_sync_state.json` — Google Calendar incremental sync token

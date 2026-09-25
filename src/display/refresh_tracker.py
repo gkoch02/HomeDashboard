@@ -37,7 +37,12 @@ class RefreshTracker:
                     max_partials=max_partials,
                     state_path=path,
                 )
-            except (json.JSONDecodeError, KeyError):
+            except (json.JSONDecodeError, KeyError, ValueError, TypeError, AttributeError):
+                # A bad ISO string (ValueError), a non-object document such as
+                # ``[]`` (AttributeError) or a wrong-typed field (TypeError)
+                # used to escape here and abort WaveshareDisplay.show() before
+                # epd.init(), every run, until the file was deleted (#286).
+                # State bookkeeping must never be what fails a render.
                 pass
         return cls(max_partials=max_partials, state_path=path)
 

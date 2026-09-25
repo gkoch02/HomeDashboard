@@ -77,8 +77,8 @@ def fetch_weather(
         # The /weather endpoint only gives the current-period range, not the
         # full-day range (fix: weather high/low from current slot, not daily).
         # Fall back to the current endpoint values when no today slots exist.
-        high=today_high if today_high is not None else current["main"]["temp_max"],
-        low=today_low if today_low is not None else current["main"]["temp_min"],
+        high=_clamp_extreme(max, today_high, current["main"]),
+        low=_clamp_extreme(min, today_low, current["main"]),
         humidity=current["main"]["humidity"],
         forecast=forecast,
         alerts=alerts,
@@ -92,6 +92,20 @@ def fetch_weather(
         location_name=location_name,
         units=cfg.units,
     )
+
+
+def _clamp_extreme(pick, today_value: float | None, main: dict) -> float:
+    """Today's high (``pick=max``) or low (``pick=min``), never contradicted by now.
+
+    The forecast grid only holds the *remaining* 3-hour slots, so in the
+    evening today's high was the max of one slot and the panel showed
+    "85° now, H:78" (#276). The current reading and the current period's
+    ``temp_max`` / ``temp_min`` are folded in so the day's extreme can only
+    move outward as the day goes on.
+    """
+    key = "temp_max" if pick is max else "temp_min"
+    candidates = [v for v in (today_value, main.get("temp"), main.get(key)) if v is not None]
+    return pick(candidates)
 
 
 def _fetch_current(session: requests.Session, params: dict) -> dict:
