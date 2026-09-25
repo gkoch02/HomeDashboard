@@ -424,24 +424,32 @@ make deploy PI_USER=myuser PI_HOST=mypi.local        # override target
 After deploying, SSH to the Pi and run `make pi-install` once to install system
 dependencies, then `make pi-enable` to start the timer.
 
+The sync leaves the Pi's own files alone: `config/config.yaml`, `config/web.yaml`
+and the config backups, `credentials/`, the virtualenv, `state/` (cache, breaker,
+sync tokens) and `output/` (renders, logs, health markers). Everything else in
+the checkout is mirrored, so a customised `config/quotes.json` needs
+`QUOTES_FILE=config/quotes.json` or a `quotes.path` outside the tree.
+
 ---
 
 ## Supported Displays
 
 | Provider | Model | Resolution | Notes |
 |---|---|---|---|
-| `waveshare` | `epd7in5` | 640x384 | V1 (older) |
-| `waveshare` | `epd7in5_V2` | 800x480 | **Default / recommended Waveshare** |
-| `waveshare` | `epd7in5_V3` | 800x480 | V3 variant |
-| `waveshare` | `epd7in5b_V2` | 800x480 | B/W/Red model; dashboard currently renders B/W only |
-| `waveshare` | `epd7in5_HD` | 880x528 | HD variant |
-| `waveshare` | `epd9in7` | 1200x825 | 9.7 inch |
-| `waveshare` | `epd13in3k` | 1600x1200 | 13.3 inch |
+| `waveshare` | `epd7in5` | 640x384 | V1 (older); full refresh only |
+| `waveshare` | `epd7in5_V2` | 800x480 | **Default / recommended Waveshare**; supports `enable_partial_refresh` |
+| `waveshare` | `epd7in5b_V2` | 800x480 | B/W/Red model; dashboard renders B/W only (the red plane is sent blank); supports `enable_partial_refresh` |
+| `waveshare` | `epd7in5_HD` | 880x528 | HD variant; full refresh only |
+| `waveshare` | `epd13in3k` | 960x680 | 13.3 inch (K); full refresh only |
 | `waveshare` | `epd10in85g` | 1360x480 | 10.85 inch (G): black/white/yellow/red strip; full refresh only. Pair with the `wide_*` themes |
 | `inky` | `impression_7_3_2025` | 800x480 | Pimoroni Inky Impression 7.3" 2025 Edition, Spectra 6 |
 
 Set both `display.provider` and `display.model` in `config.yaml`. Width and height are
-derived automatically from the selected backend/model. The dashboard renders at 800x480 base
+derived automatically from the selected backend/model. Every Waveshare entry names a
+module that exists in the vendor `waveshare_epd` library (`epd9in7` and `epd7in5_V3`,
+listed in earlier releases, do not — the 9.7" panel is IT8951-driven and is not
+supported). "Full refresh only" means the vendor driver has no fast waveform:
+`enable_partial_refresh` is ignored there, with a config warning. The dashboard renders at 800x480 base
 resolution and scales to the display's native resolution when needed — stretched, or fitted
 with padding when the shapes differ too much, per `display.scaling` (see
 [Configuration → Scaling](configuration.md#scaling)). The panoramic `wide_*` themes render at

@@ -418,7 +418,7 @@ Supported providers:
 
 Supported models:
 
-- `waveshare`: `epd7in5`, `epd7in5_V2`, `epd7in5_V3`, `epd7in5b_V2`, `epd7in5_HD`, `epd9in7`, `epd13in3k`, `epd10in85g`
+- `waveshare`: `epd7in5`, `epd7in5_V2`, `epd7in5b_V2`, `epd7in5_HD`, `epd13in3k` (960×680), `epd10in85g`. Only `epd7in5_V2` and `epd7in5b_V2` have a fast waveform; `enable_partial_refresh` is ignored (with a warning) on the others
 - `inky`: `impression_7_3_2025`
 
 Width and height are derived automatically from the selected provider/model unless

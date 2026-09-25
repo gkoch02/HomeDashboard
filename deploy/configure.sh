@@ -53,7 +53,7 @@ echo ""
 # --- Display provider/model ---
 echo "--- Display ---"
 echo "  Providers: waveshare, inky"
-echo "  Waveshare models: epd7in5 epd7in5_V2 epd7in5_V3 epd7in5b_V2 epd7in5_HD epd9in7 epd13in3k epd10in85g"
+echo "  Waveshare models: epd7in5 epd7in5_V2 epd7in5b_V2 epd7in5_HD epd13in3k epd10in85g"
 echo "  Inky models: impression_7_3_2025"
 prompt "Display provider" "$(current provider)" DISPLAY_PROVIDER
 prompt "Display model" "$(current model)" DISPLAY_MODEL

@@ -160,6 +160,23 @@ class TestValidateConfigWarnings:
         _, warnings = validate_config(cfg)
         assert any(w.field == "display.enable_partial_refresh" for w in warnings)
 
+    def test_waveshare_model_without_fast_waveform_partial_refresh_warns(self):
+        # epd7in5_HD ships only init(); its DisplaySpec now says so (#268).
+        cfg = Config(display=DisplayConfig(model="epd7in5_HD", enable_partial_refresh=True))
+        _, warnings = validate_config(cfg)
+        assert any(
+            w.field == "display.enable_partial_refresh" and "not supported" in w.message
+            for w in warnings
+        )
+
+    def test_waveshare_v2_partial_refresh_does_not_warn_unsupported(self):
+        cfg = Config(display=DisplayConfig(model="epd7in5_V2", enable_partial_refresh=True))
+        _, warnings = validate_config(cfg)
+        assert not any(
+            w.field == "display.enable_partial_refresh" and "not supported" in w.message
+            for w in warnings
+        )
+
     def test_missing_birthday_file_warns(self, tmp_path):
         cfg = Config(birthdays=BirthdayConfig(source="file", file_path=str(tmp_path / "nope.json")))
         _, warnings = validate_config(cfg)

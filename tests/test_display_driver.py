@@ -10,7 +10,10 @@ from src.display.driver import (
     DRY_RUN_HISTORY,
     INKY_MODEL_INIT,
     INKY_MODELS,
+    WAVESHARE_COLOR_MODELS,
+    WAVESHARE_FAST_INIT,
     WAVESHARE_MODELS,
+    WAVESHARE_TRICOLOR_MODELS,
     DryRunDisplay,
     InkyDisplay,
     WaveshareDisplay,
@@ -93,23 +96,58 @@ class TestWaveshareModels:
         assert "epd7in5_V2" in WAVESHARE_MODELS
 
     def test_registry_contains_larger_models(self):
-        assert "epd9in7" in WAVESHARE_MODELS
+        assert "epd7in5_HD" in WAVESHARE_MODELS
         assert "epd13in3k" in WAVESHARE_MODELS
+
+    def test_registry_drops_modules_that_do_not_exist_upstream(self):
+        # Neither module exists in waveshare/e-Paper (the 9.7" panel is
+        # IT8951-driven); selecting them failed at import on the first
+        # hardware write (#266).
+        assert "epd9in7" not in WAVESHARE_MODELS
+        assert "epd7in5_V3" not in WAVESHARE_MODELS
 
     def test_default_model_dimensions(self):
         _, w, h = WAVESHARE_MODELS["epd7in5_V2"]
         assert w == 800
         assert h == 480
 
-    def test_epd9in7_dimensions(self):
-        _, w, h = WAVESHARE_MODELS["epd9in7"]
-        assert w == 1200
-        assert h == 825
+    def test_epd7in5_hd_dimensions(self):
+        _, w, h = WAVESHARE_MODELS["epd7in5_HD"]
+        assert w == 880
+        assert h == 528
 
     def test_epd13in3k_dimensions(self):
+        # The vendor driver's EPD_WIDTH / EPD_HEIGHT. It used to be registered
+        # as 1600x1200, and getbuffer() answers a mismatched image with a blank
+        # buffer — a white panel with no error (#266).
         _, w, h = WAVESHARE_MODELS["epd13in3k"]
-        assert w == 1600
-        assert h == 1200
+        assert w == 960
+        assert h == 680
+
+    def test_fast_init_and_tricolor_tables_name_registered_models(self):
+        assert set(WAVESHARE_FAST_INIT) <= set(WAVESHARE_MODELS)
+        assert set(WAVESHARE_TRICOLOR_MODELS) <= set(WAVESHARE_MODELS)
+        assert not set(WAVESHARE_FAST_INIT) & set(WAVESHARE_COLOR_MODELS)
+
+    def test_fast_init_names_match_the_vendor_drivers(self):
+        # init_fast on the 7.5" V2, init_Fast on the tri-colour 7.5".
+        assert WAVESHARE_FAST_INIT == {"epd7in5_V2": "init_fast", "epd7in5b_V2": "init_Fast"}
+
+    @pytest.mark.parametrize(
+        "model,expected",
+        [
+            ("epd7in5_V2", True),
+            ("epd7in5b_V2", True),
+            ("epd7in5", False),
+            ("epd7in5_HD", False),
+            ("epd13in3k", False),
+            ("epd10in85g", False),
+        ],
+    )
+    def test_spec_partial_refresh_is_a_per_model_fact(self, model, expected):
+        # Every mono model used to claim partial refresh; all but the V2 then
+        # raised AttributeError on the first partial write (#268).
+        assert get_display_spec("waveshare", model).supports_partial_refresh is expected
 
     def test_all_entries_have_module_path(self):
         for name, (module_path, w, h) in WAVESHARE_MODELS.items():
@@ -177,9 +215,19 @@ class TestWaveshareDisplayInit:
             WaveshareDisplay(model="epd_does_not_exist")
 
     def test_native_dimensions_from_model(self):
-        d = WaveshareDisplay(model="epd9in7")
-        assert d.native_width == 1200
-        assert d.native_height == 825
+        d = WaveshareDisplay(model="epd7in5_HD")
+        assert d.native_width == 880
+        assert d.native_height == 528
+
+    def test_partial_refresh_is_dropped_for_a_model_without_a_fast_waveform(self, caplog):
+        with caplog.at_level("WARNING", logger="src.display.driver"):
+            d = WaveshareDisplay(model="epd7in5_HD", enable_partial=True)
+        assert d.enable_partial is False
+        assert "not supported on Waveshare model epd7in5_HD" in caplog.text
+
+    def test_partial_refresh_is_kept_for_a_model_with_a_fast_waveform(self):
+        assert WaveshareDisplay(model="epd7in5_V2", enable_partial=True).enable_partial is True
+        assert WaveshareDisplay(model="epd7in5b_V2", enable_partial=True).enable_partial is True
 
     def test_native_dimensions_default_model(self):
         d = WaveshareDisplay(model="epd7in5_V2")
@@ -190,14 +238,17 @@ class TestWaveshareDisplayInit:
 class TestWaveshareDisplayHardware:
     """Tests for WaveshareDisplay methods that require mocked hardware."""
 
-    def _make_mock_epd(self):
-        epd = MagicMock()
-        epd.init = MagicMock()
-        epd.init_fast = MagicMock()
-        epd.display = MagicMock()
-        epd.getbuffer = MagicMock(return_value=b"buf")
-        epd.sleep = MagicMock()
-        epd.Clear = MagicMock()
+    def _make_mock_epd(
+        self, methods=("init", "init_fast", "display", "getbuffer", "sleep", "Clear")
+    ):
+        """A mock shaped like a vendor ``EPD`` class: only *methods* exist.
+
+        ``spec_set`` makes an unlisted attribute raise AttributeError, the way
+        the real ``epd7in5`` / ``epd7in5_HD`` drivers do for ``init_fast``.
+        """
+        epd = MagicMock(spec_set=list(methods))
+        if "getbuffer" in methods:
+            epd.getbuffer.return_value = bytearray(b"\x00" * 8)
         return epd
 
     def _make_mock_module(self, epd):
@@ -274,6 +325,76 @@ class TestWaveshareDisplayHardware:
 
         epd.init.assert_called_once()
         tracker.record_full.assert_called_once()
+
+    def _show(self, d, epd, image=None, needs_full=False, **kw):
+        tracker = MagicMock()
+        tracker.needs_full_refresh.return_value = needs_full
+        image = image or Image.new("1", (800, 480), 1)
+        with (
+            patch.object(d, "_get_epd", return_value=epd),
+            patch("src.display.refresh_tracker.RefreshTracker.load", return_value=tracker),
+        ):
+            d.show(image, **kw)
+        return tracker
+
+    def test_tricolor_full_refresh_sends_black_plane_and_blank_red_plane(self):
+        # epd7in5b_V2.display(imageblack, imagered): one buffer raised
+        # TypeError on every write (#267).
+        epd = self._make_mock_epd(("init", "init_Fast", "display", "getbuffer", "sleep", "Clear"))
+        epd.getbuffer.return_value = bytearray(b"\xaa" * 16)
+        d = WaveshareDisplay(model="epd7in5b_V2", enable_partial=False)
+        tracker = self._show(d, epd)
+
+        epd.init.assert_called_once()
+        (black, red), _ = epd.display.call_args
+        assert black == bytearray(b"\xaa" * 16)
+        # getbuffer() XORs with 0xFF, so a white image is 0x00 bytes; the
+        # driver sends the red plane as given, so "no red" is all zeros.
+        assert red == bytearray(16)
+        tracker.record_full.assert_called_once()
+
+    def test_tricolor_partial_refresh_uses_init_Fast(self):
+        epd = self._make_mock_epd(("init", "init_Fast", "display", "getbuffer", "sleep", "Clear"))
+        d = WaveshareDisplay(model="epd7in5b_V2", enable_partial=True)
+        tracker = self._show(d, epd)
+
+        epd.init_Fast.assert_called_once()
+        epd.init.assert_not_called()
+        assert len(epd.display.call_args.args) == 2
+        tracker.record_partial.assert_called_once()
+
+    def test_mono_model_without_fast_waveform_takes_the_full_path(self):
+        # The real epd7in5_HD driver has init() only; with partial refresh on,
+        # the second run used to die with AttributeError and, having recorded
+        # no partial, die again every tick after (#268).
+        epd = self._make_mock_epd(("init", "display", "getbuffer", "sleep", "Clear"))
+        d = WaveshareDisplay(model="epd7in5_HD", enable_partial=True)
+        tracker = self._show(d, epd, image=Image.new("1", (880, 528), 1))
+
+        epd.init.assert_called_once()
+        epd.display.assert_called_once_with(epd.getbuffer.return_value)
+        tracker.record_full.assert_called_once()
+        tracker.record_partial.assert_not_called()
+
+    def test_registered_fast_init_missing_from_driver_falls_back_to_full(self, caplog):
+        # The registry promises init_fast, the installed library lacks it.
+        epd = self._make_mock_epd(("init", "display", "getbuffer", "sleep", "Clear"))
+        d = WaveshareDisplay(model="epd7in5_V2", enable_partial=True)
+        with caplog.at_level("WARNING", logger="src.display.driver"):
+            tracker = self._show(d, epd)
+
+        epd.init.assert_called_once()
+        tracker.record_full.assert_called_once()
+        assert "no fast waveform method" in caplog.text
+
+    def test_fast_init_lookup_accepts_either_spelling(self):
+        # A driver whose author spelt it the other way still gets its fast path.
+        epd = self._make_mock_epd(("init", "init_Fast", "display", "getbuffer", "sleep", "Clear"))
+        d = WaveshareDisplay(model="epd7in5_V2", enable_partial=True)
+        tracker = self._show(d, epd)
+
+        epd.init_Fast.assert_called_once()
+        tracker.record_partial.assert_called_once()
 
     def test_show_sleeps_even_on_display_error(self):
         """epd.sleep() must be called even if display() raises."""
