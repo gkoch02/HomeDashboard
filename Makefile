@@ -100,7 +100,7 @@ install:
 	ssh $(PI_USER)@$(PI_HOST) " \
 		sudo systemctl stop dashboard.timer 2>/dev/null || true; \
 		REMOTE_DIR='$(PI_DIR)'; \
-		mkdir -p "$$REMOTE_DIR/output" "$$REMOTE_DIR/state"; \
+		mkdir -p \"\$$REMOTE_DIR/output\" \"\$$REMOTE_DIR/state\"; \
 		sed -e \"s|__INSTALL_DIR__|\$$REMOTE_DIR|g\" \
 		    -e \"s|__USER__|$(PI_USER)|g\" \
 		    /tmp/dashboard.service | sudo tee /etc/systemd/system/dashboard.service > /dev/null && \

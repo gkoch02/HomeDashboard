@@ -340,7 +340,10 @@ class DashboardApp:
                 (self.cfg.display.width, self.cfg.display.height),
             )
         )
-        return (names - pseudo) | pool
+        # pick_random_theme() resolves an empty pool to "default"; the window
+        # has to cover that fallback too, or a pre-fetch `monthly` pick on a
+        # month ending Saturday stops short of the week `default` shows.
+        return (names - pseudo) | (pool or {"default"})
 
     def _apply_filters(self, data):
         if (

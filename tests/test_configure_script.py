@@ -85,6 +85,26 @@ def test_purpleair_values_land_in_a_live_section(writer, tmp_path):
     assert loaded.google.calendar_id == "cal@group.calendar.google.com"
 
 
+def test_half_filled_purpleair_does_not_leave_a_placeholder_live(writer, tmp_path):
+    """Entering only the key used to enable the template's sensor 12345, and
+    only the sensor enabled the published placeholder key; both are truthy, so
+    the source fetched with bogus values every run."""
+    from src.config import load_config
+
+    for pa_key, pa_sensor in (("PAKEY", ""), ("", "99999")):
+        cfg = tmp_path / f"config-{pa_key or 'nokey'}.yaml"
+        shutil.copy(EXAMPLE, cfg)
+        result = _run(writer, cfg, pa_key=pa_key, pa_sensor=pa_sensor)
+        assert result.returncode == 0, result.stderr
+        assert "needs both" in result.stdout
+        block = _purpleair_block(cfg.read_text())
+        assert "YOUR_PURPLEAIR_API_KEY" not in block
+        assert not re.search(r"sensor_id: 12345$", block, re.MULTILINE)
+        loaded = load_config(str(cfg))
+        assert loaded.purpleair.api_key == pa_key
+        assert loaded.purpleair.sensor_id == (int(pa_sensor) if pa_sensor else 0)
+
+
 def test_skipping_purpleair_leaves_the_section_off(writer, tmp_path):
     cfg = tmp_path / "config.yaml"
     shutil.copy(EXAMPLE, cfg)

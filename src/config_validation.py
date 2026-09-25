@@ -735,13 +735,13 @@ def _themes_declining_partial_refresh(cfg) -> list[str]:
     if named & pseudo:
         from src.render.random_theme import eligible_themes
 
-        candidates.update(
-            eligible_themes(
-                cfg.random_theme.include,
-                cfg.random_theme.exclude,
-                (cfg.display.width, cfg.display.height),
-            )
+        pool = eligible_themes(
+            cfg.random_theme.include,
+            cfg.random_theme.exclude,
+            (cfg.display.width, cfg.display.height),
         )
+        # An empty pool resolves to "default" in the picker.
+        candidates.update(pool or ["default"])
     return sorted(
         name
         for name in candidates - pseudo

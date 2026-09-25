@@ -204,14 +204,21 @@ text = set_scalar(text, "timezone", q(tz))
 text = set_in_section(text, "google", "calendar_id", q(calendar_id))
 
 # PurpleAir — only written when a value was given; the section stays off otherwise.
+# Both keys are always written once the section is live: uncommenting the
+# template block and then replacing only the supplied value left the other
+# placeholder ("YOUR_PURPLEAIR_API_KEY" or sensor 12345) in force, and both are
+# truthy, so the source fetched with a bogus key every run.
 if pa_key or pa_sensor:
     text = ensure_section(
         text, "purpleair", [("api_key", q(pa_key)), ("sensor_id", pa_sensor or "0")]
     )
-    if pa_key:
-        text = set_in_section(text, "purpleair", "api_key", q(pa_key))
-    if pa_sensor:
-        text = set_in_section(text, "purpleair", "sensor_id", pa_sensor)
+    text = set_in_section(text, "purpleair", "api_key", q(pa_key))
+    text = set_in_section(text, "purpleair", "sensor_id", pa_sensor or "0")
+    if not (pa_key and pa_sensor):
+        print(
+            "  NOTE: PurpleAir needs both an API key and a sensor ID; the source stays "
+            "off until the missing one is set in config/config.yaml."
+        )
 
 with open(config_path, "w") as f:
     f.write(text)
