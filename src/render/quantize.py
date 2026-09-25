@@ -464,11 +464,22 @@ def quantize_to_palette_nearest(
         return _quantize_palette_nearest_python(image, colors)
 
     rgb = np.array(image.convert("RGB"), dtype=np.int32)  # H×W×3
-    pal = np.array(colors, dtype=np.int32)  # N×3
-    diff = rgb[:, :, np.newaxis, :] - pal[np.newaxis, np.newaxis, :, :]  # H×W×N×3
-    dist = np.sum(diff * diff, axis=3)  # H×W×N
+    # One H×W distance plane per ink, kept as a running minimum: an H×W×N×3
+    # broadcast would cost ~30 MB twice over on a 1360×480 plate, which is a
+    # real number on a Pi Zero.
+    best = None
+    index = np.zeros(rgb.shape[:2], dtype=np.uint8)
+    for i, colour in enumerate(colors):
+        diff = rgb - np.array(colour, dtype=np.int32)
+        dist = np.sum(diff * diff, axis=2)
+        if best is None:
+            best = dist
+        else:
+            closer = dist < best
+            index[closer] = i
+            best = np.where(closer, dist, best)
     pal_u8 = np.array(colors, dtype=np.uint8)
-    return Image.fromarray(pal_u8[np.argmin(dist, axis=2)], mode="RGB")
+    return Image.fromarray(pal_u8[index], mode="RGB")
 
 
 def _quantize_palette_nearest_python(

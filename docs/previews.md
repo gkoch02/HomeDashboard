@@ -174,9 +174,11 @@ Timestamped dry runs are also written automatically:
 - Every theme is rendered at its own canvas size, not the configured panel's: the
   panoramic `wide_*` themes declare 1360 × 480, so their previews are native strips
   rather than the letterboxed band an 800 × 480 config would produce through
-  `python -m src.main`. To preview the four-ink rendering of the Waveshare 10.85" (G)
-  panel, pass `--model epd10in85g` (with `--suffix _g` to keep the files apart from
-  the monochrome set).
+  `python -m src.main`. A theme that merely supersamples the panel's shape
+  (`weatherglass`, `postcard`, `naturalist` draw at 1600 × 960) keeps the panel's
+  size and its LANCZOS downsample. To preview the four-ink rendering of the Waveshare
+  10.85" (G) panel, pass `--model epd10in85g`; the files take a `_g` suffix so they
+  never overwrite the monochrome set.
 - The `astronomy` theme uses `weather.latitude` / `weather.longitude` for twilight math;
   the preview degrades gracefully without them (OWM sunrise/sunset only, no twilight).
 - The `photo` theme will still render in dry-run mode even if no custom photo path is configured,

@@ -46,7 +46,28 @@ _EXCLUDED_FROM_POOL: frozenset[str] = frozenset(
 )
 
 
-def eligible_themes(include: list[str], exclude: list[str]) -> list[str]:
+def theme_fits_panel(name: str, panel: tuple[int, int]) -> bool:
+    """Whether *name*'s canvas is the panel's shape, near enough to stretch.
+
+    A theme whose canvas would be fitted with padding on this panel (the
+    panoramic 1360x480 themes on an 800x480 panel, or the reverse) has no
+    business in a random rotation there: the point of the rotation is a
+    different plate each day, not a letterboxed band. The test is the same
+    one ``display.scaling: auto`` applies.
+    """
+    from src.display.backend import FIT_DISTORTION_THRESHOLD, distortion
+    from src.render.theme import load_theme
+
+    try:
+        layout = load_theme(name).layout
+    except ValueError:
+        return True
+    return distortion((layout.canvas_w, layout.canvas_h), panel) <= FIT_DISTORTION_THRESHOLD
+
+
+def eligible_themes(
+    include: list[str], exclude: list[str], panel: tuple[int, int] | None = None
+) -> list[str]:
     """Return sorted list of theme names eligible for random selection.
 
     Args:
@@ -62,6 +83,8 @@ def eligible_themes(include: list[str], exclude: list[str]) -> list[str]:
         pool = pool & set(include)
     if exclude:
         pool = pool - set(exclude)
+    if panel is not None:
+        pool = {name for name in pool if theme_fits_panel(name, panel)}
     return sorted(pool)
 
 
@@ -71,6 +94,7 @@ def pick_random_theme(
     output_dir: str,
     today: date | None = None,
     persist: bool = True,
+    panel: tuple[int, int] | None = None,
 ) -> str:
     """Return the theme chosen for *today*, persisting the selection across runs.
 
@@ -114,7 +138,7 @@ def pick_random_theme(
             logger.warning("Could not read random theme state: %s", exc)
 
     # Choose a new theme for today
-    pool = eligible_themes(include, exclude)
+    pool = eligible_themes(include, exclude, panel)
     if not pool:
         # An empty pool is not a draw: every run resolves to "default" and
         # persists nothing, so reporting it needs no write either. Evaluated
@@ -153,6 +177,7 @@ def pick_random_theme_hourly(
     output_dir: str,
     now: datetime | None = None,
     persist: bool = True,
+    panel: tuple[int, int] | None = None,
 ) -> str:
     """Return the theme chosen for the current hour, persisting the selection.
 
@@ -196,7 +221,7 @@ def pick_random_theme_hourly(
             logger.warning("Could not read random hourly theme state: %s", exc)
 
     # Choose a new theme for this hour
-    pool = eligible_themes(include, exclude)
+    pool = eligible_themes(include, exclude, panel)
     if not pool:
         # Same ordering as the daily variant — see pick_random_theme().
         if persist:

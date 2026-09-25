@@ -29,6 +29,7 @@ from src.config import DisplayConfig
 from src.display.driver import get_display_spec
 from src.render.quantize import (
     INKY_SPECTRA6_PALETTE,
+    WAVESHARE_G_STYLE_PALETTE,
     quantize_for_display,
     quantize_to_palette_fs,
     quantize_to_palette_nearest,
@@ -140,12 +141,24 @@ def _neutral_inks(palette: list[tuple[int, int, int]]) -> tuple[tuple[int, int, 
     return (darkest, lightest)
 
 
+#: Spectra-6 style values → the four-ink panel's inks, index for index. The
+#: art helpers (``skyart.accent_yellow``, ``artkit.accent_red``) fill with the
+#: measured Inky values on any RGB canvas, whichever panel is configured;
+#: outside an art region the nearest-colour snap lands those on the right ink,
+#: and inside one they must be remapped *before* diffusion, or a solid disc of
+#: (208,190,71) is diffused against (255,255,0) and comes out speckled.
+G_EXACT_REMAP: dict[tuple[int, int, int], tuple[int, int, int]] = dict(
+    zip(INKY_SPECTRA6_PALETTE, WAVESHARE_G_STYLE_PALETTE)
+)
+
+
 def dither_art_regions(
     source: Image.Image,
     plate: Image.Image,
     regions: list[Rect] | None,
     place: tuple[float, float, int, int],
     palette: list[tuple[int, int, int]],
+    remap: dict[tuple[int, int, int], tuple[int, int, int]] | None = None,
 ) -> Image.Image:
     """Floyd-Steinberg the declared art *regions* onto *plate*, in the panel's inks.
 
@@ -167,7 +180,10 @@ def dither_art_regions(
     error drift in hue and sprinkles a dark sky with red and green dots.
     Coloured pixels take the full palette, where a tone the panel lacks
     becomes a mixture of the inks it has; diffusion has no error to spread on
-    an exact ink, so a solid yellow disc stays solid.
+    an exact ink, so a solid yellow disc stays solid. *remap* names exact
+    colours to substitute first — the Spectra-6 accents the art helpers draw
+    with, onto the panel's own inks — so they *are* exact inks by the time
+    they are diffused.
     """
     if not regions:
         return plate
@@ -179,7 +195,13 @@ def dither_art_regions(
         if x1 - x0 < 1 or y1 - y0 < 1:
             continue
         tile = source.crop((x0, y0, x1, y1)).convert("RGB")
-        arr = np.asarray(tile, dtype=np.int16)
+        arr = np.array(tile, dtype=np.int16)
+        if remap:
+            for src_rgb, dst_rgb in remap.items():
+                hit = np.all(arr == np.array(src_rgb, dtype=np.int16), axis=2)
+                if hit.any():
+                    arr[hit] = np.array(dst_rgb, dtype=np.int16)
+            tile = Image.fromarray(arr.astype(np.uint8), mode="RGB")
         neutral = (arr.max(axis=2) - arr.min(axis=2)) <= NEUTRAL_SPREAD
         # Greys: the 1-bit engraving, mapped onto the panel's two neutral inks.
         bilevel = np.asarray(tile.convert("L").convert("1", dither=Image.Dither.FLOYDSTEINBERG))
@@ -338,7 +360,12 @@ class WaveshareColorBackend(DisplayBackend):
             rgb = fit_canvas(rgb, target, scaling=scaling, background=pad)
         plate = quantize_to_palette_nearest(rgb, self._palette)
         return dither_art_regions(
-            rgb, plate, dither_regions, placement(canvas_size, target, scaling), self._palette
+            rgb,
+            plate,
+            dither_regions,
+            placement(canvas_size, target, scaling),
+            self._palette,
+            remap=G_EXACT_REMAP,
         )
 
 

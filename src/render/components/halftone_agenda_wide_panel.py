@@ -59,6 +59,7 @@ from src.render.primitives import (
     draw_text_truncated,
     events_for_day,
     fmt_time,
+    next_birthday,
     text_height,
     text_width,
 )
@@ -92,10 +93,9 @@ FORECAST_MAX = 4
 BIRTHDAY_MAX = 3
 BIRTHDAY_LOOKAHEAD_DAYS = 14
 
-# How many days past today the agenda and the rail can reach: the agenda rolls
-# to tomorrow after dark, and the rail then shows the day after. The theme's
-# event window is widened by this in ``src.app``.
-EXTRA_EVENT_DAYS = 2
+# The agenda rolls to tomorrow after dark and the rail then shows the day
+# after, so the plate reaches two days past today; ``EXTRA_EVENT_DAYS`` in
+# ``src.app`` widens the event window by that much for this theme.
 
 _LABEL_PT = 14
 
@@ -682,15 +682,8 @@ def forecast_rows(weather: WeatherData | None, today: date, limit: int) -> list:
 
 
 def birthday_countdown(bday: Birthday, today: date) -> tuple[int, str]:
-    """``(days_until, label)`` using the birthday bar's convention (Feb 29 → Feb 28)."""
-    for year in (today.year, today.year + 1):
-        try:
-            when = bday.date.replace(year=year)
-        except ValueError:
-            when = date(year, 2, 28)
-        if when >= today:
-            break
-    days_until = (when - today).days
+    """``(days_until, label)`` for the next anniversary; see ``primitives.next_birthday``."""
+    days_until = (next_birthday(bday.date, today) - today).days
     if days_until == 0:
         label = "Today!"
     elif days_until == 1:

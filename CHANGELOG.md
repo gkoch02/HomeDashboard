@@ -42,7 +42,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   has no ink for — orange over yellow and red — becomes a mixture rather than
   whichever ink is nearest. Type and rules outside the regions stay solid.
   Registered for `halftone`, `halftone_agenda`, `halftone_agenda_wide` and
-  `day_arc`; the four Inky previews are regenerated. Applies on the 10.85" G
+  `day_arc`; the four Inky previews are regenerated. Neutral pixels diffuse
+  against black and white only, and the Spectra-6 accents the art helpers
+  draw with are remapped onto the G inks before diffusion, so a solid sun
+  stays solid and a night sky stays free of coloured speckle.
+- **Random rotation respects the panel's shape.** A theme whose canvas would
+  be fitted with padding on the configured panel — the 1360 × 480 themes on an
+  800 × 480 panel, and the reverse — is left out of the `random_daily` /
+  `random_hourly` pool. The default refresh cooldown is now keyed on the
+  display spec rather than the provider, so the four-ink Waveshare model gets
+  the 60 s Inky has for the same reason. Applies on the 10.85" G
   panel and on Inky (where the diffusion targets the measured Spectra 6
   values so the driver's own mapping is the identity on them).
 - **`halftone_agenda_wide`** — the split-plate agenda drawn for the 1360 × 480

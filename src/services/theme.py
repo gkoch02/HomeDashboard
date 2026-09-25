@@ -82,6 +82,7 @@ def resolve_theme_name(
             # at the host-tz midnight, and --dry-run --date previews ignore
             # the date override for the daily variant.
             today=now.date() if now is not None else None,
+            panel=(cfg.display.width, cfg.display.height),
         )
         theme_name = theme_name or pseudo_name
     elif theme_name == "random_hourly":
@@ -93,6 +94,7 @@ def resolve_theme_name(
             exclude=cfg.random_theme.exclude,
             output_dir=cfg.state_dir,
             now=now,
+            panel=(cfg.display.width, cfg.display.height),
             persist=persist,
         )
         theme_name = theme_name or pseudo_name

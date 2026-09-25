@@ -249,7 +249,11 @@ def validate_config(
                 )
         from src.render.random_theme import eligible_themes
 
-        pool = eligible_themes(cfg.random_theme.include, cfg.random_theme.exclude)
+        pool = eligible_themes(
+            cfg.random_theme.include,
+            cfg.random_theme.exclude,
+            (cfg.display.width, cfg.display.height),
+        )
         if not pool:
             warnings.append(
                 ConfigWarning(
@@ -712,7 +716,13 @@ def _themes_declining_partial_refresh(cfg) -> list[str]:
     if cfg.theme in pseudo:
         from src.render.random_theme import eligible_themes
 
-        candidates.update(eligible_themes(cfg.random_theme.include, cfg.random_theme.exclude))
+        candidates.update(
+            eligible_themes(
+                cfg.random_theme.include,
+                cfg.random_theme.exclude,
+                (cfg.display.width, cfg.display.height),
+            )
+        )
     else:
         candidates.add(cfg.theme)
     candidates.update(entry.theme for entry in cfg.theme_schedule.entries)

@@ -40,6 +40,7 @@ from PIL import ImageDraw
 
 from src.data.models import Birthday, CalendarEvent, DashboardData, WeatherData
 from src.render.artkit import to_local_naive
+from src.render.components.day_arc_panel import event_state
 from src.render.icons import draw_weather_icon
 from src.render.primitives import (
     content_time,
@@ -51,6 +52,7 @@ from src.render.primitives import (
     filled_rect,
     fmt_time,
     hline,
+    next_birthday,
     text_height,
     text_width,
     vline,
@@ -152,15 +154,6 @@ def axis_hours(events: list[CalendarEvent], today: date) -> tuple[int, int]:
     return max(0, start), min(24, end)
 
 
-def event_state(evt: CalendarEvent, now: datetime) -> str:
-    """``"past"``, ``"active"`` or ``"upcoming"`` relative to *now* (naive local)."""
-    if evt.end <= now:
-        return "past"
-    if evt.start <= now:
-        return "active"
-    return "upcoming"
-
-
 def upcoming_events(events: list[CalendarEvent], now: datetime, limit: int) -> list[CalendarEvent]:
     """The next *limit* timed events starting after *now*, soonest first."""
     later = [e for e in events if not e.is_all_day and e.start > now]
@@ -168,15 +161,8 @@ def upcoming_events(events: list[CalendarEvent], now: datetime, limit: int) -> l
 
 
 def next_occurrence(bday: Birthday, today: date) -> date:
-    """*bday*'s next anniversary on or after *today* (Feb 29 → Feb 28 off leap years)."""
-    for year in (today.year, today.year + 1):
-        try:
-            candidate = bday.date.replace(year=year)
-        except ValueError:
-            candidate = date(year, 2, 28)
-        if candidate >= today:
-            return candidate
-    return today  # unreachable: next year always qualifies
+    """*bday*'s next anniversary on or after *today*; see ``primitives.next_birthday``."""
+    return next_birthday(bday.date, today)
 
 
 def upcoming_birthdays(
@@ -504,10 +490,10 @@ def _draw_bar(
     """Draw one event bar and its label; the treatment encodes *state*."""
     bx0, bx1 = bar.x0, bar.x1
     by0, by1 = top, top + LANE_H
-    if state == "active":
+    if state == "now":
         filled_rect(draw, (bx0, by0, bx1, by1), fill=_alert_fill(style))
         inside_fill = style.bg
-    elif state == "upcoming":
+    elif state == "next":
         draw.rectangle((bx0, by0, bx1, by1), outline=style.fg, width=2)
         inside_fill = style.fg
     else:

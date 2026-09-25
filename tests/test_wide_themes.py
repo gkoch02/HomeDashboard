@@ -154,8 +154,9 @@ class TestAxisHours:
 class TestEventState:
     def test_states(self):
         evt = _event("a", 10, 11)
-        assert wd.event_state(evt, FIXED_NOW.replace(hour=9)) == "upcoming"
-        assert wd.event_state(evt, FIXED_NOW.replace(hour=10, minute=30)) == "active"
+        # The vocabulary is day_arc's, shared rather than re-derived.
+        assert wd.event_state(evt, FIXED_NOW.replace(hour=9)) == "next"
+        assert wd.event_state(evt, FIXED_NOW.replace(hour=10, minute=30)) == "now"
         assert wd.event_state(evt, FIXED_NOW.replace(hour=11, minute=0)) == "past"
 
 

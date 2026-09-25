@@ -69,7 +69,7 @@ class TestRegistration:
     def test_event_window_reaches_two_days_past_the_week(self):
         from src.app import EXTRA_EVENT_DAYS, THEMES_NEEDING_TOMORROW
 
-        assert EXTRA_EVENT_DAYS["halftone_agenda_wide"] == hw.EXTRA_EVENT_DAYS == 2
+        assert EXTRA_EVENT_DAYS["halftone_agenda_wide"] == 2
         assert "halftone_agenda_wide" in THEMES_NEEDING_TOMORROW
 
 

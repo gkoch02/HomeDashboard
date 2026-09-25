@@ -281,6 +281,23 @@ def wrap_lines(text: str, font, max_width: int) -> list[str]:
     return lines
 
 
+def next_birthday(bday_date: date, today: date) -> date:
+    """The next anniversary of *bday_date* on or after *today*.
+
+    A Feb 29 birthday falls on Feb 28 in a non-leap year rather than being
+    dropped or raising — the one convention every panel that lists birthdays
+    follows, kept here so none of them can drift from it.
+    """
+    for year in (today.year, today.year + 1):
+        try:
+            candidate = bday_date.replace(year=year)
+        except ValueError:
+            candidate = bday_date.replace(year=year, day=28)
+        if candidate >= today:
+            return candidate
+    return candidate  # unreachable: next year's anniversary is always ahead
+
+
 def events_for_day(events: list, day: date) -> list:
     """Filter events that fall on the given day, sorted all-day first then by start time."""
     result = []
