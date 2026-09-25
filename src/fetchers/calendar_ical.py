@@ -9,7 +9,7 @@ from urllib.parse import urlparse
 
 import requests  # type: ignore[import-untyped]
 
-from src._time import day_start_utc, week_start
+from src._time import event_window_utc, week_start
 from src.data.models import CalendarEvent
 from src.fetchers.calendar_google import _today
 from src.fetchers.errors import CalendarFetchError
@@ -68,8 +68,7 @@ def fetch_from_ical(
 
     today = _today(tz)
     window_start = start_date if start_date is not None else week_start(today)
-    time_min = day_start_utc(window_start, tz)
-    time_max = time_min + timedelta(days=days)
+    time_min, time_max = event_window_utc(window_start, days, tz)
 
     all_events: list[CalendarEvent] = []
     for url in urls:

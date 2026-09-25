@@ -1577,3 +1577,47 @@ class TestFetchFullOmitsOrderBy:
         assert token == "tok1"
         _, kwargs = svc.events().list.call_args
         assert "orderBy" not in kwargs
+
+
+# ---------------------------------------------------------------------------
+# _strip_birthday_keyword (#259)
+# ---------------------------------------------------------------------------
+
+
+class TestStripBirthdayKeyword:
+    """``str.replace`` was case-sensitive and ``.strip(" :'s")`` stripped a
+    character set, so ``"James's Birthday"`` became ``"Jame"`` and
+    ``"Sam's birthday"`` kept the keyword."""
+
+    @pytest.mark.parametrize(
+        "summary, expected",
+        [
+            ("James's Birthday", "James"),
+            ("Chris Birthday", "Chris"),
+            ("Sam's birthday", "Sam"),
+            ("Alice's Birthday", "Alice"),
+            ("Birthday: Bob", "Bob"),
+            ("BIRTHDAY - Dana", "Dana"),
+            ("Jess’s birthday", "Jess"),
+        ],
+    )
+    def test_name_extraction(self, summary, expected):
+        from src.fetchers.calendar import _strip_birthday_keyword
+
+        assert _strip_birthday_keyword(summary, "Birthday") == expected
+
+    @patch("src.fetchers.calendar._build_service")
+    def test_end_to_end_through_fetch_birthdays(self, mock_build):
+        today = date.today()
+        upcoming = today + timedelta(days=5)
+        mock_service = MagicMock()
+        mock_build.return_value = mock_service
+        mock_service.events().list().execute.return_value = {
+            "items": [
+                {"summary": s, "start": {"date": upcoming.isoformat()}}
+                for s in ("James's Birthday", "Chris Birthday", "Sam's birthday")
+            ]
+        }
+        cfg_bday = BirthdayConfig(source="calendar", calendar_keyword="Birthday", lookahead_days=30)
+        names = [b.name for b in fetch_birthdays(GoogleConfig(), cfg_bday)]
+        assert names == ["James", "Chris", "Sam"]

@@ -23,7 +23,7 @@ from typing import Any
 # _fetch_incremental so only runs that actually talk to the Google API pay
 # for them (same discipline as calendar_caldav's local `import caldav`).
 from src._io import atomic_write_json
-from src._time import day_start_utc, week_start
+from src._time import event_window_utc, week_start
 from src.config import GoogleConfig
 from src.data.models import CalendarEvent
 
@@ -139,8 +139,7 @@ def fetch_google_events(
     today = _today(tz)
     # Start from Monday of the current week by default to match the standard week view.
     window_start = start_date if start_date is not None else week_start(today)
-    time_min = day_start_utc(window_start, tz)
-    time_max = time_min + timedelta(days=days)
+    time_min, time_max = event_window_utc(window_start, days, tz)
 
     sync_state = _load_sync_state(cache_dir) if cache_dir else {}
 
@@ -155,8 +154,8 @@ def fetch_google_events(
         stored: list[dict] = cal_state.get("events", [])
         stored_start = cal_state.get("window_start")
         stored_end = cal_state.get("window_end")
-        requested_start = time_min.date().isoformat()
-        requested_end = time_max.date().isoformat()
+        requested_start = window_start.isoformat()
+        requested_end = (window_start + timedelta(days=days)).isoformat()
 
         try:
             if sync_token and stored_start == requested_start and stored_end == requested_end:
