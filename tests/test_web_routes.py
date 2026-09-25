@@ -341,6 +341,39 @@ def _write_error(app, ts):
     )
 
 
+def test_status_surfaces_current_error(app, client):
+    """/api/status carries the error marker and the overall health names the crash (#263)."""
+    _write_success(app, "2026-06-09T12:00:00+00:00")
+    _write_error(app, "2026-06-09T12:05:00+00:00")
+    data = json.loads(client.get("/api/status").data)
+    assert data["last_error"]["is_current"] is True
+    assert data["last_error"]["exception_type"] == "RuntimeError"
+    assert data["last_error"]["message"] == "boom"
+    assert data["overall"]["status"] == "needs_attention"
+    assert data["overall"]["title"] == "Last dashboard run failed"
+    assert data["overall"]["issues"][0]["kind"] == "last_run"
+    assert "RuntimeError: boom" in data["overall"]["issues"][0]["message"]
+
+
+def test_status_ignores_error_older_than_last_success(app, client):
+    _write_error(app, "2026-06-09T11:55:00+00:00")
+    _write_success(app, "2026-06-09T12:00:00+00:00")
+    data = json.loads(client.get("/api/status").data)
+    assert data["last_error"]["is_current"] is False
+    assert data["overall"]["status"] != "needs_attention"
+    assert all(i["kind"] != "last_run" or i["severity"] != "bad" for i in data["overall"]["issues"])
+
+
+def test_status_without_error_marker_has_empty_last_error(client):
+    data = json.loads(client.get("/api/status").data)
+    assert data["last_error"] == {
+        "timestamp": None,
+        "exception_type": None,
+        "message": None,
+        "is_current": False,
+    }
+
+
 def test_health_no_success_marker_is_unhealthy(client):
     resp = client.get("/api/health")
     assert resp.status_code == 503

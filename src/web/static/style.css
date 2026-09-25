@@ -783,3 +783,21 @@ input[readonly], input[disabled] { background: var(--bg); color: var(--text-mute
   }
   .cfg-jump-nav a:hover { background: var(--border); }
 }
+
+/* Last failed run (#263) — the renderer's error marker, in the health card */
+.last-error {
+  margin-top: .75rem;
+  padding: .6rem .8rem;
+  border-left: 3px solid var(--bad, #c0392b);
+  background: rgba(192, 57, 43, .06);
+  border-radius: 4px;
+}
+.last-error-head { display: flex; justify-content: space-between; gap: 1rem; margin-bottom: .3rem; }
+.last-error-message {
+  margin: .3rem 0 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: .85rem;
+  max-height: 8rem;
+  overflow: auto;
+}

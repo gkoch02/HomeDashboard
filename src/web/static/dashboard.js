@@ -135,41 +135,51 @@ function renderBackupList(backups = []) {
   ).join("");
 }
 
-function summarizeChanges(current, baseline, prefix = "") {
+// The form's patch is flat ("display.show_weather"), but /api/config is
+// nested ({display: {show_weather}}), so diffing one against the other used
+// to report every nested field as removed and every dotted one as added — an
+// untouched form showed dozens of changes and the real edit hid among them
+// (#262). Flatten the baseline to the same dotted keys first.
+const CONFIG_SECTIONS = [
+  "display", "schedule", "weather", "birthdays", "filters", "cache", "random_theme",
+];
+
+function flattenConfigBaseline(cfg) {
+  if (!cfg) return {};
+  const flat = {};
+  for (const key of ["title", "theme", "timezone", "log_level"]) {
+    if (key in cfg) flat[key] = cfg[key];
+  }
+  for (const section of CONFIG_SECTIONS) {
+    const values = cfg[section];
+    if (!values || typeof values !== "object") continue;
+    for (const [key, value] of Object.entries(values)) {
+      if (key.startsWith("_")) continue;  // _api_key_set flags, read-only _model etc.
+      flat[`${section}.${key}`] = value;
+    }
+  }
+  flat["theme_schedule"] = Array.isArray(cfg.theme_schedule) ? cfg.theme_schedule : [];
+  flat["theme_rules"] = cfg.theme_rules_yaml || "";
+  return flat;
+}
+
+// Only fields the form actually carries can change, so the diff runs over the
+// patch's keys: a baseline value the page has no control for (a section the
+// template omits) is not an unsaved change.
+function summarizeChanges(current, baseline) {
   const changes = [];
-  const keys = new Set([...Object.keys(current || {}), ...Object.keys(baseline || {})]);
-  for (const key of keys) {
-    const path = prefix ? `${prefix}.${key}` : key;
-    const a = current?.[key];
+  for (const key of Object.keys(current || {})) {
+    const a = current[key];
     const b = baseline?.[key];
     if (JSON.stringify(a) === JSON.stringify(b)) continue;
-    const bothObjects = a && b && typeof a === "object" && typeof b === "object" && !Array.isArray(a) && !Array.isArray(b);
-    if (bothObjects) {
-      changes.push(...summarizeChanges(a, b, path));
-    } else {
-      changes.push({ field: path, before: b, after: a });
-    }
+    changes.push({ field: key, before: b, after: a });
   }
   return changes;
 }
 
 function getCurrentChangeList() {
   if (!_lastLoadedConfig) return [];
-  return summarizeChanges(collectConfigPatch(), {
-    title: _lastLoadedConfig.title,
-    theme: _lastLoadedConfig.theme,
-    timezone: _lastLoadedConfig.timezone,
-    log_level: _lastLoadedConfig.log_level,
-    display: _lastLoadedConfig.display,
-    schedule: _lastLoadedConfig.schedule,
-    weather: _lastLoadedConfig.weather,
-    birthdays: _lastLoadedConfig.birthdays,
-    filters: _lastLoadedConfig.filters,
-    cache: _lastLoadedConfig.cache,
-    random_theme: _lastLoadedConfig.random_theme,
-    theme_schedule: _lastLoadedConfig.theme_schedule,
-    theme_rules: _lastLoadedConfig.theme_rules_yaml || "",
-  });
+  return summarizeChanges(collectConfigPatch(), flattenConfigBaseline(_lastLoadedConfig));
 }
 
 function updateChangeSummary() {
@@ -236,7 +246,13 @@ function buildTroubleshootingItems(data) {
   if (data.quiet_hours_active) {
     items.push({ severity: "warn", text: `Quiet hours are active until ${data.quiet_hours_end}:00.` });
   }
-  if (data.seconds_since_run === null || data.seconds_since_run === undefined) {
+  if (data.last_error && data.last_error.is_current) {
+    const err = data.last_error;
+    items.push({
+      severity: "bad",
+      text: `The last dashboard run failed (${err.exception_type || "error"}: ${err.message || "no message"}). Check the recent log below.`,
+    });
+  } else if (data.seconds_since_run === null || data.seconds_since_run === undefined) {
     items.push({ severity: "warn", text: "No successful dashboard run has been recorded yet." });
   } else if (data.seconds_since_run > 7200 && !data.quiet_hours_active) {
     items.push({ severity: "warn", text: "The dashboard may be behind; last successful run was over 2 hours ago." });
@@ -295,10 +311,25 @@ function applyStatus(data) {
     if (issues) {
       const issueHtml = (data.overall.issues || []).length
         ? data.overall.issues.map(issue =>
-            `<div class="issue-chip issue-${issue.severity || 'warn'}">${issue.kind}: ${issue.message}</div>`
+            `<div class="issue-chip issue-${esc_html(issue.severity || 'warn')}">${esc_html(issue.kind)}: ${esc_html(issue.message)}</div>`
           ).join("")
         : '<div class="issue-chip issue-ok">No immediate issues.</div>';
       set_html(issues, issueHtml);
+    }
+  }
+
+  // Last failed run (#263): the renderer's error marker, shown whenever it is
+  // newer than the last success so a crash loop is visible at a glance.
+  const lastError = $("last-error");
+  if (lastError) {
+    const err = data.last_error;
+    if (err && err.is_current) {
+      lastError.hidden = false;
+      set_text("last-error-type", err.exception_type || "Error");
+      set_text("last-error-message", err.message || "");
+      set_text("last-error-time", err.timestamp ? err.timestamp.replace("T", " ") : "");
+    } else {
+      lastError.hidden = true;
     }
   }
 

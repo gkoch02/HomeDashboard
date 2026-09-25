@@ -45,6 +45,28 @@ _write_lock = threading.Lock()
 _MAX_ROTATED_BACKUPS = 10
 
 
+class ConfigReadError(Exception):
+    """The on-disk config could not be read or parsed.
+
+    Raised instead of degrading to an empty dict: a save that starts from
+    ``{}`` validates (everything defaults), and then *replaces* the file with
+    only the patched keys — API keys, calendar URLs and every field not on the
+    form gone, reported as "Saved" (#260). Callers turn this into a structured
+    error that blocks the write.
+    """
+
+
+class ConfigBackupError(Exception):
+    """The pre-write backup could not be taken, so the write did not happen.
+
+    The backup is the only recovery path a web save leaves behind; proceeding
+    without one turns an ordinary I/O hiccup into an unrecoverable overwrite.
+    """
+
+
+_READ_ERROR_HINT = "Fix the file on disk (or its permissions) and reload this page before saving."
+
+
 @contextlib.contextmanager
 def config_write_lock():
     """Public accessor for the module's serialisation lock.
@@ -225,7 +247,11 @@ def _theme_rules_yaml(config_path: str) -> str:
     Reads the raw file (not the parsed Config) so the round-trip is lossless —
     unknown keys a future version might add survive an unrelated save.
     """
-    rules = _load_raw_yaml(config_path).get("theme_rules")
+    try:
+        rules = _load_raw_yaml(config_path).get("theme_rules")
+    except ConfigReadError as exc:
+        logger.warning("Could not load theme_rules from %s: %s", config_path, exc)
+        return ""
     if not rules:
         return ""
     return yaml.dump(rules, default_flow_style=False, allow_unicode=True, sort_keys=False)
@@ -299,7 +325,10 @@ def apply_patch(config_path: str, patch: dict) -> tuple[bool, list[dict], list[d
     patch, parse_errors = _normalise_patch(patch)
     safe_patch = {k: v for k, v in patch.items() if k in EDITABLE_FIELD_PATHS}
 
-    raw = _load_raw_yaml(config_path)
+    try:
+        raw = _load_raw_yaml(config_path)
+    except ConfigReadError as exc:
+        return False, [_read_error(exc)], []
     updated_raw = _apply_to_raw(raw, safe_patch)
 
     _cfg, errors_obj, warnings_obj = _validate_raw(updated_raw)
@@ -310,11 +339,26 @@ def apply_patch(config_path: str, patch: dict) -> tuple[bool, list[dict], list[d
     warnings = [{"field": w.field, "message": w.message, "hint": w.hint} for w in warnings_obj]
 
     if not errors_obj and not parse_errors:
-        with _write_lock:
-            _write_raw_yaml(config_path, updated_raw)
+        try:
+            with _write_lock:
+                _write_raw_yaml(config_path, updated_raw)
+        except ConfigBackupError as exc:
+            return False, [_backup_error(exc)], warnings
         return True, errors, warnings
 
     return False, errors, warnings
+
+
+def _read_error(exc: ConfigReadError) -> dict:
+    return {"field": "config", "message": str(exc), "hint": _READ_ERROR_HINT}
+
+
+def _backup_error(exc: ConfigBackupError) -> dict:
+    return {
+        "field": "config",
+        "message": str(exc),
+        "hint": "Nothing was written. Check the config directory's free space and permissions.",
+    }
 
 
 def build_patched_config(
@@ -333,7 +377,10 @@ def build_patched_config(
     patch, parse_errors = _normalise_patch(patch)
     safe_patch = {k: v for k, v in patch.items() if k in EDITABLE_FIELD_PATHS}
 
-    raw = _load_raw_yaml(config_path)
+    try:
+        raw = _load_raw_yaml(config_path)
+    except ConfigReadError as exc:
+        return None, [_read_error(exc)], []
     updated_raw = _apply_to_raw(raw, safe_patch)
 
     cfg, errors_obj, warnings_obj = _validate_raw(updated_raw)
@@ -354,15 +401,30 @@ def build_patched_config(
 
 
 def _load_raw_yaml(config_path: str) -> dict:
+    """Return the raw YAML mapping at *config_path*.
+
+    A missing file is an empty mapping — a first save creates it. Anything
+    else that stops the file being read as a mapping raises
+    :class:`ConfigReadError`; degrading to ``{}`` here is how a save came to
+    overwrite the whole config with just the patched keys (#260).
+    """
     path = Path(config_path)
     if not path.exists():
         return {}
     try:
         with open(path) as f:
-            return yaml.safe_load(f) or {}
-    except Exception as exc:
-        logger.warning("Could not load %s: %s", config_path, exc)
+            raw = yaml.safe_load(f)
+    except OSError as exc:
+        raise ConfigReadError(f"Could not read {path.name}: {exc}") from exc
+    except yaml.YAMLError as exc:
+        raise ConfigReadError(f"{path.name} is not valid YAML: {exc}") from exc
+    if raw is None:
         return {}
+    if not isinstance(raw, dict):
+        raise ConfigReadError(
+            f"{path.name} must be a YAML mapping at the top level, got {type(raw).__name__}"
+        )
+    return raw
 
 
 def _rotated_backup_path(path: Path) -> Path:
@@ -416,8 +478,11 @@ def _prune_rotated_backups(path: Path, keep: int = _MAX_ROTATED_BACKUPS) -> None
 def _write_raw_yaml(config_path: str, raw: dict, *, rotate_backup: bool = True) -> None:
     """Write *raw* to *config_path* atomically using a temp-file rename.
 
-    A backup copy is written to ``<config>.bak`` before overwriting.  Backup
-    failure is non-fatal — a warning is logged and the save proceeds normally.
+    A backup copy is written to ``<config>.bak`` before overwriting. A backup
+    that cannot be taken raises :class:`ConfigBackupError` *before* the target
+    is touched: the backup is the one recovery path a web save leaves behind,
+    and proceeding without it used to turn a read failure into a silent
+    overwrite with no way back (#260).
     """
     path = Path(config_path)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -439,6 +504,7 @@ def _write_raw_yaml(config_path: str, raw: dict, *, rotate_backup: bool = True) 
                 os.unlink(tmp_b)
             except OSError:
                 pass
+            raise ConfigBackupError(f"Could not write config backup to {bak.name}: {exc}") from exc
 
     fd, tmp = tempfile.mkstemp(dir=path.parent, suffix=".tmp")
     try:
