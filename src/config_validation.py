@@ -68,6 +68,19 @@ def validate_config(
         )
         return errors, warnings  # Can't validate further without a config file
 
+    # --- Values load_config() could not read ---
+    # The parser keeps the default for these rather than raising (a quoted
+    # number used to reach the range checks below as text and TypeError out
+    # of this very function). Each one is a typo the user needs named.
+    for path, message in list(getattr(cfg, "unreadable", ()) or ()):
+        errors.append(
+            ConfigError(
+                field=path,
+                message=f"{path} {message}",
+                hint="Fix the value in config.yaml (numbers unquoted, lists as '- item' lines).",
+            )
+        )
+
     # --- Google / Calendar ---
     using_caldav = bool(cfg.google.caldav_url)
     using_ical = bool(cfg.google.ical_url)

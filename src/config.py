@@ -282,6 +282,19 @@ class Config:
     log_level: str = "INFO"
     timezone: str = "local"
 
+    def __post_init__(self) -> None:
+        # ``(field_path, message)`` for every YAML value load_config() could
+        # not read and replaced with the default — a quoted or non-numeric
+        # number, a mapping where a list belongs, a bare string where a
+        # theme_schedule entry belongs. validate_config() reports each as a
+        # ConfigError; the parser itself never raises on them, because
+        # load_config() is the one function with no error boundary above it
+        # (see _section). Deliberately an instance attribute rather than a
+        # dataclass field: it is not a YAML key, and everything that walks
+        # ``dataclasses.fields(Config)`` (the web schema, the example-config
+        # check) must not see it as one.
+        self.unreadable: list[tuple[str, str]] = []
+
 
 def resolve_tz(tz_name: str) -> tzinfo:
     """Return a tzinfo for the given IANA name, or the system local timezone for 'local'."""
@@ -385,6 +398,61 @@ def _optional_int(value: Any) -> int | None:
         return None
 
 
+def _read_number(block: dict, key: str, default, cast, path: str, unreadable: list):
+    """Read ``block[key]`` as a number, or record it and return *default*.
+
+    ``load_config()`` used to store YAML scalars verbatim, so a quoted number
+    (``quiet_hours_start: "23"``) reached ``validate_config()`` as text and
+    the comparison there raised ``TypeError`` — from the very function that
+    exists to report the mistake — taking down every renderer run,
+    ``--check-config`` and both web pages. Values validation never looked at
+    (``lookahead_days``, the TTLs) got as far as ``timedelta(minutes="30")``.
+
+    A readable value is returned in its proper type (``"23"`` → 23, ``40`` →
+    40.0 for a float field). An unreadable one keeps the default and is
+    appended to *unreadable* as ``(path, message)`` for validate_config() to
+    name. Booleans are unreadable for the same reason ``_optional_number``
+    rejects them: YAML 1.1 reads ``yes``/``on`` as ``True`` and ``int(True)``
+    is a plausible-looking 1. A float with a fractional part is unreadable
+    for an int field rather than silently truncated.
+    """
+    value = block.get(key)
+    if value is None:
+        return default
+    if not isinstance(value, bool):
+        try:
+            number = cast(value)
+        except (TypeError, ValueError):
+            number = None
+        if number is not None and not (
+            cast is int and isinstance(value, float) and value != number
+        ):
+            return number
+    unreadable.append((path, f"must be a number, got {value!r}; using {default!r}"))
+    return default
+
+
+def _read_list(block: dict, key: str, path: str, unreadable: list) -> list:
+    """Read ``block[key]`` as a list, or record it and return ``[]``.
+
+    A list key left empty (``additional_ical_urls:`` with nothing under it)
+    parses as ``None``, and every consumer then does ``list(value)`` — which
+    raised ``TypeError`` on every calendar fetch, an error ``retry_fetch``
+    treats as permanent. ``None`` is "nothing configured" and reads as ``[]``
+    without comment; a lone scalar is wrapped, since ``exclude_keywords:
+    standup`` plainly means a one-item list; a mapping is unreadable.
+    """
+    value = block.get(key)
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return value
+    if isinstance(value, (str, int, float)) and not isinstance(value, bool):
+        return [value]
+    unreadable.append((path, f"must be a list, got {value!r}; ignoring it"))
+    return []
+
+
 def _normalise_one_call_version(value: object) -> str:
     """Coerce a raw weather.one_call_version YAML value to its canonical string.
 
@@ -430,17 +498,24 @@ def load_config(path: str = "config/config.yaml") -> Config:
         raw = migrate_in_memory(raw)
 
     cfg = Config()
+    bad = cfg.unreadable
 
     if "google" in raw:
         g = _section(raw, "google")
         cfg.google = GoogleConfig(
             service_account_path=g.get("service_account_path", cfg.google.service_account_path),
             calendar_id=g.get("calendar_id", cfg.google.calendar_id),
-            additional_calendars=g.get("additional_calendars", []),
+            additional_calendars=_read_list(
+                g, "additional_calendars", "google.additional_calendars", bad
+            ),
             contacts_email=g.get("contacts_email", ""),
-            daily_quota_warning=g.get("daily_quota_warning", 500),
+            daily_quota_warning=_read_number(
+                g, "daily_quota_warning", 500, int, "google.daily_quota_warning", bad
+            ),
             ical_url=g.get("ical_url", ""),
-            additional_ical_urls=g.get("additional_ical_urls", []),
+            additional_ical_urls=_read_list(
+                g, "additional_ical_urls", "google.additional_ical_urls", bad
+            ),
             caldav_url=g.get("caldav_url", ""),
             caldav_username=g.get("caldav_username", ""),
             caldav_password_file=g.get("caldav_password_file", ""),
@@ -451,8 +526,8 @@ def load_config(path: str = "config/config.yaml") -> Config:
         w = _section(raw, "weather")
         cfg.weather = WeatherConfig(
             api_key=w.get("api_key", ""),
-            latitude=w.get("latitude", 0.0),
-            longitude=w.get("longitude", 0.0),
+            latitude=_read_number(w, "latitude", 0.0, float, "weather.latitude", bad),
+            longitude=_read_number(w, "longitude", 0.0, float, "weather.longitude", bad),
             units=w.get("units", "imperial"),
             one_call_version=_normalise_one_call_version(w.get("one_call_version", "3.0")),
         )
@@ -463,7 +538,9 @@ def load_config(path: str = "config/config.yaml") -> Config:
             source=b.get("source", "file"),
             file_path=b.get("file_path", "config/birthdays.json"),
             calendar_keyword=b.get("calendar_keyword", "Birthday"),
-            lookahead_days=b.get("lookahead_days", 30),
+            lookahead_days=_read_number(
+                b, "lookahead_days", 30, int, "birthdays.lookahead_days", bad
+            ),
         )
 
     if "display" in raw:
@@ -484,47 +561,64 @@ def load_config(path: str = "config/config.yaml") -> Config:
         cfg.display = DisplayConfig(
             provider=provider,
             model=model,
-            width=d.get("width", default_w),
-            height=d.get("height", default_h),
+            width=_read_number(d, "width", default_w, int, "display.width", bad),
+            height=_read_number(d, "height", default_h, int, "display.height", bad),
             enable_partial_refresh=d.get("enable_partial_refresh", False),
-            max_partials_before_full=d.get("max_partials_before_full", 20),
-            week_days=d.get("week_days", 7),
+            max_partials_before_full=_read_number(
+                d, "max_partials_before_full", 20, int, "display.max_partials_before_full", bad
+            ),
+            week_days=_read_number(d, "week_days", 7, int, "display.week_days", bad),
             show_weather=d.get("show_weather", True),
             show_birthdays=d.get("show_birthdays", True),
             show_info_panel=d.get("show_info_panel", True),
             quantization_mode=d.get("quantization_mode", "threshold"),
             scaling=str(d.get("scaling", "auto")),
-            min_refresh_interval_seconds=d.get("min_refresh_interval_seconds"),
+            min_refresh_interval_seconds=_read_number(
+                d,
+                "min_refresh_interval_seconds",
+                None,
+                int,
+                "display.min_refresh_interval_seconds",
+                bad,
+            ),
         )
 
     if "schedule" in raw:
         s = _section(raw, "schedule")
         cfg.schedule = ScheduleConfig(
-            quiet_hours_start=s.get("quiet_hours_start", 23),
-            quiet_hours_end=s.get("quiet_hours_end", 6),
+            quiet_hours_start=_read_number(
+                s, "quiet_hours_start", 23, int, "schedule.quiet_hours_start", bad
+            ),
+            quiet_hours_end=_read_number(
+                s, "quiet_hours_end", 6, int, "schedule.quiet_hours_end", bad
+            ),
         )
 
     if "cache" in raw:
         ca = _section(raw, "cache")
+
+        def minutes(key: str, default: int) -> int:
+            return _read_number(ca, key, default, int, f"cache.{key}", bad)
+
         cfg.cache = CacheConfig(
-            weather_ttl_minutes=ca.get("weather_ttl_minutes", 60),
-            events_ttl_minutes=ca.get("events_ttl_minutes", 120),
-            birthdays_ttl_minutes=ca.get("birthdays_ttl_minutes", 1440),
-            weather_fetch_interval=ca.get("weather_fetch_interval", 30),
-            events_fetch_interval=ca.get("events_fetch_interval", 120),
-            birthdays_fetch_interval=ca.get("birthdays_fetch_interval", 1440),
-            max_failures=ca.get("max_failures", 3),
-            cooldown_minutes=ca.get("cooldown_minutes", 30),
-            air_quality_ttl_minutes=ca.get("air_quality_ttl_minutes", 30),
-            air_quality_fetch_interval=ca.get("air_quality_fetch_interval", 15),
+            weather_ttl_minutes=minutes("weather_ttl_minutes", 60),
+            events_ttl_minutes=minutes("events_ttl_minutes", 120),
+            birthdays_ttl_minutes=minutes("birthdays_ttl_minutes", 1440),
+            weather_fetch_interval=minutes("weather_fetch_interval", 30),
+            events_fetch_interval=minutes("events_fetch_interval", 120),
+            birthdays_fetch_interval=minutes("birthdays_fetch_interval", 1440),
+            max_failures=minutes("max_failures", 3),
+            cooldown_minutes=minutes("cooldown_minutes", 30),
+            air_quality_ttl_minutes=minutes("air_quality_ttl_minutes", 30),
+            air_quality_fetch_interval=minutes("air_quality_fetch_interval", 15),
             quote_refresh=ca.get("quote_refresh", "daily"),
         )
 
     if "filters" in raw:
         fl = _section(raw, "filters")
         cfg.filters = FilterConfig(
-            exclude_calendars=fl.get("exclude_calendars", []),
-            exclude_keywords=fl.get("exclude_keywords", []),
+            exclude_calendars=_read_list(fl, "exclude_calendars", "filters.exclude_calendars", bad),
+            exclude_keywords=_read_list(fl, "exclude_keywords", "filters.exclude_keywords", bad),
             exclude_all_day=fl.get("exclude_all_day", False),
         )
 
@@ -547,15 +641,23 @@ def load_config(path: str = "config/config.yaml") -> Config:
     if "random_theme" in raw:
         rt = _section(raw, "random_theme")
         cfg.random_theme = RandomThemeConfig(
-            include=rt.get("include", []),
-            exclude=rt.get("exclude", []),
+            include=_read_list(rt, "include", "random_theme.include", bad),
+            exclude=_read_list(rt, "exclude", "random_theme.exclude", bad),
         )
 
     if "theme_schedule" in raw:
         raw_entries = raw["theme_schedule"]
         entries = []
         if isinstance(raw_entries, list):
-            for item in raw_entries:
+            for i, item in enumerate(raw_entries):
+                # ``- morning`` or a bare ``-`` used to raise AttributeError
+                # out of load_config(); theme_rules and countdown already skip
+                # non-mapping entries, and this loop now records them too.
+                if not isinstance(item, dict):
+                    bad.append(
+                        (f"theme_schedule[{i}]", f"must be a mapping, got {item!r}; skipped")
+                    )
+                    continue
                 entries.append(
                     ThemeScheduleEntry(
                         time=str(item.get("time", "")),
