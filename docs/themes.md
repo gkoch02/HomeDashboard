@@ -214,6 +214,21 @@ Rules that reference weather or calendar data silently skip on the first boot (n
 | `postcard` | nostalgic vista | Procedurally-drawn dithered postcard: left two-thirds is a scene (sky, mountains, water, foreground) keyed to the OWM icon + daypart; right third is the postcard back (cursive greeting, red postmark with month/day, postage stamp with moon glyph, ruled "address" lines listing today's events, daily quote as signature). Floyd-Steinberg quantization. |
 | `naturalist` | Victorian botanical plate | Astloch blackletter masthead with Roman-numeral plate / year / month; Cinzel small-caps Latin specimen name that shifts with season + weather; procedurally-drawn specimen branch with mixed filled/outlined leaves whose count and treatment vary by season (bare in winter, buds in spring, lush canopy in summer, fallen leaves in autumn) plus weather overlays (rain, snow, frost, fog). Four leader-line callouts pin event / moon / sun / weather data to anatomical features. Floyd-Steinberg quantization. |
 
+### Panoramic themes
+
+For a panel shaped like a strip — the Waveshare 10.85" (G) is 1360 × 480, nearly
+three times as wide as it is tall. These themes declare a 1360 × 480 canvas and
+draw at the panel's native size; the landscape themes above reach that panel
+letterboxed instead (see [`display.scaling`](configuration.md#scaling)). On an
+800 × 480 panel the panoramic themes letterbox the other way, as a band.
+
+| Theme | Best for | Notes |
+|---|---|---|
+| `wide_week` | the standard dashboard on a strip | The same header, week grid, weather, birthdays and quote at 1360 × 480: seven columns of 128 px, and the three information panels stacked in a full-height rail beside the grid. No new component. |
+| `wide_day` | today, hour by hour | A time axis across the whole middle of the strip with every timed event as a bar over its real span, packed into lanes with its name attached; date and weather at the left end, the next few events and the week's birthdays at the right. A NOW marker and the bar states follow the clock. |
+| `halftone_agenda_wide` | the split-plate agenda on a strip | `halftone_agenda` drawn for the strip: the engraving and weather band at the left, today's agenda at half again its usual width in the middle, and a third pane for what the 800 × 480 plate leaves out — alerts, the next day's events, the forecast, birthdays, air quality and the moon. Same engraving, same treatments, same fonts. |
+| `wide_forecast` | weather station on a strip | Current conditions as a hero block with a detail grid, five forecast cards in a row with precipitation bars, and a band beneath for alerts, air quality and the moon. |
+
 ### Utility themes
 
 | Theme | Best for | Notes |
@@ -466,6 +481,40 @@ Procedurally-drawn dithered postcard composed in two parts. The left two-thirds 
 Victorian botanical plate. **Astloch** blackletter masthead — `PLATE [Roman]` left, `[YEAR-roman] · [MONTH]` right — sits above a triple rule, with a Cinzel small-caps Latin specimen name (`QUERCUS VERNALIS`, `AESTIVALIS`, `AUTUMNALIS`, `HIBERNALIS` keyed to the current season, plus weather suffixes `· sub pluvia / fulmine / nive / nebula / gelu` for rain, storm, snow, fog, and frost). The hero specimen is a procedurally-drawn branch with a solid black trunk, white engraving-style highlight strokes, curving roots, and mixed filled/outlined almond leaves whose count and treatment vary by season — bare in winter, buds in spring, lush canopy in summer, fallen leaves on the ground in autumn — plus weather overlays for rain, storm, snow, frost, and fog. Four leader-line callouts (`FIG. I EVENT`, `FIG. II LUNA`, `FIG. III SOL`, `FIG. IV AER`) pin today's first event, the moon's phase, sunrise/sunset, and the current weather to anatomical features on the specimen. A triple-rule footer carries the daily quote in Playfair with the author in red Cinzel small caps. The branch geometry is RNG-seeded from `(season, modifier, today)` so the same day always renders the same specimen. Floyd-Steinberg quantization. On Inky the masthead rules, callout lines, footer rules, and author small caps render in red.
 
 [![Naturalist theme](../assets/previews/theme_naturalist.png)](../assets/previews/theme_naturalist.png)
+
+#### wide_week
+
+The standard dashboard at the native size of a panoramic panel. The Waveshare 10.85" (G) is 1360 × 480 — nearly three times as wide as it is tall — and an 800 × 480 theme reaches it either stretched, which makes a week grid unreadable, or fitted, which leaves a third of the panel blank on either side. This theme draws the same header, week grid, weather, birthdays and quote at 1360 × 480 instead, spending the width where a week grid wants it: seven columns of 128 px rather than 114, with the three information panels stacked top to bottom in a full-height rail beside the grid — the weather panel tall enough for its forecast strip, then birthdays, then the quote. No new component: every region is one of the standard five at a new size.
+
+Registered with a red-and-black accent pair. The 10.85" panel has four inks — black, white, yellow and red — and the two it lacks resolve to black at render time, so a theme meant for it names only the two it has: red for the section labels, the title and alerts, black for the glyphs and bullets. On a Spectra 6 panel the same pair applies; on a monochrome one both fall back to ink. On an 800 × 480 panel the theme renders as a letterboxed band.
+
+[![Wide week theme](../assets/previews/theme_wide_week.png)](../assets/previews/theme_wide_week.png)
+
+#### wide_day
+
+Today as a timeline across the strip — the panoramic theme that uses the panel's shape rather than tolerating it. The whole middle of the plate is an hour axis, 6 a.m. to 10 p.m. by default and widened when an event falls outside it, with every timed event drawn as a bar over its real start and end. Bars are packed into lanes: an event takes the first lane whose previous occupant has ended, and a bar too narrow for its title (a thirty-minute meeting is 24 px on a sixteen-hour axis) sets the title beside it and counts that label toward the packing, so a run of short meetings cascades down the lanes with every name attached instead of sitting in one lane as a row of anonymous boxes. Each bar encodes its event's state: one already over is outlined with a dashed rule in the regular weight, the one in progress is a solid bar in the alert accent with the text knocked out, and one still to come carries a solid two-pixel outline. All-day events sit as chips on the title row; a marker in the alert accent shows the current time.
+
+The left end carries the weekday, a hero day-of-month numeral, the month, then the weather now — icon, temperature, condition, high, low and feels-like, sunrise and sunset, wind — and an inverted alert bar when one is active. The right end is an UP NEXT rail listing the next few timed events still to come, reaching into tomorrow once today's are done (the theme is in `THEMES_NEEDING_TOMORROW` for that reason), then the birthdays of the coming week. DM Sans throughout.
+
+This is a time-driven plate: the marker and the bar states follow the clock, so the image changes every tick. On a colour panel, whose full refresh flashes for twenty seconds, set `display.min_refresh_interval_seconds` (900 spaces the writes to one a quarter hour); the throttle defers a change rather than dropping it. Red for the marker, the running event and the section labels; nothing on the plate asks for yellow.
+
+[![Wide day theme](../assets/previews/theme_wide_day.png)](../assets/previews/theme_wide_day.png)
+
+#### halftone_agenda_wide
+
+The split-plate agenda drawn for the strip. [`halftone_agenda`](#halftone_agenda) reaches the 10.85" panel either stretched, which pulls the engraving wide and the agenda type with it, or fitted, which leaves a third of the strip blank; this theme draws the same plate at the strip's own size, in three panes divided by full-height ordered-Bayer rules. The **art pane** (420 px) carries the procedural weather illustration at 0.8 scale over the same typeset weather band — temperature numeral, condition, high and low, sunrise, sunset, date and feels-like — imported from the original panel rather than copied, so the two plates cannot drift apart in what they read out. The **agenda pane** (560 px) shows the day whole and spends the extra width on data rather than on bigger type. It deliberately drops the original's state treatments — no perforated past rows, no inverted running event, no next-up accent: on the four-ink panel every repaint is a twenty-second colour flash, and a plate whose rows change treatment at each event boundary repaints a dozen times on a busy day. The header carries the day's totals in a small-caps dateline (`9 EVENTS · 6H 30M BOOKED`, with overlapping events counted once). Under it a **schedule strip** draws the day from 6 a.m. to 10 p.m. as a bar with a solid block per timed event, so the day's shape — where it is dense, where it is free — reads at a glance. Each row sets its times in a condensed face (Antonio, so the title column gains the width), its title, its location under the title at every tier but the densest, and its duration against the right margin; between two events with half an hour or more between them a labelled rule says how long is free (`— 2h 30m free`), dropped before the type shrinks past 18 px since each costs a row. The only clock-driven change left is the after-dark rollover to `TOMORROW`, one repaint a day. The **rail** (368 px) holds what the 800 × 480 plate has no room for, top to bottom: an inverted alert bar per active weather alert; the next day's first events (headed `TOMORROW`, or the weekday name once the agenda has rolled over and the rail shows the day after — the theme fetches two extra days for it); the forecast, one row per day with glyph, high, low and chance of rain; the coming birthdays, with a birthday today inverted in the accent; and a foot anchored to the rail's bottom pairing the air-quality index with the moon's phase and illumination.
+
+Same fonts as the original — Righteous for display type, DM Sans one weight up for the rows — and the same yellow-and-red pair, so a household running both sees one theme on two panels. On the four-ink panel yellow rings the sun and red marks the alert bar, a birthday today and an unhealthy AQI. Nothing on the plate reads the clock except through the rollover and the data timestamp in the caption, so a tick renders byte-identically until the data itself moves. Declines partial refresh like its sibling (the engraving dithers). On an 800 × 480 panel it letterboxes.
+
+[![Halftone agenda wide theme](../assets/previews/theme_halftone_agenda_wide.png)](../assets/previews/theme_halftone_agenda_wide.png)
+
+#### wide_forecast
+
+A weather strip. Where [`weather`](#weather) stacks its forecast under the current conditions on a landscape plate, this lays them side by side across the panel: the conditions now as a hero block at the left end — location, a large icon beside the temperature numeral, the condition, high, low and feels-like, then a two-column grid of humidity, wind, pressure, UV index, sunrise and sunset — and five forecast cards in a row across the rest, each with weekday, date, icon, high over low, the condition, and a filled bar for the chance of precipitation when the source reports one. Today's weekday is set in a chip in the primary accent. A band beneath the cards holds three cells: active alerts, each an inverted bar in the alert accent, or the note that there are none; the air-quality index and category when a PurpleAir sensor is configured, the numeral turning to the alert accent from 101; and the moon's phase, illumination and the countdown to the next full moon.
+
+The colour story is the one the four-ink panel can tell: red for the section labels, today's chip, alerts and an unhealthy AQI; yellow for the precipitation bars, where a light fill behind a hairline outline reads well. On a monochrome panel the bars fill with ink and the chip inverts. Nothing on the plate reads the clock — the caption uses the data timestamp — so an idle tick renders the same image and costs no panel write. DM Sans throughout.
+
+[![Wide forecast theme](../assets/previews/theme_wide_forecast.png)](../assets/previews/theme_wide_forecast.png)
 
 #### countdown
 

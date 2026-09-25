@@ -169,6 +169,20 @@ def schema() -> tuple[SectionSpec, ...]:
                     "Partials before forced full refresh",
                 ),
                 _f(
+                    "display.scaling",
+                    ("display", "scaling"),
+                    "enum",
+                    "Canvas scaling",
+                    description=(
+                        "How a theme canvas that is not the panel's size reaches it. "
+                        "'stretch' pulls it to the panel; 'fit' keeps its shape and pads "
+                        "the rest with the theme background; 'auto' stretches unless the "
+                        "distortion would exceed a third (a 1360x480 panel fits, a 4:3 "
+                        "panel stretches)."
+                    ),
+                    choices=("auto", "stretch", "fit"),
+                ),
+                _f(
                     "display.min_refresh_interval_seconds",
                     ("display", "min_refresh_interval_seconds"),
                     "int",

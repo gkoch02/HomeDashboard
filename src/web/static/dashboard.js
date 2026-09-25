@@ -570,6 +570,7 @@ function collectConfigPatch() {
   if ($("cfg-week-days"))       patch["display.week_days"]              = n("cfg-week-days");
   if ($("cfg-partial-refresh")) patch["display.enable_partial_refresh"] = b("cfg-partial-refresh");
   if ($("cfg-max-partials"))    patch["display.max_partials_before_full"] = n("cfg-max-partials");
+  if ($("cfg-scaling"))         patch["display.scaling"]                = v("cfg-scaling");
 
   // Schedule
   if ($("cfg-qh-start")) patch["schedule.quiet_hours_start"] = n("cfg-qh-start");
@@ -648,6 +649,7 @@ function populateConfigForm(data) {
   set_val("cfg-week-days",       d.week_days);
   set_chk("cfg-partial-refresh", d.enable_partial_refresh);
   set_val("cfg-max-partials",    d.max_partials_before_full);
+  set_val("cfg-scaling",         d.scaling);
 
   const s = data.schedule || {};
   set_val("cfg-qh-start", s.quiet_hours_start);

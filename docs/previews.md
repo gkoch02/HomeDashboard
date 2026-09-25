@@ -61,7 +61,7 @@ python3 scripts/build_previews.py --out-dir /tmp/previews          # elsewhere
 ```
 
 A theme that fails to render is reported and the batch continues, exiting
-non-zero at the end — one broken theme does not cost you the other 36.
+non-zero at the end — one broken theme does not cost you the rest of the batch.
 
 Example single-theme dry run:
 
@@ -118,9 +118,9 @@ Example full batch for all concrete themes:
 
 ```bash
 for theme in agenda air_quality almanac astronomy constellation_map countdown day_arc default diags fantasy fuzzyclock \
-             fuzzyclock_invert halftone halftone_agenda light_cycle message minimalist monthly moonphase moonphase_invert moonphase_photo \
+             fuzzyclock_invert halftone halftone_agenda halftone_agenda_wide light_cycle message minimalist monthly moonphase moonphase_invert moonphase_photo \
              naturalist old_fashioned photo postcard qotd qotd_invert scorecard sunrise terminal tides timeline today trends \
-             weather weatherglass year_pulse; do
+             weather weatherglass wide_day wide_forecast wide_week year_pulse; do
   if [ "$theme" = "message" ]; then
     python3 -m src.main --config /path/to/inky-config.yaml --dry-run --dummy \
       --theme "$theme" --message "Preview Message"
@@ -171,6 +171,14 @@ Timestamped dry runs are also written automatically:
   pair of sample countdown targets when `countdown.events` is empty in the config.
   Rendering them through `python -m src.main` by hand still needs `--message TEXT`
   and configured `countdown.events`.
+- Every theme is rendered at its own canvas size, not the configured panel's: the
+  panoramic `wide_*` themes declare 1360 × 480, so their previews are native strips
+  rather than the letterboxed band an 800 × 480 config would produce through
+  `python -m src.main`. A theme that merely supersamples the panel's shape
+  (`weatherglass`, `postcard`, `naturalist` draw at 1600 × 960) keeps the panel's
+  size and its LANCZOS downsample. To preview the four-ink rendering of the Waveshare
+  10.85" (G) panel, pass `--model epd10in85g`; the files take a `_g` suffix so they
+  never overwrite the monochrome set.
 - The `astronomy` theme uses `weather.latitude` / `weather.longitude` for twilight math;
   the preview degrades gracefully without them (OWM sunrise/sunset only, no twilight).
 - The `photo` theme will still render in dry-run mode even if no custom photo path is configured,

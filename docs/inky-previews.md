@@ -12,6 +12,7 @@ black and white.
   - [Full-screen focused themes](#full-screen-focused-themes)
   - [Specialized themes](#specialized-themes)
   - [Dithered art themes](#dithered-art-themes)
+  - [Panoramic themes](#panoramic-themes)
   - [Utility themes](#utility-themes)
 - [Regenerating these images](#regenerating-these-images)
 
@@ -47,6 +48,16 @@ when one goes stale.
 
 Everything else falls back to black on white, so a theme with no color story
 still reads correctly on the panel.
+
+**Art regions mix the inks.** The Inky driver maps each pixel to its nearest
+ink, which is right for type and wrong for an illustration: a shaded sky
+flattens to one ink. A panel that draws artwork declares the rectangle it
+occupies, and the backend error-diffuses that rectangle onto the six inks
+instead — the halftone family's engraving keeps its halftone here, and a tone
+the panel has no ink for (an orange, a pink) renders as a mixture of the inks
+it has. Type outside the declared regions is untouched. `halftone`,
+`halftone_agenda`, `halftone_agenda_wide` and `day_arc` declare their art
+panes; the same mechanism drives the four-ink Waveshare 10.85" (G) panel.
 
 > **Note:** these are PNGs on a computer, not photographs of hardware. They go
 > through the dashboard's real limited-palette render path, so the ink
@@ -268,6 +279,37 @@ Accents: **red** primary, **black** secondary · [description in Themes ↗](the
 Accents: **red** primary, **black** secondary · [description in Themes ↗](themes.md#naturalist)
 
 [![Naturalist theme on Inky](../assets/previews/theme_naturalist_inky.png)](../assets/previews/theme_naturalist_inky.png)
+
+### Panoramic themes
+
+These declare a 1360 × 480 canvas for the Waveshare 10.85" (G) strip, whose
+four inks are black, white, yellow and red — so each names only red and yellow
+accents, and the previews below (rendered at the canvas size through the
+Spectra 6 mapping) show the same colours that panel does.
+
+#### wide_week
+
+Accents: **red** primary, **black** secondary · [description in Themes ↗](themes.md#wide_week)
+
+[![Wide week theme on Inky](../assets/previews/theme_wide_week_inky.png)](../assets/previews/theme_wide_week_inky.png)
+
+#### wide_day
+
+Accents: **red** primary, **black** secondary · [description in Themes ↗](themes.md#wide_day)
+
+[![Wide day theme on Inky](../assets/previews/theme_wide_day_inky.png)](../assets/previews/theme_wide_day_inky.png)
+
+#### halftone_agenda_wide
+
+Accents: **yellow** primary, **red** secondary · [description in Themes ↗](themes.md#halftone_agenda_wide)
+
+[![Halftone agenda wide theme on Inky](../assets/previews/theme_halftone_agenda_wide_inky.png)](../assets/previews/theme_halftone_agenda_wide_inky.png)
+
+#### wide_forecast
+
+Accents: **red** primary, **yellow** secondary · [description in Themes ↗](themes.md#wide_forecast)
+
+[![Wide forecast theme on Inky](../assets/previews/theme_wide_forecast_inky.png)](../assets/previews/theme_wide_forecast_inky.png)
 
 ### Utility themes
 

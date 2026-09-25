@@ -35,6 +35,7 @@ display:
   show_birthdays: true
   show_info_panel: true
   # quantization_mode: "threshold" # Waveshare 1-bit path: threshold | floyd_steinberg | ordered
+  # scaling: "auto"                # auto | stretch | fit — how an off-size canvas reaches the panel
   # min_refresh_interval_seconds: 60   # cooldown between hardware refreshes; defaults to
                                        #   60s on Inky, 0s on Waveshare. Set 3600 on Inky to
                                        #   restore the v4 "exactly once an hour" throttle.
@@ -376,7 +377,29 @@ display:
 ```
 
 For `display.provider: inky`, the final output is mapped to the Inky Impression's
-limited color palette instead of being quantized to 1-bit.
+limited color palette instead of being quantized to 1-bit. The Waveshare 10.85" (G)
+(`epd10in85g`) is a colour model too: a theme drawn in greyscale still goes through
+the mode above, while one drawn in colour is snapped to the panel's four inks by
+nearest colour — no dither, so type stays crisp.
+
+---
+
+## Scaling
+
+The `display.scaling` field controls how a theme canvas that is not the panel's size
+reaches the panel. Every built-in theme except the panoramic `wide_*` set draws at
+800 × 480; a panel of another size gets that canvas resized.
+
+| Mode | Behaviour |
+|---|---|
+| `auto` | **Default.** Stretch, unless the stretch would bend the aspect ratio by more than a third — then fit. A 4:3 panel (`epd13in3k`, distortion 1.25) still stretches, as it always has; the 1360 × 480 strip (distortion 1.7) fits. |
+| `stretch` | LANCZOS-resize the canvas to the panel's size regardless of shape. |
+| `fit` | Scale the canvas to fit, keeping its shape, and centre it on a plate filled with the theme's background. A landscape theme on the 10.85" panel sits between two white bands; a panoramic theme on an 800 × 480 panel becomes a band across the middle. |
+
+```yaml
+display:
+  scaling: "auto"   # auto | stretch | fit
+```
 
 ---
 
@@ -395,11 +418,22 @@ Supported providers:
 
 Supported models:
 
-- `waveshare`: `epd7in5`, `epd7in5_V2`, `epd7in5_V3`, `epd7in5b_V2`, `epd7in5_HD`, `epd9in7`, `epd13in3k`
+- `waveshare`: `epd7in5`, `epd7in5_V2`, `epd7in5_V3`, `epd7in5b_V2`, `epd7in5_HD`, `epd9in7`, `epd13in3k`, `epd10in85g`
 - `inky`: `impression_7_3_2025`
 
 Width and height are derived automatically from the selected provider/model unless
 overridden explicitly.
+
+`epd10in85g` is the 10.85" e-Paper (G): a 1360 × 480 strip with four inks — black,
+white, yellow and red. Themes are rendered in colour for it the way they are for Inky,
+with the two Spectra 6 inks it lacks (blue and green) folded onto black, and the
+final image snapped to its four inks. It has no partial refresh, so
+`enable_partial_refresh` is ignored, and a full refresh takes about twenty seconds.
+The panoramic `wide_week`, `wide_day` and `wide_forecast` themes draw at its native
+size; every other theme reaches it per [`display.scaling`](#scaling). The driver
+module is `waveshare_epd.epd10in85g`, installed with the rest of the Waveshare
+library by `make install-display-drivers` (or from the demo code on the panel's wiki
+page if the library you have predates the model).
 
 ---
 

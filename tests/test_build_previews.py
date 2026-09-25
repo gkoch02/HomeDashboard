@@ -132,8 +132,10 @@ class TestConfigHandling:
         assert inky.display.model == "impression_7_3_2025"
 
     def test_inky_previews_get_an_inky_suffix(self):
-        assert bp._SUFFIX["inky"] == "_inky"
-        assert bp._SUFFIX["waveshare"] == ""
+        assert bp._default_suffix("inky", "impression_7_3_2025") == "_inky"
+        assert bp._default_suffix("waveshare", "epd7in5_V2") == ""
+        # A four-ink Waveshare batch must never overwrite the monochrome set.
+        assert bp._default_suffix("waveshare", "epd10in85g") == "_g"
 
     def test_bad_date_is_rejected(self):
         with pytest.raises(SystemExit):

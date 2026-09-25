@@ -27,7 +27,7 @@ to the theme's ``draw_order``. No edits to ``canvas.py``.
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date, datetime
 from typing import Any
 
@@ -63,6 +63,14 @@ class RenderContext:
     # (radial gradients, paste of L-mode sub-images) use this; the rest can
     # ignore it.
     image: Image.Image | None = None
+    # Canvas-coordinate rectangles ``(x0, y0, x1, y1)`` a panel declares as
+    # artwork. A colour backend error-diffuses these onto the panel's inks
+    # instead of snapping them, so a gradient keeps its halftone and a tone
+    # the panel has no ink for becomes a mixture of the inks it has; type and
+    # rules outside them stay solid. Adapters append here — see
+    # ``_builtins`` — using the panel's own pure ``art_rect()`` so the panel
+    # itself stays a pure function of its inputs.
+    dither_regions: list[tuple[int, int, int, int]] = field(default_factory=list)
 
 
 ComponentAdapter = Callable[[RenderContext], None]

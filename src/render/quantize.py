@@ -84,6 +84,25 @@ INKY_SPECTRA6_DESATURATED_PALETTE: list[tuple[int, int, int]] = [
 ]
 
 
+# Waveshare "G" family (black / white / yellow / red) as a *style* palette:
+# indexed by the same Spectra-6 positions themes already name (INKY_BLACK …
+# INKY_GREEN on src.render.theme), so a theme registered with a blue or green
+# accent needs no second declaration — the two inks the panel lacks resolve to
+# black, which is what the same theme draws on a monochrome panel. The values
+# are the pure inks rather than measured panel colours because the backend
+# snaps to them by nearest colour: with pure white as the ground, an
+# antialiased glyph edge thresholds at mid-grey, the same cut the 1-bit path
+# makes, and the type keeps its weight.
+WAVESHARE_G_STYLE_PALETTE: list[tuple[int, int, int]] = [
+    (0, 0, 0),  # 0 black
+    (255, 255, 255),  # 1 white
+    (255, 255, 0),  # 2 yellow
+    (255, 0, 0),  # 3 red
+    (0, 0, 0),  # 4 "blue" → black
+    (0, 0, 0),  # 5 "green" → black
+]
+
+
 def blend_inky_palette(saturation: float = 0.5) -> list[tuple[int, int, int]]:
     """Return a quantization reference palette blended between the physical Spectra 6
     colors (saturation=1.0) and the pure ideal hues (saturation=0.0).
@@ -420,6 +439,66 @@ def _quantize_palette_fs_python(
                     buf[j][2] += eb * (1.0 / 16.0)
 
     out = Image.new("RGB", (w, h))
+    out.putdata(result)
+    return out
+
+
+def quantize_to_palette_nearest(
+    image: Image.Image, colors: list[tuple[int, int, int]]
+) -> Image.Image:
+    """Snap every pixel to the nearest entry of *colors* (Euclidean RGB), no dither.
+
+    The finalize step for a panel whose driver maps RGB onto a few fixed inks
+    (the Waveshare "G" family). The canvas is already drawn in those inks; what
+    remains to resolve is the antialiasing on glyph edges and the greys a
+    LANCZOS resize introduces, and for those a hard cut is right — a dither
+    would speckle solid type. For a neutral grey the nearest of black, white,
+    yellow and red is always black or white (yellow needs the blue channel
+    low, red needs green low), so no grey ever lands on a coloured ink.
+
+    Returns an ``"RGB"`` image whose pixel values are exactly *colors*.
+    """
+    try:
+        import numpy as np
+    except ImportError:
+        return _quantize_palette_nearest_python(image, colors)
+
+    rgb = np.array(image.convert("RGB"), dtype=np.int32)  # H×W×3
+    # One H×W distance plane per ink, kept as a running minimum: an H×W×N×3
+    # broadcast would cost ~30 MB twice over on a 1360×480 plate, which is a
+    # real number on a Pi Zero.
+    best = None
+    index = np.zeros(rgb.shape[:2], dtype=np.uint8)
+    for i, colour in enumerate(colors):
+        diff = rgb - np.array(colour, dtype=np.int32)
+        dist = np.sum(diff * diff, axis=2)
+        if best is None:
+            best = dist
+        else:
+            closer = dist < best
+            index[closer] = i
+            best = np.where(closer, dist, best)
+    pal_u8 = np.array(colors, dtype=np.uint8)
+    return Image.fromarray(pal_u8[index], mode="RGB")
+
+
+def _quantize_palette_nearest_python(
+    image: Image.Image, colors: list[tuple[int, int, int]]
+) -> Image.Image:
+    pixels = cast("list[tuple[int, int, int]]", flatten_pixels(image.convert("RGB")))
+    cache: dict[tuple[int, int, int], tuple[int, int, int]] = {}
+    result: list[tuple[int, int, int]] = []
+    for px in pixels:
+        snapped = cache.get(px)
+        if snapped is None:
+            r, g, b = px
+            snapped = min(
+                colors,
+                key=lambda c: (c[0] - r) ** 2 + (c[1] - g) ** 2 + (c[2] - b) ** 2,
+            )
+            cache[px] = snapped
+        result.append(snapped)
+    out = Image.new("RGB", image.size)
     out.putdata(result)
     return out
 

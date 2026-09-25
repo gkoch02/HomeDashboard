@@ -111,7 +111,7 @@ CLI (main.py)
 
 ### Display
 - **`display/driver.py`** — `DisplayDriver` ABC → `DryRunDisplay`, `WaveshareDisplay`, `InkyDisplay`; `image_changed()` SHA-256 helper
-- **`display/backend.py`** — v5 `DisplayBackend` ABC → `WaveshareBackend` (1-bit pipeline), `InkyBackend` (RGB pipeline). Unifies the resize + finalize step so `canvas.py` no longer forks on `config.provider`
+- **`display/backend.py`** — v5 `DisplayBackend` ABC → `WaveshareBackend` (1-bit pipeline), `WaveshareColorBackend` (four-ink "G" pipeline), `InkyBackend` (RGB pipeline). Unifies the resize + finalize step so `canvas.py` no longer forks on `config.provider`; all three share `fit_canvas()`, which stretches or fits-and-pads per `display.scaling`
 - **`display/refresh_tracker.py`** — Partial vs. full refresh state machine
 
 ### Web UI (optional)
@@ -140,6 +140,8 @@ Each registry's package `__init__.py` runs side-effect imports of its members so
 
 - **`WaveshareBackend`** — LANCZOS-resize onto an `"L"` canvas, then quantize to `"1"` using the algorithm from `display.quantization_mode` (`threshold` / `floyd_steinberg` / `ordered`).
 - **`InkyBackend`** — LANCZOS-resize in RGB; defer palette mapping to the Inky library at write time. Pre-quantizing with an approximated palette would snap LANCZOS grey pixels onto the wrong physical ink.
+- **`WaveshareColorBackend`** — for the Waveshare "G" family (`epd10in85g`: black, white, yellow, red). A greyscale plate takes the 1-bit pipeline and is promoted to RGB; a colour plate is resized in RGB and every pixel snapped to the nearest of the four inks (`quantize_to_palette_nearest`), which for neutral greys is the same mid-grey cut the 1-bit threshold makes. The driver's own `getbuffer()` palette mapping is then exact.
+- **Art regions** — both colour backends accept `dither_regions`, the canvas-coordinate rectangles panels declared as artwork (`RenderContext.dither_regions`, appended by the adapter from the panel's `art_rect()`). `dither_art_regions()` cuts each from the resized canvas before the snap, Floyd-Steinberg-diffuses it onto the panel's inks, and pastes it over the snapped plate: a gradient keeps its halftone, and a tone the panel lacks becomes a mixture of the inks it has, while type outside the regions stays solid. The 1-bit backend ignores them because its whole plate already dithers per the theme's quantizer.
 
 `canvas.render_dashboard` no longer branches on `config.provider`; it hands the post-component image straight to `build_display_backend(config).resize_and_finalize(...)`.
 

@@ -57,6 +57,7 @@ from src.render.primitives import (
     draw_text_truncated,
     events_for_day,
     hline,
+    next_birthday,
     text_height,
     text_width,
     vline,
@@ -237,15 +238,7 @@ def _upcoming_calendar_summary(data: DashboardData, today: date, max_lines: int)
     # non-leap years (rather than silently dropping the entry or crashing).
     if data.birthdays:
         for b in data.birthdays:
-            try:
-                bday_this_year = b.date.replace(year=today.year)
-            except ValueError:
-                bday_this_year = b.date.replace(year=today.year, day=28)
-            if bday_this_year < today:
-                try:
-                    bday_this_year = b.date.replace(year=today.year + 1)
-                except ValueError:
-                    bday_this_year = b.date.replace(year=today.year + 1, day=28)
+            bday_this_year = next_birthday(b.date, today)
             delta = (bday_this_year - today).days
             if 0 <= delta <= 14:
                 month_day = bday_this_year.strftime("%b %-d")

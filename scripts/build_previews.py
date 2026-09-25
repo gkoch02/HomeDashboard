@@ -17,12 +17,18 @@ Usage::
     python3 scripts/build_previews.py --provider inky    # Inky Spectra-6 set
     python3 scripts/build_previews.py --theme moonphase --theme qotd
     python3 scripts/build_previews.py --date 2026-04-06  # pin the render date
+    python3 scripts/build_previews.py --model epd10in85g   # four-ink set (_g suffix)
+
+A theme whose canvas is a different shape from the panel (the panoramic
+1360x480 themes) is rendered at its own canvas size rather than letterboxed;
+one that merely supersamples the panel's shape keeps the panel's size.
 """
 
 from __future__ import annotations
 
 import argparse
 import sys
+from dataclasses import replace
 from datetime import date as _date
 from datetime import datetime
 from pathlib import Path
@@ -31,6 +37,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
 from src.config import CountdownEvent, load_config  # noqa: E402
+from src.display.driver import get_display_spec  # noqa: E402
 from src.dummy_data import generate_dummy_data  # noqa: E402
 from src.render.canvas import render_dashboard  # noqa: E402
 from src.render.theme import load_theme  # noqa: E402
@@ -65,19 +72,19 @@ PREVIEW_COUNTDOWNS = [
     CountdownEvent(name="Paris trip", date="2026-09-14"),
 ]
 
-_SUFFIX = {"waveshare": "", "inky": "_inky"}
 
-
-def _build_config(provider: str, config_path: str):
+def _build_config(provider: str, config_path: str, model: str | None = None):
     """Load *config_path* and point it at the requested display."""
     cfg = load_config(config_path)
     cfg.display.provider = provider
-    cfg.display.model = "impression_7_3_2025" if provider == "inky" else "epd7in5_V2"
-    # Auto-derived native dimensions follow the model, so clear any width and
-    # height the example config pinned for the other provider.
-    cfg.display.width, cfg.display.height = (
-        (800, 480) if provider == "inky" else (cfg.display.width, cfg.display.height)
-    )
+    if model is None:
+        model = "impression_7_3_2025" if provider == "inky" else "epd7in5_V2"
+    spec = get_display_spec(provider, model)
+    if spec is None:
+        raise SystemExit(f"Unknown display model {model!r} for provider {provider!r}")
+    cfg.display.model = model
+    # Native dimensions follow the model, whatever the config pinned.
+    cfg.display.width, cfg.display.height = spec.width, spec.height
     return cfg
 
 
@@ -91,12 +98,41 @@ def _theme_names(requested: list[str] | None) -> list[str]:
     return sorted(renderable - EXCLUDED)
 
 
+def _aspect_differs(canvas: tuple[int, int], panel: tuple[int, int]) -> bool:
+    """Whether *canvas* and *panel* are different shapes (not merely different sizes)."""
+    return abs(canvas[0] / canvas[1] - panel[0] / panel[1]) > 0.01
+
+
+def _default_suffix(provider: str, model: str) -> str:
+    """The file-name suffix for a preview set: '' mono Waveshare, '_inky', or '_g'.
+
+    Derived from the spec rather than the provider alone, so a four-ink
+    Waveshare batch never silently overwrites the tracked monochrome set.
+    """
+    if provider == "inky":
+        return "_inky"
+    spec = get_display_spec(provider, model)
+    return "_g" if spec is not None and spec.palette is not None else ""
+
+
 def render_preview(theme_name: str, cfg, now: datetime, out_path: Path) -> None:
     """Render one theme against dummy data and write it to *out_path*."""
     data = generate_dummy_data(now=now)
     theme = load_theme(theme_name)
     if theme_name == "photo":
         theme.style.photo_path = cfg.photo.path
+
+    # A preview shows a theme at its own canvas *shape*, not letterboxed onto
+    # the panel: the panoramic themes declare 1360x480 and an 800x480 rendering
+    # of one is a band across the middle of a blank plate. Only the shape is
+    # respected — a theme that supersamples (weatherglass, postcard and
+    # naturalist draw at 1600x960 for an 800x480 panel) still gets the panel's
+    # size and the LANCZOS downsample it was designed around.
+    display = cfg.display
+    if _aspect_differs(
+        (theme.layout.canvas_w, theme.layout.canvas_h), (display.width, display.height)
+    ):
+        display = replace(display, width=theme.layout.canvas_w, height=theme.layout.canvas_h)
 
     # Same (0.0, 0.0) == "unset" convention DashboardApp uses, so a config
     # without coordinates previews the graceful-degradation path rather than
@@ -106,7 +142,7 @@ def render_preview(theme_name: str, cfg, now: datetime, out_path: Path) -> None:
 
     image = render_dashboard(
         data,
-        cfg.display,
+        display,
         title=cfg.title,
         theme=theme,
         quote_refresh=cfg.cache.quote_refresh,
@@ -130,6 +166,22 @@ def main(argv: list[str] | None = None) -> int:
         choices=("waveshare", "inky"),
         default="waveshare",
         help="Display backend to render for (default: waveshare).",
+    )
+    parser.add_argument(
+        "--model",
+        default=None,
+        help=(
+            "Display model to render for (default: the provider's reference panel). "
+            "A colour Waveshare model such as epd10in85g renders the four-ink set."
+        ),
+    )
+    parser.add_argument(
+        "--suffix",
+        default=None,
+        help=(
+            "File-name suffix before .png (default: '' for a monochrome Waveshare model, "
+            "'_g' for a four-ink one, '_inky' for inky)."
+        ),
     )
     parser.add_argument(
         "--theme",
@@ -162,9 +214,11 @@ def main(argv: list[str] | None = None) -> int:
         hour=DEFAULT_TIME[0], minute=DEFAULT_TIME[1]
     )
 
-    cfg = _build_config(args.provider, args.config)
+    cfg = _build_config(args.provider, args.config, args.model)
     out_dir = Path(args.out_dir)
-    suffix = _SUFFIX[args.provider]
+    suffix = (
+        _default_suffix(args.provider, cfg.display.model) if args.suffix is None else args.suffix
+    )
 
     names = _theme_names(args.themes)
     failures: list[str] = []

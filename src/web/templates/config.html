@@ -210,6 +210,18 @@
       </div>
     </div>
     <div class="field-hint">Full refresh is forced after this many partial updates.</div>
+
+    <div class="field-row">
+      <label class="field-label" for="cfg-scaling">Canvas scaling</label>
+      <div class="field-input-wrap" style="max-width:140px;">
+        <select id="cfg-scaling" data-field="display.scaling">
+          {% for mode in ["auto", "stretch", "fit"] %}
+            <option value="{{ mode }}" {{ "selected" if cfg.display.scaling == mode }}>{{ mode }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+    <div class="field-hint">How a theme drawn at another size reaches the panel. <em>auto</em> stretches unless the shapes differ by more than a third, then fits with padding; a 1360×480 strip fits, a 4:3 panel stretches.</div>
   </div>
 
   {# ------------------------------------------------------------------ #}

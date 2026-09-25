@@ -6,6 +6,71 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added
+
+- **Waveshare 10.85" e-Paper (G) support** — `display.model: epd10in85g`, a
+  1360 × 480 strip with four inks (black, white, yellow, red). The new
+  `WaveshareColorBackend` renders themes in colour the way the Inky path does,
+  folds the two Spectra 6 inks the panel lacks (blue, green) onto black, and
+  snaps the final image to the panel's four inks by nearest colour so the
+  driver's own palette mapping is exact; greyscale art themes keep their
+  dither. Colour models never take the fast waveform (`enable_partial_refresh`
+  is ignored, with a config warning). `DisplaySpec` gains `palette` and
+  `is_color`; `canvas.py` decides colour by the display spec rather than by
+  `provider == "inky"`.
+- **`display.scaling`** — `auto` (default) / `stretch` / `fit`. Until now every
+  off-size panel got the 800 × 480 canvas stretched, which on a 1360 × 480 strip
+  pulls a week grid 1.7× wide. `fit` keeps the canvas shape and pads with the
+  theme's background; `auto` stretches unless the distortion would exceed a
+  third, so 4:3 panels render exactly as before and the strip fits. Web-editable.
+- **Three panoramic themes** for the strip, each with a native 1360 × 480 canvas:
+  `wide_week` (the standard dashboard reflowed — 128-px week columns and a
+  full-height rail of weather, birthdays and quote), `wide_day` (today as a
+  timeline across the plate, events as lanes of bars with their labels packed
+  alongside, a NOW marker, an up-next rail that reaches into tomorrow) and
+  `wide_forecast` (hero conditions, five forecast cards with precipitation
+  bars, and a band for alerts, air quality and the moon). On an 800 × 480 panel
+  they letterbox. `scripts/build_previews.py` renders every theme at its own
+  canvas size and takes `--model` / `--suffix` for a four-ink preview set.
+- **Art regions dither in colour.** A panel that draws artwork can declare the
+  rectangle it occupies (`RenderContext.dither_regions`, filled by the
+  adapter from the panel's pure `art_rect()`), and the colour backends
+  error-diffuse those rectangles onto the panel's inks instead of snapping
+  them. Until now a colour panel flattened the halftone family's sky ramp to a
+  single ink (nearest colour) while the monochrome path kept its engraving;
+  now the gradient is a halftone of the inks on both, and a tone the panel
+  has no ink for — orange over yellow and red — becomes a mixture rather than
+  whichever ink is nearest. Type and rules outside the regions stay solid.
+  Registered for `halftone`, `halftone_agenda`, `halftone_agenda_wide` and
+  `day_arc`; the four Inky previews are regenerated. Neutral pixels diffuse
+  against black and white only, and the Spectra-6 accents the art helpers
+  draw with are remapped onto the G inks before diffusion, so a solid sun
+  stays solid and a night sky stays free of coloured speckle.
+- **Random rotation respects the panel's shape.** A theme whose canvas would
+  be fitted with padding on the configured panel — the 1360 × 480 themes on an
+  800 × 480 panel, and the reverse — is left out of the `random_daily` /
+  `random_hourly` pool. The default refresh cooldown is now keyed on the
+  display spec rather than the provider, so the four-ink Waveshare model gets
+  the 60 s Inky has for the same reason. Applies on the 10.85" G
+  panel and on Inky (where the diffusion targets the measured Spectra 6
+  values so the driver's own mapping is the identity on them).
+- **`halftone_agenda_wide`** — the split-plate agenda drawn for the 1360 × 480
+  strip. The engraving and weather band at the left, today's agenda at half
+  again its usual width in the middle (the original's `_draw_agenda_pane`,
+  every treatment intact), and a rail for what the 800 × 480 plate leaves out:
+  alerts, the next day's events, the forecast, birthdays, air quality and the
+  moon. The theme fetches two days past the week (`EXTRA_EVENT_DAYS` in
+  `src/app.py`, which now generalises `THEMES_NEEDING_TOMORROW`) because the
+  rail shows the day after tomorrow once the agenda has rolled over. The
+  agenda pane spends its width on data: a header dateline with the day's
+  totals, a schedule strip with a block per event, a duration column,
+  `— Nh Nm free` markers between events, and condensed Antonio time cells so
+  titles get the room. It deliberately drops the original's state treatments
+  (perforated past rows, the inverted running event, the next-up accent):
+  each one repaints the panel at an event boundary, and on the four-ink
+  panel a repaint is a twenty-second flash. The after-dark rollover is the
+  one clock-driven change left.
+
 ### Fixed
 
 - **`config/config.example.yaml` is complete again, and stays that way.** The

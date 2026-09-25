@@ -39,10 +39,23 @@ _LEGACY_INKY_STATE_FILENAME = "inky_refresh_state.json"
 _DEFAULT_MIN_REFRESH_SECONDS = {"inky": 60, "waveshare": 0}
 
 
-def _resolve_min_refresh_seconds(provider: str, configured: int | None) -> int:
-    """Return the cooldown to enforce, given a provider and a config value."""
+def _resolve_min_refresh_seconds(
+    provider: str, configured: int | None, model: str | None = None
+) -> int:
+    """Return the cooldown to enforce, given a provider, a config value and a model.
+
+    A colour panel gets the Inky default whatever its provider: the
+    four-ink Waveshare 10.85" has no partial refresh and a multi-second
+    colour flash, which is exactly why Inky's default is a minute.
+    """
     if configured is not None:
         return max(0, int(configured))
+    if model is not None:
+        from src.display.driver import get_display_spec
+
+        spec = get_display_spec(provider, model)
+        if spec is not None and spec.is_color:
+            return _DEFAULT_MIN_REFRESH_SECONDS["inky"]
     return _DEFAULT_MIN_REFRESH_SECONDS.get(provider, 0)
 
 
@@ -165,7 +178,9 @@ class OutputService:
         # The cooldown intentionally blocks novel content too; the cap is a
         # rate-limiter on the hardware, not just a dedup filter.
         min_interval = _resolve_min_refresh_seconds(
-            self.cfg.display.provider, self.cfg.display.min_refresh_interval_seconds
+            self.cfg.display.provider,
+            self.cfg.display.min_refresh_interval_seconds,
+            self.cfg.display.model,
         )
         if should_throttle_display_refresh(
             provider=self.cfg.display.provider,

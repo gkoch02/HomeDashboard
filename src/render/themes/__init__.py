@@ -22,6 +22,7 @@ from src.render.themes import fuzzyclock as _fuzzyclock  # noqa: F401
 from src.render.themes import fuzzyclock_invert as _fuzzyclock_invert  # noqa: F401
 from src.render.themes import halftone as _halftone  # noqa: F401
 from src.render.themes import halftone_agenda as _halftone_agenda  # noqa: F401
+from src.render.themes import halftone_agenda_wide as _halftone_agenda_wide  # noqa: F401
 from src.render.themes import light_cycle as _light_cycle  # noqa: F401
 from src.render.themes import message as _message  # noqa: F401
 from src.render.themes import minimalist as _minimalist  # noqa: F401
@@ -44,4 +45,7 @@ from src.render.themes import today as _today  # noqa: F401
 from src.render.themes import trends as _trends  # noqa: F401
 from src.render.themes import weather as _weather  # noqa: F401
 from src.render.themes import weatherglass as _weatherglass  # noqa: F401
+from src.render.themes import wide_day as _wide_day  # noqa: F401
+from src.render.themes import wide_forecast as _wide_forecast  # noqa: F401
+from src.render.themes import wide_week as _wide_week  # noqa: F401
 from src.render.themes import year_pulse as _year_pulse  # noqa: F401

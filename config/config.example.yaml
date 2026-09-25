@@ -16,7 +16,8 @@ display:
   provider: "waveshare"
   # Display model — sets native resolution automatically.
   # Waveshare models: epd7in5 (640x384), epd7in5_V2 (800x480), epd7in5_V3 (800x480),
-  #   epd7in5b_V2 (800x480), epd7in5_HD (880x528), epd9in7 (1200x825), epd13in3k (1600x1200)
+  #   epd7in5b_V2 (800x480), epd7in5_HD (880x528), epd9in7 (1200x825), epd13in3k (1600x1200),
+  #   epd10in85g (1360x480 — black/white/yellow/red; see the wide_* themes)
   # Inky models: impression_7_3_2025 (800x480)
   model: "epd7in5_V2"
   # width/height are derived automatically from `model`. Override here only if needed.
@@ -48,6 +49,12 @@ display:
   # "ordered"         – 4×4 Bayer ordered dithering; structured dot-matrix pattern
   # A theme that declares its own preferred mode overrides this setting.
   # quantization_mode: "threshold"
+  # How a theme canvas that is not the panel's size reaches the panel:
+  # "stretch" pulls it to the panel's size (what every version so far did),
+  # "fit" keeps its shape and pads the rest with the theme's background, and
+  # "auto" stretches unless the stretch would bend the aspect ratio by more
+  # than a third — so a 4:3 panel still stretches and a 1360x480 strip fits.
+  # scaling: "auto"
   # Minimum seconds between hardware refreshes.  Unset means the provider
   # default: 60 on Inky, 0 on Waveshare.  A render whose content is unchanged
   # is skipped regardless of this setting; the cooldown only rate-limits
@@ -207,6 +214,7 @@ logging:
 #                   scorecard | tides | halftone | halftone_agenda | day_arc |
 #                   trends | weatherglass
 #   DITHERED ART    postcard | naturalist
+#   PANORAMIC       wide_week | wide_day | wide_forecast | halftone_agenda_wide
 #   PHOTO OVERLAY   photo
 #   UTILITY         countdown | message | diags
 #   ROTATION        random_daily | random_hourly

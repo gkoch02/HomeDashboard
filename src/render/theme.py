@@ -183,6 +183,21 @@ class ThemeLayout:
     weatherglass: ComponentRegion = field(
         default_factory=lambda: ComponentRegion(0, 0, 800, 480, visible=False)
     )
+    # Used by the ``wide_day`` theme: a 1360x480 panoramic plate with today's
+    # timeline laid left to right. Hidden by default — only panoramic themes
+    # set a canvas this shape.
+    wide_day: ComponentRegion = field(
+        default_factory=lambda: ComponentRegion(0, 0, 1360, 480, visible=False)
+    )
+    # Used by the ``wide_forecast`` theme: a 1360x480 weather strip.
+    wide_forecast: ComponentRegion = field(
+        default_factory=lambda: ComponentRegion(0, 0, 1360, 480, visible=False)
+    )
+    # Used by the ``halftone_agenda_wide`` theme: the split-plate agenda at
+    # 1360x480 with a third pane for the rail.
+    halftone_agenda_wide: ComponentRegion = field(
+        default_factory=lambda: ComponentRegion(0, 0, 1360, 480, visible=False)
+    )
     draw_order: list[str] = field(
         default_factory=lambda: ["header", "week_view", "weather", "birthdays", "info"]
     )

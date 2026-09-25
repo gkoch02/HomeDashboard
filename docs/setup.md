@@ -437,11 +437,15 @@ dependencies, then `make pi-enable` to start the timer.
 | `waveshare` | `epd7in5_HD` | 880x528 | HD variant |
 | `waveshare` | `epd9in7` | 1200x825 | 9.7 inch |
 | `waveshare` | `epd13in3k` | 1600x1200 | 13.3 inch |
+| `waveshare` | `epd10in85g` | 1360x480 | 10.85 inch (G): black/white/yellow/red strip; full refresh only. Pair with the `wide_*` themes |
 | `inky` | `impression_7_3_2025` | 800x480 | Pimoroni Inky Impression 7.3" 2025 Edition, Spectra 6 |
 
 Set both `display.provider` and `display.model` in `config.yaml`. Width and height are
 derived automatically from the selected backend/model. The dashboard renders at 800x480 base
-resolution and scales to the display's native resolution when needed. Inky Impression panels
+resolution and scales to the display's native resolution when needed — stretched, or fitted
+with padding when the shapes differ too much, per `display.scaling` (see
+[Configuration → Scaling](configuration.md#scaling)). The panoramic `wide_*` themes render at
+1360x480 for the 10.85" strip. Inky Impression panels
 do not support partial refresh; non-fuzzyclock themes are therefore throttled to one hardware
 update per hour unless `--force-full-refresh` is used.
 

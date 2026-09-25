@@ -1217,6 +1217,11 @@ def _draw_footer(
 # ---------------------------------------------------------------------------
 
 
+def art_rect(region: ComponentRegion) -> tuple[int, int, int, int]:
+    """The sky ribbon's rectangle — the part of the plate that may dither in colour."""
+    return (region.x, region.y, region.x + region.w, region.y + min(SKY_H, region.h))
+
+
 def draw_day_arc(
     draw: ImageDraw.ImageDraw,
     data: DashboardData,
