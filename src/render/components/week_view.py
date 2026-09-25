@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta
+from typing import Any
 
 from PIL import ImageDraw
 
@@ -401,7 +402,7 @@ def _autofit_font(
     """
     current = font
     size = current.size
-    fallback = None
+    fallback: Any = None
     while size > min_size:
         words = text.split()
         words_fit = all(
@@ -501,7 +502,7 @@ def _draw_day_events(
         if event.is_all_day:
             bar_h = text_height(allday_font) + allday_pad
             need_h = bar_h
-            fitted_font = None
+            fitted_font: Any = None
         else:
             fitted_font = _autofit_font(
                 draw,

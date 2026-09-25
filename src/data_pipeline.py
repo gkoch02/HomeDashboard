@@ -177,7 +177,7 @@ class DataPipeline:
         self._cache_blob = load_cache_blob(self.cache_dir)
         # Per-source timestamp of the data actually used this run, whether it
         # came off the wire or out of the cache. Drives DashboardData.content_at.
-        self._content_at: dict[str, datetime] = {}
+        self._content_at = {}
 
         enabled = [f for f in all_fetchers() if f.enabled(self.cfg)]
 
