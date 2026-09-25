@@ -94,6 +94,56 @@ class TestRandomPoolRespectsThePanelShape:
         assert not theme_fits_panel("weatherglass", PANORAMIC)
         assert theme_fits_panel("no_such_theme", LANDSCAPE)
 
+    def test_a_persisted_pick_is_revalidated_against_the_panel(self, tmp_path):
+        """A stored pick bypassed the panel filter (Codex review on #257).
+
+        The persisted-choice branch validated against the whole real-theme
+        set, so a ``halftone_agenda_wide`` stored for today kept letterboxing
+        an 800x480 panel until midnight.
+        """
+        import json
+
+        from src.render.random_theme import pick_random_theme, pick_random_theme_hourly
+
+        today = date(2026, 3, 22)
+        (tmp_path / "random_theme_state.json").write_text(
+            json.dumps({"date": "2026-03-22", "theme": "halftone_agenda_wide"})
+        )
+        assert pick_random_theme([], [], str(tmp_path), today=today) == "halftone_agenda_wide"
+        chosen = pick_random_theme([], [], str(tmp_path), today=today, panel=LANDSCAPE)
+        assert chosen not in WIDE
+        # Reporting only: the stale pick is not what the panel will show.
+        (tmp_path / "random_theme_state.json").write_text(
+            json.dumps({"date": "2026-03-22", "theme": "halftone_agenda_wide"})
+        )
+        assert (
+            pick_random_theme([], [], str(tmp_path), today=today, persist=False, panel=LANDSCAPE)
+            == ""
+        )
+
+        from datetime import datetime
+
+        now = datetime(2026, 3, 22, 14, 5)
+        (tmp_path / "random_theme_hourly_state.json").write_text(
+            json.dumps({"hour": "2026-03-22T14", "theme": "wide_day"})
+        )
+        assert pick_random_theme_hourly([], [], str(tmp_path), now=now) == "wide_day"
+        chosen = pick_random_theme_hourly([], [], str(tmp_path), now=now, panel=LANDSCAPE)
+        assert chosen not in WIDE
+
+    def test_a_persisted_pick_that_fits_is_kept(self, tmp_path):
+        import json
+
+        from src.render.random_theme import pick_random_theme
+
+        (tmp_path / "random_theme_state.json").write_text(
+            json.dumps({"date": "2026-03-22", "theme": "wide_day"})
+        )
+        assert (
+            pick_random_theme([], [], str(tmp_path), today=date(2026, 3, 22), panel=PANORAMIC)
+            == "wide_day"
+        )
+
 
 class TestCooldownDefaultFollowsTheSpec:
     def test_four_ink_waveshare_gets_the_colour_default(self):

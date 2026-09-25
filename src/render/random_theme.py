@@ -130,8 +130,11 @@ def pick_random_theme(
             state = json.loads(state_path.read_text())
             if state.get("date") == today_str:
                 chosen = state.get("theme", "")
-                valid_pool = AVAILABLE_THEMES - _EXCLUDED_FROM_POOL
-                if chosen in valid_pool:
+                # Validate against the pool this run would draw from, panel
+                # filter included: a pick persisted before the panel changed
+                # (or by a run configured for another one) would otherwise
+                # letterbox for the rest of the day.
+                if chosen in eligible_themes(include, exclude, panel):
                     logger.info("Random theme for %s: %s (persisted)", today_str, chosen)
                     return chosen
         except Exception as exc:
@@ -213,8 +216,8 @@ def pick_random_theme_hourly(
             state = json.loads(state_path.read_text())
             if state.get("hour") == hour_key:
                 chosen = state.get("theme", "")
-                valid_pool = AVAILABLE_THEMES - _EXCLUDED_FROM_POOL
-                if chosen in valid_pool:
+                # Same validation as the daily variant — see pick_random_theme().
+                if chosen in eligible_themes(include, exclude, panel):
                     logger.info("Random hourly theme for %s: %s (persisted)", hour_key, chosen)
                     return chosen
         except Exception as exc:

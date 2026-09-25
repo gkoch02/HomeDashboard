@@ -134,6 +134,27 @@ class TestEventLanes:
         assert [[e.summary for e in lane] for lane in lanes] == [["a"], ["b"]]
 
 
+class TestTimedEventsForDay:
+    """The timeline selects by overlap with the day, not by start date (Codex on #257)."""
+
+    def test_an_event_in_progress_at_midnight_is_included(self):
+        overnight = _event("Night shift", 22, 30, day=TODAY - timedelta(days=1))  # 10p–6a
+        assert wd.timed_events_for_day([overnight], TODAY) == [overnight]
+
+    def test_an_event_ending_at_midnight_is_not(self):
+        yesterday = _event("a", 22, 24, day=TODAY - timedelta(days=1))
+        tomorrow = _event("b", 0, 1, day=TODAY + timedelta(days=1))
+        assert wd.timed_events_for_day([yesterday, tomorrow], TODAY) == []
+
+    def test_all_day_events_are_left_to_the_chips(self):
+        chip = _event("Holiday", 0, 24, all_day=True)
+        assert wd.timed_events_for_day([chip, _event("a", 9, 10)], TODAY) == [_event("a", 9, 10)]
+
+    def test_sorted_by_start(self):
+        late, early = _event("late", 14, 15), _event("early", 9, 10)
+        assert wd.timed_events_for_day([late, early], TODAY) == [early, late]
+
+
 class TestAxisHours:
     def test_default_window(self):
         assert wd.axis_hours([], TODAY) == (wd.AXIS_MIN_HOUR, wd.AXIS_MAX_HOUR)
@@ -249,6 +270,17 @@ class TestWideDayRender:
         # Beside the bar, to the right of 9:30 on the axis.
         beside = (485, 92, 640, 138)
         assert ink(with_label, beside) > ink(without, beside) + 150
+
+    def test_overnight_event_gets_a_bar_from_the_axis_start(self):
+        """Started yesterday, still running: the bar is clipped to today, not dropped."""
+        overnight = _event("Night shift", 22, 31, day=TODAY - timedelta(days=1))  # 10p–7a
+        with_bar, d = _plate()
+        wd.draw_wide_day(d, _day_data([overnight]), TODAY, FIXED_NOW)
+        without, d = _plate()
+        wd.draw_wide_day(d, _day_data([]), TODAY, FIXED_NOW)
+        # The 6a–7a stretch of the first lane, at the left edge of the axis.
+        head = (300, 90, 360, 140)
+        assert ink(with_bar, head) > ink(without, head) + 100
 
     def test_empty_day_says_so(self):
         img, d = _plate()

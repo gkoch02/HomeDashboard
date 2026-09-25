@@ -132,6 +132,20 @@ def event_lanes(events: list[CalendarEvent]) -> list[list[CalendarEvent]]:
     return pack_lanes([(e.start.timestamp(), e.end.timestamp(), e) for e in events])
 
 
+def timed_events_for_day(events: list[CalendarEvent], today: date) -> list[CalendarEvent]:
+    """Today's timed events by *overlap* with the calendar day, by start time.
+
+    ``events_for_day`` keeps a timed event only when it starts today, which
+    drops one already in progress at midnight — an overnight shift, a
+    red-eye — from a timeline whose bars clip to the day anyway. Select by
+    overlap with ``[day_start, day_end)`` and let the clipping do its job.
+    """
+    day_start = datetime.combine(today, datetime.min.time())
+    day_end = day_start + timedelta(days=1)
+    timed = [e for e in events if not e.is_all_day and e.start < day_end and e.end > day_start]
+    return sorted(timed, key=lambda e: e.start)
+
+
 def axis_hours(events: list[CalendarEvent], today: date) -> tuple[int, int]:
     """The ``(start, end)`` hours the axis spans for today's timed *events*.
 
@@ -326,9 +340,9 @@ def _draw_timeline(
     style: ThemeStyle,
 ) -> None:
     x0, y0, w, h = rect
-    todays = events_for_day(events, today)
-    timed = [e for e in todays if not e.is_all_day]
-    allday = [e for e in todays if e.is_all_day]
+    timed = timed_events_for_day(events, today)
+    allday = [e for e in events_for_day(events, today) if e.is_all_day]
+    todays = allday + timed
 
     # Title row: TODAY · N events, all-day chips against the right edge.
     label_font = style.label_font()
