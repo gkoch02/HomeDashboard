@@ -63,10 +63,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   `src/app.py`, which now generalises `THEMES_NEEDING_TOMORROW`) because the
   rail shows the day after tomorrow once the agenda has rolled over. The
   agenda pane spends its width on data: a header dateline with the day's
-  totals, a schedule strip with a block per event in the row treatments, a
-  duration column, `— Nh Nm free` markers between events, the next event's
-  title in the accent, and condensed Antonio time cells so titles get the
-  room.
+  totals, a schedule strip with a block per event, a duration column,
+  `— Nh Nm free` markers between events, and condensed Antonio time cells so
+  titles get the room. It deliberately drops the original's state treatments
+  (perforated past rows, the inverted running event, the next-up accent):
+  each one repaints the panel at an event boundary, and on the four-ink
+  panel a repaint is a twenty-second flash. The after-dark rollover is the
+  one clock-driven change left.
 
 ### Fixed
 

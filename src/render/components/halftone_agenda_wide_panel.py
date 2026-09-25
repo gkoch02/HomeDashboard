@@ -11,11 +11,16 @@ strip's own shape, in three panes divided by full-height ordered-Bayer rules:
     condition, high/low, sunrise, sunset, date and feels-like. The band is
     imported from that panel rather than copied — the two plates must not
     drift apart in what they read out.
-  * **Agenda pane** (``AGENDA_W``) — today's events, drawn by the same
-    ``_draw_agenda_pane`` the original uses, at half again its width. Every
-    state treatment comes with it: elapsed rows perforated, the event in
-    progress inverted into a red bar, the next one up ticked, and the
-    after-dark rollover to TOMORROW.
+  * **Agenda pane** (``AGENDA_W``) — today's events at half again the
+    original's width, with a schedule strip, a duration column and free-time
+    markers. Deliberately *without* the original's state treatments: no
+    perforated past rows, no inverted running event, no next-up accent. On
+    the four-ink panel every repaint is a twenty-second colour flash, and a
+    plate whose rows change treatment at every event boundary repaints a
+    dozen times on a busy day. Here the day is shown whole, the same from
+    dawn to dusk, and the only clock-driven change left is the after-dark
+    rollover to TOMORROW — one repaint a day, and the reason the theme
+    fetches the extra days.
   * **Rail** (the rest) — what the original plate has no room for. Top to
     bottom: an inverted alert bar when the weather service has one; the
     following day's first events (``TOMORROW``, or the day after that once
@@ -24,10 +29,10 @@ strip's own shape, in three panes divided by full-height ordered-Bayer rules:
     the coming birthdays; and a bottom row pairing the air-quality index
     with the moon's phase.
 
-Nothing in the rail reads the clock except through ``agenda_day``, so the
-plate keeps the original's property: a tick that crosses no event boundary
-renders byte-identically and costs no panel write. Every typeset region is
-hardened before the backend dithers; only the illustration diffuses.
+Nothing on the plate reads the clock except through ``agenda_day`` and the
+data timestamp in the caption, so a tick renders byte-identically until the
+data itself moves. Every typeset region is hardened before the backend
+dithers; only the illustration diffuses.
 """
 
 from __future__ import annotations
@@ -40,7 +45,7 @@ from src.data.models import AirQualityData, Birthday, CalendarEvent, DashboardDa
 from src.render.artkit import accent_red as _accent_red
 from src.render.artkit import ink as _ink
 from src.render.artkit import to_local_naive
-from src.render.components.day_arc_panel import agenda_day, event_state
+from src.render.components.day_arc_panel import agenda_day
 from src.render.components.halftone_agenda_panel import _clock as _clock_text
 from src.render.components.halftone_agenda_panel import (
     _draw_weather_band,
@@ -48,7 +53,6 @@ from src.render.components.halftone_agenda_panel import (
     _sun_times,
     event_times,
     inline_range,
-    past_screen,
     two_line_time_fits,
 )
 from src.render.fonts import antonio_semibold, weather_icon
@@ -63,7 +67,7 @@ from src.render.primitives import (
     text_height,
     text_width,
 )
-from src.render.skyart import draw_bayer_rule, draw_weather_scene, harden_typeset, screened_paste
+from src.render.skyart import draw_bayer_rule, draw_weather_scene, harden_typeset
 from src.render.theme import ComponentRegion, ThemeStyle
 
 # ---------------------------------------------------------------------------
@@ -335,20 +339,18 @@ def _draw_schedule_strip(
     draw: ImageDraw.ImageDraw,
     events: list[CalendarEvent],
     day: date,
-    now: datetime,
     style: ThemeStyle,
     *,
     x0: int,
     y0: int,
     w: int,
 ) -> None:
-    """A day-long bar with a block per timed event, in the row treatments.
+    """A day-long bar with a solid block per timed event.
 
     The same reading as the rows below, compressed to a glance: where the day
-    is dense, where it is free, and how much of it is spent. Blocks take the
-    row's own encoding — an elapsed block perforated, the one in progress in
-    the accent, the rest solid — so the strip changes only at event
-    boundaries, like everything else on the pane.
+    is dense and where it is free. Every block is plain ink whatever the hour
+    — encoding elapsed or running events here would repaint the panel at
+    every boundary, which is the thing this plate avoids.
     """
     mode = image.mode
     ink = _ink(mode)
@@ -376,18 +378,7 @@ def _draw_schedule_strip(
             continue
         bx0 = x_for(max(evt.start, day_start))
         bx1 = max(bx0 + 3, x_for(min(evt.end, day_start + timedelta(days=1))))
-        state = event_state(evt, now)
-        box = (bx0, y0, bx1, y0 + bar_h - 1)
-        if state == "now":
-            draw.rectangle(box, fill=_accent_red(mode))
-        elif state == "past":
-
-            def _fill(d: ImageDraw.ImageDraw, _w=bx1 - bx0, _h=bar_h - 1) -> None:
-                d.rectangle((0, 0, _w, _h), fill=0)
-
-            screened_paste(image, (bx0, y0, bx1 - bx0 + 1, bar_h), _fill, threshold=128)
-        else:
-            draw.rectangle(box, fill=ink)
+        draw.rectangle((bx0, y0, bx1, y0 + bar_h - 1), fill=ink)
 
 
 def _draw_time_cell(
@@ -418,7 +409,6 @@ def _draw_wide_row(
     image: Image.Image,
     draw: ImageDraw.ImageDraw,
     event: CalendarEvent,
-    state: str,
     style: ThemeStyle,
     *,
     x0: int,
@@ -429,16 +419,15 @@ def _draw_wide_row(
     time_pt: int,
     title_pt: int,
     show_location: bool,
-    is_next: bool,
 ) -> None:
     """One agenda row: time cell, tick, title (+ location), duration.
 
-    The treatments are the original pane's — elapsed rows perforated, the
-    running one inverted, the rest crisp — with two additions the width
-    pays for: a duration set against the right margin, and the next event's
-    title in the accent, the way a literary clock sets the phrase that
-    names the hour. On a monochrome panel the accent is ink and the tick
-    still marks it.
+    Every row is set the same way whatever the hour. The original pane's
+    treatments — perforated past, inverted running event, accented next —
+    each cost a full repaint at an event boundary, and on the four-ink panel
+    a repaint is a twenty-second flash; a plate that reads the same all day
+    is the point of this one. A timed event's tick is filled, an all-day
+    event's outlined.
     """
     mode = image.mode
     ink = _ink(mode)
@@ -457,52 +446,26 @@ def _draw_wide_row(
     )
     bar_top = y + 2
     bar_bot = min(y + row_h - 3, bar_top + content_h)
-    duration = "" if event.is_all_day else fmt_duration(_minutes(event))
-    dur_x = x0 + w - text_width(draw, duration, dur_font)
 
-    def _body(d: ImageDraw.ImageDraw, ox: int, oy: int, fill) -> None:
-        _draw_time_cell(d, start_str, end_str, x0=ox, y=oy, time_pt=time_pt, row_h=row_h, fill=fill)
-        used = draw_text_truncated(
-            d, (ox + time_w + 12, oy + 2), event.summary, title_font, title_w, fill=fill
-        )
-        if show_location and used:
-            location = _location_text(event)
-            if location:
-                draw_text_truncated(
-                    d, (ox + time_w + 12, oy + loc_y), location, loc_font, title_w, fill=fill
-                )
-        if duration:
-            d.text((dur_x - x0 + ox, oy + 4), duration, font=dur_font, fill=fill)
-
-    if state == "now":
-        draw.rectangle((x0 - 6, bar_top - 2, x0 + w, bar_bot + 2), fill=_accent_red(mode))
-        _body(draw, x0, y, style.bg)
-        return
-    if state == "past":
-        screened_paste(
-            image,
-            (x0, y, w, max(1, row_h - 2)),
-            lambda d: _body(d, 0, 0, 0),
-            threshold=past_screen(title_pt),
-        )
-        return
-
-    mark = _accent_red(mode) if is_next else ink
     _draw_time_cell(draw, start_str, end_str, x0=x0, y=y, time_pt=time_pt, row_h=row_h, fill=ink)
     tick = (x0 + time_w, bar_top, x0 + time_w + 3, bar_bot)
     if event.is_all_day:
-        draw.rectangle(tick, outline=mark)
+        draw.rectangle(tick, outline=ink)
     else:
-        draw.rectangle(tick, fill=mark)
-    used = draw_text_truncated(
-        draw, (title_x, y + 2), event.summary, title_font, title_w, fill=mark
-    )
+        draw.rectangle(tick, fill=ink)
+    used = draw_text_truncated(draw, (title_x, y + 2), event.summary, title_font, title_w, fill=ink)
     if show_location and used:
         location = _location_text(event)
         if location:
             draw_text_truncated(draw, (title_x, y + loc_y), location, loc_font, title_w, fill=ink)
-    if duration:
-        draw.text((dur_x, y + 4), duration, font=dur_font, fill=ink)
+    if not event.is_all_day:
+        duration = fmt_duration(_minutes(event))
+        draw.text(
+            (x0 + w - text_width(draw, duration, dur_font), y + 4),
+            duration,
+            font=dur_font,
+            fill=ink,
+        )
 
 
 def _draw_wide_agenda(
@@ -519,7 +482,12 @@ def _draw_wide_agenda(
     w: int,
     h: int,
 ) -> None:
-    """Header with the day's totals, the schedule strip, a rule, then the rows."""
+    """Header with the day's totals, the schedule strip, a rule, then the rows.
+
+    *now* is unused here beyond what ``agenda_day`` decided upstream; it is
+    kept in the signature so the pane's shape matches its sibling's.
+    """
+    del now
     mode = image.mode
     ink = _ink(mode)
     title_font = (style.font_title or style.font_bold)(26)
@@ -541,14 +509,11 @@ def _draw_wide_agenda(
     booked = booked_minutes(timed)
     if booked:
         parts.append(f"{fmt_duration(booked).upper()} BOOKED")
-    nxt = next((e for e in timed if event_state(e, now) == "next"), None)
-    if nxt is not None:
-        parts.append(f"NEXT {fmt_time(nxt.start).upper()}")
     meta = " · ".join(parts)
     draw.text((x0 + w - text_width(draw, meta, meta_font), y0 + 14), meta, font=meta_font, fill=ink)
 
     strip_y = y0 + text_height(title_font) + 16
-    _draw_schedule_strip(image, draw, day_events, day, now, style, x0=x0, y0=strip_y, w=w)
+    _draw_schedule_strip(image, draw, day_events, day, style, x0=x0, y0=strip_y, w=w)
 
     rule_y = strip_y + STRIP_H + 6
     draw_bayer_rule(image, x0, rule_y, w, 3, mode)
@@ -592,7 +557,6 @@ def _draw_wide_agenda(
         visible = visible[:-1]
         overflow += 1
 
-    next_up = next((e for e in visible if not e.is_all_day and event_state(e, now) == "next"), None)
     gap_font = style.font_medium(12)
     y = rows_y
     for i, event in enumerate(visible):
@@ -600,7 +564,6 @@ def _draw_wide_agenda(
             image,
             draw,
             event,
-            event_state(event, now),
             style,
             x0=x0,
             y=y,
@@ -610,7 +573,6 @@ def _draw_wide_agenda(
             time_pt=time_pt,
             title_pt=title_pt,
             show_location=show_loc,
-            is_next=event is next_up,
         )
         y += row_h
         gap = gaps[i]

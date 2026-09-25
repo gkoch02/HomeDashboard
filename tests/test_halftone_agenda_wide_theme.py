@@ -221,11 +221,26 @@ class TestRail:
 
 
 class TestAgenda:
-    def test_running_event_inverts(self):
-        running = _data(events=[_event(10, mins=90, name="Design review")])
-        later = _data(events=[_event(15, mins=90, name="Design review")])
-        pane = (hw.ART_W + hw.DIVIDER_W, 60, hw.RAIL_X - hw.DIVIDER_W, 160)
-        assert ink(_plate(running), pane) > ink(_plate(later), pane) + 3000
+    def test_the_plate_does_not_repaint_at_event_boundaries(self):
+        """The whole point of this pane: an event starting, running or ending
+        changes nothing on the plate, so the panel is not written for it."""
+        d = _data(
+            events=[_event(10, mins=60, name="Design review"), _event(13, mins=60)],
+            content_at=FIXED_NOW - timedelta(minutes=12),
+        )
+        before = _plate(d, now=FIXED_NOW.replace(hour=9))
+        during = _plate(d, now=FIXED_NOW.replace(hour=10, minute=30))
+        after = _plate(d, now=FIXED_NOW.replace(hour=14))
+        assert before.tobytes() == during.tobytes() == after.tobytes()
+
+    def test_no_accent_in_the_agenda_pane_on_a_colour_panel(self):
+        from src.render.canvas import render_dashboard as _render
+
+        d = _data(events=[_event(10, mins=60), _event(15, mins=60)])
+        cfg = DisplayConfig(model="epd10in85g", width=1360, height=480)
+        img = _render(d, cfg, theme=load_theme("halftone_agenda_wide"))
+        pane = img.crop((hw.ART_W + hw.DIVIDER_W, 0, hw.RAIL_X - hw.DIVIDER_W, 480))
+        assert (255, 0, 0) not in set(flatten_pixels(pane))
 
     def test_idle_tick_is_byte_identical(self):
         d = _data(content_at=FIXED_NOW - timedelta(minutes=12))
@@ -329,20 +344,15 @@ class TestAgendaRender:
         column = (AGENDA_X1 - hw.DURATION_W, 100, AGENDA_X1, 200)
         assert ink(timed, column) > ink(allday, column) + 100
 
-    def test_next_event_title_takes_the_accent_on_a_colour_panel(self):
-        from src.render.canvas import render_dashboard as _render
-
-        data = _agenda_data([_event(15, mins=60, name="Design review")])
-        cfg = DisplayConfig(model="epd10in85g", width=1360, height=480)
-        img = _render(data, cfg, theme=load_theme("halftone_agenda_wide"))
-        title_box = img.crop((AGENDA_X0 + 120, 100, AGENDA_X1 - hw.DURATION_W, 180))
-        assert (255, 0, 0) in set(flatten_pixels(title_box))
-        # Once the event has passed there is nothing "next", and no red in the rows.
-        later = FIXED_NOW.replace(hour=17)
-        data.fetched_at = later
-        img = _render(data, cfg, theme=load_theme("halftone_agenda_wide"))
-        title_box = img.crop((AGENDA_X0 + 120, 100, AGENDA_X1 - hw.DURATION_W, 180))
-        assert (255, 0, 0) not in set(flatten_pixels(title_box))
+    def test_rollover_is_the_one_clock_driven_change(self):
+        """After dark with today's events done the agenda shows tomorrow — one
+        repaint a day, and the reason the theme fetches the extra days."""
+        d = _agenda_data([_event(9, mins=60), _event(9, mins=60, day=TODAY + timedelta(days=1))])
+        evening = _plate(d, now=FIXED_NOW.replace(hour=17))
+        night = _plate(d, now=FIXED_NOW.replace(hour=22))
+        assert evening.tobytes() != night.tobytes()
+        header = (AGENDA_X0 - 6, 10, AGENDA_X0 + 200, 44)
+        assert ink(night, header) > ink(evening, header) + 1500  # the inverted chip
 
     def test_header_meta_reports_booked_time_and_next(self):
         one = _plate(_agenda_data([_event(15, mins=60)]))
