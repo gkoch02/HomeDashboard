@@ -337,6 +337,22 @@ def draw_staleness_glyph(draw: ImageDraw.ImageDraw, region, style) -> None:
     draw.text((tx, ty), "!", font=warn_font, fill=style.bg)
 
 
+def wind_unit(weather) -> str:
+    """Return the wind-speed unit label for the units *weather* was fetched in.
+
+    OpenWeatherMap reports wind in m/s for ``metric`` **and** ``standard`` and
+    in mph only for ``imperial``; ``WeatherData.units`` records which. A
+    ``None`` weather or a missing/unknown ``units`` (older cache entries) falls
+    back to mph, the historical default. Every panel that prints a wind speed
+    labels it through this one helper so a metric install can't read "mph"
+    on one theme and "m/s" on another (#270).
+    """
+    units = getattr(weather, "units", None)
+    if units in ("metric", "standard"):
+        return "m/s"
+    return "mph"
+
+
 def deg_to_compass(deg: float) -> str:
     """Convert wind direction in degrees to a compass abbreviation.
 

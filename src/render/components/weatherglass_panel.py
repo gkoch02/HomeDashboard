@@ -32,6 +32,7 @@ import json
 import math
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
+from types import SimpleNamespace
 
 from PIL import Image, ImageDraw
 
@@ -41,7 +42,7 @@ from src.data.models import AirQualityData, DashboardData, WeatherAlert, Weather
 from src.render.artkit import grey as _grey
 from src.render.artkit import ink as _ink
 from src.render.moon import is_waxing, moon_illumination, moon_phase_name
-from src.render.primitives import draw_text_truncated, text_height, text_width
+from src.render.primitives import draw_text_truncated, text_height, text_width, wind_unit
 from src.render.quantize import INKY_SPECTRA6_PALETTE
 from src.render.theme import (
     INKY_BLUE,
@@ -251,11 +252,8 @@ def _temp_hot_threshold(units: str | None) -> float:
 
 
 def _wind_unit_label(units: str | None) -> str:
-    if units == "metric":
-        return "m/s"
-    if units == "standard":
-        return "m/s"
-    return "mph"
+    """Kept for the tests that import it; the one rule lives in ``primitives.wind_unit``."""
+    return wind_unit(SimpleNamespace(units=units))
 
 
 # ---------------------------------------------------------------------------

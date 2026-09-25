@@ -32,6 +32,7 @@ from src.render.primitives import (
     hline,
     text_height,
     text_width,
+    wind_unit,
 )
 from src.render.primitives import (
     fmt_time as _fmt_time,
@@ -192,7 +193,7 @@ def _draw_metric_cards(draw, weather, x0, y0, W, H, style, *, air_quality=None):
         wind_val = f"{weather.wind_speed:.0f}"
         if weather.wind_deg is not None:
             wind_val += f" {deg_to_compass(weather.wind_deg)}"
-        cards.append((_GLYPH_WIND, wind_val, "Wind mph"))
+        cards.append((_GLYPH_WIND, wind_val, f"Wind {wind_unit(weather)}"))
     else:
         cards.append((_GLYPH_WIND, "—", "Wind"))
 

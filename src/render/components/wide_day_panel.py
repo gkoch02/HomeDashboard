@@ -56,6 +56,7 @@ from src.render.primitives import (
     text_height,
     text_width,
     vline,
+    wind_unit,
 )
 from src.render.theme import ComponentRegion, ThemeStyle
 
@@ -304,8 +305,7 @@ def _draw_left_block(
             f"↑ {fmt_time(_naive(weather.sunrise, now))}  ↓ {fmt_time(_naive(weather.sunset, now))}"
         )
     if weather.wind_speed is not None:
-        unit = "m/s" if weather.units == "metric" else "mph"
-        wind = f"Wind {weather.wind_speed:.0f} {unit}"
+        wind = f"Wind {weather.wind_speed:.0f} {wind_unit(weather)}"
         if weather.wind_deg is not None:
             wind += f" {deg_to_compass(weather.wind_deg)}"
         parts.append(wind)
