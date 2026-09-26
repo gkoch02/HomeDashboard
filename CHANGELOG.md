@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+A major release. Existing `config.yaml` files still load unchanged, but a few
+surfaces are gone or behave differently: `display.week_days` is ignored, the
+`make previews-split` target and split preview images are removed, five
+unlicensed bundled fonts (and the `nucore` accessor) are replaced, and ICS /
+CalDAV outages now fail the fetch and fall back to cache instead of rendering
+an empty calendar. See **Removed** and **Changed** below.
+
 ### Added
 
 - **Waveshare 10.85" e-Paper (G) support** — `display.model: epd10in85g`, a
@@ -70,6 +77,196 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   each one repaints the panel at an event boundary, and on the four-ink
   panel a repaint is a twenty-second flash. The after-dark rollover is the
   one clock-driven change left.
+
+- **Licence texts for the nine families that were bundled without one.**
+  Playfair Display, Plus Jakarta Sans, DM Sans, Cinzel, Share Tech Mono, Space
+  Grotesk and Weather Icons had shipped with no `OFL.txt` — 20 of 29 font files
+  were uncovered. All are OFL-licensed upstream, so this was a compliance
+  failure rather than a licensing one: OFL 1.1 §2 requires the licence text to
+  accompany the font, so every clone and every `make deploy` rsync was shipping
+  them out of compliance. Every font in `fonts/` now has its licence beside it.
+- **`tests/test_font_licenses.py`** enforces that going forward, in both
+  directions: every bundled font must have a sibling licence file containing the
+  OFL text, *and* must assert terms in its own `name` table. The second check is
+  what distinguishes a font whose licence someone documented from a font that
+  actually carries one.
+- **A `Third-party content` section in `LICENSE`**, recording what the MIT grant
+  does not reach: the bundled typefaces and their licence files, the provenance
+  of `assets/moon_full.png` (an original photograph by the copyright holder) and
+  the generated images, the quotation collection in `config/quotes.json` (whose
+  selection and arrangement are MIT but whose underlying quotations are not the
+  copyright holder's to license), and the two non-permissive runtime
+  dependencies — `recurring-ical-events` (LGPL-3.0-or-later) and `caldav`
+  (GPL-3.0-or-later **or** Apache-2.0, relied on under Apache-2.0). A `License`
+  section in `README.md` points at it.
+- **PEP 639 packaging metadata.** `pyproject.toml` declares
+  `license = "MIT"` as an SPDX expression plus
+  `license-files = ["LICENSE", "fonts/*OFL*.txt"]`, so a built wheel carries
+  `License-Expression: MIT` and all eighteen bundled font licences in its
+  `dist-info`. The build requirement moves to `setuptools>=77`, below which the
+  string form is not understood and the OFL texts would silently not ship.
+
+### Changed
+
+- **`halftone_agenda_wide` uses its two accents on the agenda and dateline.**
+  On a colour panel a timed event's tick is yellow and an all-day event's red
+  (on mono the all-day tick stays outlined), the weather band's date is red and
+  the "updated" stamp yellow. The colours key on the kind of event, never the
+  clock, so the plate still repaints only when the data moves. The air-and-moon
+  foot grows from 52 to 72 px with its type scaled up, taken from the birthdays
+  cell, which now shows up to five rows in whatever room is left.
+- **Config validation warns** about non-positive cache TTLs and air-quality
+  fetch interval, `max_failures` below 1, a negative breaker cooldown,
+  `max_partials_before_full` below 1 with partial refresh on, coordinates off
+  the globe, and an explicit `display.width`/`height` that disagrees with the
+  model. Warnings, not errors, so an upgrade cannot stop a running panel (#306).
+- **The web editor covers more of the config.** Log level offers every name
+  `logging` accepts (`CRITICAL`, `FATAL`, `WARN` included); quantization mode,
+  the photo path, the birthdays file, additional Google calendars, the daily
+  request warning and the refresh cooldown are editable; provider and model
+  are shown read-only (#307).
+- **`google.caldav_url` and `caldav_calendar_url` are treated as secrets** by the
+  web layer: such URLs often embed credentials, so the browser gets only a
+  set/unset flag and `POST /api/config` no longer edits them — change them in
+  `config.yaml`, like the private ICS URL.
+- **`make configure` asks which calendar source you use** — ICS, CalDAV or the
+  Google API — writes that source's settings, switches off a
+  higher-precedence one left from an earlier answer, and points at
+  `docs/setup.md`. It now checks for the venv it runs (#302).
+- **The shipped template carries `schema_version: 5`**, and the in-memory
+  v4→v5 stamp logs at DEBUG, not INFO on every load (#304).
+- **ruff is pinned** to one version in `[dev]` and the pre-commit hook, with a
+  test that they agree (#303).
+
+- **`halftone_agenda` sets whole-hour time ranges on one line.** A row whose
+  event starts and ends on the hour now reads `10a–12p` beside its title
+  instead of `10a –` over `12p`. Only a pair that needs minutes on either end
+  still stacks, because an inline `11:30a–1:15p` would not fit the column its
+  neighbours use. The inline form uses a tight en dash: the widest real
+  whole-hour pair, `10a–10p`, fits every density tier's column that way, and
+  the spaced dash overran the three roomiest. The densest tier, which drops a
+  stacked pair's end time for want of a second line, keeps it for a whole-hour
+  pair.
+- **Event locations show their first line only.** Google Calendar stores a
+  place as the business name, a newline, then the street and city separated
+  by commas. The `today`, week-view, `day_arc` and `halftone_agenda` rows cut
+  at the first comma but folded the newline into a space, so a gym booking
+  read `Ultimate Condition Fitness 535 W H…` — the name and the street run
+  together and ellipsized mid-street. The cut is now at whichever comes first,
+  the first line or its first comma segment, via one shared
+  `primitives.location_line()`, so the row reads `Ultimate Condition Fitness`
+  (or the street, when that is the first line).
+- **The theme catalog is monochrome again, with a separate color page.**
+  `docs/themes.md` embedded one composite image per theme, cut diagonally
+  between the Waveshare and Inky renders. That asked the reader to mentally
+  un-shear two half-renders in order to compare them, and neither backend was
+  ever shown whole — the monochrome render most people actually run was only
+  ever visible as a triangle. Every preview on that page is now the plain
+  Waveshare 1-bit render, and the Inky Spectra 6 catalog moved to a new
+  [Inky Previews](docs/inky-previews.md) page, cross-linked from the themes
+  page, the README and `docs/previews.md`. The color page also documents how
+  color is assigned — the four semantic accent roles, and each theme's
+  registered `(primary, secondary)` accent pair.
+- `make docs-check` now holds `docs/inky-previews.md` to the theme registry the
+  same way it already held `docs/themes.md`: a theme with no entry, or an entry
+  with no `_inky.png` embed, fails the check. Both pages share one heading
+  convention (`###` for groups, `#### <theme>` for entries).
+
+- **The `terminal`, `sunrise` and `tides` themes are re-set in OFL faces.**
+  `terminal` now uses **Oxanium** for its title, day column headers and quote
+  body, **Rajdhani** for the month band, section labels and quote attribution,
+  and **Orbitron Black** for the hero date numeral; `sunrise` and `tides` use
+  **Antonio** for their titles and section labels. The three-role split of the
+  original is preserved, and each face is bundled with its OFL text.
+
+  The date numeral is a visible improvement rather than a like-for-like swap:
+  Synthetic Genesis is a constructed-alphabet display face whose digits are not
+  legible as digits — its `6` renders as a bar, a diamond and a block — so
+  `terminal` had never actually shown a readable day of the month. Oxanium was
+  chosen over Orbitron for the body roles because Orbitron's width forces a
+  dense quote down to an unreadable size; Orbitron is kept for the one hero
+  element where width is an asset.
+
+  Consequence worth knowing: Rajdhani is semi-condensed, so no real month name
+  now overflows the `terminal` month band (SEPTEMBER measures 157px against a
+  228px cell) and its shrink loop no longer fires in production. The loop is
+  still live code and still tested — `tests/test_week_view.py` drives it through
+  a narrowed region and separately asserts that all twelve names fit.
+
+- **The README banner is re-set in the same replacement faces.**
+  `scripts/build_banner.py` loads its fonts by filename rather than through
+  `src/render/fonts.py`, so it held the only two remaining references to the
+  removed files and `make banner` would have failed at `ImageFont.truetype`.
+  The wordmark moves to **Oxanium Bold** and the temperature numeral to
+  **Antonio Bold**, and `assets/banner.png` is regenerated. Two details fell
+  out of the swap: the helper now pins a weight for variable faces (Oxanium's
+  default instance is ExtraLight, which dithers to hairlines at 1-bit), and the
+  temperature is set as a real `72°` — the drawn ring it replaces was a
+  workaround for the old face having no degree glyph, not the design echo of
+  `weather_panel.py` its comment claimed. The wordmark is set at 100pt rather
+  than 130: Oxanium is the wider face, and 100pt is the largest size at which
+  "HOME DASHBOARD" still fits the 928px wordmark zone, which cost the wordmark
+  column ~56px of height it cannot get back. Top-aligned that left 131px of dead
+  space beneath it against the motif column's 53, reading as a layout fault
+  rather than a short column, so the column is dropped by `WORDMARK_DROP` (34px)
+  to share the motif column's optical centre — measured from the two columns'
+  ink extents rather than chosen by eye.
+
+- **Releases are cut with one command instead of four manual edits.**
+  `make release` (`scripts/release.py`) bumps `src/_version.py`, dates the
+  `## [Unreleased]` block, commits, and creates the annotated `vX.Y.Z` tag.
+  The bump size is inferred from the Unreleased section headings —
+  `Added`/`Changed`/`Deprecated`/`Removed` means minor, `Fixed`/`Security`
+  alone means patch. Major is never inferred and must be requested with
+  `make release RELEASE_ARGS="--major"`. `make release-dry` prints the plan
+  without writing. The script refuses a dirty tree, an existing tag, or a
+  version that does not increase; pushing stays manual. If any step of the
+  mutating phase fails — a rejecting pre-commit hook, an unset git identity, a
+  signing key that will not load — the file rewrites and any release commit are
+  rolled back, so the same release can simply be retried once the cause is
+  fixed. The rollback never uses `git reset --hard`, since `--allow-dirty`
+  means the tree may hold unrelated work.
+- **The version has a single source of truth.** `pyproject.toml` now declares
+  `dynamic = ["version"]` and reads `src/_version.py` via
+  `[tool.setuptools.dynamic]` rather than restating the number. The two files
+  had already drifted once — `4.6.0` was committed to one while the other
+  said `5.2.0`. `tests/test_version_consistency.py` fails the build on that
+  drift, on a non-semver `__version__`, on an undated or mismatched newest
+  changelog entry, and on a missing `## [Unreleased]` heading.
+
+- **`make lint` / `make fmt` now cover `scripts/` and `tools/`.** Both
+  directories were outside the linted set, so `scripts/release.py`,
+  `scripts/build_previews.py`, `tools/check_naive_datetime.py` and their
+  neighbours could drift from the project's ruff config without CI noticing.
+  Both were already clean, so this is a scope widening with no code changes.
+
+### Removed
+
+- **`display.week_days`.** It was parsed and web-editable but nothing read it;
+  every week layout is a fixed seven-column grid. A config that still sets it
+  loads without complaint (#305).
+- **`astronomy.dark_sky_window()`**, which had no callers and returned an
+  inverted window (#294).
+- **`docs/improvement-plan.md`**, a dated snapshot linked from nowhere (#300).
+
+- **Combined split previews.** `scripts/build_split_previews.py`, the
+  `make previews-split` target, and the 37 `assets/previews/theme_*_split.png`
+  images are gone, superseded by the two independent preview sets above. The
+  script's `_THEME_SPLIT_MODES` orientation table went with it; it referenced
+  an `_INKY_THEME_KEY_COLORS` constant that no longer existed in
+  `src/render/canvas.py`.
+- **Five bundled display faces that carried no licence at all.**
+  `Maratype.otf`, `NuCore.otf`, `NuCore Condensed.otf`, `Synthetic Genesis.otf`
+  and `UESC Display.otf` shipped in `fonts/` with no accompanying licence file
+  and — the part that settles it — no copyright string, no licence description
+  and no licence URL in their own `name` tables. Each carried only a designer
+  link to a portfolio site. The project's MIT grant purports to let anyone
+  "use, copy, modify, merge, publish, distribute, sublicense, and/or sell"
+  everything in the repository, and that is not a claim this project could make
+  about those files. They are replaced below rather than documented. If a
+  written grant for any of them turns up, the face can come back.
+- `nucore` (the non-condensed accessor) is gone with the file. It had no
+  production caller — it was reached only by its own smoke test.
 
 ### Fixed
 
@@ -272,202 +469,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   skipped while the others render"; since #234 any feed failure raises
   `CalendarFetchError` so the last complete calendar renders from cache with a
   staleness indicator, rather than a partial calendar being shown as complete.
-
-### Changed
-
-- **`halftone_agenda_wide` uses its two accents on the agenda and dateline.**
-  On a colour panel a timed event's tick is yellow and an all-day event's red
-  (on mono the all-day tick stays outlined), the weather band's date is red and
-  the "updated" stamp yellow. The colours key on the kind of event, never the
-  clock, so the plate still repaints only when the data moves. The air-and-moon
-  foot grows from 52 to 72 px with its type scaled up, taken from the birthdays
-  cell, which now shows up to five rows in whatever room is left.
-- **Config validation warns** about non-positive cache TTLs and air-quality
-  fetch interval, `max_failures` below 1, a negative breaker cooldown,
-  `max_partials_before_full` below 1 with partial refresh on, coordinates off
-  the globe, and an explicit `display.width`/`height` that disagrees with the
-  model. Warnings, not errors, so an upgrade cannot stop a running panel (#306).
-- **The web editor covers more of the config.** Log level offers every name
-  `logging` accepts (`CRITICAL`, `FATAL`, `WARN` included); quantization mode,
-  the photo path, the birthdays file, additional Google calendars, the daily
-  request warning and the refresh cooldown are editable; provider and model
-  are shown read-only (#307).
-- **`google.caldav_url` and `caldav_calendar_url` are treated as secrets** by the
-  web layer: such URLs often embed credentials, so the browser gets only a
-  set/unset flag and `POST /api/config` no longer edits them — change them in
-  `config.yaml`, like the private ICS URL.
-- **`make configure` asks which calendar source you use** — ICS, CalDAV or the
-  Google API — writes that source's settings, switches off a
-  higher-precedence one left from an earlier answer, and points at
-  `docs/setup.md`. It now checks for the venv it runs (#302).
-- **The shipped template carries `schema_version: 5`**, and the in-memory
-  v4→v5 stamp logs at DEBUG, not INFO on every load (#304).
-- **ruff is pinned** to one version in `[dev]` and the pre-commit hook, with a
-  test that they agree (#303).
-
-- **`halftone_agenda` sets whole-hour time ranges on one line.** A row whose
-  event starts and ends on the hour now reads `10a–12p` beside its title
-  instead of `10a –` over `12p`. Only a pair that needs minutes on either end
-  still stacks, because an inline `11:30a–1:15p` would not fit the column its
-  neighbours use. The inline form uses a tight en dash: the widest real
-  whole-hour pair, `10a–10p`, fits every density tier's column that way, and
-  the spaced dash overran the three roomiest. The densest tier, which drops a
-  stacked pair's end time for want of a second line, keeps it for a whole-hour
-  pair.
-- **Event locations show their first line only.** Google Calendar stores a
-  place as the business name, a newline, then the street and city separated
-  by commas. The `today`, week-view, `day_arc` and `halftone_agenda` rows cut
-  at the first comma but folded the newline into a space, so a gym booking
-  read `Ultimate Condition Fitness 535 W H…` — the name and the street run
-  together and ellipsized mid-street. The cut is now at whichever comes first,
-  the first line or its first comma segment, via one shared
-  `primitives.location_line()`, so the row reads `Ultimate Condition Fitness`
-  (or the street, when that is the first line).
-- **The theme catalog is monochrome again, with a separate color page.**
-  `docs/themes.md` embedded one composite image per theme, cut diagonally
-  between the Waveshare and Inky renders. That asked the reader to mentally
-  un-shear two half-renders in order to compare them, and neither backend was
-  ever shown whole — the monochrome render most people actually run was only
-  ever visible as a triangle. Every preview on that page is now the plain
-  Waveshare 1-bit render, and the Inky Spectra 6 catalog moved to a new
-  [Inky Previews](docs/inky-previews.md) page, cross-linked from the themes
-  page, the README and `docs/previews.md`. The color page also documents how
-  color is assigned — the four semantic accent roles, and each theme's
-  registered `(primary, secondary)` accent pair.
-- `make docs-check` now holds `docs/inky-previews.md` to the theme registry the
-  same way it already held `docs/themes.md`: a theme with no entry, or an entry
-  with no `_inky.png` embed, fails the check. Both pages share one heading
-  convention (`###` for groups, `#### <theme>` for entries).
-
-### Removed
-
-- **`display.week_days`.** It was parsed and web-editable but nothing read it;
-  every week layout is a fixed seven-column grid. A config that still sets it
-  loads without complaint (#305).
-- **`astronomy.dark_sky_window()`**, which had no callers and returned an
-  inverted window (#294).
-- **`docs/improvement-plan.md`**, a dated snapshot linked from nowhere (#300).
-
-- **Combined split previews.** `scripts/build_split_previews.py`, the
-  `make previews-split` target, and the 37 `assets/previews/theme_*_split.png`
-  images are gone, superseded by the two independent preview sets above. The
-  script's `_THEME_SPLIT_MODES` orientation table went with it; it referenced
-  an `_INKY_THEME_KEY_COLORS` constant that no longer existed in
-  `src/render/canvas.py`.
-- **Five bundled display faces that carried no licence at all.**
-  `Maratype.otf`, `NuCore.otf`, `NuCore Condensed.otf`, `Synthetic Genesis.otf`
-  and `UESC Display.otf` shipped in `fonts/` with no accompanying licence file
-  and — the part that settles it — no copyright string, no licence description
-  and no licence URL in their own `name` tables. Each carried only a designer
-  link to a portfolio site. The project's MIT grant purports to let anyone
-  "use, copy, modify, merge, publish, distribute, sublicense, and/or sell"
-  everything in the repository, and that is not a claim this project could make
-  about those files. They are replaced below rather than documented. If a
-  written grant for any of them turns up, the face can come back.
-- `nucore` (the non-condensed accessor) is gone with the file. It had no
-  production caller — it was reached only by its own smoke test.
-
-### Added
-
-- **Licence texts for the nine families that were bundled without one.**
-  Playfair Display, Plus Jakarta Sans, DM Sans, Cinzel, Share Tech Mono, Space
-  Grotesk and Weather Icons had shipped with no `OFL.txt` — 20 of 29 font files
-  were uncovered. All are OFL-licensed upstream, so this was a compliance
-  failure rather than a licensing one: OFL 1.1 §2 requires the licence text to
-  accompany the font, so every clone and every `make deploy` rsync was shipping
-  them out of compliance. Every font in `fonts/` now has its licence beside it.
-- **`tests/test_font_licenses.py`** enforces that going forward, in both
-  directions: every bundled font must have a sibling licence file containing the
-  OFL text, *and* must assert terms in its own `name` table. The second check is
-  what distinguishes a font whose licence someone documented from a font that
-  actually carries one.
-- **A `Third-party content` section in `LICENSE`**, recording what the MIT grant
-  does not reach: the bundled typefaces and their licence files, the provenance
-  of `assets/moon_full.png` (an original photograph by the copyright holder) and
-  the generated images, the quotation collection in `config/quotes.json` (whose
-  selection and arrangement are MIT but whose underlying quotations are not the
-  copyright holder's to license), and the two non-permissive runtime
-  dependencies — `recurring-ical-events` (LGPL-3.0-or-later) and `caldav`
-  (GPL-3.0-or-later **or** Apache-2.0, relied on under Apache-2.0). A `License`
-  section in `README.md` points at it.
-- **PEP 639 packaging metadata.** `pyproject.toml` declares
-  `license = "MIT"` as an SPDX expression plus
-  `license-files = ["LICENSE", "fonts/*OFL*.txt"]`, so a built wheel carries
-  `License-Expression: MIT` and all eighteen bundled font licences in its
-  `dist-info`. The build requirement moves to `setuptools>=77`, below which the
-  string form is not understood and the OFL texts would silently not ship.
-
-### Changed
-
-- **The `terminal`, `sunrise` and `tides` themes are re-set in OFL faces.**
-  `terminal` now uses **Oxanium** for its title, day column headers and quote
-  body, **Rajdhani** for the month band, section labels and quote attribution,
-  and **Orbitron Black** for the hero date numeral; `sunrise` and `tides` use
-  **Antonio** for their titles and section labels. The three-role split of the
-  original is preserved, and each face is bundled with its OFL text.
-
-  The date numeral is a visible improvement rather than a like-for-like swap:
-  Synthetic Genesis is a constructed-alphabet display face whose digits are not
-  legible as digits — its `6` renders as a bar, a diamond and a block — so
-  `terminal` had never actually shown a readable day of the month. Oxanium was
-  chosen over Orbitron for the body roles because Orbitron's width forces a
-  dense quote down to an unreadable size; Orbitron is kept for the one hero
-  element where width is an asset.
-
-  Consequence worth knowing: Rajdhani is semi-condensed, so no real month name
-  now overflows the `terminal` month band (SEPTEMBER measures 157px against a
-  228px cell) and its shrink loop no longer fires in production. The loop is
-  still live code and still tested — `tests/test_week_view.py` drives it through
-  a narrowed region and separately asserts that all twelve names fit.
-
-- **The README banner is re-set in the same replacement faces.**
-  `scripts/build_banner.py` loads its fonts by filename rather than through
-  `src/render/fonts.py`, so it held the only two remaining references to the
-  removed files and `make banner` would have failed at `ImageFont.truetype`.
-  The wordmark moves to **Oxanium Bold** and the temperature numeral to
-  **Antonio Bold**, and `assets/banner.png` is regenerated. Two details fell
-  out of the swap: the helper now pins a weight for variable faces (Oxanium's
-  default instance is ExtraLight, which dithers to hairlines at 1-bit), and the
-  temperature is set as a real `72°` — the drawn ring it replaces was a
-  workaround for the old face having no degree glyph, not the design echo of
-  `weather_panel.py` its comment claimed. The wordmark is set at 100pt rather
-  than 130: Oxanium is the wider face, and 100pt is the largest size at which
-  "HOME DASHBOARD" still fits the 928px wordmark zone, which cost the wordmark
-  column ~56px of height it cannot get back. Top-aligned that left 131px of dead
-  space beneath it against the motif column's 53, reading as a layout fault
-  rather than a short column, so the column is dropped by `WORDMARK_DROP` (34px)
-  to share the motif column's optical centre — measured from the two columns'
-  ink extents rather than chosen by eye.
-
-- **Releases are cut with one command instead of four manual edits.**
-  `make release` (`scripts/release.py`) bumps `src/_version.py`, dates the
-  `## [Unreleased]` block, commits, and creates the annotated `vX.Y.Z` tag.
-  The bump size is inferred from the Unreleased section headings —
-  `Added`/`Changed`/`Deprecated`/`Removed` means minor, `Fixed`/`Security`
-  alone means patch. Major is never inferred and must be requested with
-  `make release RELEASE_ARGS="--major"`. `make release-dry` prints the plan
-  without writing. The script refuses a dirty tree, an existing tag, or a
-  version that does not increase; pushing stays manual. If any step of the
-  mutating phase fails — a rejecting pre-commit hook, an unset git identity, a
-  signing key that will not load — the file rewrites and any release commit are
-  rolled back, so the same release can simply be retried once the cause is
-  fixed. The rollback never uses `git reset --hard`, since `--allow-dirty`
-  means the tree may hold unrelated work.
-- **The version has a single source of truth.** `pyproject.toml` now declares
-  `dynamic = ["version"]` and reads `src/_version.py` via
-  `[tool.setuptools.dynamic]` rather than restating the number. The two files
-  had already drifted once — `4.6.0` was committed to one while the other
-  said `5.2.0`. `tests/test_version_consistency.py` fails the build on that
-  drift, on a non-semver `__version__`, on an undated or mismatched newest
-  changelog entry, and on a missing `## [Unreleased]` heading.
-
-- **`make lint` / `make fmt` now cover `scripts/` and `tools/`.** Both
-  directories were outside the linted set, so `scripts/release.py`,
-  `scripts/build_previews.py`, `tools/check_naive_datetime.py` and their
-  neighbours could drift from the project's ruff config without CI noticing.
-  Both were already clean, so this is a scope widening with no code changes.
-
-### Fixed
 
 - **`output/` had no housekeeping.** `DryRunDisplay.show()` wrote a timestamped
   `dashboard_<ts>.png` on every dry run in addition to `latest.png`, and
