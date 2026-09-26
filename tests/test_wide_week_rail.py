@@ -8,6 +8,7 @@ alone on a bare canvas would draw its labels in the wrong ink.
 
 from __future__ import annotations
 
+import dataclasses
 from datetime import date, datetime, timedelta, timezone
 
 import pytest
@@ -225,6 +226,61 @@ class TestRender:
         assert ink(img, (RAIL.w, 60, RAIL.w + 4, 200)) == ink(
             _render(DashboardData()), (RAIL.w, 60, RAIL.w + 4, 200)
         )
+
+
+class TestVisibilitySwitches:
+    """``display.show_*`` hide the rail's matching section, not just the grid's."""
+
+    WEATHER_BAND = (0, rail.WEATHER_Y, RAIL.w - 2, rail.ALERT_Y - 2)
+    GRID_BAND = (0, rail.GRID_Y, RAIL.w - 2, rail.GRID_RULE_Y - 2)
+    BIRTHDAY_BAND = (0, rail.BIRTHDAY_Y, RAIL.w - 2, rail.QUOTE_Y - 2)
+    QUOTE_BAND = (0, rail.QUOTE_Y, RAIL.w - 2, 478)
+
+    @staticmethod
+    def _render_with(**flags):
+        data = generate_dummy_data(now=NOW)
+        data.fetched_at = NOW
+        cfg = dataclasses.replace(NATIVE, **flags)
+        return render_dashboard(data, cfg, theme=load_theme("wide_week")).convert("1")
+
+    def test_show_weather_off_blanks_the_weather_now(self):
+        shown = self._render_with()
+        hidden = self._render_with(show_weather=False)
+        assert ink(shown, self.WEATHER_BAND) > 1000
+        assert ink(hidden, self.WEATHER_BAND) == 0
+
+    def test_show_weather_off_drops_the_forecast_and_keeps_the_sky(self):
+        shown = self._render_with()
+        hidden = self._render_with(show_weather=False)
+        left = (0, rail.GRID_Y, RAIL.w // 2 - 20, rail.GRID_RULE_Y - 2)
+        right = (RAIL.w // 2 + 20, rail.GRID_Y, RAIL.w - 2, rail.GRID_RULE_Y - 2)
+        assert ink(hidden, left) < ink(shown, left) // 4
+        assert ink(hidden, right) > 200
+
+    def test_show_birthdays_off_blanks_the_birthdays(self):
+        shown = self._render_with()
+        hidden = self._render_with(show_birthdays=False)
+        assert ink(shown, self.BIRTHDAY_BAND) > 200
+        assert ink(hidden, self.BIRTHDAY_BAND) == 0
+
+    def test_show_info_panel_off_blanks_the_quote(self):
+        shown = self._render_with()
+        hidden = self._render_with(show_info_panel=False)
+        assert ink(shown, self.QUOTE_BAND) > 1000
+        assert ink(hidden, self.QUOTE_BAND) == 0
+
+
+class TestNextLocation:
+    def test_a_multiline_location_sets_only_its_first_line(self):
+        def with_location(loc):
+            evt = _event("Dentist", datetime(2026, 4, 6, 14), location=loc)
+            return _render(DashboardData(events=[evt]))
+
+        one = with_location("Bright Smiles Dental")
+        full = with_location("Bright Smiles Dental\n535 W Hamilton Ave, Campbell, CA")
+        # The whole plate, not the band: the street would spill below it,
+        # over the rule and into the forecast.
+        assert image_hash(one) == image_hash(full)
 
 
 class TestYellowHighlighter:

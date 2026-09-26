@@ -51,6 +51,7 @@ from src.render.primitives import (
     deg_to_compass,
     draw_text_truncated,
     fmt_time,
+    location_line,
     next_birthday,
     text_width,
     wind_unit,
@@ -256,12 +257,22 @@ def draw_wide_week_rail(
     *,
     region: ComponentRegion,
     style: ThemeStyle,
+    show_weather: bool = True,
+    show_birthdays: bool = True,
+    show_quote: bool = True,
     quote_refresh: str = "daily",
     quotes_path: str | None = None,
     latitude: float | None = None,
     longitude: float | None = None,
 ) -> None:
-    """Draw the rail into *region*."""
+    """Draw the rail into *region*.
+
+    *show_weather*, *show_birthdays* and *show_quote* carry the
+    ``display.show_weather`` / ``show_birthdays`` / ``show_info_panel``
+    switches: a hidden section leaves its place on the page blank rather than
+    reflowing the rest, so the rules stay where they always are. The sky is
+    computed, not fetched, and is drawn either way.
+    """
     tz = getattr(now, "tzinfo", None)
     local_now = to_local_naive(now, tz)
     x0 = region.x + PAD
@@ -296,10 +307,11 @@ def draw_wide_week_rail(
     _hairline(draw, x0, x1, top + MAST_RULE_Y + 5, style)
 
     # Weather now -------------------------------------------------------------
-    weather = data.weather
+    weather = data.weather if show_weather else None
     wy = top + WEATHER_Y
     if weather is None:
-        draw.text((x0, wy + 8), "Weather unavailable", font=fonts.playfair_medium(22), fill=fg)
+        if show_weather:
+            draw.text((x0, wy + 8), "Weather unavailable", font=fonts.playfair_medium(22), fill=fg)
     else:
         # The numeral and its degree sign are set separately: Playfair's degree
         # at display size is a ring as tall as a lowercase letter.
@@ -370,10 +382,9 @@ def draw_wide_week_rail(
         draw_text_truncated(
             draw, (tx, ny + 18), evt.summary, fonts.dm_semibold(17), nx1 - tx, fill=fg
         )
-        if evt.location:
-            draw_text_truncated(
-                draw, (tx, ny + 38), evt.location, fonts.dm_medium(12), nx1 - tx, fill=fg
-            )
+        where = location_line(evt.location)
+        if where:
+            draw_text_truncated(draw, (tx, ny + 38), where, fonts.dm_medium(12), nx1 - tx, fill=fg)
     _hairline(draw, x0, x1, top + NEXT_RULE_Y, style)
 
     # Forecast | Sky ------------------------------------------------------------
@@ -420,7 +431,7 @@ def draw_wide_week_rail(
 
     # Birthdays ------------------------------------------------------------------
     by = top + BIRTHDAY_Y
-    entries = birthday_entries(data.birthdays, today)
+    entries = birthday_entries(data.birthdays, today) if show_birthdays else []
     if entries:
         _label(draw, x0, by + 2, "BIRTHDAYS", style)
         bfont = fonts.dm_semibold(13)
@@ -436,6 +447,8 @@ def draw_wide_week_rail(
             draw.text((lx, by), text, font=bfont, fill=fg)
             lx += tw + BIRTHDAY_GAP
 
+    if not show_quote:
+        return
     # Quote ------------------------------------------------------------------------
     quote = quote_for(today, refresh=quote_refresh, now=now, path=quotes_path)
     qy = top + QUOTE_Y

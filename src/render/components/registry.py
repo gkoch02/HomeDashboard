@@ -71,6 +71,12 @@ class RenderContext:
     # ``_builtins`` — using the panel's own pure ``art_rect()`` so the panel
     # itself stays a pure function of its inputs.
     dither_regions: list[tuple[int, int, int, int]] = field(default_factory=list)
+    # The ``display.show_*`` switches, keyed by the standard section they hide
+    # (``weather``, ``birthdays``, ``info``). The render loop already skips a
+    # component whose draw-order key is one of those; a combined component that
+    # draws the same content under another key (``wide_week_rail``) reads them
+    # here so a section the user hid stays hidden. Missing means shown.
+    visibility: dict[str, bool] = field(default_factory=dict)
 
 
 ComponentAdapter = Callable[[RenderContext], None]
