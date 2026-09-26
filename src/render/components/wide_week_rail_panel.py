@@ -23,9 +23,14 @@ quote. Top to bottom:
   * **Quote** — the day's quote set large, a hanging accent quote mark, the
     author in small caps.
 
-Everything is drawn with the theme style's ``fg``/``bg`` and its primary
-accent, so the rail renders in red and black on a colour panel and in ink on a
-monochrome one, like the grid beside it.
+Colour has two jobs here, one per accent ink. **Red** (the primary accent) is
+for labels and warnings: section labels, the stale mark, the alert bar.
+**Yellow** (the resolved ``accent_warn``) is a highlighter and never ink —
+yellow type or rules on paper are the weakest contrast the four inks give, so
+it only ever sits *behind* black type: the NOW/NEXT band, the chance-of-rain
+chips, a birthday falling today. On a monochrome panel ``accent_warn`` resolves
+to ink, ``highlight()`` returns ``None``, and each of those falls back to plain
+black type on paper.
 """
 
 from __future__ import annotations
@@ -60,6 +65,7 @@ FORECAST_DAYS = 3
 QUOTE_PTS = (19, 17, 16, 15)  # tried largest first until the quote fits its space
 AUTHOR_H = 16
 SKY_LABEL_W = 42
+BAND_INSET = 10  # the NOW/NEXT type's inset inside its highlighter band
 
 # Section tops, relative to the region. Fixed rather than flowed, so the rules
 # land in the same place every day and the column reads as a page, not a list.
@@ -116,8 +122,8 @@ def when_label(kind: str, evt: CalendarEvent, now: datetime) -> str:
     return f"{evt.start.strftime('%a')} {fmt_time(evt.start)}"
 
 
-def birthday_line(birthdays: list[Birthday], today: date) -> str:
-    """Birthdays in the next two weeks, soonest first: ``Mom · Thu   Jake 30 · Mon``."""
+def birthday_entries(birthdays: list[Birthday], today: date) -> list[tuple[str, bool]]:
+    """Birthdays in the next two weeks, soonest first, as ``(text, is_today)``."""
     rows = []
     for b in birthdays:
         when = next_birthday(b.date, today)
@@ -133,9 +139,17 @@ def birthday_line(birthdays: list[Birthday], today: date) -> str:
         else:
             label = when.strftime("%b %-d")
         name = b.name if b.age is None else f"{b.name} {b.age}"
-        rows.append((when, f"{name} · {label}"))
+        rows.append((when, f"{name} · {label}", days == 0))
     rows.sort(key=lambda r: r[0])
-    return "     ".join(text for _, text in rows)
+    return [(text, is_today) for _, text, is_today in rows]
+
+
+BIRTHDAY_GAP = 18
+
+
+def birthday_line(birthdays: list[Birthday], today: date) -> str:
+    """The birthday entries as one line: ``Mom · Thu     Jake 30 · Mon``."""
+    return "     ".join(text for text, _ in birthday_entries(birthdays, today))
 
 
 def sky_rows(
@@ -209,11 +223,24 @@ def fit_quote(text: str, width: int, height: int) -> tuple[int, list[str]]:
 # ---------------------------------------------------------------------------
 
 
-def _label(draw, x: float, y: float, text: str, style: ThemeStyle) -> None:
-    """A section label: small caps in the accent, letter-spaced."""
+def highlight(style: ThemeStyle):
+    """The highlighter fill (yellow), or ``None`` on a plate that has no such ink.
+
+    ``accent_warn`` resolves to yellow on the colour panels and to ink on a
+    monochrome one; a fill in ink behind ink type would black the type out.
+    """
+    fill = style.accent_warn
+    if fill is None or fill == style.fg:
+        return None
+    return fill
+
+
+def _label(draw, x: float, y: float, text: str, style: ThemeStyle, fill=None) -> None:
+    """A section label: small caps, letter-spaced, in the accent unless *fill* says."""
     font = fonts.dm_bold(11)
+    fill = style.primary_accent_fill() if fill is None else fill
     for ch in text:
-        draw.text((x, y), ch, font=font, fill=style.primary_accent_fill())
+        draw.text((x, y), ch, font=font, fill=fill)
         x += font.getlength(ch) + 1.6
 
 
@@ -319,23 +346,33 @@ def draw_wide_week_rail(
 
     # Now / next ---------------------------------------------------------------
     ny = top + NEXT_Y
+    hi = highlight(style)
+    if hi is not None:
+        # The rail's most glanceable line gets the highlighter: black type on
+        # a yellow band, flush with the column like the alert bar above it.
+        draw.rectangle((x0, ny - 4, x1, top + NEXT_RULE_Y - 6), fill=hi)
     found = now_or_next(data.events, local_now)
+    # Red on yellow vibrates; on the band the label is set in ink, and the
+    # section is inset so its type does not touch the band's edges.
+    label_fill = fg if hi is not None else None
+    inset = BAND_INSET if hi is not None else 0
+    nx, nx1 = x0 + inset, x1 - inset
     if found is None:
-        _label(draw, x0, ny, "NEXT", style)
-        draw.text((x0, ny + 18), "Nothing scheduled", font=fonts.playfair_medium(20), fill=fg)
+        _label(draw, nx, ny, "NEXT", style, label_fill)
+        draw.text((nx, ny + 18), "Nothing scheduled", font=fonts.playfair_medium(20), fill=fg)
     else:
         kind, evt = found
-        _label(draw, x0, ny, kind, style)
+        _label(draw, nx, ny, kind, style, label_fill)
         when = when_label(kind, evt, local_now)
         when_font = fonts.playfair_bold(20)
-        draw.text((x0, ny + 16), when, font=when_font, fill=fg)
-        tx = x0 + text_width(draw, when, when_font) + 12
+        draw.text((nx, ny + 16), when, font=when_font, fill=fg)
+        tx = nx + text_width(draw, when, when_font) + 12
         draw_text_truncated(
-            draw, (tx, ny + 18), evt.summary, fonts.dm_semibold(17), x1 - tx, fill=fg
+            draw, (tx, ny + 18), evt.summary, fonts.dm_semibold(17), nx1 - tx, fill=fg
         )
         if evt.location:
             draw_text_truncated(
-                draw, (tx, ny + 38), evt.location, fonts.dm_medium(12), x1 - tx, fill=fg
+                draw, (tx, ny + 38), evt.location, fonts.dm_medium(12), nx1 - tx, fill=fg
             )
     _hairline(draw, x0, x1, top + NEXT_RULE_Y, style)
 
@@ -355,13 +392,16 @@ def draw_wide_week_rail(
             hl = f"{round(day.high)}° / {round(day.low)}°"
             draw.text((x0 + 64, ry), hl, font=row_font, fill=fg)
             if day.precip_chance is not None and day.precip_chance >= 0.2:
+                # Rain is not an alarm, so not red: a yellow chip behind ink
+                # type, or plain ink where the panel has no yellow.
                 pct = f"{round(day.precip_chance * 100)}%"
-                draw.text(
-                    (mid - 10 - text_width(draw, pct, row_font), ry),
-                    pct,
-                    font=row_font,
-                    fill=accent,
-                )
+                pw = text_width(draw, pct, row_font)
+                px = mid - 12 - pw
+                if hi is not None:
+                    draw.rounded_rectangle(
+                        (px - 5, ry - 2, px + pw + 5, ry + 17), radius=4, fill=hi
+                    )
+                draw.text((px, ry), pct, font=row_font, fill=fg)
     sx = mid + 12
     rows = sky_rows(weather, today, latitude, longitude, tz)
     for i, (label, value) in enumerate(rows):
@@ -380,11 +420,21 @@ def draw_wide_week_rail(
 
     # Birthdays ------------------------------------------------------------------
     by = top + BIRTHDAY_Y
-    line = birthday_line(data.birthdays, today)
-    if line:
+    entries = birthday_entries(data.birthdays, today)
+    if entries:
         _label(draw, x0, by + 2, "BIRTHDAYS", style)
+        bfont = fonts.dm_semibold(13)
         lx = x0 + 92
-        draw_text_truncated(draw, (lx, by), line, fonts.dm_semibold(13), x1 - lx, fill=fg)
+        for i, (text, is_today) in enumerate(entries):
+            tw = text_width(draw, text, bfont)
+            if lx + tw > x1:
+                if i == 0:  # a single entry too long for the line is cut, not dropped
+                    draw_text_truncated(draw, (lx, by), text, bfont, x1 - lx, fill=fg)
+                break
+            if is_today and hi is not None:
+                draw.rounded_rectangle((lx - 5, by - 2, lx + tw + 5, by + 17), radius=4, fill=hi)
+            draw.text((lx, by), text, font=bfont, fill=fg)
+            lx += tw + BIRTHDAY_GAP
 
     # Quote ------------------------------------------------------------------------
     quote = quote_for(today, refresh=quote_refresh, now=now, path=quotes_path)

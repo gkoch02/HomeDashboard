@@ -47,7 +47,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   beside sunrise, sunset, day length and the moon, the next two weeks'
   birthdays, and the day's quote. The full-width header bar is gone; its
   "updated" and stale marks are in the masthead. The theme now fetches one
-  extra day of events so NEXT can reach Monday from a Sunday evening.
+  extra day of events so NEXT can reach Monday from a Sunday evening. On the
+  colour panels the rail uses yellow as a highlighter behind black type (a
+  NOW/NEXT band, chance-of-rain chips, a birthday today) and red for labels and
+  warnings; on a monochrome panel the fills drop out.
 
 ## [6.0.0] - 2026-09-26
 

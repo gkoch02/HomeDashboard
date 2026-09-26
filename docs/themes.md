@@ -500,7 +500,7 @@ The 440 px to its left is laid out like a broadsheet column, in Playfair Display
 - **Birthdays:** those in the next two weeks, on one line.
 - **Quote:** the day's quote set large, with a hanging accent quote mark.
 
-The NOW/NEXT line is the only thing on the plate that reads the clock, and it moves only when an event starts or ends. Because it reaches into next week on a Sunday evening, the theme fetches one extra day of events. Red and black: red for the rail's labels, the alert bar and the grid's accents; on a monochrome panel both are ink. On an 800 × 480 panel the theme renders as a letterboxed band. See [Panoramic Themes](wide-themes.md#wide_week) for the four-ink render.
+The NOW/NEXT line is the only thing on the plate that reads the clock, and it moves only when an event starts or ends. Because it reaches into next week on a Sunday evening, the theme fetches one extra day of events. Colour has one job per ink. Red is for labels and warnings: the rail's section labels, the alert bar and the grid's accents. Yellow is a highlighter only, never type or rules, since yellow on paper is the weakest contrast the panel offers. It sits behind black type in three places: a band under NOW/NEXT, chips under each rainy day's chance of rain, and a birthday falling today. On a monochrome panel the reds are ink and the yellow fills drop out, leaving plain black type. On an 800 × 480 panel the theme renders as a letterboxed band. See [Panoramic Themes](wide-themes.md#wide_week) for the four-ink render.
 
 [![Wide week theme](../assets/previews/theme_wide_week.png)](../assets/previews/theme_wide_week.png)
 

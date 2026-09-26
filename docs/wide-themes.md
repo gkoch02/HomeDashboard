@@ -147,7 +147,9 @@ panel's full height, beside an editorial rail. The rail is set in Playfair Displ
 with red small-caps labels and hairline rules: the weekday masthead, the weather
 now, what is on or next, three forecast days beside the sky, the next two weeks'
 birthdays, and the day's quote. Red carries the labels, the alert bar and the
-grid's accents; everything else is ink. [Full description ↗](themes.md#wide_week)
+grid's accents. Yellow is used only as a highlighter behind black type: the
+NOW/NEXT band, the chance-of-rain chips, and a birthday that falls today.
+[Full description ↗](themes.md#wide_week)
 
 [![Wide week theme on the four-ink panel](../assets/previews/theme_wide_week_g.png)](../assets/previews/theme_wide_week_g.png)
 

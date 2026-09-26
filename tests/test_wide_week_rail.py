@@ -14,11 +14,11 @@ import pytest
 
 from src.config import DisplayConfig
 from src.data.models import Birthday, CalendarEvent, DashboardData, WeatherAlert, WeatherData
-from src.display.driver import image_hash
+from src.display.driver import WAVESHARE_G_PALETTE, image_hash
 from src.dummy_data import generate_dummy_data
 from src.render.canvas import render_dashboard
 from src.render.components import wide_week_rail_panel as rail
-from src.render.theme import load_theme
+from src.render.theme import INKY_YELLOW, load_theme
 from tests.inkutils import ink
 
 NATIVE = DisplayConfig(provider="waveshare", model="epd7in5_V2", width=1360, height=480)
@@ -46,6 +46,20 @@ def _weather(**kw) -> WeatherData:
     )
     base.update(kw)
     return WeatherData(**base)
+
+
+G = DisplayConfig(provider="waveshare", model="epd10in85g", width=1360, height=480)
+YELLOW = WAVESHARE_G_PALETTE[2]  # the G panel's inks: black, white, yellow, red
+assert INKY_YELLOW == 2
+
+
+def _render_g(data: DashboardData, now: datetime = NOW):
+    data.fetched_at = now
+    return render_dashboard(data, G, theme=load_theme("wide_week")).convert("RGB")
+
+
+def _yellow(img, box) -> int:
+    return sum(n for n, px in img.crop(box).getcolors(1 << 16) if px == YELLOW)
 
 
 def _render(data: DashboardData, now: datetime = NOW):
@@ -120,6 +134,12 @@ class TestBirthdayLine:
         assert rail.birthday_line(bdays, today) == (
             "Me · today     Kid 6 · tomorrow     Mom · Thu     Alice 26 · Apr 18"
         )
+
+    def test_entries_flag_today(self):
+        entries = rail.birthday_entries(
+            [Birthday("Mom", date(1960, 4, 9)), Birthday("Me", date(1985, 4, 6))], date(2026, 4, 6)
+        )
+        assert entries == [("Me · today", True), ("Mom · Thu", False)]
 
     def test_none_in_range_is_empty(self):
         assert rail.birthday_line([Birthday("X", date(1990, 9, 1))], date(2026, 4, 6)) == ""
@@ -205,3 +225,48 @@ class TestRender:
         assert ink(img, (RAIL.w, 60, RAIL.w + 4, 200)) == ink(
             _render(DashboardData()), (RAIL.w, 60, RAIL.w + 4, 200)
         )
+
+
+class TestYellowHighlighter:
+    """Yellow is only ever a fill behind ink type, and only where the panel has it."""
+
+    FORECAST = (0, rail.GRID_Y, RAIL.w // 2, rail.GRID_RULE_Y)
+    BIRTHDAYS = (0, rail.BIRTHDAY_Y - 3, RAIL.w - 2, rail.BIRTHDAY_Y + 19)
+
+    def test_resolves_to_none_where_it_would_be_ink(self):
+        style = load_theme("wide_week").style
+        assert rail.highlight(style) is None  # unresolved: accent_warn unset
+        from dataclasses import replace
+
+        assert rail.highlight(replace(style, accent_warn=style.fg)) is None
+        assert rail.highlight(replace(style, accent_warn=(255, 255, 0))) == (255, 255, 0)
+
+    def test_now_next_sits_on_a_yellow_band(self):
+        img = _render_g(DashboardData(events=[_event("Review", datetime(2026, 4, 6, 14))]))
+        band = NEXT_BAND
+        area = (band[2] - band[0]) * (band[3] - band[1])
+        assert _yellow(img, band) > area * 0.6
+
+    def test_rain_chips_only_on_wet_days(self):
+        from src.data.models import DayForecast
+
+        def forecast(pop):
+            days = [DayForecast(date(2026, 4, 7 + i), 50, 40, "10d", "rain", pop) for i in range(3)]
+            return DashboardData(weather=_weather(forecast=days))
+
+        dry = _render_g(forecast(0.05))
+        wet = _render_g(forecast(0.8))
+        assert _yellow(dry, self.FORECAST) == 0
+        assert _yellow(wet, self.FORECAST) > 3 * 300
+
+    def test_a_birthday_today_is_highlighted_and_others_are_not(self):
+        soon = _render_g(DashboardData(birthdays=[Birthday("Mom", date(1960, 4, 9))]))
+        today = _render_g(DashboardData(birthdays=[Birthday("Mom", date(1960, 4, 6))]))
+        assert _yellow(soon, self.BIRTHDAYS) == 0
+        assert _yellow(today, self.BIRTHDAYS) > 300
+
+    def test_monochrome_keeps_the_type_without_fills(self):
+        img = _render(DashboardData(events=[_event("Review", datetime(2026, 4, 6, 14))]))
+        # No band: the NEXT area is mostly paper, with the type still in ink.
+        area = (NEXT_BAND[2] - NEXT_BAND[0]) * (NEXT_BAND[3] - NEXT_BAND[1])
+        assert 200 < ink(img, NEXT_BAND) < area * 0.3
