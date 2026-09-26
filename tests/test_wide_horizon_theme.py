@@ -401,6 +401,25 @@ class TestTemperature:
         assert wh.lead_in([], _weather(), axis) == []
         assert wh.lead_in(slots, None, axis) is slots
 
+    def test_stand_ins_are_never_labelled_or_in_the_outlook(self):
+        # 20:10 in New York: the window opens at 18:00, the grid at 23:00, and
+        # the stand-ins between hold the reading now flat — which would
+        # otherwise pass as that evening's "high".
+        axis = _axis(datetime(2026, 4, 6, 20, 10))
+        first = datetime(2026, 4, 7, 3, tzinfo=timezone.utc)
+        temps = [38, 35, 33, 36, 44, 48, 45, 40, 37, 35, 38, 45, 50, 47, 42, 39, 36, 40, 47]
+        hourly = [
+            HourlyForecast(first + timedelta(hours=3 * i), t, "01d") for i, t in enumerate(temps)
+        ]
+        forecast = wh.window_slots(hourly, axis, NY)
+        slots = wh.lead_in(forecast, _weather(current_temp=60.0), axis)
+        real_from = forecast[0][0]
+        assert slots[0][1].temp == 60.0  # the stand-ins are there...
+        labelled = {t for _, t, _ in wh.daily_extremes(slots, axis, real_from)}
+        assert all(t >= real_from for t in labelled)  # ...but never labelled
+        assert "60°" not in dict(wh.outlook(slots, axis, real_from))["WARMEST"]
+        assert "60°" in dict(wh.outlook(slots, axis))["WARMEST"]  # the parameter is what does it
+
     def test_scale_widens_a_flat_day(self):
         assert wh.temp_scale([50, 52]) == (51 - wh.MIN_TEMP_SPAN / 2, 51 + wh.MIN_TEMP_SPAN / 2)
         assert wh.temp_scale([30, 70]) == (30, 70)
@@ -420,6 +439,22 @@ class TestTemperature:
 
 def _event(summary, start, hours=1.0, all_day=False):
     return CalendarEvent(summary, start, start + timedelta(hours=hours), is_all_day=all_day)
+
+
+class TestLabelPlacement:
+    def test_a_label_clear_of_bodies_stays_centred(self):
+        assert wh.place_label(500, 50, 40, 30, [], 236, 1360) == 480
+
+    def test_a_label_on_a_sun_slides_to_the_nearer_side(self):
+        sun = (470, 40, 520, 90)
+        # The point is right of the sun's centre, so the label goes right.
+        assert wh.place_label(505, 50, 40, 30, [sun], 236, 1360) == 524
+        # Left of centre: it goes left.
+        assert wh.place_label(480, 50, 40, 30, [sun], 236, 1360) == 470 - 40 - 4
+
+    def test_boxed_in_it_stays_centred(self):
+        bodies = [(470, 40, 520, 90), (400, 40, 466, 90), (524, 40, 600, 90)]
+        assert wh.place_label(495, 50, 40, 30, bodies, 236, 1360) == 475
 
 
 class TestEventSelection:
@@ -448,6 +483,16 @@ class TestEventSelection:
             ("Conference", False),
             ("Jake turns 30", True),
         ]
+
+    def test_a_chip_too_narrow_for_its_label_uses_the_short_form(self):
+        measure = len  # one "pixel" per character keeps the arithmetic visible
+        pad = wh.CHIP_PAD
+        assert wh.chip_label("Mom's birthday", "Mom", 14 + pad, measure) == "Mom's birthday"
+        assert wh.chip_label("Mom's birthday", "Mom", 13 + pad, measure) == "Mom"
+
+    def test_a_birthday_carries_a_short_label(self):
+        (row,) = wh.allday_in_window([], [Birthday("Mom", date(1960, 4, 7))], _axis())
+        assert (row[2], row[4]) == ("Mom's birthday", "Mom")
 
     def test_all_day_with_date_bounds_and_zero_length(self):
         axis = _axis()
@@ -578,10 +623,11 @@ class TestRender:
             assert ink(img.convert("1"), box) > 500, box
 
     def test_temperature_curve_is_drawn_from_the_hourly_grid(self):
-        # Monday's afternoon, where the sky is paper and red can only be the line.
+        # Monday's afternoon below the sun's reach (its rays are red too), where
+        # the sky is paper and red can only be the line.
         axis = _axis()
         x0, x1 = int(axis.x(datetime(2026, 4, 6, 11))), int(axis.x(datetime(2026, 4, 6, 16)))
-        afternoon = (x0, SKY[1], x1, SKY[3])
+        afternoon = (x0, SKY[1] + 80, x1, SKY[3])
         with_grid = _plate(DashboardData(weather=_weather(_diurnal())))
         without = _plate(DashboardData(weather=_weather()))
         assert _count(with_grid, RED, afternoon) > 300
@@ -594,6 +640,14 @@ class TestRender:
             h.temp -= 30
         cold = _plate(DashboardData(weather=_weather(hourly)), mode="L")
         assert image_hash(warm.crop(SKY)) != image_hash(cold.crop(SKY))
+
+    def test_a_negligible_chance_draws_no_bar(self):
+        slight = _diurnal()
+        for h in slight:
+            h.precip_chance = 0.07  # a stated literal: tying it to the constant tests nothing
+        img = _plate(DashboardData(weather=_weather(slight)), mode="L").convert("1")
+        dry = _plate(DashboardData(weather=_weather(_diurnal())), mode="L").convert("1")
+        assert ink(img, RAIN_BAND) == ink(dry, RAIN_BAND)
 
     def test_rain_hangs_in_its_band_only_when_forecast(self):
         dry = _diurnal()

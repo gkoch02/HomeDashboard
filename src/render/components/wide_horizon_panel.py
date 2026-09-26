@@ -124,8 +124,12 @@ MAX_BESIDE_LABEL_W = 200
 MIN_BESIDE_LABEL_W = 24
 
 STARS_PER_100PX = 16
+# A slot below this chance of rain draws no bar: a 2-px sliver across a dry
+# morning reads as a rule, not as weather.
+RAIN_MIN_CHANCE = 0.1
 MIN_CHIP_LABEL_W = 48  # an all-day chip narrower than this carries no label
 ALLDAY_MAX_ROWS = 2
+CHIP_PAD = 16  # an all-day chip's horizontal padding around its label
 OVERFLOW_H = 16  # footer row kept for "+N more" when anything is hidden
 
 
@@ -489,7 +493,9 @@ def temp_scale(temps: list[float]) -> tuple[float, float]:
 
 
 def daily_extremes(
-    slots: list[tuple[datetime, HourlyForecast]], axis: TimeAxis
+    slots: list[tuple[datetime, HourlyForecast]],
+    axis: TimeAxis,
+    real_from: datetime | None = None,
 ) -> list[tuple[str, datetime, float]]:
     """Each day's high and low inside the window, as ``(kind, time, temp)``.
 
@@ -497,12 +503,14 @@ def daily_extremes(
     high) or lower (for a low) than the slots either side of it, the slots
     just outside the window included. The window cuts days at both ends, and
     the warmest slot of a cut evening is just where the plate starts falling,
-    not the day's high.
+    not the day's high. Stand-in slots before *real_from* (``lead_in``) still
+    serve as neighbours but are never labelled: they are the reading now held
+    flat, not a forecast high or low.
     """
     temps = [h.temp for _, h in slots]
     by_day: dict[date, list[int]] = {}
     for i, (t, _) in enumerate(slots):
-        if axis.start <= t <= axis.end:
+        if axis.start <= t <= axis.end and (real_from is None or t >= real_from):
             by_day.setdefault(t.date(), []).append(i)
     out: list[tuple[str, datetime, float]] = []
     for day in sorted(by_day):
@@ -537,9 +545,13 @@ def allday_in_window(
     events: list[CalendarEvent],
     birthdays: list[Birthday],
     axis: TimeAxis,
-) -> list[tuple[datetime, datetime, str, bool]]:
-    """All-day spans and birthdays in the window, as ``(start, end, label, is_birthday)``."""
-    rows: list[tuple[datetime, datetime, str, bool]] = []
+) -> list[tuple[datetime, datetime, str, bool, str]]:
+    """All-day spans and birthdays in the window.
+
+    Each row is ``(start, end, label, is_birthday, short)``; *short* is what a
+    chip too narrow for *label* shows before it resorts to an ellipsis.
+    """
+    rows: list[tuple[datetime, datetime, str, bool, str]] = []
     for e in events:
         if not e.is_all_day:
             continue
@@ -548,14 +560,14 @@ def allday_in_window(
         if end <= start:
             end = start + timedelta(days=1)
         if start < axis.end and end > axis.start:
-            rows.append((start, end, e.summary, False))
+            rows.append((start, end, e.summary, False, e.summary))
     first = axis.start.date()
     for b in birthdays:
         when = next_birthday(b.date, first)
         start = datetime.combine(when, datetime.min.time())
         if start < axis.end:
             label = f"{b.name}'s birthday" if b.age is None else f"{b.name} turns {b.age}"
-            rows.append((start, start + timedelta(days=1), label, True))
+            rows.append((start, start + timedelta(days=1), label, True, b.name))
     rows.sort(key=lambda r: (r[0], r[3], r[2]))
     return rows
 
@@ -669,15 +681,17 @@ def _draw_plate(
     image.paste(field.convert(image.mode), (sky_x0, sky_y0))
 
     _draw_stars(draw, axis, alt, sky_y0, ink)
-    slots = lead_in(window_slots(weather.hourly, axis, tz), weather, axis) if weather else []
-    suns = _draw_suns(
+    forecast = window_slots(weather.hourly, axis, tz) if weather else []
+    real_from = forecast[0][0] if forecast else None
+    slots = lead_in(forecast, weather, axis)
+    bodies = _draw_suns(
         draw, axis, sky_y0, ink, weather, latitude, longitude, sun_tz, altitude, slots
     )
-    suns += _draw_moons(image, draw, axis, sky_y0, ink, altitude, slots)
+    bodies += _draw_moons(image, draw, axis, sky_y0, ink, altitude, slots)
     _draw_midnights_in_sky(draw, axis, alt, sky_y0, sky_y1, ink)
 
-    _draw_sky_weather(image, draw, axis, alt, slots, sky_y0, ink, suns)
-    _draw_temperature(draw, axis, alt, slots, sky_x0, sky_y0, ink)
+    _draw_sky_weather(image, draw, axis, alt, slots, sky_y0, ink, bodies)
+    _draw_temperature(draw, axis, alt, slots, sky_x0, sky_y0, ink, bodies, real_from)
 
     rain_y0 = sky_y1
     _draw_rain(image, draw, axis, slots, rain_y0, ink)
@@ -688,7 +702,7 @@ def _draw_plate(
     ev_y0 = hours_y0 + HOURS_H + EVENTS_GAP
     _draw_events(draw, data, axis, ev_y0, ry + rh - 6, ink)
 
-    _draw_hero(draw, data, now, tz, rx, ry, rh, ink, weather, slots, axis)
+    _draw_hero(draw, data, now, tz, rx, ry, rh, ink, weather, slots, axis, real_from)
 
 
 # --- sky decorations -------------------------------------------------------
@@ -735,17 +749,18 @@ def moon_transit(day: date) -> datetime:
 
 
 def _draw_moons(image, draw, axis: TimeAxis, sky_y0: int, ink: Inks, altitude, slots=()):
-    """The moon at each transit that falls in darkness; returns their x."""
-    xs: list[float] = []
+    """The moon at each transit that falls in darkness; returns the discs' boxes."""
+    boxes: list[Rect] = []
     day = axis.start.date() - timedelta(days=1)
     while day <= axis.end.date():
         t = moon_transit(day)
         if axis.start <= t <= axis.end and altitude(t) < -10.0 and not sun_hidden(slots, t):
             x = axis.x(t)
-            _moon_disc(image, draw, int(x), sky_y0 + 42, 15, t.date(), ink)
-            xs.append(x)
+            cy, r = sky_y0 + 42, 15
+            _moon_disc(image, draw, int(x), cy, r, t.date(), ink)
+            boxes.append((int(x) - r, cy - r, int(x) + r, cy + r))
         day += timedelta(days=1)
-    return xs
+    return boxes
 
 
 def _moon_disc(image, draw, cx: int, cy: int, r: int, day: date, ink: Inks) -> None:
@@ -789,12 +804,12 @@ def sun_hidden(slots, noon: datetime) -> bool:
 
 def _draw_suns(
     draw, axis, sky_y0, ink: Inks, weather, latitude, longitude, tz, altitude, slots=()
-) -> list[float]:
-    """A sun at each solar noon, as high in the band as it will climb; returns their x.
+) -> list[Rect]:
+    """A sun at each solar noon, as high in the band as it will climb; returns their boxes.
 
     A noon under an overcast or wet slot gets no sun — its clouds are the sky.
     """
-    xs: list[float] = []
+    boxes: list[Rect] = []
     for noon, peak in solar_noons(axis, weather, latitude, longitude, tz, altitude):
         if sun_hidden(slots, noon):
             continue
@@ -812,12 +827,15 @@ def _draw_suns(
                     x + r1 * math.cos(a),
                     cy + r1 * math.sin(a),
                 ),
-                fill=ink.yellow if ink.colour else ink.black,
+                # Red rays on colour: yellow on paper is the weakest contrast
+                # the four inks offer, and the disc already carries the yellow.
+                fill=ink.red if ink.colour else ink.black,
                 width=3,
             )
         draw.ellipse((x - r, cy - r, x + r, cy + r), fill=body, outline=ink.black, width=2)
-        xs.append(x)
-    return xs
+        reach = r + 12
+        boxes.append((int(x - reach), int(cy - reach), int(x + reach), int(cy + reach)))
+    return boxes
 
 
 def _draw_midnights_in_sky(draw, axis: TimeAxis, alt, sky_y0: int, sky_y1: int, ink: Inks) -> None:
@@ -920,7 +938,7 @@ SUN_CLEARANCE = 22  # a partly cloudy sky keeps its clouds this far off the sun
 
 
 def _draw_sky_weather(
-    image, draw, axis: TimeAxis, alt, slots, sky_y0: int, ink: Inks, bodies: list[float]
+    image, draw, axis: TimeAxis, alt, slots, sky_y0: int, ink: Inks, bodies: list[Rect]
 ) -> None:
     """Clouds, rain, snow, lightning and fog over each forecast slot's span.
 
@@ -955,7 +973,7 @@ def _draw_sky_weather(
             clear = (
                 level == 3
                 or bool(precip)
-                or all(abs(x - sx) > SUN_CLEARANCE + w / 2 for sx in bodies)
+                or all(abs(x - (b[0] + b[2]) / 2) > SUN_CLEARANCE + w / 2 for b in bodies)
             )
             if clear:
                 dark = _is_dark(alt, int(axis.x0), x)
@@ -993,7 +1011,47 @@ def _draw_sky_weather(
 # --- temperature ------------------------------------------------------------
 
 
-def _draw_temperature(draw, axis: TimeAxis, alt, slots, sky_x0: int, sky_y0: int, ink: Inks):
+def _overlaps(a: Rect, b: Rect, pad: int = 3) -> bool:
+    return a[0] - pad < b[2] and b[0] < a[2] + pad and a[1] - pad < b[3] and b[1] < a[3] + pad
+
+
+def place_label(
+    x: float, ty: float, tw: int, th: int, bodies: list[Rect], x0: float, x1: float
+) -> float:
+    """Left edge for a *tw*-wide label centred on *x*, moved clear of *bodies*.
+
+    A label that would sit on a sun or moon slides to whichever side of it is
+    nearer the point it names; failing that it stays centred (the halo keeps
+    it legible over the body).
+    """
+
+    def clamp(v: float) -> float:
+        return max(x0 + 2, min(v, x1 - tw - 2))
+
+    centred = clamp(x - tw / 2)
+    hits = [b for b in bodies if _overlaps((centred, ty, centred + tw, ty + th), b)]
+    if not hits:
+        return centred
+    b = hits[0]
+    right, left = clamp(b[2] + 4), clamp(b[0] - tw - 4)
+    options = sorted((right, left), key=lambda v: abs(v + tw / 2 - x))
+    for v in options:
+        if not any(_overlaps((v, ty, v + tw, ty + th), o) for o in bodies):
+            return v
+    return centred
+
+
+def _draw_temperature(
+    draw,
+    axis: TimeAxis,
+    alt,
+    slots,
+    sky_x0: int,
+    sky_y0: int,
+    ink: Inks,
+    bodies: list[Rect] | None = None,
+    real_from: datetime | None = None,
+):
     if len(slots) < 2:
         return
     lo, hi = temp_scale([h.temp for _, h in slots])
@@ -1020,15 +1078,15 @@ def _draw_temperature(draw, axis: TimeAxis, alt, slots, sky_x0: int, sky_y0: int
     draw.line(curve, fill=core, width=4, joint="curve")
 
     font = fonts.big_shoulders_extrabold(30)
-    for kind, t, temp in daily_extremes(slots, axis):
+    for kind, t, temp in daily_extremes(slots, axis, real_from):
         x, y = axis.x(t), y_of(temp)
         text = f"{round(temp)}°"
         box = _text_box(draw, text, font)
         tw, th = box[2] - box[0], box[3] - box[1]
         ty = y - th - 12 if kind == "high" else y + 10
         ty = max(sky_y0 + 4, min(ty, sky_y0 + SKY_H - th - 4))
-        tx = max(axis.x0 + 2, min(x - tw / 2, axis.x1 - tw - 2))
-        dark = _is_dark(alt, sky_x0, x)
+        tx = place_label(x, ty, tw, th, bodies or [], axis.x0, axis.x1)
+        dark = _is_dark(alt, sky_x0, tx + tw / 2)
         fg, halo = (ink.white, ink.black) if dark else (ink.black, ink.white)
         draw.text(
             (tx - box[0], ty - box[1]),
@@ -1058,7 +1116,7 @@ def _draw_rain(image, draw, axis: TimeAxis, slots, y0: int, ink: Inks) -> None:
     for t, h in slots:
         chance = h.precip_chance or 0.0
         end = t + timedelta(hours=SLOT_HOURS)
-        if end <= axis.start or t >= axis.end or chance < 0.05:
+        if end <= axis.start or t >= axis.end or chance < RAIN_MIN_CHANCE:
             if current:
                 stretches.append(current)
                 current = []
@@ -1101,39 +1159,63 @@ def _draw_hours(draw, axis: TimeAxis, y0: int, ink: Inks) -> None:
         t += timedelta(hours=1)
 
 
+def _day_name(day: date, now: datetime, axis: TimeAxis) -> str:
+    if day == now.date():
+        # Keyed to the window's slot, not the clock, so the switch lands on a
+        # repaint the plate makes anyway.
+        return "TONIGHT" if axis.start.hour >= 18 else "TODAY"
+    if day == now.date() + timedelta(days=1):
+        return "TOMORROW"
+    return day.strftime("%A").upper()
+
+
+# The day name steps down through these before falling back to the short
+# weekday: a 6-hour evening sliver fits "TONIGHT" at 26 pt but not at 34.
+DAY_NAME_PTS = (34, 26)
+
+
 def _draw_day_headers(draw, axis: TimeAxis, y0: int, now: datetime, ink: Inks) -> None:
-    font = fonts.big_shoulders_black(34)
     small = fonts.dm_bold(13)
+    baseline = y0 + 36
     starts = [(axis.x0, axis.start.date())] + _midnights(axis)
     for i, (x, day) in enumerate(starts):
         x_end = starts[i + 1][0] if i + 1 < len(starts) else axis.x1
         if i > 0:
             draw.line((x, y0, x, y0 + HEAD_H), fill=ink.black, width=2)
-        if day == now.date():
-            # Keyed to the window's slot, not the clock, so the switch lands on
-            # a repaint the plate makes anyway.
-            name = "TONIGHT" if axis.start.hour >= 18 else "TODAY"
-        elif day == now.date() + timedelta(days=1):
-            name = "TOMORROW"
-        else:
-            name = day.strftime("%A").upper()
         room = x_end - x - 16
-        tw = text_width(draw, name, font)
-        date_label = day.strftime("%b %-d").upper()
-        dw = text_width(draw, date_label, small)
-        if tw > room:
-            name = day.strftime("%a").upper()
-            tw = text_width(draw, name, font)
-        if tw > room:
+        candidates = [(_day_name(day, now, axis), pt) for pt in DAY_NAME_PTS]
+        candidates.append((day.strftime("%a").upper(), DAY_NAME_PTS[-1]))
+        fitting = [
+            (n, pt)
+            for n, pt in candidates
+            if text_width(draw, n, fonts.big_shoulders_black(pt)) <= room
+        ]
+        if not fitting:
             continue
+        name, pt = fitting[0]
+        font = fonts.big_shoulders_black(pt)
+        tw = text_width(draw, name, font)
         fill = ink.red if (day == now.date() and ink.colour) else ink.black
-        box = _text_box(draw, name, font)
-        draw.text((x + 8 - box[0], y0 + 6 - box[1]), name, font=font, fill=fill)
-        if tw + dw + 10 <= room:
-            draw.text((x + 8 + tw + 8, y0 + 20), date_label, font=small, fill=ink.black)
+        # Name and date share a baseline, so the date reads as the name's
+        # subscript rather than floating at mid-height.
+        draw.text((x + 8, baseline), name, font=font, fill=fill, anchor="ls")
+        date_label = day.strftime("%b %-d").upper()
+        if tw + text_width(draw, date_label, small) + 18 <= room:
+            draw.text(
+                (x + 8 + tw + 8, baseline), date_label, font=small, fill=ink.black, anchor="ls"
+            )
 
 
 # --- events -----------------------------------------------------------------
+
+
+def chip_label(label: str, short: str, width: float, measure) -> str:
+    """*label* if it fits a chip *width* wide, else its *short* form.
+
+    "Mom's birthday" on a birthday that falls on the window's last evening
+    would otherwise ellipsize to "Mom's birt…"; "Mom" says it whole.
+    """
+    return label if measure(label) + CHIP_PAD <= width else short
 
 
 def _draw_events(draw, data: DashboardData, axis: TimeAxis, y0: int, y1: int, ink: Inks):
@@ -1152,9 +1234,10 @@ def _draw_events(draw, data: DashboardData, axis: TimeAxis, y0: int, y1: int, in
     font_ad = fonts.dm_bold(13)
     if allday:
         items = []
-        for start, end, label, bday in allday:
+        for start, end, label, bday, short in allday:
             x0, x1 = axis.x(start), axis.x(end)
-            lw = text_width(draw, label, font_ad) + 16
+            label = chip_label(label, short, x1 - x0, lambda t: text_width(draw, t, font_ad))
+            lw = text_width(draw, label, font_ad) + CHIP_PAD
             items.append((x0, max(x1, x0 + lw), (x0, x1, label, bday, start)))
         packed = pack_lanes(items)
         rows = packed[:ALLDAY_MAX_ROWS]
@@ -1178,7 +1261,7 @@ def _draw_events(draw, data: DashboardData, axis: TimeAxis, y0: int, y1: int, in
 
     events = events_in_window(data.events, axis)
     title_font = fonts.dm_bold(15)
-    time_font = fonts.dm_medium(12)
+    time_font = fonts.dm_semibold(12)
     items = []
     for evt in events:
         x0, x1 = axis.x(evt.start), axis.x(evt.end)
@@ -1243,9 +1326,17 @@ def _draw_overflow(draw, axis: TimeAxis, starts: list[datetime], y1: int, ink: I
 # --- hero -------------------------------------------------------------------
 
 
-def outlook(slots, axis: TimeAxis) -> list[tuple[str, str]]:
-    """Three facts about the window worth reading without the chart."""
-    inside = [(t, h) for t, h in slots if axis.start <= t < axis.end]
+def outlook(slots, axis: TimeAxis, real_from: datetime | None = None) -> list[tuple[str, str]]:
+    """Three facts about the window worth reading without the chart.
+
+    Read from forecast slots only; ``lead_in`` stand-ins before *real_from*
+    repeat the reading the hero block already shows.
+    """
+    inside = [
+        (t, h)
+        for t, h in slots
+        if axis.start <= t < axis.end and (real_from is None or t >= real_from)
+    ]
     if not inside:
         return []
     rows: list[tuple[str, str]] = []
@@ -1288,6 +1379,7 @@ def _draw_hero(
     weather,
     slots=(),
     axis: TimeAxis | None = None,
+    real_from: datetime | None = None,
 ):
     x0, x1 = rx, rx + HERO_W
     draw.rectangle((x0, ry, x1 - 1, ry + rh - 1), fill=ink.black)
@@ -1335,13 +1427,13 @@ def _draw_hero(
         extras.append(wind)
     if extras:
         draw_text_truncated(
-            draw, (left, y), "  ·  ".join(extras), fonts.dm_medium(14), width, fill=white
+            draw, (left, y), "  ·  ".join(extras), fonts.dm_semibold(14), width, fill=white
         )
         y += 22
     if weather.sunrise is not None and weather.sunset is not None:
         rise = fmt_time(to_local_naive(weather.sunrise, tz))
         down = fmt_time(to_local_naive(weather.sunset, tz))
-        draw.text((left, y), f"↑ {rise}    ↓ {down}", font=fonts.dm_medium(14), fill=white)
+        draw.text((left, y), f"↑ {rise}    ↓ {down}", font=fonts.dm_semibold(14), fill=white)
         y += 26
 
     if weather.alerts:
@@ -1354,7 +1446,7 @@ def _draw_hero(
         )
         y += 30
 
-    rows = outlook(list(slots), axis) if axis is not None else []
+    rows = outlook(list(slots), axis, real_from) if axis is not None else []
     if rows:
         label_font = fonts.dm_bold(11)
         value_font = fonts.big_shoulders_extrabold(23)
@@ -1369,7 +1461,7 @@ def _draw_hero(
 
 
 def _draw_hero_foot(draw, data: DashboardData, now: datetime, tz, left, width, bottom, fill):
-    font = fonts.dm_medium(12)
+    font = fonts.dm_semibold(12)
     stamp = content_time(data, now)
     if stamp.tzinfo is not None:
         stamp = to_local_naive(stamp, tz)
