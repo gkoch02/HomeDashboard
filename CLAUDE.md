@@ -1,4 +1,4 @@
-# CLAUDE.md — Dashboard v5
+# CLAUDE.md — Dashboard v6
 
 ## Project Overview
 
@@ -24,7 +24,7 @@ make docs-check     # Run scripts/check_docs.py (markdown links + the canonical 
                     #   both its theme list and its coverage of every field in
                     #   src/config.py). Enforced by
                     #   the `lint` CI job, so drift here blocks a merge.
-make version        # Print current version (e.g. main.py 5.2.0)
+make version        # Print current version (e.g. main.py 6.0.0)
 make release-dry    # Show the next release (inferred from the CHANGELOG) — writes nothing
 make release        # Bump src/_version.py, date the CHANGELOG, commit, tag vX.Y.Z
                     #   (scripts/release.py; RELEASE_ARGS="--major" forces a bump size)
@@ -343,7 +343,7 @@ The cooldown is `display.min_refresh_interval_seconds` (config), defaulting to 6
 --force-full-refresh   Force full eInk refresh and bypass fetch intervals
 --ignore-breakers      Ignore OPEN circuit breakers for this run
 --check-config         Validate config and exit
---version              Print version and exit (e.g. "main.py 5.2.0")
+--version              Print version and exit (e.g. "main.py 6.0.0")
 ```
 
 ## Adding New Features
