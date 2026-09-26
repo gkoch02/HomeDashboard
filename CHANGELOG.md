@@ -8,6 +8,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
+- **Per-theme repaint slots** — `ThemeLayout.repaint_slot_hours` limits a
+  theme to one panel write per clock-aligned block of that many local hours;
+  a change inside a slot is painted on the first run of the next one.
+  `wide_horizon` sets 3, so it now repaints at most eight times a day instead
+  of on every weather fetch (~every 30 minutes), each of which was a
+  twenty-second colour flash on the four-ink panel. A switch to the theme
+  mid-slot still paints at once, and `--force-full-refresh` bypasses it. The
+  refresh throttle state now records the theme last written.
+
 - **`wide_horizon` theme** — the next 72 hours on one time axis at 1360 × 480,
   the first plate built around what the panoramic strip can do and an 800 × 480
   panel cannot. A sky coloured by the sun's real altitude at every column

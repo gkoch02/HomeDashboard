@@ -19,7 +19,9 @@ declares ``ordered`` quantization so a monochrome panel that scales it
 re-screens its tones rather than thresholding a blurred dither to flat ink —
 which also, correctly, derives it out of partial refresh: the fast waveform
 fades dithered ink. ``EXTRA_EVENT_DAYS`` fetches the days the window reaches
-past the Monday-anchored week.
+past the Monday-anchored week. ``repaint_slot_hours=3`` limits the panel to
+one write per 3-hour slot (at most eight a day); the hero's "now" reading can
+therefore be up to three hours old.
 """
 
 from __future__ import annotations
@@ -55,6 +57,11 @@ def wide_horizon_theme() -> Theme:
             canvas_mode="L",
             preferred_quantization_mode="ordered",
             prefer_color_on_inky=True,
+            # The window steps and the forecast grid updates every 3 hours;
+            # without this the hero reading and its "updated" caption repaint
+            # the whole strip on every weather fetch (~30 min), each one a
+            # multi-second colour flash on the four-ink panel.
+            repaint_slot_hours=3,
             wide_horizon=ComponentRegion(0, 0, CANVAS_W, CANVAS_H),
             header=ComponentRegion(0, 0, 0, 0, visible=False),
             week_view=ComponentRegion(0, 0, 0, 0, visible=False),
