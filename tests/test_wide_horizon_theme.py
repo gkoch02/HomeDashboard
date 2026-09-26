@@ -61,6 +61,11 @@ RED = INKY_SPECTRA6_PALETTE[INKY_RED]
 YELLOW = INKY_SPECTRA6_PALETTE[INKY_YELLOW]
 
 
+def to_local(t: datetime) -> datetime:
+    """An aware instant as New York wall-clock time, naive — how the panel reads it."""
+    return t.astimezone(NY).replace(tzinfo=None)
+
+
 def _axis(now: datetime = NOW) -> wh.TimeAxis:
     return wh.TimeAxis(wh.window_start(now), wh.WINDOW_HOURS, SKY[0], SKY[2])
 
@@ -533,6 +538,53 @@ class TestEventSelection:
 # ---------------------------------------------------------------------------
 # Outlook
 # ---------------------------------------------------------------------------
+
+
+class TestDaylightSaving:
+    """OWM slots are 3 h of real time; the axis is the wall clock (Codex, #316)."""
+
+    @staticmethod
+    def _ny_slots(first_utc: datetime, n: int, pop: float = 0.0):
+        grid = [
+            HourlyForecast(first_utc + timedelta(hours=3 * i), 40.0, "10d", precip_chance=pop)
+            for i in range(n)
+        ]
+        axis = wh.TimeAxis(
+            to_local(first_utc - timedelta(hours=3)), wh.WINDOW_HOURS, SKY[0], SKY[2]
+        )
+        return wh.window_slots(grid, axis, NY), axis
+
+    def test_spring_forward_leaves_no_gap(self):
+        # 2026-03-08: 06:00Z is 01:00 EST and 09:00Z is 05:00 EDT.
+        slots, _ = self._ny_slots(datetime(2026, 3, 8, 3, tzinfo=timezone.utc), 5)
+        starts = [t for t, _ in slots]
+        assert datetime(2026, 3, 8, 1) in starts and datetime(2026, 3, 8, 5) in starts
+        spans = wh.slot_spans(slots)
+        assert all(a[1] == b[0] for a, b in zip(spans, spans[1:]))
+        spring = next(sp for sp in spans if sp[0] == datetime(2026, 3, 8, 1))
+        assert spring[1] == datetime(2026, 3, 8, 5)
+
+    def test_fall_back_does_not_overlap(self):
+        # 2026-11-01: 03:00Z is 23:00 EDT, 06:00Z is 01:00 EST — two wall hours.
+        slots, _ = self._ny_slots(datetime(2026, 11, 1, 0, tzinfo=timezone.utc), 5)
+        spans = wh.slot_spans(slots)
+        assert all(a[1] == b[0] for a, b in zip(spans, spans[1:]))
+        fall = next(sp for sp in spans if sp[0] == datetime(2026, 10, 31, 23))
+        assert fall[1] == datetime(2026, 11, 1, 1)
+
+    def test_a_missing_slot_stays_a_gap(self):
+        t0 = datetime(2026, 4, 6, 9)
+        slots = [
+            (t0, HourlyForecast(t0, 40, "10d")),
+            (t0 + timedelta(hours=6), HourlyForecast(t0, 40, "10d")),
+        ]
+        assert wh.slot_spans(slots)[0][1] == t0 + timedelta(hours=3)
+
+    def test_rain_across_spring_forward_is_one_run(self):
+        slots, axis = self._ny_slots(datetime(2026, 3, 8, 3, tzinfo=timezone.utc), 5, pop=0.8)
+        rain = dict(wh.outlook(slots, axis))["RAIN"]
+        # Through the last slot (11a-2p), not stopped at the jump (would end 4a).
+        assert rain == "Sat 10p–2p · 80%"
 
 
 class TestOverflow:

@@ -434,6 +434,33 @@ def window_slots(
     return local[lo:hi]
 
 
+def slot_spans(
+    slots: list[tuple[datetime, HourlyForecast]],
+) -> list[tuple[datetime, datetime, HourlyForecast]]:
+    """``(start, end, slot)`` on the local clock, each end where the next slot begins.
+
+    A forecast slot is three hours of *real* time, but the axis runs on the
+    local wall clock, and across a DST change the two differ: in New York the
+    OWM instants either side of spring-forward read 01:00 and 05:00, so a slot
+    ended at "start + 3 h" leaves an hour of the plate with no weather, and in
+    autumn it overlaps its successor by one. Ending each slot where the next
+    begins keeps them contiguous on the wall clock. That is trusted only
+    within an hour of the nominal length — a DST shift — so a slot genuinely
+    missing from the grid still reads as a gap rather than being bridged.
+    """
+    nominal = timedelta(hours=SLOT_HOURS)
+    shift = timedelta(hours=1)
+    spans = []
+    for i, (t, h) in enumerate(slots):
+        end = t + nominal
+        if i + 1 < len(slots):
+            nxt = slots[i + 1][0]
+            if nominal - shift <= nxt - t <= nominal + shift:
+                end = nxt
+        spans.append((t, end, h))
+    return spans
+
+
 def lead_in(
     slots: list[tuple[datetime, HourlyForecast]], weather: WeatherData | None, axis: TimeAxis
 ) -> list[tuple[datetime, HourlyForecast]]:
@@ -800,8 +827,8 @@ def sun_hidden(slots, noon: datetime) -> bool:
 
     Used for the moon's transit too: a body under such a slot is not drawn.
     """
-    for t, h in slots:
-        if t <= noon < t + timedelta(hours=SLOT_HOURS):
+    for t, end, h in slot_spans(slots):
+        if t <= noon < end:
             level, precip = sky_kind(h.icon)
             return level >= 3 or precip in ("rain", "storm", "snow")
     return False
@@ -951,8 +978,7 @@ def _draw_sky_weather(
     hour, so a cloud belongs to a moment: as the window moves on, the sky moves
     with it rather than being re-dealt.
     """
-    for t, h in slots:
-        end = t + timedelta(hours=SLOT_HOURS)
+    for t, end, h in slot_spans(slots):
         if end <= axis.start or t >= axis.end:
             continue
         level, precip = sky_kind(h.icon)
@@ -1120,9 +1146,8 @@ def _draw_rain(image, draw, axis: TimeAxis, slots, y0: int, ink: Inks) -> None:
     font = fonts.dm_semibold(11)
     stretches: list[list[tuple[float, float, float]]] = []
     current: list[tuple[float, float, float]] = []
-    for t, h in slots:
+    for t, end, h in slot_spans(slots):
         chance = h.precip_chance or 0.0
-        end = t + timedelta(hours=SLOT_HOURS)
         if end <= axis.start or t >= axis.end or chance < RAIN_MIN_CHANCE:
             if current:
                 stretches.append(current)
@@ -1360,11 +1385,11 @@ def outlook(slots, axis: TimeAxis, real_from: datetime | None = None) -> list[tu
     Read from forecast slots only; ``lead_in`` stand-ins before *real_from*
     repeat the reading the hero block already shows.
     """
-    inside = [
-        (t, h)
-        for t, h in slots
-        if axis.start <= t < axis.end and (real_from is None or t >= real_from)
-    ]
+
+    def counts(t: datetime) -> bool:
+        return axis.start <= t < axis.end and (real_from is None or t >= real_from)
+
+    inside = [(t, h) for t, h in slots if counts(t)]
     if not inside:
         return []
     rows: list[tuple[str, str]] = []
@@ -1372,17 +1397,18 @@ def outlook(slots, axis: TimeAxis, real_from: datetime | None = None) -> list[tu
     t_lo, h_lo = min(inside, key=lambda p: p[1].temp)
     rows.append(("WARMEST", f"{_when(t_hi)} · {round(h_hi.temp)}°"))
     rows.append(("COLDEST", f"{_when(t_lo)} · {round(h_lo.temp)}°"))
-    wet = [(t, h) for t, h in inside if (h.precip_chance or 0) >= 0.3]
+    wet = [s for s in slot_spans(slots) if counts(s[0]) and (s[2].precip_chance or 0) >= 0.3]
     if wet:
         first_t = wet[0][0]
         run = [wet[0]]
-        for t, h in wet[1:]:
-            if t - run[-1][0] <= timedelta(hours=SLOT_HOURS):
-                run.append((t, h))
+        for t, end, h in wet[1:]:
+            # Consecutive on the wall clock, which slot_spans keeps true across DST.
+            if t == run[-1][1]:
+                run.append((t, end, h))
             else:
                 break
-        last_end = run[-1][0] + timedelta(hours=SLOT_HOURS)
-        peak = max((h.precip_chance or 0) for _, h in run)
+        last_end = run[-1][1]
+        peak = max((h.precip_chance or 0) for _, _, h in run)
         until = "midnight" if last_end.hour == 0 else fmt_time(last_end)
         span = f"{_when(first_t)}–{until}"
         rows.append(("RAIN", f"{span} · {round(peak * 100)}%"))
