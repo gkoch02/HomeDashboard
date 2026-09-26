@@ -8,7 +8,7 @@ from datetime import date, datetime, timezone, tzinfo
 import requests  # type: ignore[import-untyped]
 
 from src.config import WeatherConfig
-from src.data.models import DayForecast, WeatherAlert, WeatherData
+from src.data.models import DayForecast, HourlyForecast, WeatherAlert, WeatherData
 from src.fetchers import one_call_health, request_counter, weather_onecall
 
 logger = logging.getLogger(__name__)
@@ -48,7 +48,7 @@ def fetch_weather(
     with requests.Session() as session:
         request_counter.attach(session)
         current = _fetch_current(session, params)
-        today_high, today_low, forecast = _fetch_forecast(session, params, tz=tz)
+        today_high, today_low, forecast, hourly = _fetch_forecast(session, params, tz=tz)
         alerts, uv_index = _fetch_alerts_and_uv(
             session, params, cfg.one_call_version, state_dir=state_dir
         )
@@ -92,6 +92,7 @@ def fetch_weather(
         sunset=sunset,
         location_name=location_name,
         units=cfg.units,
+        hourly=hourly,
     )
 
 
@@ -117,12 +118,13 @@ def _fetch_current(session: requests.Session, params: dict) -> dict:
 
 def _fetch_forecast(
     session: requests.Session, params: dict, tz: tzinfo | None = None
-) -> tuple[float | None, float | None, list[DayForecast]]:
+) -> tuple[float | None, float | None, list[DayForecast], list[HourlyForecast]]:
     """Fetch 5-day / 3-hour forecast and collapse to daily highs/lows.
 
     Returns:
-        (today_high, today_low, future_forecasts) — today values are None when
-        the forecast grid contains no slots for today (rare near midnight).
+        (today_high, today_low, future_forecasts, hourly) — today values are
+        None when the forecast grid contains no slots for today (rare near
+        midnight). ``hourly`` is the grid itself, one entry per usable slot.
     """
     resp = session.get(_OWM_FORECAST_URL, params=params, timeout=_TIMEOUT)
     resp.raise_for_status()
@@ -170,7 +172,39 @@ def _fetch_forecast(
             )
         )
 
-    return today_high, today_low, forecasts
+    return today_high, today_low, forecasts, _parse_hourly(data["list"], slot_tz)
+
+
+def _parse_hourly(slots: list[dict], slot_tz: tzinfo) -> list[HourlyForecast]:
+    """The forecast grid at its own 3-hour resolution, soonest first.
+
+    Slots the daily roll-up would skip are skipped here too — a missing
+    ``main`` or an empty ``weather`` array.
+    """
+    hourly: list[HourlyForecast] = []
+    for slot in slots:
+        main = slot.get("main")
+        weather = slot.get("weather") or []
+        if not main or "temp" not in main or not weather or "dt" not in slot:
+            continue
+        mm = 0.0
+        seen = False
+        for key in ("rain", "snow"):
+            block = slot.get(key)
+            if isinstance(block, dict) and isinstance(block.get("3h"), (int, float)):
+                mm += float(block["3h"])
+                seen = True
+        hourly.append(
+            HourlyForecast(
+                time=datetime.fromtimestamp(slot["dt"], tz=slot_tz),
+                temp=main["temp"],
+                icon=weather[0].get("icon", ""),
+                precip_chance=slot.get("pop"),
+                precip_mm=mm if seen else None,
+            )
+        )
+    hourly.sort(key=lambda h: h.time)
+    return hourly
 
 
 def _fetch_alerts_and_uv(

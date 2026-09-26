@@ -47,5 +47,6 @@ from src.render.themes import weather as _weather  # noqa: F401
 from src.render.themes import weatherglass as _weatherglass  # noqa: F401
 from src.render.themes import wide_day as _wide_day  # noqa: F401
 from src.render.themes import wide_forecast as _wide_forecast  # noqa: F401
+from src.render.themes import wide_horizon as _wide_horizon  # noqa: F401
 from src.render.themes import wide_week as _wide_week  # noqa: F401
 from src.render.themes import year_pulse as _year_pulse  # noqa: F401
