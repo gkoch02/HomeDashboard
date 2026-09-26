@@ -35,9 +35,13 @@ rather than an 8-px one — while the night keeps a truthful place on the axis.
 Everything on the plate is a pure ink. Type is set without antialiasing
 (``fontmode = "1"``) and every tone is an ordered dither computed here, so the
 colour panel's nearest-ink snap and the monochrome threshold are both the
-identity at native size. The sky is still declared as an art region
-(``sky_rect``) so a panel that *scales* the plate re-diffuses its tones after
-the resize instead of snapping a blurred dither to a flat ink.
+identity at native size. The sky is deliberately *not* declared as an art
+region: the backend's re-diffusion converts a tile to greyscale before its
+neutral pass, so the luminance error of red and yellow pixels flips black and
+white neighbours — the plate would come out speckled on the panel it was
+drawn for. The cost is on a panel that scales the plate (an 800x480 Inky),
+where the blurred twilights snap to their nearest ink; the panoramic themes
+are kept out of rotation on that shape anyway.
 
 Repaints: the window starts at the 3-hour slot holding *now*, so the plate
 moves at most eight times a day on the clock — the forecast grid itself only
@@ -121,6 +125,8 @@ MIN_BESIDE_LABEL_W = 24
 
 STARS_PER_100PX = 16
 MIN_CHIP_LABEL_W = 48  # an all-day chip narrower than this carries no label
+ALLDAY_MAX_ROWS = 2
+OVERFLOW_H = 16  # footer row kept for "+N more" when anything is hidden
 
 
 # ---------------------------------------------------------------------------
@@ -421,6 +427,31 @@ def window_slots(
     return local[lo:hi]
 
 
+def lead_in(
+    slots: list[tuple[datetime, HourlyForecast]], weather: WeatherData | None, axis: TimeAxis
+) -> list[tuple[datetime, HourlyForecast]]:
+    """*slots* with the gap before the first forecast slot filled from conditions now.
+
+    OWM's grid sits on 3-hour **UTC** boundaries and starts at the first one
+    after the request, while the window starts at the local 3-hour slot
+    holding now — so outside a UTC+0/3/6/... zone the two never line up, and
+    even inside one the first slot is up to three hours ahead. Without a lead-in
+    the left edge of the plate has no curve, clouds or rain. Stand-in slots
+    step back from the first real one until the window's start is covered;
+    they carry the current reading and icon, which is what "now" is.
+    """
+    if weather is None or not slots or slots[0][0] <= axis.start:
+        return slots
+    lead: list[tuple[datetime, HourlyForecast]] = []
+    t = slots[0][0]
+    while t > axis.start:
+        t -= timedelta(hours=SLOT_HOURS)
+        lead.append(
+            (t, HourlyForecast(time=t, temp=weather.current_temp, icon=weather.current_icon))
+        )
+    return lead[::-1] + slots
+
+
 def catmull_rom(points: list[tuple[float, float]], step: float = 4.0) -> list[tuple[float, float]]:
     """A smooth polyline through *points* (x strictly increasing)."""
     if len(points) < 3:
@@ -574,7 +605,7 @@ def _is_dark(alt: np.ndarray, sky_x0: int, x: float) -> bool:
 
 
 def sky_rect(region: ComponentRegion) -> Rect:
-    """The sky's rectangle in canvas coordinates — the part a scaled colour panel may dither."""
+    """The sky's rectangle in canvas coordinates, ``(x0, y0, x1, y1)``."""
     x0 = region.x + HERO_W
     y0 = region.y + HEAD_H
     return (x0, y0, region.x + region.w, y0 + SKY_H)
@@ -638,7 +669,7 @@ def _draw_plate(
     image.paste(field.convert(image.mode), (sky_x0, sky_y0))
 
     _draw_stars(draw, axis, alt, sky_y0, ink)
-    slots = window_slots(weather.hourly, axis, tz) if weather else []
+    slots = lead_in(window_slots(weather.hourly, axis, tz), weather, axis) if weather else []
     suns = _draw_suns(
         draw, axis, sky_y0, ink, weather, latitude, longitude, sun_tz, altitude, slots
     )
@@ -1116,6 +1147,7 @@ def _draw_events(draw, data: DashboardData, axis: TimeAxis, y0: int, y1: int, in
         t += timedelta(hours=1)
 
     y = y0
+    overflow_starts: list[datetime] = []  # starts of everything not drawn
     allday = allday_in_window(data.events, data.birthdays, axis)
     font_ad = fonts.dm_bold(13)
     if allday:
@@ -1123,10 +1155,12 @@ def _draw_events(draw, data: DashboardData, axis: TimeAxis, y0: int, y1: int, in
         for start, end, label, bday in allday:
             x0, x1 = axis.x(start), axis.x(end)
             lw = text_width(draw, label, font_ad) + 16
-            items.append((x0, max(x1, x0 + lw), (x0, x1, label, bday)))
-        rows = pack_lanes(items)[:2]
+            items.append((x0, max(x1, x0 + lw), (x0, x1, label, bday, start)))
+        packed = pack_lanes(items)
+        rows = packed[:ALLDAY_MAX_ROWS]
+        overflow_starts += [chip[4] for lane in packed[ALLDAY_MAX_ROWS:] for chip in lane]
         for row in rows:
-            for x0, x1, label, bday in row:
+            for x0, x1, label, bday, _start in row:
                 bx0, bx1 = x0 + 2, x1 - 3
                 if bday:
                     draw.rectangle(
@@ -1142,11 +1176,7 @@ def _draw_events(draw, data: DashboardData, axis: TimeAxis, y0: int, y1: int, in
                     )
             y += ALLDAY_H
 
-    lanes_avail = max(0, (y1 - y) // LANE_H)
     events = events_in_window(data.events, axis)
-    if not events or lanes_avail == 0:
-        return
-
     title_font = fonts.dm_bold(15)
     time_font = fonts.dm_medium(12)
     items = []
@@ -1159,8 +1189,12 @@ def _draw_events(draw, data: DashboardData, axis: TimeAxis, y0: int, y1: int, in
         extent = x1 if inside else x1 + LABEL_PAD + min(need, MAX_BESIDE_LABEL_W)
         items.append((x0, min(extent, axis.x1) + 4, (evt, x0, x1, inside)))
     lanes = pack_lanes(items)
+    lanes_avail = max(0, (y1 - y) // LANE_H)
+    if len(lanes) > lanes_avail or overflow_starts:
+        # Something will be counted: keep the footer row clear for the count.
+        lanes_avail = max(0, (y1 - OVERFLOW_H - y) // LANE_H)
     shown = lanes[:lanes_avail]
-    hidden = [it for lane in lanes[lanes_avail:] for it in lane]
+    overflow_starts += [evt.start for lane in lanes[lanes_avail:] for evt, *_ in lane]
 
     for li, lane in enumerate(shown):
         ly = y + li * LANE_H
@@ -1183,17 +1217,27 @@ def _draw_events(draw, data: DashboardData, axis: TimeAxis, y0: int, y1: int, in
             draw_text_truncated(draw, (tx, ly - 2), title, title_font, room, fill=fill)
             draw_text_truncated(draw, (tx, ly + 14), when, time_font, room, fill=fill)
 
-    if hidden:
-        by_day: dict[date, int] = {}
-        for evt, *_ in hidden:
-            by_day[evt.start.date()] = by_day.get(evt.start.date(), 0) + 1
-        font = fonts.dm_bold(12)
-        for day, n in by_day.items():
-            end = datetime.combine(day + timedelta(days=1), datetime.min.time())
-            label = f"+{n} more"
-            tw = text_width(draw, label, font)
-            x = min(axis.x(end), axis.x1) - tw - 6
-            draw.text((x, y1 - 14), label, font=font, fill=ink.red if ink.colour else ink.black)
+    _draw_overflow(draw, axis, overflow_starts, y1, ink)
+
+
+def overflow_counts(starts: list[datetime], axis: TimeAxis) -> dict[date, int]:
+    """How many undrawn items fall on each day, an item begun before the window on its first."""
+    counts: dict[date, int] = {}
+    for start in starts:
+        day = max(start, axis.start).date()
+        counts[day] = counts.get(day, 0) + 1
+    return counts
+
+
+def _draw_overflow(draw, axis: TimeAxis, starts: list[datetime], y1: int, ink: Inks) -> None:
+    """``+N more`` at the right of each day's column, in the reserved footer row."""
+    font = fonts.dm_bold(12)
+    for day, n in sorted(overflow_counts(starts, axis).items()):
+        end = datetime.combine(day + timedelta(days=1), datetime.min.time())
+        label = f"+{n} more"
+        tw = text_width(draw, label, font)
+        x = max(axis.x0 + 4, min(axis.x(end), axis.x1) - tw - 6)
+        draw.text((x, y1 - 14), label, font=font, fill=ink.red if ink.colour else ink.black)
 
 
 # --- hero -------------------------------------------------------------------

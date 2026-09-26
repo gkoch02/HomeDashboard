@@ -47,10 +47,16 @@ def _dummy_temp(prev: tuple, day: tuple, nxt: tuple, hour: float) -> float:
 
 
 def _dummy_hourly(now: datetime, tz: tzinfo) -> list[HourlyForecast]:
-    """Forty 3-hour slots from the one holding *now*, like the OWM grid."""
+    """Forty 3-hour slots shaped like the OWM grid.
+
+    OWM starts the grid at the first 3-hour **UTC** boundary after the request,
+    not at a local slot, so the dummy grid does the same — previews then show
+    the plates' handling of the gap between now and the first slot.
+    """
     start_day = now.date()
-    first = datetime.combine(start_day, datetime.min.time()).replace(tzinfo=tz)
-    first += timedelta(hours=(now.hour // 3) * 3)
+    now_utc = (now if now.tzinfo else now.replace(tzinfo=tz)).astimezone(timezone.utc)
+    first = now_utc.replace(hour=now_utc.hour // 3 * 3, minute=0, second=0, microsecond=0)
+    first = (first + timedelta(hours=3)).astimezone(tz)
     slots: list[HourlyForecast] = []
     for i in range(40):
         t = first + timedelta(hours=3 * i)

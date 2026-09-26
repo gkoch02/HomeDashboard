@@ -13,6 +13,7 @@ from __future__ import annotations
 import math
 from datetime import date, datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch
+from zoneinfo import ZoneInfo
 
 import numpy as np
 import pytest
@@ -45,6 +46,7 @@ SF = (37.77, -122.42)
 # The render tests hand the plate a naive clock, which reads as UTC; London
 # keeps the sun where that clock says it is.
 LONDON = (51.5, -0.12)
+NY = ZoneInfo("America/New_York")
 REGION = ComponentRegion(0, 0, 1360, 480)
 NATIVE_G = DisplayConfig(provider="waveshare", model="epd10in85g", width=1360, height=480)
 NATIVE_MONO = DisplayConfig(provider="waveshare", model="epd7in5_V2", width=1360, height=480)
@@ -198,11 +200,13 @@ class TestHourlyCache:
 
 
 class TestDummyHourly:
-    def test_forty_three_hour_slots_from_the_current_slot(self):
+    def test_forty_slots_from_the_next_utc_boundary_like_owm(self):
         data = generate_dummy_data(now=NOW)
         hourly = data.weather.hourly
         assert len(hourly) == 40
-        assert hourly[0].time.replace(tzinfo=None) == datetime(2026, 4, 6, 9)
+        assert hourly[0].time == datetime(2026, 4, 6, 12, tzinfo=timezone.utc)
+        ny = generate_dummy_data(tz=NY, now=datetime(2026, 4, 6, 9, 30, tzinfo=NY)).weather
+        assert ny.hourly[0].time == datetime(2026, 4, 6, 15, tzinfo=timezone.utc)
         assert {b.time - a.time for a, b in zip(hourly, hourly[1:])} == {timedelta(hours=3)}
 
     def test_curve_is_continuous_across_midnight(self):
@@ -373,6 +377,30 @@ class TestTemperature:
         found = wh.daily_extremes(wh.window_slots(hourly, axis, None), axis)
         assert not [f for f in found if f[0] == "high" and f[1].date() == start.date()]
 
+    def test_lead_in_fills_the_gap_before_the_first_slot(self):
+        # New York at 09:30: the window opens at 09:00 local, OWM's grid at
+        # 15:00 UTC = 11:00 local.
+        axis = _axis(datetime(2026, 4, 6, 9, 30))
+        weather = _weather(current_temp=39.0, current_icon="04d")
+        first = datetime(2026, 4, 6, 15, tzinfo=timezone.utc)
+        hourly = [HourlyForecast(first + timedelta(hours=3 * i), 50, "01d") for i in range(30)]
+        slots = wh.window_slots(hourly, axis, NY)
+        assert slots[0][0] == datetime(2026, 4, 6, 11)
+        filled = wh.lead_in(slots, weather, axis)
+        assert filled[0][0] == datetime(2026, 4, 6, 8)
+        assert (filled[0][1].temp, filled[0][1].icon) == (39.0, "04d")
+        assert filled[1:] == slots
+
+    def test_lead_in_covers_a_gap_of_two_slots_and_leaves_a_covered_window(self):
+        axis = _axis(datetime(2026, 4, 6, 11, 50))  # opens 09:00
+        slots = [(datetime(2026, 4, 6, 14), HourlyForecast(datetime(2026, 4, 6, 14), 50, "01d"))]
+        filled = wh.lead_in(slots, _weather(), axis)
+        assert [t.hour for t, _ in filled] == [8, 11, 14]
+        covered = [(datetime(2026, 4, 6, 9), slots[0][1])]
+        assert wh.lead_in(covered, _weather(), axis) is covered
+        assert wh.lead_in([], _weather(), axis) == []
+        assert wh.lead_in(slots, None, axis) is slots
+
     def test_scale_widens_a_flat_day(self):
         assert wh.temp_scale([50, 52]) == (51 - wh.MIN_TEMP_SPAN / 2, 51 + wh.MIN_TEMP_SPAN / 2)
         assert wh.temp_scale([30, 70]) == (30, 70)
@@ -431,6 +459,53 @@ class TestEventSelection:
 # ---------------------------------------------------------------------------
 # Outlook
 # ---------------------------------------------------------------------------
+
+
+class TestOverflow:
+    def test_counts_by_day_with_an_early_start_on_the_first(self):
+        axis = _axis()
+        starts = [
+            datetime(2026, 4, 5, 20),  # began before the window
+            datetime(2026, 4, 6, 14),
+            datetime(2026, 4, 8, 9),
+        ]
+        assert wh.overflow_counts(starts, axis) == {date(2026, 4, 6): 2, date(2026, 4, 8): 1}
+
+    @staticmethod
+    def _footer_ink(data):
+        img = _plate(data, mode="L").convert("1")
+        return ink(img, (SKY[0], 480 - 6 - wh.OVERFLOW_H, 1360, 480 - 6))
+
+    def test_an_all_day_item_past_the_rows_is_counted(self):
+        day = datetime(2026, 4, 7)
+        chips = [_event(f"Holiday {i}", day, hours=24, all_day=True) for i in range(3)]
+        two = self._footer_ink(DashboardData(events=chips[:2]))
+        three = self._footer_ink(DashboardData(events=chips))
+        assert three > two + 20  # the rules and hairlines cross the footer too
+
+    def test_a_count_for_a_narrow_first_day_stays_on_the_plate(self):
+        # At 21:30 the window opens at 21:00 and today is a ~45-px sliver, too
+        # narrow for "+N more" — the count must not slide into the hero block.
+        now = datetime(2026, 4, 6, 21, 30)
+        events = [_event(f"Late {i}", datetime(2026, 4, 6, 21, 30), hours=1) for i in range(8)]
+        foot = (SKY[0], 480 - 6 - wh.OVERFLOW_H, SKY[0] + 60, 480 - 6)
+        edge = (SKY[0], foot[1], SKY[0] + 4, foot[3])  # where a clipped label would cross
+        busy = _plate(DashboardData(events=events), mode="L", now=now).convert("1")
+        few = _plate(DashboardData(events=events[:2]), mode="L", now=now).convert("1")
+        assert ink(busy, foot) > ink(few, foot) + 20
+        assert ink(busy, edge) == ink(few, edge)
+
+    def test_the_count_keeps_clear_of_the_last_lane(self):
+        # Two all-day rows plus more timed events than fit: the last lane drawn
+        # must end above the footer row the count sits in.
+        day = datetime(2026, 4, 7)
+        chips = [_event(f"Trip {i}", day, hours=24, all_day=True) for i in range(2)]
+        timed = [_event(f"Meeting {i}", datetime(2026, 4, 7, 10), hours=1) for i in range(9)]
+        axis = _axis()
+        x0 = int(axis.x(datetime(2026, 4, 7, 10))) + 2
+        bars = (x0, 480 - 6 - wh.OVERFLOW_H, x0 + 10, 480 - 6)
+        img = _plate(DashboardData(events=chips + timed), mode="L").convert("1")
+        assert ink(img, bars) == 0
 
 
 class TestOutlook:
@@ -537,6 +612,15 @@ class TestRender:
             h.icon = icon
         return DashboardData(weather=_weather(hourly))
 
+    def test_the_curve_reaches_the_left_edge_before_the_first_slot(self):
+        # New York at 09:30: the window opens at 09:00, OWM's grid at 11:00.
+        now = datetime(2026, 4, 6, 9, 30, tzinfo=NY)
+        first = datetime(2026, 4, 6, 15, tzinfo=timezone.utc)
+        hourly = [HourlyForecast(first + timedelta(hours=3 * i), 45.0, "01d") for i in range(30)]
+        img = _plate(DashboardData(weather=_weather(hourly)), now=now, coords=(40.7, -74.0))
+        left_edge = (SKY[0], SKY[1], SKY[0] + 30, SKY[3])
+        assert _count(img, RED, left_edge) > 60
+
     def test_overcast_draws_clouds(self):
         # Tuesday 07:30-10:00: daylight, clear of the noon sun and of the curve.
         axis = _axis()
@@ -634,22 +718,35 @@ class TestRender:
         assert at(NOW) == at(NOW + timedelta(minutes=25))
         assert at(NOW) != at(datetime(2026, 4, 6, 12, 5))
 
-    def test_art_region_is_declared(self):
-        from src.render.components.registry import RenderContext, get_component
+    def test_native_pipeline_changes_nothing_but_the_ink_snap(self):
+        """The plate is exact inks; the four-ink backend must leave it alone.
 
-        theme = load_theme("wide_horizon")
-        img = Image.new("L", (1360, 480), 255)
-        ctx = RenderContext(
-            draw=ImageDraw.Draw(img),
-            data=DashboardData(),
-            today=NOW.date(),
-            now=NOW,
-            layout=theme.layout,
-            style=theme.style,
-            image=img,
+        The sky is deliberately not an art region: re-diffusing a tile of exact
+        inks is not the identity (its neutral pass dithers the tile's
+        luminance, which flips pixels beside red and yellow).
+        """
+        from src.render.quantize import quantize_to_palette_nearest
+
+        tz = NY
+        now = datetime(2026, 4, 6, 17, 30, tzinfo=tz)  # dusk in the window
+        data = generate_dummy_data(tz=tz, now=now)
+        data.fetched_at = now
+        rendered = render_dashboard(
+            data, NATIVE_G, theme=load_theme("wide_horizon"), latitude=40.7, longitude=-74.0
         )
-        get_component("wide_horizon")(ctx)
-        assert ctx.dither_regions == [SKY]
+        plate = Image.new("RGB", (1360, 480), "white")
+        wh.draw_wide_horizon(
+            ImageDraw.Draw(plate),
+            data,
+            now.date(),
+            now,
+            image=plate,
+            region=REGION,
+            latitude=40.7,
+            longitude=-74.0,
+        )
+        snapped = quantize_to_palette_nearest(plate, list(WAVESHARE_G_PALETTE))
+        assert image_hash(rendered.convert("RGB")) == image_hash(snapped)
 
 
 class TestFonts:

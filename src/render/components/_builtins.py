@@ -526,8 +526,9 @@ def _halftone_agenda_wide(ctx: RenderContext) -> None:
 
 @register_component("wide_horizon")
 def _wide_horizon(ctx: RenderContext) -> None:
+    # No art region: the plate is already exact inks, and the backend's
+    # re-diffusion of one is not the identity (see the panel docstring).
     region = ctx.layout.wide_horizon
-    ctx.dither_regions.append(wide_horizon_panel.sky_rect(region))
     wide_horizon_panel.draw_wide_horizon(
         ctx.draw,
         ctx.data,
