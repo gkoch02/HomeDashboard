@@ -222,6 +222,10 @@ draw at the panel's native size; the landscape themes above reach that panel
 letterboxed instead (see [`display.scaling`](configuration.md#scaling)). On an
 800 × 480 panel the panoramic themes letterbox the other way, as a band.
 
+**[Panoramic Themes](wide-themes.md)** is the guide to this set: setting up the
+10.85" panel, choosing between the five, how often each repaints, and previews in
+the panel's own four inks.
+
 | Theme | Best for | Notes |
 |---|---|---|
 | `wide_week` | the standard dashboard on a strip | The same header, week grid, weather, birthdays and quote at 1360 × 480: seven columns of 128 px, and the three information panels stacked in a full-height rail beside the grid. No new component. |

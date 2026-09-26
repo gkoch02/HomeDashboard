@@ -285,7 +285,8 @@ Accents: **red** primary, **black** secondary · [description in Themes ↗](the
 These declare a 1360 × 480 canvas for the Waveshare 10.85" (G) strip, whose
 four inks are black, white, yellow and red — so each names only red and yellow
 accents, and the previews below (rendered at the canvas size through the
-Spectra 6 mapping) show the same colours that panel does.
+Spectra 6 mapping) show the same colours that panel does. For the renders in that
+panel's own four inks, and a guide to the set, see [Panoramic Themes](wide-themes.md).
 
 #### wide_week
 

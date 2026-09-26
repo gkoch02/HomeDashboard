@@ -39,6 +39,7 @@ sudo reboot
 | Enable the optional browser control panel | [Web UI](docs/web-ui.md) |
 | Pick or schedule themes | [Themes](docs/themes.md) |
 | See the theme catalog in Inky Spectra 6 color | [Inky Previews](docs/inky-previews.md) |
+| Run the 1360 × 480 panoramic panel (Waveshare 10.85" G) | [Panoramic Themes](docs/wide-themes.md) |
 | See the full `config.yaml` reference | [Configuration Reference](docs/configuration.md) |
 | Regenerate the per-theme preview images | [Theme Previews](docs/previews.md) |
 | Upgrade from an older install | [Upgrading from v4](docs/upgrading-from-v4.md) · [from v3](docs/upgrading-from-v3.md) |
@@ -62,6 +63,7 @@ sudo reboot
 - [Web UI](docs/web-ui.md) for browser access, auth, and service setup
 - [Configuration Reference](docs/configuration.md) for every `config.yaml` field
 - [Themes](docs/themes.md) for the live theme catalog and scheduling behavior
+- [Panoramic Themes](docs/wide-themes.md) for the 1360 × 480 strip panel and the five themes built for it
 - [FAQ](docs/faq.md) for common operational questions
 
 ### Contributor docs
