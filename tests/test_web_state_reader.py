@@ -394,3 +394,11 @@ def test_read_host_metrics_returns_none_when_fetch_fails():
     """If fetch_host_data returns None, read_host_metrics passes that through."""
     with patch("src.web.state_reader.fetch_host_data", return_value=None):
         assert read_host_metrics() is None
+
+
+def test_read_quota_from_another_day_reads_as_empty(tmp_path):
+    """Yesterday's counts are not today's quota (#296)."""
+    data = {"date": "2026-09-01", "counts": {"weather": 40}}
+    (tmp_path / "api_quota_state.json").write_text(json.dumps(data))
+    assert read_quota(str(tmp_path), today="2026-09-02") == {}
+    assert read_quota(str(tmp_path), today="2026-09-01") == {"weather": 40}

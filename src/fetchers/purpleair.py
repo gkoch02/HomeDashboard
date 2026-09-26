@@ -22,6 +22,7 @@ import requests  # type: ignore[import-untyped]
 
 from src.config import PurpleAirConfig
 from src.data.models import AirQualityData
+from src.fetchers import request_counter
 
 logger = logging.getLogger(__name__)
 
@@ -148,6 +149,7 @@ def fetch_air_quality(cfg: PurpleAirConfig) -> AirQualityData:
     params = {"fields": _FIELDS}
 
     with requests.Session() as session:
+        request_counter.attach(session)
         resp = session.get(url, headers=headers, params=params, timeout=_TIMEOUT)
 
     if resp.status_code == 403:

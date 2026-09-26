@@ -48,7 +48,9 @@ google:
                                           # service account reads via the People API
                                           # (requires domain-wide delegation; see
                                           # setup.md → Birthday Configuration)
-  daily_quota_warning: 500         # log warning when daily API calls exceed this
+  daily_quota_warning: 500         # warn when any one source's HTTP requests today exceed
+                                   # this (every source, not only Google; failed requests
+                                   # count; the day follows `timezone`)
 
   # ICS feed alternative — when set, service_account_path is ignored for events.
   # Get the URL: Google Calendar → Settings → [calendar] → "Secret address in iCal format"

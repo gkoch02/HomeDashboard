@@ -388,12 +388,12 @@ def _build_status() -> dict:
     last_run = read_last_success(output_dir)
     breakers = read_breakers(state_dir)
     cache_ages = read_cache_ages(state_dir, ttls)
-    quota = read_quota(state_dir)
     # Everything below is resolved against the *configured* timezone, the same
     # clock the renderer uses. Reading the host clock here put quiet hours,
     # theme_schedule and the daypart/weekday theme_rules on a different wall
     # clock — and near local midnight on a different day (#239).
     now = now_local(config_tz(cfg))
+    quota = read_quota(state_dir, today=now.date().isoformat())
     quiet_hours_active = is_quiet_hours_now(
         cfg.schedule.quiet_hours_start, cfg.schedule.quiet_hours_end, now
     )

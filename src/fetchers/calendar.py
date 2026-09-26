@@ -18,6 +18,7 @@ from typing import Any
 from src._time import event_window_utc
 from src.config import BirthdayConfig, GoogleConfig
 from src.data.models import Birthday, CalendarEvent
+from src.fetchers import request_counter
 
 # Re-export from sub-modules so existing consumers don't break.
 # Tests and other code can continue to ``from src.fetchers.calendar import ...``.
@@ -290,6 +291,7 @@ def _birthdays_from_calendar(
     # back to the previously-cached birthday list rather than overwriting it with
     # an empty list that blanks the birthday panel (issue #146).
     try:
+        request_counter.count_request()
         result = (
             service.events()
             .list(
@@ -352,6 +354,7 @@ def _birthdays_from_contacts(
         # cached birthday list so the panel keeps rendering last-known-good data
         # (issue #146).
         try:
+            request_counter.count_request()
             result = service.people().connections().list(**kwargs).execute()
         except Exception as exc:
             logger.warning("Failed to fetch Google Contacts: %s", exc)

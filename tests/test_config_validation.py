@@ -881,3 +881,65 @@ class TestPartialRefreshWarningExpandsPseudoThemes:
         )
         warning = self._warning(cfg)
         assert warning is not None and "random_daily" not in warning.message
+
+
+class TestRangeAndPositivityChecks:
+    """Values that parsed but cannot work (#306)."""
+
+    @staticmethod
+    def _fields(items):
+        return {i.field for i in items}
+
+    def test_non_positive_ttls_are_errors(self):
+        from src.config import CacheConfig
+
+        cfg = Config(
+            cache=CacheConfig(
+                weather_ttl_minutes=0,
+                events_ttl_minutes=-5,
+                birthdays_ttl_minutes=0,
+                air_quality_ttl_minutes=-1,
+                air_quality_fetch_interval=0,
+            )
+        )
+        errors, _ = validate_config(cfg)
+        assert {
+            "cache.weather_ttl_minutes",
+            "cache.events_ttl_minutes",
+            "cache.birthdays_ttl_minutes",
+            "cache.air_quality_ttl_minutes",
+            "cache.air_quality_fetch_interval",
+        } <= self._fields(errors)
+
+    def test_breaker_settings(self):
+        from src.config import CacheConfig
+
+        errors, _ = validate_config(Config(cache=CacheConfig(max_failures=0, cooldown_minutes=-1)))
+        assert {"cache.max_failures", "cache.cooldown_minutes"} <= self._fields(errors)
+        errors, _ = validate_config(Config(cache=CacheConfig(cooldown_minutes=0)))
+        assert "cache.cooldown_minutes" not in self._fields(errors)
+
+    def test_max_partials_must_be_at_least_one(self):
+        errors, _ = validate_config(Config(display=DisplayConfig(max_partials_before_full=0)))
+        assert "display.max_partials_before_full" in self._fields(errors)
+
+    def test_out_of_range_coordinates_are_errors(self):
+        cfg = Config(weather=WeatherConfig(latitude=200, longitude=-181))
+        errors, _ = validate_config(cfg)
+        assert {"weather.latitude", "weather.longitude"} <= self._fields(errors)
+
+    def test_boundary_coordinates_are_fine(self):
+        cfg = Config(weather=WeatherConfig(latitude=-90, longitude=180))
+        errors, _ = validate_config(cfg)
+        assert not {"weather.latitude", "weather.longitude"} & self._fields(errors)
+
+    def test_dimensions_that_disagree_with_the_model_warn(self):
+        cfg = Config(display=DisplayConfig(model="epd7in5_V2", width=1600, height=1200))
+        _, warnings = validate_config(cfg)
+        assert "display.width/height" in self._fields(warnings)
+
+    def test_dimensions_from_the_model_do_not_warn(self, tmp_path):
+        path = tmp_path / "c.yaml"
+        path.write_text("display:\n  model: epd7in5_HD\n")
+        _, warnings = validate_config(load_config(str(path)))
+        assert "display.width/height" not in self._fields(warnings)

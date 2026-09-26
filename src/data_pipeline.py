@@ -15,6 +15,7 @@ from src.data.models import (
     StalenessLevel,
     WeatherData,
 )
+from src.fetchers import request_counter
 from src.fetchers.cache import (
     check_staleness,
     load_cache_blob,
@@ -180,7 +181,7 @@ class DataPipeline:
         self.fetched_at = now_local(tz)
 
         cache_cfg = cfg.cache
-        self.quota = QuotaTracker(state_dir=cache_dir)
+        self.quota = QuotaTracker(state_dir=cache_dir, tz=tz)
         self.breaker = CircuitBreaker(
             max_failures=cache_cfg.max_failures,
             cooldown_minutes=cache_cfg.cooldown_minutes,
@@ -254,9 +255,11 @@ class DataPipeline:
                 weather_value if isinstance(weather_value, WeatherData) else None,
             )
 
+        # Every enabled source, not a hard-coded three: PurpleAir (the most
+        # frequent fetch) and any registry-added source were never checked.
         quota_threshold = self.cfg.google.daily_quota_warning
-        for src in ("events", "weather", "birthdays"):
-            self.quota.check_warning(src, quota_threshold)
+        for f in enabled:
+            self.quota.check_warning(f.name, quota_threshold)
 
         host_data: HostData | None = fetch_host_data()
 
@@ -422,11 +425,28 @@ class DataPipeline:
             for f in runnable:
                 label = f.name.replace("_", " ").title().replace(" ", "")
                 futures[f.name] = pool.submit(
-                    retry_fetch, label, lambda fetcher=f: fetcher.fetch(ctx)
+                    self._counted_fetch, f.name, label, lambda fetcher=f: fetcher.fetch(ctx)
                 )
         finally:
             pool.shutdown(wait=False)
         return futures
+
+    def _counted_fetch(self, source: str, label: str, fn):
+        """Run one source's fetch (with its retry), recording the requests it made.
+
+        Runs on the worker thread, so the tally sees only this source's
+        requests, and records in ``finally`` so a failed fetch — a 401 on every
+        run — still counts what it cost. A fetch whose requests nothing
+        instrumented (a library that does its own HTTP) counts as one.
+        """
+        with request_counter.counting() as tally:
+            try:
+                return retry_fetch(label, fn)
+            finally:
+                try:
+                    self.quota.record_call(source, max(tally.count, 1))
+                except Exception as exc:
+                    logger.warning("%s quota update failed: %s", source.capitalize(), exc)
 
     def _resolve_source(self, source: str, future: Future | None, current, success_log_fn=None):
         """Resolve a single data source from its future, falling back to cache.
@@ -466,7 +486,6 @@ class DataPipeline:
         self._content_at[source] = self.fetched_at
         self._after_fetch(source, "cache write", self._save_fetched, source, data)
         self._after_fetch(source, "breaker update", self.breaker.record_success, source)
-        self._after_fetch(source, "quota update", self.quota.record_call, source)
         if success_log_fn:
             self._after_fetch(source, "success log", success_log_fn, data)
         return data

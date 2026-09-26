@@ -81,7 +81,7 @@ CLI (main.py)
 - **`fetchers/host.py`** — System metrics via `/proc` (stdlib only; outside the registry — sync, no caching)
 - **`fetchers/cache.py`** — Per-source JSON cache with TTL and staleness classification; ser/deser delegated through the registry
 - **`fetchers/circuit_breaker.py`** — Per-source circuit breaker (CLOSED → OPEN → HALF_OPEN)
-- **`fetchers/quota_tracker.py`** — Daily API call counter with auto-reset
+- **`fetchers/quota_tracker.py`** — Daily per-source HTTP request counter, reset on the configured timezone's date; `fetchers/request_counter.py` tallies the requests each fetch makes on its worker thread
 
 ### Services (orchestration policy)
 - **`services/run_policy.py`** — Quiet hours, morning startup detection

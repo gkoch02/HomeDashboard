@@ -14,6 +14,11 @@ from datetime import date, datetime, timedelta, tzinfo
 from pathlib import Path
 from typing import Any
 
+from src._io import atomic_write_json
+from src._time import event_window_utc, week_start
+from src.config import GoogleConfig
+from src.data.models import CalendarEvent
+
 # NOTE (#211): the googleapiclient stack (httplib2, google.oauth2,
 # google_auth_httplib2, googleapiclient) is deliberately NOT imported at
 # module top. It costs 1-2 s to import on a Pi, and this module is reached
@@ -22,10 +27,7 @@ from typing import Any
 # side-effect imports. The imports live inside _build_service /
 # _fetch_incremental so only runs that actually talk to the Google API pay
 # for them (same discipline as calendar_caldav's local `import caldav`).
-from src._io import atomic_write_json
-from src._time import event_window_utc, week_start
-from src.config import GoogleConfig
-from src.data.models import CalendarEvent
+from src.fetchers import request_counter
 from src.fetchers.errors import CalendarFetchError
 
 logger = logging.getLogger(__name__)
@@ -298,6 +300,7 @@ def _fetch_full(
             params.pop("pageToken", None)
 
         try:
+            request_counter.count_request()
             result = service.events().list(**params).execute()
         except Exception as exc:
             logger.warning("Failed to fetch calendar %s: %s", calendar_id, exc)
@@ -354,6 +357,7 @@ def _fetch_incremental(
             params.pop("pageToken", None)
 
         try:
+            request_counter.count_request()
             result = service.events().list(**params).execute()
         except HttpError as exc:
             if exc.resp.status == 410:

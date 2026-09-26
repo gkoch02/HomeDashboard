@@ -74,7 +74,8 @@ google:
   # Workspace Admin with the People API scope granted, and this field must
   # be set to the email of the user whose contacts should be read.
   # contacts_email: "you@yourdomain.com"
-  # Log a warning once the day's Google API call count passes this number.
+  # Log a warning once any source's HTTP requests for the day pass this number
+  # (despite living under google:, it applies to every source).
   # daily_quota_warning: 500
 
   # --- ICS feed (simpler alternative — no GCP project or credentials required) ---

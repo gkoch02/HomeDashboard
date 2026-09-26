@@ -578,3 +578,91 @@ class TestCalendarOutageKeepsTheCache:
         assert [e["summary"] for e in cached["events"]["data"]] == ["Dentist"], (
             "the outage overwrote the good cache"
         )
+
+
+class TestQuotaCountsRequests:
+    """The daily quota counts HTTP requests per source, failures included (#296)."""
+
+    @staticmethod
+    def _requests(n):
+        from src.fetchers import request_counter
+
+        def fetch(*_a, **_kw):
+            request_counter.count_request(n)
+            return _make_weather()
+
+        return fetch
+
+    def test_counts_every_request_a_fetch_makes(self, tmp_path):
+        pipeline = _make_pipeline(tmp_path, force_refresh=True)
+        with (
+            patch("src.data_pipeline.fetch_events", return_value=_make_events()),
+            patch("src.data_pipeline.fetch_weather", side_effect=self._requests(3)),
+            patch("src.data_pipeline.fetch_birthdays", return_value=_make_birthdays()),
+            patch("src.data_pipeline.fetch_host_data", return_value=None),
+        ):
+            pipeline.fetch()
+
+        assert pipeline.quota.daily_count("weather") == 3
+        # A fetch that made no instrumented request still costs at least one.
+        assert pipeline.quota.daily_count("events") == 1
+
+    def test_failed_fetch_and_its_retry_are_counted(self, tmp_path):
+        from src.fetchers import request_counter
+
+        def failing(*_a, **_kw):
+            request_counter.count_request()
+            raise ConnectionError("down")
+
+        pipeline = _make_pipeline(tmp_path, force_refresh=True)
+        with (
+            patch("src.data_pipeline.fetch_events", return_value=_make_events()),
+            patch("src.data_pipeline.fetch_weather", side_effect=failing),
+            patch("src.data_pipeline.fetch_birthdays", return_value=_make_birthdays()),
+            patch("src.data_pipeline.fetch_host_data", return_value=None),
+        ):
+            pipeline.fetch()
+
+        assert pipeline.quota.daily_count("weather") == 2
+
+    def test_warning_checks_every_enabled_source(self, tmp_path):
+        pipeline = _make_pipeline(tmp_path, force_refresh=True)
+        pipeline.cfg.purpleair = PurpleAirConfig(api_key="k", sensor_id=1)
+        with (
+            patch("src.data_pipeline.fetch_events", return_value=_make_events()),
+            patch("src.data_pipeline.fetch_weather", return_value=_make_weather()),
+            patch("src.data_pipeline.fetch_birthdays", return_value=_make_birthdays()),
+            patch("src.data_pipeline.fetch_air_quality", return_value=None),
+            patch("src.data_pipeline.fetch_host_data", return_value=None),
+            patch.object(pipeline.quota, "check_warning") as check,
+        ):
+            pipeline.fetch()
+
+        checked = {c.args[0] for c in check.call_args_list}
+        assert "air_quality" in checked
+        assert {"events", "weather", "birthdays"} <= checked
+
+
+def test_request_counter_is_a_no_op_outside_counting():
+    from src.fetchers import request_counter
+
+    request_counter.count_request()  # must not raise
+    with request_counter.counting() as outer:
+        request_counter.count_request()
+        with request_counter.counting() as inner:
+            request_counter.count_request(2)
+        request_counter.count_request()
+    assert (outer.count, inner.count) == (2, 2)
+
+
+def test_session_hook_counts_responses():
+    import requests
+
+    from src.fetchers import request_counter
+
+    session = requests.Session()
+    request_counter.attach(session)
+    with request_counter.counting() as tally:
+        for hook in session.hooks["response"]:
+            hook(requests.Response())
+    assert tally.count == 1

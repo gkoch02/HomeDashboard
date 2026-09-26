@@ -1,17 +1,20 @@
-"""Lightweight daily API call counter for quota awareness.
+"""Lightweight daily API request counter for quota awareness.
 
-Tracks the number of API calls per source per day and logs warnings when
-a configurable threshold is exceeded.  The state file auto-resets on each
-new calendar day.
+Tracks the number of HTTP requests each source makes per day — counted by
+:mod:`src.fetchers.request_counter`, failed attempts included — and logs a
+warning when a configurable threshold is exceeded. The state file resets on
+each new calendar day *in the configured timezone*: the host date on a Pi
+left at UTC rolled the count over mid-evening for anyone west of Greenwich.
 """
 
 import json
 import logging
 import threading
-from datetime import date
+from datetime import tzinfo
 from pathlib import Path
 
 from src._io import atomic_write_json
+from src._time import now_local
 
 logger = logging.getLogger(__name__)
 
@@ -21,22 +24,23 @@ _STATE_FILENAME = "api_quota_state.json"
 class QuotaTracker:
     """Per-source daily API call counter with persistent state."""
 
-    def __init__(self, state_dir: str = "output"):
+    def __init__(self, state_dir: str = "output", tz: tzinfo | None = None):
         self._state_dir = Path(state_dir)
-        self._today = date.today().isoformat()
+        self._tz = tz
+        self._today = self._current_day()
         self._counts: dict[str, int] = {}
         self._lock = threading.Lock()
         self._load()
 
     def record_call(self, source: str, count: int = 1) -> None:
-        """Increment the daily call counter for *source*."""
+        """Add *count* requests to *source*'s daily total."""
         with self._lock:
             self._ensure_today()
             self._counts[source] = self._counts.get(source, 0) + count
             self._save()
 
     def daily_count(self, source: str) -> int:
-        """Return the number of API calls recorded for *source* today."""
+        """Return the number of requests recorded for *source* today."""
         with self._lock:
             self._ensure_today()
             return self._counts.get(source, 0)
@@ -46,7 +50,7 @@ class QuotaTracker:
         count = self.daily_count(source)
         if count > threshold:
             logger.warning(
-                "API quota warning: %s has made %d calls today (threshold: %d)",
+                "API quota warning: %s has made %d requests today (threshold: %d)",
                 source,
                 count,
                 threshold,
@@ -56,9 +60,12 @@ class QuotaTracker:
 
     # --- Internal ---
 
+    def _current_day(self) -> str:
+        return now_local(self._tz).date().isoformat()
+
     def _ensure_today(self) -> None:
         """Reset counters if the day has changed."""
-        today = date.today().isoformat()
+        today = self._current_day()
         if today != self._today:
             self._today = today
             self._counts = {}
