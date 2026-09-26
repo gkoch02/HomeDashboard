@@ -51,6 +51,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   colour panels the rail uses yellow as a highlighter behind black type (a
   NOW/NEXT band, chance-of-rain chips, a birthday today) and red for labels and
   warnings; on a monochrome panel the fills drop out.
+- **`wide_week` rail type is larger and heavier.** Nothing on the rail is now
+  set below 13 px (labels and the "updated" stamp were 11); body rows —
+  high/low, feels-like and wind, the forecast, the sky, birthdays — are 16-px
+  DM Sans SemiBold instead of 13-px Medium, the condition and NOW/NEXT title
+  grew, and the quote moved from Playfair Medium to SemiBold. The week line and
+  "updated" stamp now stack beside the weekday to make the room. Fewer
+  birthdays fit on the rail's one line (typically two, down from three).
+
+### Fixed
+
+- **`wide_week` rail type no longer erodes on the four-ink panel.** On the
+  colour canvas the rail's glyphs were antialiased and then cut at mid-grey by
+  the panel's ink snap, which erased Playfair's hairlines (the quote lost its
+  `t` crossbars) and thinned the sans. The rail now rasterises its type
+  bilevel, as `wide_horizon` does, so the colour and monochrome panels show
+  the same letterforms.
 
 ## [6.0.0] - 2026-09-26
 

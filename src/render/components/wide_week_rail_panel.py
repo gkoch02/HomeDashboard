@@ -7,9 +7,9 @@ and hairline rules, carrying what the week grid does not — the conditions now,
 what is on or up next, a short forecast, the sky, birthdays and the day's
 quote. Top to bottom:
 
-  * **Masthead** — the weekday in display type, the ISO week and day of the
-    year beneath it, and the "updated" stamp (with a stale mark when any
-    source is serving cache) at the right.
+  * **Masthead** — the weekday in display type, with the ISO week and day of
+    the year stacked at its right over the "updated" stamp (with a stale mark
+    when any source is serving cache).
   * **Weather now** — the temperature as a display numeral beside the
     condition, high and low, feels-like and wind; an inverted bar for the
     first active alert.
@@ -31,6 +31,12 @@ it only ever sits *behind* black type: the NOW/NEXT band, the chance-of-rain
 chips, a birthday falling today. On a monochrome panel ``accent_warn`` resolves
 to ink, ``highlight()`` returns ``None``, and each of those falls back to plain
 black type on paper.
+
+Type is sized for a panel read from across a room, not a page held in the
+hand: nothing below 13 px, body rows at 16 px, and DM Sans at SemiBold or
+heavier throughout. On a 1-bit plate glyphs are rasterised without
+antialiasing, so a Medium weight at 13 px comes out as one-pixel hairlines with
+uneven spacing; the extra stroke mass is what makes the small type read.
 """
 
 from __future__ import annotations
@@ -63,26 +69,39 @@ from src.render.theme import ComponentRegion, ThemeStyle
 PAD = 22
 BIRTHDAY_DAYS = 14
 FORECAST_DAYS = 3
-QUOTE_PTS = (19, 17, 16, 15)  # tried largest first until the quote fits its space
-AUTHOR_H = 16
-SKY_LABEL_W = 42
+QUOTE_PTS = (19, 18, 17, 16)  # tried largest first until the quote fits its space
+QUOTE_LEAD = 4  # line pitch is the point size plus this
+AUTHOR_H = 17
+SKY_LABEL_W = 44
+# The forecast's rows are short and the sky's long ("Waning Gibbous 82%"), so
+# the divider sits left of centre.
+FORECAST_W = 190
+MOON_TEXT_X = 26
 BAND_INSET = 10  # the NOW/NEXT type's inset inside its highlighter band
+ALERT_H = 24
+
+# Type sizes. The floor is 13 px (labels, the stamp, the author line); body
+# rows are 16. See the module docstring for why every weight is SemiBold+.
+LABEL_PT = 13
+BODY_PT = 16
+CONDITION_PT = 18
 
 # Section tops, relative to the region. Fixed rather than flowed, so the rules
 # land in the same place every day and the column reads as a page, not a list.
-MAST_Y = 12
-MAST_LINE_Y = 62
-MAST_RULE_Y = 80
-WEATHER_Y = 94
-ALERT_Y = 166
-NEXT_Y = 198
-NEXT_RULE_Y = 256
-GRID_Y = 266
-ROW_H = 22
-GRID_RULE_Y = 354
-BIRTHDAY_Y = 363
-QUOTE_Y = 394
-BOTTOM_PAD = 8
+MAST_Y = 6
+MAST_LINE_Y = 18  # the week line, right of the weekday; the stamp sits below it
+MAST_STAMP_Y = 38
+MAST_RULE_Y = 62
+WEATHER_Y = 78
+ALERT_Y = 148
+NEXT_Y = 184
+NEXT_RULE_Y = 250
+GRID_Y = 258
+ROW_H = 23
+GRID_RULE_Y = 348
+BIRTHDAY_Y = 356
+QUOTE_Y = 384
+BOTTOM_PAD = 6
 
 
 # ---------------------------------------------------------------------------
@@ -145,7 +164,7 @@ def birthday_entries(birthdays: list[Birthday], today: date) -> list[tuple[str, 
     return [(text, is_today) for _, text, is_today in rows]
 
 
-BIRTHDAY_GAP = 18
+BIRTHDAY_GAP = 20
 
 
 def birthday_line(birthdays: list[Birthday], today: date) -> str:
@@ -200,19 +219,21 @@ def sky_rows(
 def fit_quote(text: str, width: int, height: int) -> tuple[int, list[str]]:
     """The largest of ``QUOTE_PTS`` at which *text* and its author fit *height*.
 
-    Set in Playfair Medium: the Regular's hairline strokes break up on a 1-bit
-    plate, where type is rasterised without antialiasing.
+    Set in Playfair SemiBold: the lighter cuts' hairline strokes break up on a
+    1-bit plate, where type is rasterised without antialiasing, and at these
+    sizes Medium still reads as thin, unevenly spaced strokes.
 
-    Line pitch is the size plus 5 px, and the author line takes ``AUTHOR_H``.
+    Line pitch is the size plus ``QUOTE_LEAD``, and the author line takes
+    ``AUTHOR_H``.
     Failing every size, the smallest, cut to the lines that fit with an ellipsis.
     """
     for pt in QUOTE_PTS:
-        lines = wrap_lines(text, fonts.playfair_medium(pt), width)
-        if len(lines) * (pt + 5) + AUTHOR_H <= height:
+        lines = wrap_lines(text, fonts.playfair_semibold(pt), width)
+        if len(lines) * (pt + QUOTE_LEAD) + AUTHOR_H <= height:
             return pt, lines
     pt = QUOTE_PTS[-1]
-    room = max(1, (height - AUTHOR_H) // (pt + 5))
-    lines = wrap_lines(text, fonts.playfair_medium(pt), width)
+    room = max(1, (height - AUTHOR_H) // (pt + QUOTE_LEAD))
+    lines = wrap_lines(text, fonts.playfair_semibold(pt), width)
     if len(lines) > room:
         lines = lines[:room]
         lines[-1] = lines[-1].rstrip(" ,;:.") + "…"
@@ -236,13 +257,23 @@ def highlight(style: ThemeStyle):
     return fill
 
 
-def _label(draw, x: float, y: float, text: str, style: ThemeStyle, fill=None) -> None:
+def _label(draw, x: float, y: float, text: str, style: ThemeStyle, fill=None) -> float:
     """A section label: small caps, letter-spaced, in the accent unless *fill* says."""
-    font = fonts.dm_bold(11)
+    font = fonts.dm_bold(LABEL_PT)
     fill = style.primary_accent_fill() if fill is None else fill
     for ch in text:
         draw.text((x, y), ch, font=font, fill=fill)
-        x += font.getlength(ch) + 1.6
+        x += font.getlength(ch) + LABEL_TRACK
+    return x
+
+
+LABEL_TRACK = 1.4
+
+
+def _label_width(text: str) -> float:
+    """The advance of *text* as ``_label`` sets it, tracking included."""
+    font = fonts.dm_bold(LABEL_PT)
+    return sum(font.getlength(ch) + LABEL_TRACK for ch in text)
 
 
 def _hairline(draw, x0: int, x1: int, y: int, style: ThemeStyle) -> None:
@@ -272,7 +303,52 @@ def draw_wide_week_rail(
     switches: a hidden section leaves its place on the page blank rather than
     reflowing the rest, so the rules stay where they always are. The sky is
     computed, not fetched, and is drawn either way.
+
+    Type is rasterised bilevel (``fontmode = "1"``) on every plate, as
+    ``wide_horizon`` does. On a colour panel the canvas is RGB, so PIL would
+    otherwise antialias the glyphs and the four-ink snap would then cut each
+    edge at mid-grey — which erases Playfair's hairlines outright (the quote's
+    ``t`` lost its crossbar) and thins DM Sans. Bilevel type is what the mono
+    plate already gets, so both panels now show the same letterforms.
     """
+    saved_fontmode = draw.fontmode
+    draw.fontmode = "1"
+    try:
+        _draw_rail(
+            draw,
+            data,
+            today,
+            now,
+            region=region,
+            style=style,
+            show_weather=show_weather,
+            show_birthdays=show_birthdays,
+            show_quote=show_quote,
+            quote_refresh=quote_refresh,
+            quotes_path=quotes_path,
+            latitude=latitude,
+            longitude=longitude,
+        )
+    finally:
+        draw.fontmode = saved_fontmode
+
+
+def _draw_rail(
+    draw: ImageDraw.ImageDraw,
+    data: DashboardData,
+    today: date,
+    now: datetime,
+    *,
+    region: ComponentRegion,
+    style: ThemeStyle,
+    show_weather: bool,
+    show_birthdays: bool,
+    show_quote: bool,
+    quote_refresh: str,
+    quotes_path: str | None,
+    latitude: float | None,
+    longitude: float | None,
+) -> None:
     tz = getattr(now, "tzinfo", None)
     local_now = to_local_naive(now, tz)
     x0 = region.x + PAD
@@ -291,14 +367,17 @@ def draw_wide_week_rail(
     # Masthead ---------------------------------------------------------------
     weekday = today.strftime("%A")
     draw.text((x0, top + MAST_Y), weekday, font=fonts.playfair_bold(40), fill=fg)
-    _label(draw, x0, top + MAST_LINE_Y, masthead_line(today), style)
+    # The week line and the stamp stack right-aligned beside the weekday
+    # rather than under it: the 18 px that saves is what the body type grew by.
+    week = masthead_line(today)
+    _label(draw, x1 - _label_width(week) + LABEL_TRACK, top + MAST_LINE_Y, week, style)
     stamp = content_time(data, now)
     stamp_text = f"UPDATED {fmt_time(to_local_naive(stamp, tz)).upper()}"
     if data.is_stale:
         stamp_text = "! STALE · " + stamp_text
-    small = fonts.dm_semibold(11)
+    small = fonts.dm_semibold(LABEL_PT)
     draw.text(
-        (x1 - text_width(draw, stamp_text, small), top + MAST_LINE_Y),
+        (x1 - text_width(draw, stamp_text, small), top + MAST_STAMP_Y),
         stamp_text,
         font=small,
         fill=accent if data.is_stale else fg,
@@ -311,29 +390,31 @@ def draw_wide_week_rail(
     wy = top + WEATHER_Y
     if weather is None:
         if show_weather:
-            draw.text((x0, wy + 8), "Weather unavailable", font=fonts.playfair_medium(22), fill=fg)
+            draw.text(
+                (x0, wy + 8), "Weather unavailable", font=fonts.playfair_semibold(22), fill=fg
+            )
     else:
         # The numeral and its degree sign are set separately: Playfair's degree
         # at display size is a ring as tall as a lowercase letter.
         temp = str(round(weather.current_temp))
-        big = fonts.playfair_bold(68)
+        big = fonts.playfair_bold(64)
         box = draw.textbbox((0, 0), temp, font=big)
         draw.text((x0 - box[0], wy - box[1]), temp, font=big, fill=fg)
         deg_x = x0 + (box[2] - box[0]) + 4
         draw.ellipse((deg_x, wy + 2, deg_x + 14, wy + 16), outline=fg, width=3)
-        cx = deg_x + 36
+        cx = deg_x + 30
         cw = x1 - cx
         draw_text_truncated(
             draw,
-            (cx, wy + 4),
+            (cx, wy),
             weather.current_description.upper(),
-            fonts.dm_bold(15),
+            fonts.dm_bold(CONDITION_PT),
             cw,
             fill=fg,
         )
-        body = fonts.dm_medium(13)
+        body = fonts.dm_semibold(BODY_PT)
         hl = f"High {round(weather.high)}°  ·  Low {round(weather.low)}°"
-        draw_text_truncated(draw, (cx, wy + 28), hl, body, cw, fill=fg)
+        draw_text_truncated(draw, (cx, wy + 24), hl, body, cw, fill=fg)
         extras = []
         if weather.feels_like is not None:
             extras.append(f"Feels {round(weather.feels_like)}°")
@@ -343,15 +424,15 @@ def draw_wide_week_rail(
                 wind += f" {deg_to_compass(weather.wind_deg)}"
             extras.append(wind)
         if extras:
-            draw_text_truncated(draw, (cx, wy + 48), "  ·  ".join(extras), body, cw, fill=fg)
+            draw_text_truncated(draw, (cx, wy + 46), "  ·  ".join(extras), body, cw, fill=fg)
         if weather.alerts:
             ay = top + ALERT_Y
-            draw.rectangle((x0, ay, x1, ay + 22), fill=accent)
+            draw.rectangle((x0, ay, x1, ay + ALERT_H), fill=accent)
             draw_text_truncated(
                 draw,
                 (x0 + 8, ay + 4),
                 "!  " + weather.alerts[0].event.upper(),
-                fonts.dm_bold(12),
+                fonts.dm_bold(15),
                 width - 16,
                 fill=style.bg,
             )
@@ -371,61 +452,66 @@ def draw_wide_week_rail(
     nx, nx1 = x0 + inset, x1 - inset
     if found is None:
         _label(draw, nx, ny, "NEXT", style, label_fill)
-        draw.text((nx, ny + 18), "Nothing scheduled", font=fonts.playfair_medium(20), fill=fg)
+        draw.text((nx, ny + 18), "Nothing scheduled", font=fonts.playfair_semibold(22), fill=fg)
     else:
         kind, evt = found
         _label(draw, nx, ny, kind, style, label_fill)
         when = when_label(kind, evt, local_now)
-        when_font = fonts.playfair_bold(20)
+        when_font = fonts.playfair_bold(22)
         draw.text((nx, ny + 16), when, font=when_font, fill=fg)
         tx = nx + text_width(draw, when, when_font) + 12
-        draw_text_truncated(
-            draw, (tx, ny + 18), evt.summary, fonts.dm_semibold(17), nx1 - tx, fill=fg
-        )
+        draw_text_truncated(draw, (tx, ny + 18), evt.summary, fonts.dm_bold(19), nx1 - tx, fill=fg)
         where = location_line(evt.location)
         if where:
-            draw_text_truncated(draw, (tx, ny + 38), where, fonts.dm_medium(12), nx1 - tx, fill=fg)
+            draw_text_truncated(
+                draw, (tx, ny + 41), where, fonts.dm_semibold(15), nx1 - tx, fill=fg
+            )
     _hairline(draw, x0, x1, top + NEXT_RULE_Y, style)
 
     # Forecast | Sky ------------------------------------------------------------
     gy = top + GRID_Y
-    mid = x0 + width // 2
+    mid = x0 + FORECAST_W
     _label(draw, x0, gy, "FORECAST", style)
     _label(draw, mid + 12, gy, "SKY", style)
     draw.line((mid, gy, mid, top + GRID_RULE_Y - 8), fill=fg, width=1)
-    row_font = fonts.dm_medium(13)
-    day_font = fonts.dm_bold(13)
+    row_font = fonts.dm_semibold(BODY_PT)
+    day_font = fonts.dm_bold(BODY_PT)
     if weather is not None:
         for i, day in enumerate(weather.forecast[:FORECAST_DAYS]):
-            ry = gy + 20 + i * ROW_H
+            ry = gy + 21 + i * ROW_H
             draw.text((x0, ry), day.date.strftime("%a").upper(), font=day_font, fill=fg)
-            draw_weather_icon(draw, (x0 + 38, ry - 3), day.icon, size=15, fill=fg)
-            hl = f"{round(day.high)}° / {round(day.low)}°"
-            draw.text((x0 + 64, ry), hl, font=row_font, fill=fg)
+            draw_weather_icon(draw, (x0 + 40, ry - 3), day.icon, size=18, fill=fg)
+            hl = f"{round(day.high)}°/{round(day.low)}°"
+            draw.text((x0 + 68, ry), hl, font=row_font, fill=fg)
+            hl_end = x0 + 68 + text_width(draw, hl, row_font)
             if day.precip_chance is not None and day.precip_chance >= 0.2:
                 # Rain is not an alarm, so not red: a yellow chip behind ink
                 # type, or plain ink where the panel has no yellow.
                 pct = f"{round(day.precip_chance * 100)}%"
                 pw = text_width(draw, pct, row_font)
-                px = mid - 12 - pw
+                # Right-aligned to the divider, but never onto the
+                # temperatures (a "-12°/-20°" row is wider than most).
+                px = max(mid - 10 - pw, hl_end + 12)
                 if hi is not None:
                     draw.rounded_rectangle(
-                        (px - 5, ry - 2, px + pw + 5, ry + 17), radius=4, fill=hi
+                        (px - 5, ry - 2, px + pw + 5, ry + 20), radius=4, fill=hi
                     )
                 draw.text((px, ry), pct, font=row_font, fill=fg)
     sx = mid + 12
     rows = sky_rows(weather, today, latitude, longitude, tz)
     for i, (label, value) in enumerate(rows):
-        ry = gy + 20 + i * ROW_H
+        ry = gy + 21 + i * ROW_H
         draw.text((sx, ry), label, font=row_font, fill=fg)
         draw_text_truncated(
             draw, (sx + SKY_LABEL_W, ry), value, day_font, x1 - sx - SKY_LABEL_W, fill=fg
         )
-    my = gy + 20 + len(rows) * ROW_H
-    draw.text((sx, my - 3), moon_phase_glyph(today), font=fonts.weather_icon(15), fill=fg)
+    my = gy + 21 + len(rows) * ROW_H
+    draw.text((sx, my - 3), moon_phase_glyph(today), font=fonts.weather_icon(18), fill=fg)
+    # The moon's glyph is narrower than a word label, and "Waning Gibbous 82%"
+    # needs the width at body size.
     moon = f"{moon_phase_name(today)} {round(moon_illumination(today))}%"
     draw_text_truncated(
-        draw, (sx + SKY_LABEL_W, my), moon, row_font, x1 - sx - SKY_LABEL_W, fill=fg
+        draw, (sx + MOON_TEXT_X, my), moon, row_font, x1 - sx - MOON_TEXT_X, fill=fg
     )
     _hairline(draw, x0, x1, top + GRID_RULE_Y, style)
 
@@ -433,9 +519,8 @@ def draw_wide_week_rail(
     by = top + BIRTHDAY_Y
     entries = birthday_entries(data.birthdays, today) if show_birthdays else []
     if entries:
-        _label(draw, x0, by + 2, "BIRTHDAYS", style)
-        bfont = fonts.dm_semibold(13)
-        lx = x0 + 92
+        lx = _label(draw, x0, by + 2, "BIRTHDAYS", style) + 12
+        bfont = fonts.dm_semibold(BODY_PT)
         for i, (text, is_today) in enumerate(entries):
             tw = text_width(draw, text, bfont)
             if lx + tw > x1:
@@ -443,7 +528,7 @@ def draw_wide_week_rail(
                     draw_text_truncated(draw, (lx, by), text, bfont, x1 - lx, fill=fg)
                 break
             if is_today and hi is not None:
-                draw.rounded_rectangle((lx - 5, by - 2, lx + tw + 5, by + 17), radius=4, fill=hi)
+                draw.rounded_rectangle((lx - 5, by - 2, lx + tw + 5, by + 20), radius=4, fill=hi)
             draw.text((lx, by), text, font=bfont, fill=fg)
             lx += tw + BIRTHDAY_GAP
 
@@ -456,10 +541,10 @@ def draw_wide_week_rail(
     draw.text((x0 - 2, qy - 8), "“", font=mark_font, fill=accent)
     qx = x0 + 26
     pt, lines = fit_quote(quote["text"], x1 - qx, region.h - QUOTE_Y - BOTTOM_PAD)
-    qfont = fonts.playfair_medium(pt)
-    lh = pt + 5
+    qfont = fonts.playfair_semibold(pt)
+    lh = pt + QUOTE_LEAD
     for i, ln in enumerate(lines):
         draw.text((qx, qy + i * lh), ln, font=qfont, fill=fg)
     author = "— " + quote["author"].upper()
     ay = qy + len(lines) * lh + 3
-    draw_text_truncated(draw, (qx, ay), author, fonts.dm_semibold(11), x1 - qx, fill=fg)
+    draw_text_truncated(draw, (qx, ay), author, fonts.dm_semibold(LABEL_PT), x1 - qx, fill=fg)

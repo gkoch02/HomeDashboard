@@ -493,14 +493,14 @@ The week view at the native size of a panoramic panel, with the strip's extra wi
 
 The 440 px to its left is laid out like a broadsheet column, in Playfair Display with small-caps section labels in the accent and hairline rules between sections. It holds, top to bottom:
 
-- **Masthead:** the weekday, with the ISO week and day of the year beneath it, and the "updated" stamp (with a stale mark when a source is serving cache).
+- **Masthead:** the weekday, with the ISO week and day of the year stacked at its right above the "updated" stamp (with a stale mark when a source is serving cache).
 - **Weather now:** the temperature as a display numeral beside the condition, high and low, feels-like and wind, with an inverted bar for the first active alert.
 - **NOW / NEXT:** the event in progress with its end, or else the next one to start, with the weekday when it isn't today.
 - **Forecast and sky, side by side:** three forecast days next to sunrise and sunset, the day's length and its change since yesterday (when `weather.latitude` / `longitude` are set), and the moon.
 - **Birthdays:** those in the next two weeks, on one line.
 - **Quote:** the day's quote set large, with a hanging accent quote mark.
 
-The NOW/NEXT line is the only thing on the plate that reads the clock, and it moves only when an event starts or ends. Because it reaches into next week on a Sunday evening, the theme fetches one extra day of events. Colour has one job per ink. Red is for labels and warnings: the rail's section labels, the alert bar and the grid's accents. Yellow is a highlighter only, never type or rules, since yellow on paper is the weakest contrast the panel offers. It sits behind black type in three places: a band under NOW/NEXT, chips under each rainy day's chance of rain, and a birthday falling today. On a monochrome panel the reds are ink and the yellow fills drop out, leaving plain black type. On an 800 × 480 panel the theme renders as a letterboxed band. See [Panoramic Themes](wide-themes.md#wide_week) for the four-ink render.
+The NOW/NEXT line is the only thing on the plate that reads the clock, and it moves only when an event starts or ends. Because it reaches into next week on a Sunday evening, the theme fetches one extra day of events. Colour has one job per ink. Red is for labels and warnings: the rail's section labels, the alert bar and the grid's accents. Yellow is a highlighter only, never type or rules, since yellow on paper is the weakest contrast the panel offers. It sits behind black type in three places: a band under NOW/NEXT, chips under each rainy day's chance of rain, and a birthday falling today. On a monochrome panel the reds are ink and the yellow fills drop out, leaving plain black type. The rail is sized to be read from across a room: nothing is set below 13 px, body rows are 16-px DM Sans SemiBold, and all of its type is rasterised without antialiasing so it stays crisp on the four-ink panel as well as the monochrome one. On an 800 × 480 panel the theme renders as a letterboxed band. See [Panoramic Themes](wide-themes.md#wide_week) for the four-ink render.
 
 [![Wide week theme](../assets/previews/theme_wide_week.png)](../assets/previews/theme_wide_week.png)
 
