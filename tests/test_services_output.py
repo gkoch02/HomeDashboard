@@ -940,3 +940,103 @@ class TestLatestPngDuringCooldown:
             theme_name="agenda",
         )
         assert (tmp_path / "latest.png").exists()
+
+
+# ---------------------------------------------------------------------------
+# Per-theme repaint slots (ThemeLayout.repaint_slot_hours)
+# ---------------------------------------------------------------------------
+
+
+class TestRepaintSlot:
+    """A theme with repaint_slot_hours writes the panel once per clock slot."""
+
+    @staticmethod
+    def _publish(svc, at, *, theme="wide_horizon", slot=3, force_full=False):
+        mock_display = MagicMock()
+        with (
+            patch("src.services.output.image_changed", return_value=True),
+            patch("src.services.output.build_display_driver", return_value=mock_display),
+        ):
+            svc.publish(
+                _make_image(),
+                dry_run=False,
+                force_full=force_full,
+                now=at,
+                theme_name=theme,
+                repaint_slot_hours=slot,
+            )
+        return mock_display.show.called
+
+    def test_second_change_in_the_same_slot_is_deferred(self, tmp_path):
+        svc = OutputService(_make_cfg(tmp_path), _make_tz())
+        assert self._publish(svc, datetime(2026, 4, 8, 12, 5, tzinfo=timezone.utc))
+        assert not self._publish(svc, datetime(2026, 4, 8, 14, 55, tzinfo=timezone.utc))
+
+    def test_first_tick_of_the_next_slot_paints(self, tmp_path):
+        svc = OutputService(_make_cfg(tmp_path), _make_tz())
+        assert self._publish(svc, datetime(2026, 4, 8, 14, 55, tzinfo=timezone.utc))
+        assert self._publish(svc, datetime(2026, 4, 8, 15, 0, tzinfo=timezone.utc))
+
+    def test_same_hour_on_another_day_is_another_slot(self, tmp_path):
+        svc = OutputService(_make_cfg(tmp_path), _make_tz())
+        assert self._publish(svc, datetime(2026, 4, 8, 12, 5, tzinfo=timezone.utc))
+        assert self._publish(svc, datetime(2026, 4, 9, 12, 5, tzinfo=timezone.utc))
+
+    def test_slots_follow_the_local_clock(self, tmp_path):
+        # 13:30 and 14:30 UTC share the 12–15 UTC slot, but in +01:00 they
+        # are 14:30 and 15:30 local — two local slots.
+        svc = OutputService(_make_cfg(tmp_path), _make_tz())
+        plus1 = timezone(timedelta(hours=1))
+        assert self._publish(svc, datetime(2026, 4, 8, 14, 30, tzinfo=plus1))
+        assert self._publish(svc, datetime(2026, 4, 8, 15, 30, tzinfo=plus1))
+
+    def test_repeated_fall_back_hour_is_two_slots(self, tmp_path):
+        import zoneinfo
+
+        ny = zoneinfo.ZoneInfo("America/New_York")
+        svc = OutputService(_make_cfg(tmp_path), _make_tz())
+        # 2026-11-01: 01:00–02:00 EDT happens, then 01:00–02:00 EST again.
+        first = datetime(2026, 11, 1, 5, 5, tzinfo=timezone.utc).astimezone(ny)
+        second = datetime(2026, 11, 1, 6, 55, tzinfo=timezone.utc).astimezone(ny)
+        assert first.hour == second.hour == 1
+        assert self._publish(svc, first, slot=1)
+        assert self._publish(svc, second, slot=1)
+
+    def test_switching_to_the_theme_mid_slot_paints(self, tmp_path):
+        svc = OutputService(_make_cfg(tmp_path), _make_tz())
+        assert self._publish(svc, datetime(2026, 4, 8, 12, 5, tzinfo=timezone.utc), theme="today")
+        assert self._publish(svc, datetime(2026, 4, 8, 12, 30, tzinfo=timezone.utc))
+
+    def test_force_full_bypasses_the_slot(self, tmp_path):
+        svc = OutputService(_make_cfg(tmp_path), _make_tz())
+        assert self._publish(svc, datetime(2026, 4, 8, 12, 5, tzinfo=timezone.utc))
+        assert self._publish(
+            svc, datetime(2026, 4, 8, 12, 30, tzinfo=timezone.utc), force_full=True
+        )
+
+    def test_themes_without_a_slot_are_unaffected(self, tmp_path):
+        svc = OutputService(_make_cfg(tmp_path), _make_tz())
+        assert self._publish(svc, datetime(2026, 4, 8, 12, 5, tzinfo=timezone.utc), slot=None)
+        assert self._publish(svc, datetime(2026, 4, 8, 12, 30, tzinfo=timezone.utc), slot=None)
+
+    def test_deferred_frame_still_reaches_latest_png(self, tmp_path):
+        svc = OutputService(_make_cfg(tmp_path), _make_tz())
+        self._publish(svc, datetime(2026, 4, 8, 12, 5, tzinfo=timezone.utc))
+        (tmp_path / "latest.png").unlink()
+        assert not self._publish(svc, datetime(2026, 4, 8, 12, 30, tzinfo=timezone.utc))
+        assert (tmp_path / "latest.png").exists()
+
+    def test_state_without_a_theme_never_matches(self, tmp_path):
+        state = tmp_path / "state"
+        state.mkdir()
+        (state / "refresh_throttle_state.json").write_text(
+            json.dumps({"last_refresh_at": "2026-04-08T12:05:00+00:00"})
+        )
+        svc = OutputService(_make_cfg(tmp_path), _make_tz())
+        assert self._publish(svc, datetime(2026, 4, 8, 12, 30, tzinfo=timezone.utc))
+
+
+def test_wide_horizon_repaints_at_most_hourly():
+    from src.render.themes.wide_horizon import wide_horizon_theme
+
+    assert wide_horizon_theme().layout.repaint_slot_hours == 1

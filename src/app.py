@@ -220,6 +220,7 @@ class DashboardApp:
             now=now,
             theme_name=theme_name,
             theme_supports_partial=theme.allows_partial_refresh,
+            repaint_slot_hours=theme.layout.repaint_slot_hours,
         )
         if force_full_from_morning and not self.args.dry_run:
             record_morning_refresh(now, self.cfg.state_dir)

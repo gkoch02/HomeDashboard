@@ -120,13 +120,30 @@ def _load_last_refresh(state_dir: str) -> datetime | None:
         return None
 
 
-def _save_last_refresh(state_dir: str, when: datetime) -> None:
+def _load_last_refresh_theme(state_dir: str) -> str | None:
+    """The theme the panel was last written with, or ``None`` if unrecorded.
+
+    Legacy state files and ones written before the theme was recorded carry
+    no ``theme`` key; ``None`` then means "unknown", which never matches.
+    """
+    try:
+        raw = json.loads(_refresh_state_path(state_dir).read_text())
+    except (OSError, ValueError, json.JSONDecodeError):
+        return None
+    value = raw.get("theme") if isinstance(raw, dict) else None
+    return value if isinstance(value, str) else None
+
+
+def _save_last_refresh(state_dir: str, when: datetime, theme_name: str | None = None) -> None:
     path = _refresh_state_path(state_dir)
+    payload = {"last_refresh_at": when.isoformat()}
+    if theme_name is not None:
+        payload["theme"] = theme_name
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         # Atomic write so a kill mid-write can't truncate the state file (matches
         # the invariant used by every other JSON state file — see src/_io.py).
-        atomic_write_json(path, {"last_refresh_at": when.isoformat()})
+        atomic_write_json(path, payload)
     except OSError as exc:
         logger.warning("Could not write refresh throttle state: %s", exc)
 
@@ -152,6 +169,40 @@ def should_throttle_display_refresh(
     return elapsed < min_interval_seconds
 
 
+def _slot_key(when: datetime, hours: int, tz) -> tuple:
+    # The UTC offset tells the two passes of a fall-back hour apart: without
+    # it, 01:05 before the transition and 01:55 after share a key, and a
+    # one-hour slot holds a change for nearly two real hours.
+    local = when.astimezone(tz) if tz is not None else when
+    return (local.date(), local.hour // hours, local.utcoffset())
+
+
+def in_same_repaint_slot(
+    *,
+    now: datetime,
+    state_dir: str,
+    theme_name: str,
+    slot_hours: int | None,
+    force_full: bool,
+) -> bool:
+    """Return True iff *theme_name* already painted the panel in the current slot.
+
+    A slot is a clock-aligned block of *slot_hours* local hours (00–03, 03–06,
+    … for 3). Only a write by the **same theme** counts: switching to the
+    theme mid-slot must paint it, not leave the previous theme on the panel.
+    ``force_full`` and an unset or non-positive *slot_hours* always pass.
+    """
+    if force_full or not isinstance(slot_hours, int) or slot_hours <= 0:
+        return False
+    if _load_last_refresh_theme(state_dir) != theme_name:
+        return False
+    last = _load_last_refresh(state_dir)
+    if last is None:
+        return False
+    tz = now.tzinfo
+    return _slot_key(last, slot_hours, tz) == _slot_key(now, slot_hours, tz)
+
+
 # Which frame output/latest.png holds (its image_hash), beside the PNG.
 _LATEST_HASH_FILENAME = "latest_image_hash.txt"
 
@@ -170,6 +221,7 @@ class OutputService:
         now: datetime,
         theme_name: str,
         theme_supports_partial: bool = True,
+        repaint_slot_hours: int | None = None,
     ) -> None:
         if dry_run:
             DryRunDisplay(output_dir=self.cfg.output_dir).show(image)
@@ -192,6 +244,26 @@ class OutputService:
             # (A shown, B deferred into latest.png, A again): the hash still
             # matches the panel, but the web UI would keep showing B.
             self._sync_latest_png(image)
+            return
+
+        # A theme can ask to be written at most once per clock-aligned slot
+        # (ThemeLayout.repaint_slot_hours). Mid-slot changes are deferred like
+        # a cooldown's: the first tick of the next slot paints whatever is
+        # pending, since the hash is only persisted on a real write.
+        if in_same_repaint_slot(
+            now=now,
+            state_dir=self.cfg.state_dir,
+            theme_name=theme_name,
+            slot_hours=repaint_slot_hours,
+            force_full=force_full,
+        ):
+            logger.info(
+                "Theme '%s' already painted this %dh slot — "
+                "deferring a content change to the next slot",
+                theme_name,
+                repaint_slot_hours,
+            )
+            self._save_latest_png(image)
             return
 
         min_interval = _resolve_min_refresh_seconds(
@@ -248,7 +320,7 @@ class OutputService:
         # Record the refresh so the next tick can apply the cooldown. The
         # marker is provider-agnostic now — a Waveshare user who sets
         # min_refresh_interval_seconds gets the same throttling Inky does.
-        _save_last_refresh(self.cfg.state_dir, now)
+        _save_last_refresh(self.cfg.state_dir, now, theme_name)
 
         self._save_latest_png(image)
 

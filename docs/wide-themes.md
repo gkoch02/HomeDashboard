@@ -25,7 +25,7 @@ the four-ink renders the 10.85" panel actually shows.
 
 | Theme | Shows | Time span | Moves on the clock during the day | Extra calendar days |
 |---|---|---|---|---|
-| [`wide_horizon`](#wide_horizon) | Sky, weather, temperature, rain and events on one time axis | Next 72 hours | At most 8 times a day (each new 3-hour forecast slot) | 3 |
+| [`wide_horizon`](#wide_horizon) | Sky, weather, temperature, rain and events on one time axis | Next 72 hours | At most once an hour, data changes included (window steps every 3 hours) | 3 |
 | [`wide_day`](#wide_day) | Today as an hour-by-hour timeline, with an up-next rail | Today | Every tick (NOW marker, event states) | 1 |
 | [`halftone_agenda_wide`](#halftone_agenda_wide) | Weather engraving, today's agenda, and a rail for tomorrow, forecast, birthdays, air and moon | Today and tomorrow | Once (the after-dark rollover) | 2 |
 | [`wide_forecast`](#wide_forecast) | Current conditions and a five-day forecast | Five days | No | 0 |
@@ -172,10 +172,14 @@ whose content hasn't changed repaints once a day. Beyond that:
   a handful of extra repaints on a busy day, none on a quiet one.
 - `halftone_agenda_wide` adds one clock-driven change during the day, when the
   agenda rolls over to tomorrow after dark, as well as the date change.
-- `wide_horizon` adds at most eight, when a new three-hour forecast slot begins.
-  Its hero shows the current temperature, so a weather fetch that changes the
-  reading also repaints it; that happens every 30 minutes by default
-  (`cache.weather_fetch_interval`).
+- `wide_horizon` writes the panel **at most once per clock hour** (local
+  time), so about seventeen times a day with the default quiet hours. Anything
+  that changes inside the hour — a new weather reading in the hero, a calendar
+  edit — is shown on the first run of the next hour. The trade-off is that the
+  hero's "now" reading can be up to an hour old; the `updated` caption says
+  how old. A switch *to*
+  `wide_horizon` from another theme paints immediately, and
+  `--force-full-refresh` and the morning refresh skip the limit.
 - `wide_day` changes on every tick, because its NOW marker and event states follow
   the clock.
 

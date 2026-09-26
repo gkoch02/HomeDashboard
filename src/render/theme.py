@@ -242,6 +242,13 @@ class ThemeLayout:
     # regardless of ``display.enable_partial_refresh``; the resolution can only
     # remove partial refresh, never add it.
     supports_partial_refresh: bool | None = None
+    # Write the panel at most once per clock-aligned block of this many local
+    # hours (``None`` = no limit beyond the content hash and the cooldown).
+    # For a plate whose content only meaningfully moves on a slow grid, where
+    # every repaint is a long colour flash: ``wide_horizon`` sets 3, the
+    # forecast's own slot. Content that changes mid-slot is painted on the
+    # first tick of the next one; ``--force-full-refresh`` bypasses it.
+    repaint_slot_hours: int | None = None
 
 
 @dataclass
