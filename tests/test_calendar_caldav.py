@@ -131,6 +131,36 @@ class TestFetchFromCalDAV:
         )
         assert "expand" not in kwargs, "the v4 typo'd kwarg must not slip back in"
 
+    def test_requests_on_the_client_session_are_counted(self, tmp_path):
+        """Principal, calendar list and REPORT all go through client.session (#296)."""
+        from src.fetchers import request_counter
+
+        pw = tmp_path / "pw.txt"
+        pw.write_text("secret\n")
+        fake_client = MagicMock()
+        fake_client.session.send = MagicMock(return_value=MagicMock())
+
+        def principal():
+            fake_client.session.send("PROPFIND principal")
+            p = MagicMock()
+            p.calendars.side_effect = lambda: (
+                [fake_client.session.send("PROPFIND")] and [_make_calendar("Work", [])]
+            )
+            return p
+
+        fake_client.principal.side_effect = principal
+        fake_module = MagicMock(DAVClient=MagicMock(return_value=fake_client))
+        with patch.dict("sys.modules", {"caldav": fake_module}):
+            with request_counter.counting() as tally:
+                fetch_from_caldav(
+                    url="https://example.com/dav/",
+                    username="alice",
+                    password_file=str(pw),
+                    days=7,
+                    start_date=date(2026, 5, 4),
+                )
+        assert tally.count == 2
+
     def test_returns_events_from_principal_calendars(self, tmp_path):
         pw = tmp_path / "pw.txt"
         pw.write_text("secret\n")

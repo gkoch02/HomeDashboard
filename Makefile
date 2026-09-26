@@ -192,7 +192,7 @@ pi-status:
 pi-logs:
 	tail -f output/dashboard.log
 
-configure:
+configure: _check-venv
 	@deploy/configure.sh
 
 web-enable:

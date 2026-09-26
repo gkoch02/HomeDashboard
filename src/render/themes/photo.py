@@ -2,12 +2,10 @@
 
 The photo path is set at runtime via ``ThemeStyle.photo_path``, which is
 populated in ``app.py`` from ``cfg.photo.path``.  If no path is configured or
-the file is missing the canvas falls back to a plain white background with only
-the header bar rendered.
+the file is missing the canvas falls back to a plain background.
 
-The existing ``header`` component is reused, repositioned to a 50 px inverted
-bar at the bottom of the canvas, showing the dashboard title and timestamp.
-No other components are drawn — the photo is the primary content.
+No components are drawn (``draw_order`` is empty): the photo fills the canvas
+edge to edge with no header bar, title or timestamp.
 
 Configuration::
 

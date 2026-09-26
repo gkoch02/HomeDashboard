@@ -15,6 +15,7 @@ from src.data.models import (
     StalenessLevel,
     WeatherData,
 )
+from src.fetchers import request_counter
 from src.fetchers.cache import (
     check_staleness,
     load_cache_blob,
@@ -29,6 +30,7 @@ from src.fetchers.cache import (
 # these names so a patch applied here flows through to the live call site.
 from src.fetchers.calendar import fetch_birthdays, fetch_events  # noqa: F401
 from src.fetchers.circuit_breaker import CircuitBreaker
+from src.fetchers.errors import http_status
 from src.fetchers.host import fetch_host_data
 from src.fetchers.purpleair import fetch_air_quality  # noqa: F401
 from src.fetchers.quota_tracker import QuotaTracker
@@ -96,16 +98,35 @@ def _merge_air_quality_with_weather_fallback(
         temperature=temperature,
         humidity=humidity,
         pressure=pressure,
+        temperature_unit=air_quality.temperature_unit,
         fallback_fields=fallback_fields,
     )
 
 
+# 4xx responses that can succeed on an immediate retry: a request timeout and
+# a rate limit. Every other client error (401 bad key, 403, 404 wrong sensor)
+# fails the same way twice.
+_RETRYABLE_CLIENT_STATUSES = frozenset({408, 429})
+
+
+def _is_permanent(exc: BaseException) -> bool:
+    if isinstance(exc, (RuntimeError, ValueError, TypeError, KeyError)):
+        return True
+    status = http_status(exc)
+    return status is not None and 400 <= status < 500 and status not in _RETRYABLE_CLIENT_STATUSES
+
+
 def retry_fetch(label: str, fn):
-    """Attempt fn() twice only for likely transient failures."""
+    """Attempt fn() twice only for likely transient failures.
+
+    A permanent failure — a config/data error, or an HTTP 4xx other than
+    408/429 — is raised at once: retrying a bad API key only doubles the
+    rejected call every run (#295).
+    """
     try:
         return fn()
     except Exception as exc:
-        if isinstance(exc, (RuntimeError, ValueError, TypeError, KeyError)):
+        if _is_permanent(exc):
             raise
         logger.warning("%s failed, retrying: %s", label, exc)
     try:
@@ -152,7 +173,7 @@ class DataPipeline:
         self.fetched_at = now_local(tz)
 
         cache_cfg = cfg.cache
-        self.quota = QuotaTracker(state_dir=cache_dir)
+        self.quota = QuotaTracker(state_dir=cache_dir, tz=tz)
         self.breaker = CircuitBreaker(
             max_failures=cache_cfg.max_failures,
             cooldown_minutes=cache_cfg.cooldown_minutes,
@@ -226,9 +247,11 @@ class DataPipeline:
                 weather_value if isinstance(weather_value, WeatherData) else None,
             )
 
+        # Every enabled source, not a hard-coded three: PurpleAir (the most
+        # frequent fetch) and any registry-added source were never checked.
         quota_threshold = self.cfg.google.daily_quota_warning
-        for src in ("events", "weather", "birthdays"):
-            self.quota.check_warning(src, quota_threshold)
+        for f in enabled:
+            self.quota.check_warning(f.name, quota_threshold)
 
         host_data: HostData | None = fetch_host_data()
 
@@ -394,11 +417,29 @@ class DataPipeline:
             for f in runnable:
                 label = f.name.replace("_", " ").title().replace(" ", "")
                 futures[f.name] = pool.submit(
-                    retry_fetch, label, lambda fetcher=f: fetcher.fetch(ctx)
+                    self._counted_fetch, f.name, label, lambda fetcher=f: fetcher.fetch(ctx)
                 )
         finally:
             pool.shutdown(wait=False)
         return futures
+
+    def _counted_fetch(self, source: str, label: str, fn):
+        """Run one source's fetch (with its retry), recording the requests it made.
+
+        Runs on the worker thread, so the tally sees only this source's
+        requests, and records in ``finally`` so a failed fetch — a 401 on every
+        run — still counts what it cost. A fetch that made no request (a
+        birthdays file) records nothing.
+        """
+        with request_counter.counting() as tally:
+            try:
+                return retry_fetch(label, fn)
+            finally:
+                try:
+                    if tally.count:
+                        self.quota.record_call(source, tally.count)
+                except Exception as exc:
+                    logger.warning("%s quota update failed: %s", source.capitalize(), exc)
 
     def _resolve_source(self, source: str, future: Future | None, current, success_log_fn=None):
         """Resolve a single data source from its future, falling back to cache.
@@ -438,7 +479,6 @@ class DataPipeline:
         self._content_at[source] = self.fetched_at
         self._after_fetch(source, "cache write", self._save_fetched, source, data)
         self._after_fetch(source, "breaker update", self.breaker.record_success, source)
-        self._after_fetch(source, "quota update", self.quota.record_call, source)
         if success_log_fn:
             self._after_fetch(source, "success log", success_log_fn, data)
         return data

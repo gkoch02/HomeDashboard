@@ -126,6 +126,14 @@ class TestDrawHeader:
             "the label depends on iteration order rather than severity"
         )
 
+    def test_long_title_does_not_overprint_the_timestamp(self):
+        """A title long enough to reach the stamp is truncated short of it (#310)."""
+        long_title = "The Family Command Center, Weekly Household Planner and Chore Board"
+        # The stamp block is ~141 px wide, right-aligned inside the pad.
+        stamp_x = REGION.x + REGION.w - L.PAD - 142
+        right = (stamp_x, REGION.y, REGION.x + REGION.w, REGION.y + REGION.h)
+        assert _ink(self._render(title=long_title), right) == _ink(self._render(), right)
+
     def test_custom_title_renders(self):
         """The title is drawn from the argument, not hardcoded."""
         assert _ink(self._render(title="My Dashboard")) != _ink(self._render())

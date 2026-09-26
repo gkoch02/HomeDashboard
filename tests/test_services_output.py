@@ -189,9 +189,12 @@ class TestPublishHardware:
         assert (tmp_path / "latest.png").exists()
 
     def test_hardware_publish_skipped_does_not_save_latest_png(self, tmp_path):
-        """When the image is unchanged and not forced, latest.png must not be written."""
+        """Unchanged, not forced, and latest.png already holds it: nothing is written."""
+        from src.display.driver import image_hash
+
         svc = OutputService(_make_cfg(tmp_path), _make_tz())
         image = _make_image()
+        (tmp_path / "latest_image_hash.txt").write_text(image_hash(image))
 
         with (
             patch("src.services.output.image_changed", return_value=False),
@@ -260,13 +263,70 @@ class TestPublishHardware:
         )
 
         with (
-            patch("src.services.output.image_changed", return_value=True) as mock_changed,
+            patch("src.services.output.image_changed", return_value=True),
             patch("src.services.output.build_display_driver") as mock_build,
         ):
             svc.publish(image, dry_run=False, force_full=False, now=_now(), theme_name="default")
 
-        mock_changed.assert_not_called()
         mock_build.assert_not_called()
+        # A real deferral: the pending frame is published to the web UI.
+        assert (Path(cfg.output_dir) / "latest.png").exists()
+
+    def test_unchanged_image_within_cooldown_is_not_a_deferral(self, tmp_path, caplog):
+        """Same image inside the cooldown is an idle tick, not a deferred change (#292)."""
+        cfg = _make_cfg(tmp_path)
+        cfg.display.provider = "inky"
+        cfg.display.model = "impression_7_3_2025"
+        cfg.display.min_refresh_interval_seconds = None
+        svc = OutputService(cfg, _make_tz())
+        image = Image.new("RGB", (800, 480), "white")
+        from src.display.driver import image_hash
+
+        (Path(cfg.output_dir) / "latest_image_hash.txt").write_text(image_hash(image))
+        state_dir = Path(cfg.state_dir)
+        state_dir.mkdir(parents=True, exist_ok=True)
+        last = (_now() - timedelta(seconds=30)).isoformat()
+        (state_dir / "refresh_throttle_state.json").write_text(
+            json.dumps({"last_refresh_at": last})
+        )
+
+        with (
+            caplog.at_level("INFO", logger="src.services.output"),
+            patch("src.services.output.image_changed", return_value=False),
+            patch("src.services.output.build_display_driver") as mock_build,
+        ):
+            svc.publish(image, dry_run=False, force_full=False, now=_now(), theme_name="default")
+
+        mock_build.assert_not_called()
+        assert "Image unchanged" in caplog.text
+        assert "rate-limited" not in caplog.text
+        assert not (Path(cfg.output_dir) / "latest.png").exists()
+
+    def test_change_reverted_inside_the_cooldown_restores_latest_png(self, tmp_path):
+        """A shown, B deferred into latest.png, A again: latest.png must be A again."""
+        from src.display.driver import image_hash, persist_image_hash
+
+        cfg = _make_cfg(tmp_path)
+        cfg.display.provider = "inky"
+        cfg.display.model = "impression_7_3_2025"
+        cfg.display.min_refresh_interval_seconds = 3600
+        svc = OutputService(cfg, _make_tz())
+        frame_a = Image.new("RGB", (80, 48), "white")
+        frame_b = Image.new("RGB", (80, 48), "black")
+        persist_image_hash(frame_a, cfg.output_dir)  # the panel shows A
+        state_dir = Path(cfg.state_dir)
+        state_dir.mkdir(parents=True, exist_ok=True)
+        (state_dir / "refresh_throttle_state.json").write_text(
+            json.dumps({"last_refresh_at": (_now() - timedelta(minutes=5)).isoformat()})
+        )
+
+        with patch("src.services.output.build_display_driver") as mock_build:
+            svc.publish(frame_b, dry_run=False, force_full=False, now=_now(), theme_name="t")
+            svc.publish(frame_a, dry_run=False, force_full=False, now=_now(), theme_name="t")
+
+        mock_build.assert_not_called()
+        latest = Image.open(Path(cfg.output_dir) / "latest.png").convert("RGB")
+        assert image_hash(latest) == image_hash(frame_a)
 
     def test_inky_default_cooldown_passes_after_60s(self, tmp_path):
         cfg = _make_cfg(tmp_path)

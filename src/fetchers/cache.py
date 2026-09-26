@@ -477,6 +477,7 @@ def _ser_air_quality(aq: AirQualityData) -> dict:
         "temperature": aq.temperature,
         "humidity": aq.humidity,
         "pressure": aq.pressure,
+        "temperature_unit": aq.temperature_unit,
     }
 
 
@@ -491,4 +492,6 @@ def _deser_air_quality(d: dict) -> AirQualityData:
         temperature=d.get("temperature"),
         humidity=d.get("humidity"),
         pressure=d.get("pressure"),
+        # Entries written before #297 carry the raw sensor reading, in °F.
+        temperature_unit=d.get("temperature_unit") or "°F",
     )

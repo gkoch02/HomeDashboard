@@ -9,6 +9,10 @@
 # list stays exhaustive. docs/configuration.md is the prose reference with the
 # longer explanations.
 
+# Config schema version. Files without it are read as v4 and upgraded in
+# memory on every load; keep it at the current version.
+schema_version: 5
+
 display:
   # Display backend/provider.
   # "waveshare" = Waveshare e-Paper HATs using the waveshare_epd Python package.
@@ -35,7 +39,6 @@ display:
   # When partial refresh is on, force a full-waveform refresh after this many
   # partials. Lower it if blacks start looking washed out between full ones.
   max_partials_before_full: 20
-  week_days: 7
   show_weather: true
   show_birthdays: true
   show_info_panel: true
@@ -71,7 +74,8 @@ google:
   # Workspace Admin with the People API scope granted, and this field must
   # be set to the email of the user whose contacts should be read.
   # contacts_email: "you@yourdomain.com"
-  # Log a warning once the day's Google API call count passes this number.
+  # Log a warning once any source's HTTP requests for the day pass this number
+  # (despite living under google:, it applies to every source).
   # daily_quota_warning: 500
 
   # --- ICS feed (simpler alternative — no GCP project or credentials required) ---
@@ -195,8 +199,8 @@ logging:
 
 # Photo theme — set theme: photo and provide a path to a JPEG or PNG file.
 # The image is converted to grayscale, resized to fit the canvas, and dithered
-# to 1-bit using Floyd-Steinberg diffusion.  A header bar at the bottom of the
-# display shows the dashboard title and timestamp.
+# to 1-bit using Floyd-Steinberg diffusion.  The photo fills the display edge to
+# edge — no header bar, title or timestamp is drawn.
 # photo:  # uncomment this line to enable section
 #   path: /home/pi/wallpaper.jpg
 

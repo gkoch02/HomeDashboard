@@ -349,3 +349,46 @@ class TestNegativePm25Readings:
         aqi, cat = _pm25_to_aqi(pm25)
         assert aqi == 0
         assert cat == "Good"
+
+
+class TestAmbientCorrection:
+    """Housing readings are corrected to ambient and follow weather.units (#297)."""
+
+    @staticmethod
+    def _fetch(cfg, sensor, units="imperial"):
+        resp = MagicMock()
+        resp.status_code = 200
+        resp.json.return_value = {"sensor": {"pm2.5_60minute": 5.0, **sensor}}
+        with patch("src.fetchers.purpleair.requests.Session") as mock_session_cls:
+            mock_session = MagicMock()
+            mock_session_cls.return_value.__enter__.return_value = mock_session
+            mock_session.get.return_value = resp
+            return fetch_air_quality(cfg, units=units)
+
+    def test_imperial_subtracts_the_documented_offset(self, cfg):
+        result = self._fetch(cfg, {"temperature": 80, "humidity": 40})
+        assert result.temperature == pytest.approx(72.0)
+        assert result.humidity == pytest.approx(44.0)
+        assert result.temperature_unit == "°F"
+
+    def test_metric_converts_after_correcting(self, cfg):
+        result = self._fetch(cfg, {"temperature": 80}, units="metric")
+        assert result.temperature == pytest.approx((72 - 32) * 5 / 9)
+        assert result.temperature_unit == "°C"
+
+    def test_standard_is_kelvin(self, cfg):
+        result = self._fetch(cfg, {"temperature": 40}, units="standard")
+        assert result.temperature == pytest.approx(273.15)
+        assert result.temperature_unit == " K"
+
+    def test_humidity_is_clamped(self, cfg):
+        assert self._fetch(cfg, {"humidity": 99}).humidity == 100.0
+
+    def test_unit_survives_the_cache(self, cfg):
+        from src.fetchers.cache import _deser_air_quality, _ser_air_quality
+
+        result = self._fetch(cfg, {"temperature": 80}, units="metric")
+        assert _deser_air_quality(_ser_air_quality(result)).temperature_unit == "°C"
+        legacy = _ser_air_quality(result)
+        del legacy["temperature_unit"]
+        assert _deser_air_quality(legacy).temperature_unit == "°F"

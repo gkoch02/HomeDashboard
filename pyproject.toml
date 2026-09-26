@@ -33,14 +33,21 @@ dependencies = [
 dev = [
     "pytest>=7.0",
     "pytest-cov>=4.0",
-    "ruff>=0.4",
+    # Pinned, and pinned to the same version as .pre-commit-config.yaml
+    # (tests/test_requirements_sync.py holds them together): ruff's formatter
+    # output changes between minors, so a floor let the hook and CI disagree.
+    "ruff==0.15.8",
     "mypy>=1.0",
     "flask>=3.0",
     "waitress>=3.0",
 ]
+# Mirrors requirements-pi.txt, which is what `make pi-install` installs.
 pi = [
-    "gpiozero",
-    "lgpio",
+    "RPi.GPIO>=0.7.1",
+    "spidev>=3.8",
+    "lgpio>=0.2.2.0",
+    "gpiozero>=2.0.1.post3",
+    "inky>=2.4.0",
 ]
 web = [
     "flask>=3.0",

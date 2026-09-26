@@ -9,7 +9,7 @@ import requests  # type: ignore[import-untyped]
 
 from src.config import WeatherConfig
 from src.data.models import DayForecast, WeatherAlert, WeatherData
-from src.fetchers import one_call_health, weather_onecall
+from src.fetchers import one_call_health, request_counter, weather_onecall
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +46,7 @@ def fetch_weather(
     }
 
     with requests.Session() as session:
+        request_counter.attach(session)
         current = _fetch_current(session, params)
         today_high, today_low, forecast = _fetch_forecast(session, params, tz=tz)
         alerts, uv_index = _fetch_alerts_and_uv(

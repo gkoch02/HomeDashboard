@@ -79,7 +79,7 @@ example `python -c "import secrets; print(secrets.token_hex(32))"`. The
 template's `replace-me-with-a-random-secret` placeholder, and any key shorter
 than 16 characters, is treated as **no key**: the server logs a warning and
 signs sessions with a random per-process key instead, so logins and CSRF
-tokens are invalidated on every restart until a real key is set. A key that
+tokens are invalidated on every restart until a real key is set. (An open tab that tries to save after such a restart is told its session expired and to reload the page.) A key that
 is published in this repository would let anyone forge a session cookie.
 
 ### Step 4 — Install and start the systemd service
@@ -210,7 +210,7 @@ Additional config-page behavior:
 
 **Sensitive fields** (API keys, credential file paths) are never sent to the browser. The credentials section shows only whether each credential is set or missing. The allowlist of editable fields and the secret/editable flags are derived from the v5 schema in `src/config_schema.py`, so a new `FieldSpec` entry is all it takes to make a field *patchable* via `POST /api/config`.
 
-Putting a control on the page is a separate step, though: `config.html` is a hand-written template rather than a schema-driven form, so a new knob also needs its row there, its value in `get_config_for_web()`, and its key in the patch that `dashboard.js` submits. Miss any of the three and the field is quietly absent from the page — or worse, present but never saved.
+Putting a control on the page is a separate step, though: `config.html` is a hand-written template rather than a schema-driven form, so a new knob also needs its row there, its value in `get_config_for_web()`, and its key in the patch that `dashboard.js` submits. Miss any of the three and the field is quietly absent from the page — or worse, present but never saved (the quotes path was, until #308). `tests/test_web_config_schema_coverage.py` now checks all three against the schema.
 
 ### v5 JSON APIs (for advanced/custom UIs)
 
@@ -218,11 +218,11 @@ Putting a control on the page is a separate step, though: `config.html` is a han
 |---|---|---|
 | `/api/config` | GET | Current safe config as JSON; secret fields surface as `_*_set` boolean flags only |
 | `/api/config` | POST | Apply a JSON patch (CSRF-protected); only fields in the schema-derived allowlist take effect |
-| `/api/config/schema` | GET | The v5 declarative schema with current values inlined: every section, field type, label, description, choices, secret flag, and `value` (or `has_value` for secrets). The web editor consumes this for form rendering. |
+| `/api/config/schema` | GET | The v5 declarative schema with current values inlined: every section, field type, label, description, choices, secret flag, and `value` (or `has_value` for secrets). It is a machine-readable view for API clients and tooling; the config page itself is the hand-written form described above, and `tests/test_web_config_schema_coverage.py` fails when the two drift apart. |
 | `/api/config/backups` | GET | Recent config backup files (newest first) |
 | `/api/config/restore-latest` | POST | Restore the most recent backup (CSRF-protected) |
 | `/api/preview` | POST | Render any registered theme to PNG against dummy data. Body: `{"theme": "<name>"}` plus an optional `"patch"` dict (same flat shape as `POST /api/config`) to render against a candidate config without persisting anything — the config page's **Live preview** button uses this to show unsaved edits. Pseudo names (`random`, `random_daily`, `random_hourly`), unknown themes, and patches that fail validation return 400; render exceptions return 500. CSRF-protected. |
-| `/api/health` | GET | Uptime-monitor probe: HTTP 200 when the last renderer run succeeded (a success marker exists and no error is newer), 503 otherwise. Optional `?max_age=<seconds>` additionally requires the last success to be at most that old; the age check is skipped during quiet hours, when the renderer intentionally doesn't run. Point Uptime Kuma / healthchecks.io at it (they support Basic Auth if you have auth enabled). |
+| `/api/health` | GET | Uptime-monitor probe: HTTP 200 when the last renderer run succeeded (a success marker exists and no error is newer), 503 otherwise. Optional `?max_age=<seconds>` additionally requires the last success to be at most that old; the age check is skipped during quiet hours, when the renderer intentionally doesn't run. Point Uptime Kuma / healthchecks.io at it. It is the one route exempt from Basic Auth, so a probe that can't send credentials still works; without credentials it answers with the status code and `{"healthy": …}` only — timestamps and the error type need auth. |
 
 The preview endpoint powers the "see what this theme looks like" button on the config
 page without touching the live dashboard timer or hardware. Custom UIs can also drive

@@ -81,7 +81,7 @@ CLI (main.py)
 - **`fetchers/host.py`** — System metrics via `/proc` (stdlib only; outside the registry — sync, no caching)
 - **`fetchers/cache.py`** — Per-source JSON cache with TTL and staleness classification; ser/deser delegated through the registry
 - **`fetchers/circuit_breaker.py`** — Per-source circuit breaker (CLOSED → OPEN → HALF_OPEN)
-- **`fetchers/quota_tracker.py`** — Daily API call counter with auto-reset
+- **`fetchers/quota_tracker.py`** — Daily per-source HTTP request counter, reset on the configured timezone's date; `fetchers/request_counter.py` tallies the requests each fetch makes on its worker thread
 
 ### Services (orchestration policy)
 - **`services/run_policy.py`** — Quiet hours, morning startup detection
@@ -117,7 +117,7 @@ CLI (main.py)
 ### Web UI (optional)
 - **`web/app.py`** — Flask application factory; registers all route blueprints
 - **`web/config_editor.py`** — Safe config read/write; `EDITABLE_FIELD_PATHS` derived from `config_schema.editable_field_paths()`
-- **`web/routes/config.py`** — `GET/POST /api/config`, `GET /api/config/schema` (v5 schema-driven form metadata), `GET /config` (HTML editor)
+- **`web/routes/config.py`** — `GET/POST /api/config`, `GET /api/config/schema` (the v5 schema with current values, for API clients), `GET /config` (HTML editor)
 - **`web/routes/preview.py`** — `POST /api/preview` (v5): render any registered theme to PNG against dummy data
 - **`web/routes/status.py`** / **`image.py`** / **`logs.py`** / **`actions.py`** — read-only status, image proxy, log tail, mutating actions
 
@@ -153,7 +153,7 @@ Each registry's package `__init__.py` runs side-effect imports of its members so
 
 - Which fields the web `/api/config` endpoint may patch (`editable_field_paths()` — replaces v4's hand-rolled `EDITABLE_FIELD_PATHS`).
 - Which fields are secret and must never be returned to the browser as plaintext (`secret_field_paths()`).
-- Form metadata served by `GET /api/config/schema` for the schema-driven editor.
+- Schema metadata served by `GET /api/config/schema` (the page's form is hand-written; a coverage test holds it to the schema).
 
 `src/config_migrations.py` runs at the top of `load_config()` and upgrades older YAML shapes to `CURRENT_SCHEMA_VERSION = 5` in-memory before parsing. The v4→v5 step is a metadata bump (v5 is a strict superset of v4) and the attachment point for future renames; `write_pre_migration_backup` writes versioned `.bak-v<N>` siblings for migrations that mutate state on disk.
 

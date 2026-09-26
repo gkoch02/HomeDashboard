@@ -24,7 +24,7 @@ from typing import TYPE_CHECKING
 
 import yaml  # type: ignore[import-untyped]
 
-from src.config import load_config, validate_config
+from src.config import is_known_log_level, load_config, validate_config
 
 if TYPE_CHECKING:
     from src.config import Config
@@ -167,8 +167,11 @@ def restore_latest_backup(config_path: str) -> tuple[bool, str]:
 def get_config_for_web(config_path: str) -> dict:
     """Return the current config as a JSON-safe dict for the web UI.
 
-    Sensitive fields are represented as boolean ``_*_set`` flags only.
-    Read-only hardware fields are prefixed with ``_``.
+    Sensitive fields are represented as boolean ``_<name>_set`` flags only,
+    where ``<name>`` is the field's own key — ``google.service_account_path``
+    is ``google._service_account_path_set`` — so ``/api/config/schema`` can
+    find each secret's flag by its schema path (#308). Read-only hardware
+    fields are prefixed with ``_``.
     """
     cfg = load_config(config_path)
 
@@ -176,18 +179,26 @@ def get_config_for_web(config_path: str) -> dict:
         "title": cfg.title,
         "theme": cfg.theme,
         "timezone": cfg.timezone,
-        "log_level": cfg.log_level,
+        # Upper-cased when it is a level name, so the dropdown (whose options
+        # are canonical names) can select `level: info` from the file.
+        "log_level": (
+            str(cfg.log_level).strip().upper()
+            if is_known_log_level(cfg.log_level)
+            else cfg.log_level
+        ),
         "display": {
+            "_provider": cfg.display.provider,
             "_model": cfg.display.model,
             "_width": cfg.display.width,
             "_height": cfg.display.height,
             "show_weather": cfg.display.show_weather,
             "show_birthdays": cfg.display.show_birthdays,
             "show_info_panel": cfg.display.show_info_panel,
-            "week_days": cfg.display.week_days,
             "enable_partial_refresh": cfg.display.enable_partial_refresh,
             "max_partials_before_full": cfg.display.max_partials_before_full,
             "scaling": cfg.display.scaling,
+            "quantization_mode": cfg.display.quantization_mode,
+            "min_refresh_interval_seconds": cfg.display.min_refresh_interval_seconds,
         },
         "schedule": {
             "quiet_hours_start": cfg.schedule.quiet_hours_start,
@@ -204,15 +215,25 @@ def get_config_for_web(config_path: str) -> dict:
             "source": cfg.birthdays.source,
             "lookahead_days": cfg.birthdays.lookahead_days,
             "calendar_keyword": cfg.birthdays.calendar_keyword,
+            "file_path": cfg.birthdays.file_path,
         },
         "purpleair": {
             "_api_key_set": bool(cfg.purpleair.api_key),
             "_sensor_id_set": bool(cfg.purpleair.sensor_id),
+            "_sensor_id": cfg.purpleair.sensor_id,
         },
         "google": {
-            "_service_account_set": Path(cfg.google.service_account_path).exists(),
+            "_service_account_path_set": Path(cfg.google.service_account_path).exists(),
             "_calendar_id": cfg.google.calendar_id,
+            "_contacts_email": cfg.google.contacts_email,
             "_ical_url_set": bool(cfg.google.ical_url),
+            "_additional_ical_urls_set": bool(cfg.google.additional_ical_urls),
+            "_caldav_url_set": bool(cfg.google.caldav_url),
+            "_caldav_username": cfg.google.caldav_username,
+            "_caldav_password_file_set": bool(cfg.google.caldav_password_file),
+            "_caldav_calendar_url_set": bool(cfg.google.caldav_calendar_url),
+            "additional_calendars": cfg.google.additional_calendars,
+            "daily_quota_warning": cfg.google.daily_quota_warning,
         },
         "filters": {
             "exclude_calendars": cfg.filters.exclude_calendars,
@@ -234,6 +255,9 @@ def get_config_for_web(config_path: str) -> dict:
         },
         "quotes": {
             "path": cfg.quotes.path,
+        },
+        "photo": {
+            "path": cfg.photo.path,
         },
         "random_theme": {
             "include": cfg.random_theme.include,

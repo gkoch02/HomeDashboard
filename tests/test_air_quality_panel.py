@@ -432,6 +432,12 @@ class TestAmbientCards:
     def test_all_three_cards(self):
         assert _card_count(_render()) == 3
 
+    def test_temperature_card_uses_the_readings_unit(self):
+        """A metric install labels the card °C, not a hard-coded °F (#297)."""
+        f = _render(humidity=None, pressure=None, temperature=22.0)
+        c = _render(humidity=None, pressure=None, temperature=22.0, temperature_unit="°C")
+        assert _ink(f, CARDS) != _ink(c, CARDS)
+
     def test_temperature_hidden_when_from_fallback(self):
         """A temperature sourced from OWM rather than the sensor is suppressed."""
         fallback = _render(fallback_fields={"temperature"})

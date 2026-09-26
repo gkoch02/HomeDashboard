@@ -18,6 +18,7 @@ from typing import Any
 from src._time import event_window_utc
 from src.config import BirthdayConfig, GoogleConfig
 from src.data.models import Birthday, CalendarEvent
+from src.fetchers import request_counter
 
 # Re-export from sub-modules so existing consumers don't break.
 # Tests and other code can continue to ``from src.fetchers.calendar import ...``.
@@ -290,6 +291,7 @@ def _birthdays_from_calendar(
     # back to the previously-cached birthday list rather than overwriting it with
     # an empty list that blanks the birthday panel (issue #146).
     try:
+        request_counter.count_request()
         result = (
             service.events()
             .list(
@@ -352,6 +354,7 @@ def _birthdays_from_contacts(
         # cached birthday list so the panel keeps rendering last-known-good data
         # (issue #146).
         try:
+            request_counter.count_request()
             result = service.people().connections().list(**kwargs).execute()
         except Exception as exc:
             logger.warning("Failed to fetch Google Contacts: %s", exc)
@@ -385,15 +388,23 @@ def _parse_contact_birthday(person: dict, today: date, lookahead: date) -> Birth
     if not name:
         return None
 
-    bdays = person.get("birthdays", [])
-    if not bdays:
+    # Contacts commonly carries two entries per person — one structured
+    # ``date`` and one free-form ``text`` — in either order, so reading only
+    # the first skipped every contact whose text entry sorted ahead (#298).
+    # Take the entries with a month and day, preferring one that has a year.
+    dated = [
+        b["date"]
+        for b in person.get("birthdays", [])
+        if isinstance(b.get("date"), dict)
+        and b["date"].get("month") is not None
+        and b["date"].get("day") is not None
+    ]
+    if not dated:
         return None
-    bday_date_raw = bdays[0].get("date", {})
+    bday_date_raw = next((d for d in dated if d.get("year")), dated[0])
 
-    month = bday_date_raw.get("month")
-    day = bday_date_raw.get("day")
-    if month is None or day is None:
-        return None
+    month = bday_date_raw["month"]
+    day = bday_date_raw["day"]
 
     year: int = bday_date_raw.get("year") or 0
     age = today.year - year if year else None

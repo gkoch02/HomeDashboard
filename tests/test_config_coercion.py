@@ -55,7 +55,6 @@ def _error_fields(cfg: Config) -> set[str]:
             (800, 480),
         ),
         ('google:\n  daily_quota_warning: "500"\n', lambda c: c.google.daily_quota_warning, 500),
-        ("display:\n  week_days: 5.0\n", lambda c: c.display.week_days, 5),
     ],
 )
 def test_quoted_and_mistyped_numbers_are_coerced(tmp_path, yaml_text, getter, expected):

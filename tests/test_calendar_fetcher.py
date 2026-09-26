@@ -288,6 +288,32 @@ class TestParseContactBirthday:
         person = {"names": [{"displayName": "Alice"}], "birthdays": []}
         assert _parse_contact_birthday(person, self.today, self.lookahead) is None
 
+    def test_text_only_entry_first_does_not_hide_the_dated_one(self):
+        """People API returns a text entry and a date entry in either order (#298)."""
+        person = {
+            "names": [{"displayName": "Erin"}],
+            "birthdays": [
+                {"text": "3/20/1990"},
+                {"date": {"month": 3, "day": 20, "year": 1990}},
+            ],
+        }
+        result = _parse_contact_birthday(person, self.today, self.lookahead)
+        assert result is not None
+        assert result.date == date(2024, 3, 20)
+        assert result.age == 34
+
+    def test_entry_with_a_year_is_preferred(self):
+        person = {
+            "names": [{"displayName": "Finn"}],
+            "birthdays": [
+                {"date": {"month": 3, "day": 20}},
+                {"date": {"month": 3, "day": 20, "year": 2000}},
+            ],
+        }
+        result = _parse_contact_birthday(person, self.today, self.lookahead)
+        assert result is not None
+        assert result.age == 24
+
     def test_birthday_missing_month_returns_none(self):
         person = {"names": [{"displayName": "Alice"}], "birthdays": [{"date": {"day": 15}}]}
         assert _parse_contact_birthday(person, self.today, self.lookahead) is None

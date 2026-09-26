@@ -11,6 +11,7 @@ import requests  # type: ignore[import-untyped]
 
 from src._time import event_window_utc, week_start
 from src.data.models import CalendarEvent
+from src.fetchers import request_counter
 from src.fetchers.calendar_google import _today
 from src.fetchers.errors import CalendarFetchError
 
@@ -83,11 +84,15 @@ def fetch_from_ical(
         # hang #235 fixes for CalDAV. One feed's timeout, retried once, is the
         # whole bound now.
         try:
+            request_counter.count_request()
             resp = requests.get(url, timeout=_REQUEST_TIMEOUT_SECONDS)
             resp.raise_for_status()
         except Exception as exc:
             logger.warning("Failed to fetch ICS feed %s: %s", url, exc)
-            raise CalendarFetchError(f"ICS feed {_url_hostname(url)} could not be read: {exc}")
+            # Chained so retry_fetch can read the feed's HTTP status (#295).
+            raise CalendarFetchError(
+                f"ICS feed {_url_hostname(url)} could not be read: {exc}"
+            ) from exc
 
         try:
             cal = ICalendar.from_ical(_feed_body(resp))

@@ -393,6 +393,84 @@ class TestRetryFetch:
         with pytest.raises(ValueError):
             retry_fetch("test", lambda: (_ for _ in ()).throw(ValueError("bad")))
 
+    @staticmethod
+    def _http_error(status):
+        import requests
+
+        resp = requests.Response()
+        resp.status_code = status
+        return requests.HTTPError(f"{status} Client Error", response=resp)
+
+    @pytest.mark.parametrize("status", [401, 403, 404])
+    def test_no_retry_on_permanent_http_status(self, status):
+        """A bad key or wrong sensor fails identically on retry (#295)."""
+        calls = []
+
+        def rejected():
+            calls.append(1)
+            raise self._http_error(status)
+
+        with pytest.raises(Exception, match=str(status)):
+            retry_fetch("test", rejected)
+        assert len(calls) == 1
+
+    @pytest.mark.parametrize("status", [408, 429, 500, 503])
+    def test_retries_on_transient_http_status(self, status):
+        calls = []
+
+        def flaky():
+            calls.append(1)
+            if len(calls) == 1:
+                raise self._http_error(status)
+            return "ok"
+
+        assert retry_fetch("test", flaky) == "ok"
+        assert len(calls) == 2
+
+    def test_no_retry_when_the_4xx_is_wrapped(self):
+        """An ICS 404 arrives as CalendarFetchError raised from the HTTPError."""
+        from src.fetchers.errors import CalendarFetchError
+
+        calls = []
+
+        def feed():
+            calls.append(1)
+            try:
+                raise self._http_error(404)
+            except Exception as exc:
+                raise CalendarFetchError("feed could not be read") from exc
+
+        with pytest.raises(CalendarFetchError):
+            retry_fetch("test", feed)
+        assert len(calls) == 1
+
+    def test_no_retry_on_a_google_api_4xx(self):
+        """googleapiclient carries the status on exc.resp.status."""
+        from googleapiclient.errors import HttpError
+        from httplib2 import Response
+
+        calls = []
+
+        def google():
+            calls.append(1)
+            raise HttpError(Response({"status": 403}), b"forbidden")
+
+        with pytest.raises(HttpError):
+            retry_fetch("test", google)
+        assert len(calls) == 1
+
+    def test_status_in_message_alone_is_not_permanent(self):
+        """Classification reads the response, never the text."""
+        calls = []
+
+        def flaky():
+            calls.append(1)
+            if len(calls) == 1:
+                raise ConnectionError("upstream said 401")
+            return "ok"
+
+        assert retry_fetch("test", flaky) == "ok"
+
     def test_retry_failure_raises(self):
         """When retry also fails, the exception from the retry is raised."""
 
@@ -532,3 +610,100 @@ class TestCalendarOutageKeepsTheCache:
         assert [e["summary"] for e in cached["events"]["data"]] == ["Dentist"], (
             "the outage overwrote the good cache"
         )
+
+
+class TestQuotaCountsRequests:
+    """The daily quota counts HTTP requests per source, failures included (#296)."""
+
+    @staticmethod
+    def _requests(n):
+        from src.fetchers import request_counter
+
+        def fetch(*_a, **_kw):
+            request_counter.count_request(n)
+            return _make_weather()
+
+        return fetch
+
+    def test_counts_every_request_a_fetch_makes(self, tmp_path):
+        pipeline = _make_pipeline(tmp_path, force_refresh=True)
+        with (
+            patch("src.data_pipeline.fetch_events", return_value=_make_events()),
+            patch("src.data_pipeline.fetch_weather", side_effect=self._requests(3)),
+            patch("src.data_pipeline.fetch_birthdays", return_value=_make_birthdays()),
+            patch("src.data_pipeline.fetch_host_data", return_value=None),
+        ):
+            pipeline.fetch()
+
+        assert pipeline.quota.daily_count("weather") == 3
+        # A fetch that made no request (patched here; a birthdays file in
+        # production) records nothing rather than a phantom one.
+        assert pipeline.quota.daily_count("events") == 0
+
+    def test_failed_fetch_and_its_retry_are_counted(self, tmp_path):
+        from src.fetchers import request_counter
+
+        def failing(*_a, **_kw):
+            request_counter.count_request()
+            raise ConnectionError("down")
+
+        pipeline = _make_pipeline(tmp_path, force_refresh=True)
+        with (
+            patch("src.data_pipeline.fetch_events", return_value=_make_events()),
+            patch("src.data_pipeline.fetch_weather", side_effect=failing),
+            patch("src.data_pipeline.fetch_birthdays", return_value=_make_birthdays()),
+            patch("src.data_pipeline.fetch_host_data", return_value=None),
+        ):
+            pipeline.fetch()
+
+        assert pipeline.quota.daily_count("weather") == 2
+
+    def test_warning_checks_every_enabled_source(self, tmp_path):
+        pipeline = _make_pipeline(tmp_path, force_refresh=True)
+        pipeline.cfg.purpleair = PurpleAirConfig(api_key="k", sensor_id=1)
+        with (
+            patch("src.data_pipeline.fetch_events", return_value=_make_events()),
+            patch("src.data_pipeline.fetch_weather", return_value=_make_weather()),
+            patch("src.data_pipeline.fetch_birthdays", return_value=_make_birthdays()),
+            patch("src.data_pipeline.fetch_air_quality", return_value=None),
+            patch("src.data_pipeline.fetch_host_data", return_value=None),
+            patch.object(pipeline.quota, "check_warning") as check,
+        ):
+            pipeline.fetch()
+
+        checked = {c.args[0] for c in check.call_args_list}
+        assert "air_quality" in checked
+        assert {"events", "weather", "birthdays"} <= checked
+
+
+def test_request_counter_is_a_no_op_outside_counting():
+    from src.fetchers import request_counter
+
+    request_counter.count_request()  # must not raise
+    with request_counter.counting() as outer:
+        request_counter.count_request()
+        with request_counter.counting() as inner:
+            request_counter.count_request(2)
+        request_counter.count_request()
+    assert (outer.count, inner.count) == (2, 2)
+
+
+def test_attached_session_counts_requests_that_never_get_a_response():
+    """Counted on send, so a timeout — the failing runs quota is for — still counts."""
+    import requests
+
+    from src.fetchers import request_counter
+
+    session = requests.Session()
+    request_counter.attach(session)
+    with request_counter.counting() as tally:
+        with pytest.raises(requests.ConnectionError):
+            # Port 9 on localhost: refused immediately, no response object.
+            session.get("http://127.0.0.1:9/", timeout=2)
+    assert tally.count == 1
+
+
+def test_attach_tolerates_a_missing_session():
+    from src.fetchers import request_counter
+
+    request_counter.attach(None)  # e.g. a caldav client without .session

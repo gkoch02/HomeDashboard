@@ -74,7 +74,7 @@ If you have the web UI installed:
 sudo systemctl restart dashboard-web.service
 ```
 
-The web editor now serves a schema-driven form layout and a live theme preview button.
+The web editor's allowlist, secret handling and choices now come from the schema, and it gains a live theme preview button.
 
 ---
 

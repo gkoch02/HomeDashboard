@@ -52,6 +52,12 @@ _MIGRATIONS: list[tuple[int, Callable[[dict], dict]]] = [
     (4, v4_to_v5),
 ]
 
+# Steps that only stamp ``schema_version`` and change nothing a user wrote.
+# The stamp is in-memory, so a file without ``schema_version`` runs the step
+# on every load — every renderer tick, web reload and --check-config. Logging
+# that at INFO buried a real migration under identical lines (#304).
+_METADATA_ONLY_STEPS: frozenset[int] = frozenset({4})
+
 
 def needs_migration(raw: dict) -> bool:
     """Return ``True`` iff *raw* declares an older schema_version than current."""
@@ -84,7 +90,11 @@ def migrate_in_memory(raw: dict) -> dict:
             )
             out["schema_version"] = CURRENT_SCHEMA_VERSION
             return out
-        logger.info("Migrating config from schema_version %d", from_version)
+        logger.log(
+            logging.DEBUG if from_version in _METADATA_ONLY_STEPS else logging.INFO,
+            "Migrating config from schema_version %d",
+            from_version,
+        )
         out = step(out)
         new_version = _read_schema_version(out)
         if new_version <= from_version:

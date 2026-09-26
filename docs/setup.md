@@ -396,6 +396,13 @@ make pi-enable
 make pi-status
 ```
 
+A Raspberry Pi has no real-time clock, so until NTP syncs after boot the clock reads the
+last shutdown time. Each run therefore waits up to 45 seconds for the clock to sync
+(`systemd-time-wait-sync`, which returns at once once it has) before judging quiet hours
+and cache ages. The wait is bounded on purpose: an offline boot still renders from cache.
+Don't enable `systemd-time-wait-sync.service` for this — its wait has no limit, and the
+timer would then never fire on a Pi that boots without network.
+
 The timer fires every 5 minutes. The app handles scheduling internally:
 
 | Time window | Behaviour |

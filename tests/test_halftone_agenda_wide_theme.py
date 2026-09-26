@@ -293,6 +293,14 @@ class TestAgendaHelpers:
         allday = _event(0, mins=24 * 60, is_all_day=True)
         assert hw.booked_minutes([a, allday]) == 120
 
+    def test_booked_minutes_clips_multi_day_events_to_the_day(self):
+        """A timed event running for days books only today's part (#311)."""
+        long = _event(8, mins=6 * 24 * 60)  # 08:00 today → +6 days
+        assert hw.booked_minutes([long], TODAY) == 16 * 60
+        overnight = _event(0, mins=60, day=TODAY - timedelta(days=1))
+        overnight.end = overnight.start + timedelta(hours=26)  # yesterday 00:00 → today 02:00
+        assert hw.booked_minutes([overnight], TODAY) == 120
+
     def test_gap_after(self):
         events = [_event(9, mins=60), _event(10, minute=30, mins=30), _event(14, mins=60)]
         assert hw.gap_after(events, 0) == 30

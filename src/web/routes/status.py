@@ -11,7 +11,7 @@ from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlparse
 
-from flask import Blueprint, current_app, jsonify, render_template, request
+from flask import Blueprint, current_app, g, jsonify, render_template, request
 
 from src._time import now_local
 from src.fetchers import one_call_health
@@ -388,12 +388,12 @@ def _build_status() -> dict:
     last_run = read_last_success(output_dir)
     breakers = read_breakers(state_dir)
     cache_ages = read_cache_ages(state_dir, ttls)
-    quota = read_quota(state_dir)
     # Everything below is resolved against the *configured* timezone, the same
     # clock the renderer uses. Reading the host clock here put quiet hours,
     # theme_schedule and the daypart/weekday theme_rules on a different wall
     # clock — and near local midnight on a different day (#239).
     now = now_local(config_tz(cfg))
+    quota = read_quota(state_dir, today=now.date().isoformat())
     quiet_hours_active = is_quiet_hours_now(
         cfg.schedule.quiet_hours_start, cfg.schedule.quiet_hours_end, now
     )
@@ -489,6 +489,9 @@ def api_health():
         if seconds_since is None or seconds_since > max_age:
             healthy = False
 
+    if not g.get("web_authenticated", True):
+        # Reached without credentials (auth.PUBLIC_PATHS): the code is the answer.
+        return jsonify({"healthy": healthy}), (200 if healthy else 503)
     body = {
         "healthy": healthy,
         "last_success": success["timestamp"],

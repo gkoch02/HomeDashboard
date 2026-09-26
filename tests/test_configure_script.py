@@ -37,7 +37,14 @@ def writer(tmp_path):
     return path
 
 
-def _run(writer: Path, config: Path, *, pa_key: str = "", pa_sensor: str = ""):
+def _run(
+    writer: Path,
+    config: Path,
+    *,
+    pa_key: str = "",
+    pa_sensor: str = "",
+    calendar: tuple[str, ...] = (),
+):
     args = [
         sys.executable,
         str(writer),
@@ -52,6 +59,7 @@ def _run(writer: Path, config: Path, *, pa_key: str = "", pa_sensor: str = ""):
         "cal@group.calendar.google.com",
         pa_key,
         pa_sensor,
+        *calendar,
     ]
     return subprocess.run(args, capture_output=True, text=True)
 
@@ -159,3 +167,102 @@ def test_missing_target_key_fails_loudly_and_leaves_the_file_alone(writer, tmp_p
     assert result.returncode != 0
     assert "could not find 'model:' under 'display:'" in result.stderr
     assert cfg.read_text() == original
+
+
+# --- Calendar source (#302) -------------------------------------------------
+
+
+def _template(tmp_path) -> Path:
+    cfg = tmp_path / "config.yaml"
+    shutil.copy(EXAMPLE, cfg)
+    return cfg
+
+
+def test_ics_source_uncomments_ical_url(writer, tmp_path):
+    from src.config import load_config
+
+    cfg = _template(tmp_path)
+    url = "https://calendar.google.com/calendar/ical/x/basic.ics"
+    result = _run(writer, cfg, calendar=("ics", url))
+    assert result.returncode == 0, result.stderr
+    loaded = load_config(str(cfg))
+    assert loaded.google.ical_url == url
+    assert loaded.google.caldav_url == ""
+
+
+def test_caldav_source_sets_all_three_keys(writer, tmp_path):
+    from src.config import load_config
+
+    cfg = _template(tmp_path)
+    result = _run(
+        writer,
+        cfg,
+        calendar=("caldav", "", "https://dav.example.com/", "greg", "credentials/pw.txt"),
+    )
+    assert result.returncode == 0, result.stderr
+    g = load_config(str(cfg)).google
+    assert (g.caldav_url, g.caldav_username, g.caldav_password_file) == (
+        "https://dav.example.com/",
+        "greg",
+        "credentials/pw.txt",
+    )
+
+
+def test_switching_back_to_google_turns_the_feed_off(writer, tmp_path):
+    """CalDAV/ICS outrank the API, so a stale answer would keep winning."""
+    from src.config import load_config
+
+    cfg = _template(tmp_path)
+    assert _run(writer, cfg, calendar=("ics", "https://a.example/c.ics")).returncode == 0
+    assert _run(writer, cfg, calendar=("caldav", "", "https://d/", "u", "p")).returncode == 0
+    result = _run(writer, cfg, calendar=("google",))
+    assert result.returncode == 0, result.stderr
+    g = load_config(str(cfg)).google
+    assert g.ical_url == "" and g.caldav_url == ""
+    assert g.calendar_id == "cal@group.calendar.google.com"
+
+
+def test_rerun_with_ics_replaces_the_live_url(writer, tmp_path):
+    from src.config import load_config
+
+    cfg = _template(tmp_path)
+    assert _run(writer, cfg, calendar=("ics", "https://old.example/c.ics")).returncode == 0
+    assert _run(writer, cfg, calendar=("ics", "https://new.example/c.ics")).returncode == 0
+    assert load_config(str(cfg)).google.ical_url == "https://new.example/c.ics"
+    assert len(re.findall(r"^\s+ical_url:", cfg.read_text(), re.M)) == 1
+
+
+def test_script_points_at_docs_setup_not_the_readme():
+    text = SCRIPT.read_text()
+    assert "README > Google Calendar Setup" not in text
+    assert "docs/setup.md" in text
+
+
+def test_make_configure_checks_the_venv():
+    makefile = (ROOT / "Makefile").read_text()
+    assert re.search(r"^configure:.*_check-venv", makefile, re.M)
+
+
+def test_switching_caldav_servers_drops_the_old_calendar_url(writer, tmp_path):
+    """The specific-calendar URL wins over discovery; a stale one kept the old server."""
+    from src.config import load_config
+
+    cfg = _template(tmp_path)
+    first = ("caldav", "", "https://old.example/", "u", "p", "https://old.example/cal/")
+    assert _run(writer, cfg, calendar=first).returncode == 0
+    assert load_config(str(cfg)).google.caldav_calendar_url == "https://old.example/cal/"
+
+    result = _run(writer, cfg, calendar=("caldav", "", "https://new.example/", "u", "p", ""))
+    assert result.returncode == 0, result.stderr
+    g = load_config(str(cfg)).google
+    assert g.caldav_url == "https://new.example/"
+    assert g.caldav_calendar_url == ""
+
+
+def test_caldav_calendar_url_is_written_when_given(writer, tmp_path):
+    from src.config import load_config
+
+    cfg = _template(tmp_path)
+    run = ("caldav", "", "https://d.example/", "u", "p", "https://d.example/work/")
+    assert _run(writer, cfg, calendar=run).returncode == 0
+    assert load_config(str(cfg)).google.caldav_calendar_url == "https://d.example/work/"

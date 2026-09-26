@@ -194,12 +194,13 @@ def read_cache_ages(state_dir: str, ttls: dict[str, int]) -> dict[str, dict]:
     return result
 
 
-def read_quota(state_dir: str) -> dict[str, int]:
-    """Return today's API call counts per source.
+def read_quota(state_dir: str, today: str | None = None) -> dict[str, int]:
+    """Return today's API request counts per source.
 
-    Returns a dict like ``{"google": 5, "weather": 2, ...}``.
-    If the quota file is from a previous day the counts are still returned
-    (for display purposes the date is shown alongside them).
+    Returns a dict like ``{"events": 5, "weather": 2, ...}``. With *today*
+    (an ISO date in the configured timezone), a file written on another day
+    reads as empty: the renderer resets it on its next run, and until then its
+    counts are yesterday's, which the status page would show as today's.
     """
     path = Path(state_dir) / "api_quota_state.json"
     if not path.exists():
@@ -207,6 +208,8 @@ def read_quota(state_dir: str) -> dict[str, int]:
     try:
         with open(path) as f:
             raw = json.load(f)
+        if today is not None and raw.get("date") != today:
+            return {}
         return dict(raw.get("counts", {}))
     except Exception as exc:
         logger.debug("Could not read quota state: %s", exc)

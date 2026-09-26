@@ -19,7 +19,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from src.config_schema import ONE_CALL_VERSIONS
+from src.config_schema import ONE_CALL_VERSIONS, QUANTIZATION_MODES
 
 if TYPE_CHECKING:
     # Annotation-only: importing src.config at runtime would deadlock the
@@ -219,6 +219,24 @@ def validate_config(
             )
         )
 
+    # A coordinate outside the globe is a typo (a swapped pair, a missing
+    # decimal point); OWM rejects it with a 400 and the astronomy themes
+    # compute nonsense from it.
+    for label, val, bound in (
+        ("weather.latitude", cfg.weather.latitude, 90),
+        ("weather.longitude", cfg.weather.longitude, 180),
+    ):
+        if not -bound <= val <= bound:
+            # A warning, like the 0,0 check above: weather fails alone and
+            # the calendar still renders, so this must not stop the panel.
+            warnings.append(
+                ConfigWarning(
+                    field=label,
+                    message=f"{label} must be between -{bound} and {bound}, got {val}",
+                    hint="Latitude is -90..90 and longitude -180..180, in decimal degrees.",
+                )
+            )
+
     # --- Timezone ---
     if cfg.timezone != "local":
         try:
@@ -304,7 +322,7 @@ def validate_config(
             )
 
     # --- Display quantization mode ---
-    _VALID_QUANT = ("threshold", "floyd_steinberg", "ordered")
+    _VALID_QUANT = QUANTIZATION_MODES
     if cfg.display.quantization_mode not in _VALID_QUANT:
         errors.append(
             ConfigError(
@@ -353,6 +371,27 @@ def validate_config(
         )
     else:
         spec = get_display_spec(cfg.display.provider, cfg.display.model)
+        # The model fixes the panel's resolution; an explicit width/height that
+        # disagrees produces a buffer the driver rejects, or — through the
+        # vendor getbuffer()'s size guard — a silently blank panel.
+        if spec is not None and (cfg.display.width, cfg.display.height) != (
+            spec.width,
+            spec.height,
+        ):
+            warnings.append(
+                ConfigWarning(
+                    field="display.width/height",
+                    message=(
+                        f"display.width/height ({cfg.display.width}x{cfg.display.height}) "
+                        f"differ from {cfg.display.model}'s native "
+                        f"{spec.width}x{spec.height}."
+                    ),
+                    hint=(
+                        "Remove display.width and display.height — the model sets them — "
+                        "unless you are driving a panel the registry has wrong."
+                    ),
+                )
+            )
         if (
             spec is not None
             and not spec.supports_partial_refresh
@@ -487,6 +526,56 @@ def validate_config(
                     hint="Set a positive number of minutes.",
                 )
             )
+
+    # --- Values that run but misbehave (#306) ---
+    # Warnings, not errors: every one of these ran before the check existed,
+    # and main.py exits on any error — an upgrade must not stop a working
+    # panel over, say, a zero TTL for a PurpleAir source that is not even
+    # configured. A zero or negative TTL marks every cached value expired as
+    # it is written, so an outage renders with nothing to fall back on.
+    cache = cfg.cache
+    for label, val, kind in [
+        ("cache.air_quality_fetch_interval", cache.air_quality_fetch_interval, "Fetch interval"),
+        ("cache.weather_ttl_minutes", cache.weather_ttl_minutes, "Cache TTL"),
+        ("cache.events_ttl_minutes", cache.events_ttl_minutes, "Cache TTL"),
+        ("cache.birthdays_ttl_minutes", cache.birthdays_ttl_minutes, "Cache TTL"),
+        ("cache.air_quality_ttl_minutes", cache.air_quality_ttl_minutes, "Cache TTL"),
+    ]:
+        if val <= 0:
+            warnings.append(
+                ConfigWarning(
+                    field=label,
+                    message=f"{kind} should be positive, got {val}",
+                    hint="Set a positive number of minutes.",
+                )
+            )
+    if cache.max_failures <= 0:
+        warnings.append(
+            ConfigWarning(
+                field="cache.max_failures",
+                message=f"cache.max_failures should be at least 1, got {cache.max_failures}",
+                hint="The number of consecutive failures before a source's breaker opens.",
+            )
+        )
+    if cache.cooldown_minutes < 0:
+        warnings.append(
+            ConfigWarning(
+                field="cache.cooldown_minutes",
+                message=f"cache.cooldown_minutes should not be negative, got {cache.cooldown_minutes}",
+                hint="Minutes an open breaker waits before retrying (0 = retry next run).",
+            )
+        )
+    if cfg.display.enable_partial_refresh and cfg.display.max_partials_before_full <= 0:
+        warnings.append(
+            ConfigWarning(
+                field="display.max_partials_before_full",
+                message=(
+                    "display.max_partials_before_full should be at least 1, "
+                    f"got {cfg.display.max_partials_before_full} — every refresh will be full"
+                ),
+                hint="To never use partial refresh, set display.enable_partial_refresh: false.",
+            )
+        )
 
     # --- Weather units ---
     if cfg.weather.units not in ("imperial", "metric", "standard"):

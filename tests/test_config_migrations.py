@@ -85,6 +85,24 @@ class TestMigrateInMemory:
         migrate_in_memory(raw)
         assert "schema_version" not in raw
 
+    def test_metadata_only_bump_logs_at_debug(self, caplog):
+        """Every load of a file without schema_version runs v4→v5; it is not news (#304)."""
+        with caplog.at_level("DEBUG", logger="src.config_migrations"):
+            migrate_in_memory({"theme": "default"})
+        records = [r for r in caplog.records if "Migrating config" in r.getMessage()]
+        assert records and all(r.levelname == "DEBUG" for r in records)
+
+    def test_shipped_template_is_already_current(self):
+        """The template make setup copies must not trigger a migration at all."""
+        from pathlib import Path
+
+        import yaml
+
+        template = Path(__file__).resolve().parent.parent / "config" / "config.example.yaml"
+        with open(template) as fh:
+            raw = yaml.safe_load(fh)
+        assert not needs_migration(raw)
+
     def test_idempotent_when_called_twice(self):
         once = migrate_in_memory({"title": "X"})
         twice = migrate_in_memory(once)

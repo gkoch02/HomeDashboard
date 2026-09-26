@@ -124,7 +124,7 @@
       <label class="field-label" for="cfg-loglevel">Log level</label>
       <div class="field-input-wrap">
         <select id="cfg-loglevel" data-field="log_level">
-          {% for level in ["DEBUG", "INFO", "WARNING", "ERROR"] %}
+          {% for level in log_levels %}
             <option value="{{ level }}" {{ "selected" if cfg.log_level == level }}>{{ level }}</option>
           {% endfor %}
         </select>
@@ -172,7 +172,7 @@
     <div class="field-row">
       <label class="field-label">Model</label>
       <div class="field-input-wrap">
-        <input type="text" value="{{ cfg.display._model }}  ({{ cfg.display._width }}×{{ cfg.display._height }})" readonly>
+        <input type="text" value="{{ cfg.display._provider }} · {{ cfg.display._model }}  ({{ cfg.display._width }}×{{ cfg.display._height }})" readonly>
       </div>
     </div>
     <div class="field-hint">Hardware model — change in config.yaml directly.</div>
@@ -192,14 +192,6 @@
     <div class="check-row check-row-indented">
       <input type="checkbox" id="cfg-partial-refresh" data-field="display.enable_partial_refresh" {{ "checked" if cfg.display.enable_partial_refresh }}>
       <label for="cfg-partial-refresh">Enable partial eInk refresh</label>
-    </div>
-
-    <div class="field-row" style="margin-top:.5rem;">
-      <label class="field-label" for="cfg-week-days">Days in week view</label>
-      <div class="field-input-wrap" style="max-width:80px;">
-        <input type="number" id="cfg-week-days" data-field="display.week_days"
-               min="1" max="7" value="{{ cfg.display.week_days }}">
-      </div>
     </div>
 
     <div class="field-row">
@@ -222,6 +214,36 @@
       </div>
     </div>
     <div class="field-hint">How a theme drawn at another size reaches the panel. <em>auto</em> stretches unless the shapes differ by more than a third, then fits with padding; a 1360×480 strip fits, a 4:3 panel stretches.</div>
+
+    <div class="field-row">
+      <label class="field-label" for="cfg-min-refresh">Min seconds between refreshes</label>
+      <div class="field-input-wrap" style="max-width:100px;">
+        <input type="number" id="cfg-min-refresh" data-field="display.min_refresh_interval_seconds" min="0"
+               value="{{ cfg.display.min_refresh_interval_seconds if cfg.display.min_refresh_interval_seconds is not none else '' }}"
+               placeholder="default">
+      </div>
+    </div>
+    <div class="field-hint">Empty = the panel's default (60 s on colour panels, 0 on monochrome Waveshare). 3600 restores the v4 once-an-hour Inky behaviour.</div>
+
+    <div class="field-row">
+      <label class="field-label" for="cfg-quantization">Quantization</label>
+      <div class="field-input-wrap" style="max-width:180px;">
+        <select id="cfg-quantization" data-field="display.quantization_mode">
+          {% for mode in quantization_modes %}
+            <option value="{{ mode }}" {{ "selected" if cfg.display.quantization_mode == mode }}>{{ mode }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+    <div class="field-hint">Waveshare only: how greyscale becomes ink for themes that don't choose their own. <em>threshold</em> is a hard cut; the other two dither.</div>
+
+    <div class="field-row">
+      <label class="field-label" for="cfg-photo-path">Photo (photo theme)</label>
+      <div class="field-input-wrap">
+        <input type="text" id="cfg-photo-path" data-field="photo.path"
+               value="{{ cfg.photo.path }}" placeholder="/home/pi/wallpaper.jpg">
+      </div>
+    </div>
   </div>
 
   {# ------------------------------------------------------------------ #}
@@ -338,6 +360,13 @@
       </div>
     </div>
     <div class="field-hint">Used when source is <code>calendar</code> — keyword matched against event titles.</div>
+    <div class="field-row">
+      <label class="field-label" for="cfg-bday-file">Birthdays file</label>
+      <div class="field-input-wrap">
+        <input type="text" id="cfg-bday-file" data-field="birthdays.file_path" value="{{ cfg.birthdays.file_path }}">
+      </div>
+    </div>
+    <div class="field-hint">Used when source is <code>file</code>.</div>
   </div>
 
   {# ------------------------------------------------------------------ #}
@@ -365,6 +394,14 @@
                   placeholder="One keyword per line">{{ cfg.filters.exclude_keywords | join('\n') }}</textarea>
       </div>
     </div>
+    <div class="field-row">
+      <label class="field-label" for="cfg-addl-calendars">Additional calendars</label>
+      <div class="field-input-wrap">
+        <textarea id="cfg-addl-calendars" data-field="google.additional_calendars" rows="2"
+                  placeholder="One Google calendar ID per line">{{ cfg.google.additional_calendars | join('\n') }}</textarea>
+      </div>
+    </div>
+    <div class="field-hint">Google Calendar API only. Additional ICS feed URLs are private and are edited in <code>config.yaml</code>.</div>
   </div>
 
   {# ------------------------------------------------------------------ #}
@@ -388,6 +425,7 @@
       ("cfg-aqfi", "cache.air_quality_fetch_interval", "Air quality fetch interval (min)", cfg.cache.air_quality_fetch_interval),
       ("cfg-mxf",  "cache.max_failures",               "Max failures (breaker)",           cfg.cache.max_failures),
       ("cfg-cool", "cache.cooldown_minutes",            "Cooldown minutes (breaker)",       cfg.cache.cooldown_minutes),
+      ("cfg-quota", "google.daily_quota_warning",       "Daily request warning (per source)", cfg.google.daily_quota_warning),
     ] %}
     {% for id, field, label, val in cache_rows %}
       <div class="field-row">
@@ -521,7 +559,7 @@
 
     <div class="cred-row">
       <span class="cred-label">Google service account</span>
-      {% if cfg.google._service_account_set %}
+      {% if cfg.google._service_account_path_set %}
         <span class="cred-set">✓ file found</span>
       {% else %}
         <span class="cred-unset">✗ not found</span>

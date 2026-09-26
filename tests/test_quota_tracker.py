@@ -78,3 +78,23 @@ class TestQuotaTracker:
         qt = QuotaTracker(state_dir=tmp_state_dir)
         with patch("src._io.json.dump", side_effect=OSError("disk full")):
             qt.record_call("events")  # triggers _save(), should not raise
+
+
+class TestQuotaDayFollowsConfiguredZone:
+    """The daily reset follows the configured timezone, not the host (#296)."""
+
+    def test_day_is_taken_in_the_configured_zone(self, tmp_state_dir):
+        from datetime import datetime, timezone
+        from unittest.mock import patch
+        from zoneinfo import ZoneInfo
+
+        # 03:00 UTC on the 2nd is still the evening of the 1st in Los Angeles.
+        instant = datetime(2026, 9, 2, 3, 0, tzinfo=timezone.utc)
+        with patch(
+            "src.fetchers.quota_tracker.now_local",
+            side_effect=lambda tz: instant.astimezone(tz or timezone.utc),
+        ):
+            la = QuotaTracker(state_dir=tmp_state_dir, tz=ZoneInfo("America/Los_Angeles"))
+            utc = QuotaTracker(state_dir=tmp_state_dir, tz=timezone.utc)
+        assert la._today == "2026-09-01"
+        assert utc._today == "2026-09-02"

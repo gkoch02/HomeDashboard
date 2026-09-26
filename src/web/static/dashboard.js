@@ -142,6 +142,7 @@ function renderBackupList(backups = []) {
 // (#262). Flatten the baseline to the same dotted keys first.
 const CONFIG_SECTIONS = [
   "display", "schedule", "weather", "birthdays", "filters", "cache", "random_theme",
+  "google", "quotes", "photo",
 ];
 
 function flattenConfigBaseline(cfg) {
@@ -598,10 +599,16 @@ function collectConfigPatch() {
   if ($("cfg-show-weather"))    patch["display.show_weather"]           = b("cfg-show-weather");
   if ($("cfg-show-birthdays"))  patch["display.show_birthdays"]         = b("cfg-show-birthdays");
   if ($("cfg-show-info"))       patch["display.show_info_panel"]        = b("cfg-show-info");
-  if ($("cfg-week-days"))       patch["display.week_days"]              = n("cfg-week-days");
   if ($("cfg-partial-refresh")) patch["display.enable_partial_refresh"] = b("cfg-partial-refresh");
   if ($("cfg-max-partials"))    patch["display.max_partials_before_full"] = n("cfg-max-partials");
   if ($("cfg-scaling"))         patch["display.scaling"]                = v("cfg-scaling");
+  if ($("cfg-quantization"))    patch["display.quantization_mode"]      = v("cfg-quantization");
+  // Empty means "the panel's default", which the file spells as no value.
+  if ($("cfg-min-refresh")) {
+    const raw = v("cfg-min-refresh").trim();
+    patch["display.min_refresh_interval_seconds"] = raw === "" ? null : Number(raw);
+  }
+  if ($("cfg-photo-path"))      patch["photo.path"]                     = v("cfg-photo-path");
 
   // Schedule
   if ($("cfg-qh-start")) patch["schedule.quiet_hours_start"] = n("cfg-qh-start");
@@ -617,11 +624,15 @@ function collectConfigPatch() {
   if ($("cfg-bday-source"))    patch["birthdays.source"]           = v("cfg-bday-source");
   if ($("cfg-bday-lookahead")) patch["birthdays.lookahead_days"]   = n("cfg-bday-lookahead");
   if ($("cfg-bday-keyword"))   patch["birthdays.calendar_keyword"] = v("cfg-bday-keyword");
+  if ($("cfg-bday-file"))      patch["birthdays.file_path"]        = v("cfg-bday-file");
 
   // Filters
   patch["filters.exclude_calendars"] = textarea_to_list("cfg-excl-calendars");
   patch["filters.exclude_keywords"]  = textarea_to_list("cfg-excl-keywords");
   if ($("cfg-excl-allday")) patch["filters.exclude_all_day"] = b("cfg-excl-allday");
+  if ($("cfg-addl-calendars")) {
+    patch["google.additional_calendars"] = textarea_to_list("cfg-addl-calendars");
+  }
 
   // Cache
   const cache_fields = [
@@ -636,6 +647,10 @@ function collectConfigPatch() {
     ["cfg-mxf",  "cache.max_failures",               n],
     ["cfg-cool", "cache.cooldown_minutes",            n],
     ["cfg-qr",   "cache.quote_refresh",              v],
+    ["cfg-quota", "google.daily_quota_warning",      n],
+    // Rendered by the template but never collected until #308's audit, so an
+    // edit to the quotes path silently did nothing.
+    ["cfg-quotes-path", "quotes.path",               v],
   ];
   for (const [id, key, coerce] of cache_fields) {
     if ($(id) !== null) { const val = coerce(id); if (val !== null) patch[key] = val; }
@@ -677,10 +692,13 @@ function populateConfigForm(data) {
   set_chk("cfg-show-weather",    d.show_weather);
   set_chk("cfg-show-birthdays",  d.show_birthdays);
   set_chk("cfg-show-info",       d.show_info_panel);
-  set_val("cfg-week-days",       d.week_days);
   set_chk("cfg-partial-refresh", d.enable_partial_refresh);
   set_val("cfg-max-partials",    d.max_partials_before_full);
   set_val("cfg-scaling",         d.scaling);
+  set_val("cfg-quantization",    d.quantization_mode);
+  { const el = $("cfg-min-refresh");
+    if (el) el.value = d.min_refresh_interval_seconds ?? ""; }
+  set_val("cfg-photo-path",      (data.photo || {}).path);
 
   const s = data.schedule || {};
   set_val("cfg-qh-start", s.quiet_hours_start);
@@ -690,16 +708,22 @@ function populateConfigForm(data) {
   set_val("cfg-lat",   w.latitude);
   set_val("cfg-lon",   w.longitude);
   set_val("cfg-units", w.units);
+  // Rendered server-side like the rest, but collected on save: without this a
+  // Discard or Restore left the abandoned value in the form while the dirty
+  // badge cleared, and the next Save wrote it (#309).
+  set_val("cfg-onecall", w.one_call_version);
 
   const bday = data.birthdays || {};
   set_val("cfg-bday-source",    bday.source);
   set_val("cfg-bday-lookahead", bday.lookahead_days);
   set_val("cfg-bday-keyword",   bday.calendar_keyword);
+  set_val("cfg-bday-file",      bday.file_path);
 
   const flt = data.filters || {};
   set_chk("cfg-excl-allday",    flt.exclude_all_day);
   set_ta("cfg-excl-calendars",  flt.exclude_calendars);
   set_ta("cfg-excl-keywords",   flt.exclude_keywords);
+  set_ta("cfg-addl-calendars",  (data.google || {}).additional_calendars);
 
   const c = data.cache || {};
   set_val("cfg-wtl",  c.weather_ttl_minutes);
@@ -713,6 +737,8 @@ function populateConfigForm(data) {
   set_val("cfg-mxf",  c.max_failures);
   set_val("cfg-cool", c.cooldown_minutes);
   set_val("cfg-qr",   c.quote_refresh);
+  set_val("cfg-quota", (data.google || {}).daily_quota_warning);
+  set_val("cfg-quotes-path", (data.quotes || {}).path);
 
   const rt = data.random_theme || {};
   set_ta("cfg-rt-include", rt.include);
@@ -839,12 +865,17 @@ async function saveConfig(btn, opts = {}) {
     });
     const data = await resp.json();
 
-    if (result_el) {
+    if (result_el && !resp.ok && !Array.isArray(data.errors)) {
+      // Not a validation result: an expired session (the CSRF 403 carries its
+      // own "reload the page" message) or a server error.
+      result_el.innerHTML =
+        `<div class="cfg-errors">✗ ${esc_html(data.error || data.message || "Save failed.")}</div>`;
+    } else if (result_el) {
       if (data.saved) {
         setDirty(false);
         const warn_html = data.warnings.length
           ? `<div class="cfg-warnings">${data.warnings.map(w =>
-              `<div>⚠ [${w.field}] ${w.message}${w.hint ? ` — ${w.hint}` : ""}</div>`
+              `<div>⚠ [${esc_html(w.field)}] ${esc_html(w.message)}${w.hint ? ` — ${esc_html(w.hint)}` : ""}</div>`
             ).join("")}</div>` : "";
         result_el.innerHTML =
           `<div class="cfg-ok">✓ Saved${warn_html ? " (with warnings)" : ""}</div>${warn_html}`;
@@ -859,7 +890,7 @@ async function saveConfig(btn, opts = {}) {
           const refreshData = await refreshResp.json();
           result_el.innerHTML += refreshData.ok
             ? '<div class="cfg-ok" style="margin-top:.35rem;">↻ Refresh requested.</div>'
-            : `<div class="cfg-warnings" style="margin-top:.35rem;">Refresh could not be requested: ${refreshData.error || 'unknown error'}</div>`;
+            : `<div class="cfg-warnings" style="margin-top:.35rem;">Refresh could not be requested: ${esc_html(refreshData.error || 'unknown error')}</div>`;
         }
       } else {
         // Highlight individual fields that have errors
@@ -873,11 +904,13 @@ async function saveConfig(btn, opts = {}) {
             el.closest(".field-input-wrap")?.appendChild(msg);
           }
         });
+        // Validation messages echo user input (an unknown theme name, a
+        // non-numeric threshold), so every field is escaped (#309).
         const err_html = data.errors.map(e =>
-          `<div>✗ [${e.field}] ${e.message}${e.hint ? ` — ${e.hint}` : ""}</div>`
+          `<div>✗ [${esc_html(e.field)}] ${esc_html(e.message)}${e.hint ? ` — ${esc_html(e.hint)}` : ""}</div>`
         ).join("");
-        const warn_html = data.warnings.map(w =>
-          `<div>⚠ [${w.field}] ${w.message}</div>`
+        const warn_html = (data.warnings || []).map(w =>
+          `<div>⚠ [${esc_html(w.field)}] ${esc_html(w.message)}</div>`
         ).join("");
         result_el.innerHTML = `<div class="cfg-errors">${err_html}</div>${warn_html
           ? `<div class="cfg-warnings">${warn_html}</div>` : ""}`;
