@@ -19,7 +19,7 @@ from __future__ import annotations
 from datetime import date, datetime, tzinfo
 
 from src.render.quantize import INKY_SPECTRA6_PALETTE
-from src.render.theme import INKY_RED
+from src.render.theme import INKY_RED, INKY_YELLOW
 
 
 def grey(v: int, mode: str) -> int | tuple[int, int, int]:
@@ -41,6 +41,19 @@ def accent_red(mode: str) -> int | tuple[int, int, int]:
     """
     if mode == "RGB":
         return INKY_SPECTRA6_PALETTE[INKY_RED]
+    return 0
+
+
+def accent_yellow_solid(mode: str) -> int | tuple[int, int, int]:
+    """Yellow accent on the RGB canvas, solid black on L mode.
+
+    The counterpart of :func:`accent_red` for marks and type. Not
+    ``skyart.accent_yellow``, which falls back to a light grey for
+    illustration highlights — on a hardened L-mode typeset region that grey
+    snaps to paper and the mark disappears.
+    """
+    if mode == "RGB":
+        return INKY_SPECTRA6_PALETTE[INKY_YELLOW]
     return 0
 
 

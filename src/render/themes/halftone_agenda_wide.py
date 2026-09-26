@@ -13,8 +13,9 @@ The style is ``halftone_agenda``'s own — L-mode canvas, Floyd-Steinberg for th
 engraving, Righteous for display type, DM Sans one weight up for the rows, and
 the yellow-and-red Inky pair — so a household running both sees one theme on
 two panels. On the four-ink 10.85" panel the same two accents are the ones it
-has: yellow rings the sun, red marks the running event, the alert bar and a
-birthday today.
+has: yellow rings the sun, marks each timed event and sets the "updated"
+stamp; red marks all-day events, the dateline, the alert bar and a birthday
+today.
 
 Two days past today are fetched for it (``EXTRA_EVENT_DAYS``): the agenda
 rolls to tomorrow after dark, and the rail then shows the day after that.
