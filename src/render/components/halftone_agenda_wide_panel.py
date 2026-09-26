@@ -837,7 +837,7 @@ def _draw_air_cell(
     ab = draw.textbbox((0, 0), aqi, font=aqi_font)
     fill = _accent_red(image.mode) if air.aqi >= 101 else ink
     draw.text((x - ab[0], y - ab[1]), aqi, font=aqi_font, fill=fill)
-    tx = x + (ab[2] - ab[0]) + 10
+    tx = x + round(ab[2] - ab[0]) + 10
     _draw_foot_pair(
         draw,
         style,
@@ -845,7 +845,7 @@ def _draw_air_cell(
         f"PM2.5 {air.pm25:.1f}",
         tx,
         y,
-        ab[3] - ab[1],
+        round(ab[3] - ab[1]),
         w - (tx - x),
         ink,
     )
@@ -869,7 +869,7 @@ def _draw_moon_cell(
     glyph = moon_phase_glyph(today)
     gb = draw.textbbox((0, 0), glyph, font=glyph_font)
     draw.text((x - gb[0], y - gb[1]), glyph, font=glyph_font, fill=ink)
-    tx = x + (gb[2] - gb[0]) + 10
+    tx = x + round(gb[2] - gb[0]) + 10
     _draw_foot_pair(
         draw,
         style,
@@ -877,7 +877,7 @@ def _draw_moon_cell(
         f"{moon_illumination(today):.0f}% lit",
         tx,
         y,
-        gb[3] - gb[1],
+        round(gb[3] - gb[1]),
         w - (tx - x),
         ink,
     )
