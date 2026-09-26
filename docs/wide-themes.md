@@ -23,19 +23,24 @@ the four-ink renders the 10.85" panel actually shows.
 
 ## At a glance
 
-| Theme | Shows | Time span | Moves on the clock | Extra calendar days |
+| Theme | Shows | Time span | Moves on the clock during the day | Extra calendar days |
 |---|---|---|---|---|
 | [`wide_horizon`](#wide_horizon) | Sky, weather, temperature, rain and events on one time axis | Next 72 hours | At most 8 times a day (each new 3-hour forecast slot) | 3 |
 | [`wide_day`](#wide_day) | Today as an hour-by-hour timeline, with an up-next rail | Today | Every tick (NOW marker, event states) | 1 |
-| [`halftone_agenda_wide`](#halftone_agenda_wide) | Weather engraving, today's agenda, and a rail for tomorrow, forecast, birthdays, air and moon | Today and tomorrow | Once a day (the after-dark rollover) | 2 |
-| [`wide_forecast`](#wide_forecast) | Current conditions and a five-day forecast | Five days | Never | 0 |
-| [`wide_week`](#wide_week) | The standard dashboard (header, week grid, weather, birthdays, quote) reflowed for the strip | This week | Never | 0 |
+| [`halftone_agenda_wide`](#halftone_agenda_wide) | Weather engraving, today's agenda, and a rail for tomorrow, forecast, birthdays, air and moon | Today and tomorrow | Once (the after-dark rollover) | 2 |
+| [`wide_forecast`](#wide_forecast) | Current conditions and a five-day forecast | Five days | No | 0 |
+| [`wide_week`](#wide_week) | The standard dashboard (header, week grid, weather, birthdays, quote) reflowed for the strip | This week | No | 0 |
 
-**Moves on the clock** counts the repaints the clock alone causes. Every theme
-also repaints when its data changes, such as a new weather reading or a calendar
-edit. "Never" means an idle tick with no new data renders the same image and costs
-no panel write. **Extra calendar days** is how far past the standard Monday-to-Sunday
-week the theme fetches events, so that on a Sunday it still has Monday onward.
+**Moves on the clock during the day** counts the repaints the clock alone causes
+between midnights. Every theme also repaints when its data changes, such as a new
+weather reading or a calendar edit. "No" means an idle tick with no new data renders
+the same image and costs no panel write. Every theme also changes once when the date
+does (today's column, the TODAY label, the moon). With the default quiet hours
+(23:00–06:00) the dashboard isn't running at midnight, so that change arrives with
+the first run of the morning.
+
+**Extra calendar days** is how far past the standard Monday-to-Sunday week the
+theme fetches events, so that on a Sunday it still has Monday onward.
 
 ## Setting up the panel
 
@@ -149,14 +154,18 @@ A full refresh on the 10.85" panel takes about twenty seconds and flashes the
 whole panel through its inks. There is no partial refresh to soften that, so how
 often a theme changes matters more here than on any other supported panel.
 
-The dashboard writes to the panel only when the rendered image differs from the
-last one written. For the colour panels it also waits at least
+Normally the dashboard writes to the panel only when the rendered image differs
+from the last one written. For the colour panels it also waits at least
 `display.min_refresh_interval_seconds` between writes; the default is 60 seconds,
-and a change arriving sooner is deferred, not dropped. In practice:
+and a change arriving sooner is deferred, not dropped. Two kinds of run skip both
+checks and always write: the first run after quiet hours end, which forces a full
+refresh once each morning, and any run with `--force-full-refresh`. So even a theme
+whose content hasn't changed repaints once a day. Beyond that:
 
-- `wide_forecast` and `wide_week` change only when their data does.
-- `halftone_agenda_wide` adds one clock-driven change a day, when the agenda
-  rolls over to tomorrow after dark.
+- `wide_forecast` and `wide_week` change when their data does, and when the date
+  changes.
+- `halftone_agenda_wide` adds one clock-driven change during the day, when the
+  agenda rolls over to tomorrow after dark, as well as the date change.
 - `wide_horizon` adds at most eight, when a new three-hour forecast slot begins.
   Its hero shows the current temperature, so a weather fetch that changes the
   reading also repaints it; that happens every 30 minutes by default
