@@ -220,7 +220,7 @@ src/
     │   ├── image.py           # GET /image/latest, GET /image/theme/<name>
     │   ├── logs.py            # GET /api/logs?lines=N
     │   ├── config.py          # GET/POST /api/config, GET /config (HTML editor),
-    │   │                      #   GET /api/config/schema (v5: schema-driven form metadata)
+    │   │                      #   GET /api/config/schema (v5: schema + current values, for API clients)
     │   ├── preview.py         # POST /api/preview — render any registered theme to PNG
     │   │                      #   against dummy data or a candidate config patch; CSRF-protected
     │   └── actions.py         # POST /api/trigger-refresh, /api/reset-breaker, /api/clear-cache

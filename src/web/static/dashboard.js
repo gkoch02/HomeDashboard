@@ -142,6 +142,7 @@ function renderBackupList(backups = []) {
 // (#262). Flatten the baseline to the same dotted keys first.
 const CONFIG_SECTIONS = [
   "display", "schedule", "weather", "birthdays", "filters", "cache", "random_theme",
+  "google", "quotes", "photo",
 ];
 
 function flattenConfigBaseline(cfg) {
@@ -601,6 +602,13 @@ function collectConfigPatch() {
   if ($("cfg-partial-refresh")) patch["display.enable_partial_refresh"] = b("cfg-partial-refresh");
   if ($("cfg-max-partials"))    patch["display.max_partials_before_full"] = n("cfg-max-partials");
   if ($("cfg-scaling"))         patch["display.scaling"]                = v("cfg-scaling");
+  if ($("cfg-quantization"))    patch["display.quantization_mode"]      = v("cfg-quantization");
+  // Empty means "the panel's default", which the file spells as no value.
+  if ($("cfg-min-refresh")) {
+    const raw = v("cfg-min-refresh").trim();
+    patch["display.min_refresh_interval_seconds"] = raw === "" ? null : Number(raw);
+  }
+  if ($("cfg-photo-path"))      patch["photo.path"]                     = v("cfg-photo-path");
 
   // Schedule
   if ($("cfg-qh-start")) patch["schedule.quiet_hours_start"] = n("cfg-qh-start");
@@ -616,11 +624,15 @@ function collectConfigPatch() {
   if ($("cfg-bday-source"))    patch["birthdays.source"]           = v("cfg-bday-source");
   if ($("cfg-bday-lookahead")) patch["birthdays.lookahead_days"]   = n("cfg-bday-lookahead");
   if ($("cfg-bday-keyword"))   patch["birthdays.calendar_keyword"] = v("cfg-bday-keyword");
+  if ($("cfg-bday-file"))      patch["birthdays.file_path"]        = v("cfg-bday-file");
 
   // Filters
   patch["filters.exclude_calendars"] = textarea_to_list("cfg-excl-calendars");
   patch["filters.exclude_keywords"]  = textarea_to_list("cfg-excl-keywords");
   if ($("cfg-excl-allday")) patch["filters.exclude_all_day"] = b("cfg-excl-allday");
+  if ($("cfg-addl-calendars")) {
+    patch["google.additional_calendars"] = textarea_to_list("cfg-addl-calendars");
+  }
 
   // Cache
   const cache_fields = [
@@ -635,6 +647,10 @@ function collectConfigPatch() {
     ["cfg-mxf",  "cache.max_failures",               n],
     ["cfg-cool", "cache.cooldown_minutes",            n],
     ["cfg-qr",   "cache.quote_refresh",              v],
+    ["cfg-quota", "google.daily_quota_warning",      n],
+    // Rendered by the template but never collected until #308's audit, so an
+    // edit to the quotes path silently did nothing.
+    ["cfg-quotes-path", "quotes.path",               v],
   ];
   for (const [id, key, coerce] of cache_fields) {
     if ($(id) !== null) { const val = coerce(id); if (val !== null) patch[key] = val; }
@@ -679,6 +695,10 @@ function populateConfigForm(data) {
   set_chk("cfg-partial-refresh", d.enable_partial_refresh);
   set_val("cfg-max-partials",    d.max_partials_before_full);
   set_val("cfg-scaling",         d.scaling);
+  set_val("cfg-quantization",    d.quantization_mode);
+  { const el = $("cfg-min-refresh");
+    if (el) el.value = d.min_refresh_interval_seconds ?? ""; }
+  set_val("cfg-photo-path",      (data.photo || {}).path);
 
   const s = data.schedule || {};
   set_val("cfg-qh-start", s.quiet_hours_start);
@@ -697,11 +717,13 @@ function populateConfigForm(data) {
   set_val("cfg-bday-source",    bday.source);
   set_val("cfg-bday-lookahead", bday.lookahead_days);
   set_val("cfg-bday-keyword",   bday.calendar_keyword);
+  set_val("cfg-bday-file",      bday.file_path);
 
   const flt = data.filters || {};
   set_chk("cfg-excl-allday",    flt.exclude_all_day);
   set_ta("cfg-excl-calendars",  flt.exclude_calendars);
   set_ta("cfg-excl-keywords",   flt.exclude_keywords);
+  set_ta("cfg-addl-calendars",  (data.google || {}).additional_calendars);
 
   const c = data.cache || {};
   set_val("cfg-wtl",  c.weather_ttl_minutes);
@@ -715,6 +737,8 @@ function populateConfigForm(data) {
   set_val("cfg-mxf",  c.max_failures);
   set_val("cfg-cool", c.cooldown_minutes);
   set_val("cfg-qr",   c.quote_refresh);
+  set_val("cfg-quota", (data.google || {}).daily_quota_warning);
+  set_val("cfg-quotes-path", (data.quotes || {}).path);
 
   const rt = data.random_theme || {};
   set_ta("cfg-rt-include", rt.include);

@@ -18,6 +18,7 @@ underlying values still flows through ``src.config.validate_config``.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from typing import Any
 
@@ -51,6 +52,31 @@ class SectionSpec:
 # the fetcher so config validation and the web editor cannot drift apart from
 # each other or from the dispatcher.
 ONE_CALL_VERSIONS = ("3.0", "4.0", "off")
+
+# Canvas → 1-bit conversion modes accepted by ``display.quantization_mode``.
+QUANTIZATION_MODES = ("threshold", "floyd_steinberg", "ordered")
+
+
+def _log_level_names() -> tuple[str, ...]:
+    """Every level name ``logging`` resolves, lowest level first.
+
+    Derived rather than listed: ``resolve_log_level`` accepts whatever
+    ``logging`` knows (``CRITICAL`` and the ``FATAL``/``WARN`` aliases too),
+    and a hand-written ``DEBUG/INFO/WARNING/ERROR`` dropdown could not show a
+    config using the others (#307).
+    """
+    mapping = getattr(logging, "getLevelNamesMapping", None)  # 3.11+
+    names = mapping() if mapping is not None else dict(logging._nameToLevel)
+    return tuple(
+        sorted(
+            (n for n in names if n != "NOTSET"),
+            # Canonical name first within a level, its alias after it.
+            key=lambda n: (names[n], logging.getLevelName(names[n]) != n, n),
+        )
+    )
+
+
+LOG_LEVELS = _log_level_names()
 
 # Rotation pseudo-themes accepted by ``theme``.  ``AVAILABLE_THEMES`` already
 # carries them today, but it is derived from the registry and these three are
@@ -129,7 +155,7 @@ def schema() -> tuple[SectionSpec, ...]:
                     ("logging", "level"),
                     "enum",
                     "Log level",
-                    choices=("DEBUG", "INFO", "WARNING", "ERROR"),
+                    choices=LOG_LEVELS,
                 ),
             ),
         ),
@@ -137,6 +163,17 @@ def schema() -> tuple[SectionSpec, ...]:
             name="display",
             title="Display",
             fields=(
+                # Hardware: set by `make configure` or config.yaml, shown read-only
+                # in the web UI rather than risk a save that blanks the panel.
+                _f(
+                    "display.provider",
+                    ("display", "provider"),
+                    "enum",
+                    "Display provider",
+                    choices=("waveshare", "inky"),
+                    editable=False,
+                ),
+                _f("display.model", ("display", "model"), "str", "Display model", editable=False),
                 _f(
                     "display.show_weather",
                     ("display", "show_weather"),
@@ -166,6 +203,17 @@ def schema() -> tuple[SectionSpec, ...]:
                     ("display", "max_partials_before_full"),
                     "int",
                     "Partials before forced full refresh",
+                ),
+                _f(
+                    "display.quantization_mode",
+                    ("display", "quantization_mode"),
+                    "enum",
+                    "Quantization (Waveshare)",
+                    description=(
+                        "How greyscale becomes 1-bit ink for themes that do not choose "
+                        "their own: 'threshold' is a hard cut, the other two dither."
+                    ),
+                    choices=QUANTIZATION_MODES,
                 ),
                 _f(
                     "display.scaling",
@@ -272,6 +320,12 @@ def schema() -> tuple[SectionSpec, ...]:
                 ),
                 _f("google.calendar_id", ("google", "calendar_id"), "str", "Calendar ID"),
                 _f(
+                    "google.additional_calendars",
+                    ("google", "additional_calendars"),
+                    "list[str]",
+                    "Additional calendar IDs",
+                ),
+                _f(
                     "google.contacts_email",
                     ("google", "contacts_email"),
                     "str",
@@ -282,6 +336,13 @@ def schema() -> tuple[SectionSpec, ...]:
                     ("google", "ical_url"),
                     "str",
                     "ICS feed URL (alternative to Google API)",
+                    secret=True,
+                ),
+                _f(
+                    "google.additional_ical_urls",
+                    ("google", "additional_ical_urls"),
+                    "list[str]",
+                    "Additional ICS feed URLs",
                     secret=True,
                 ),
                 _f(
@@ -309,6 +370,16 @@ def schema() -> tuple[SectionSpec, ...]:
                     "str",
                     "Specific CalDAV calendar URL (default: first)",
                 ),
+                _f(
+                    "google.daily_quota_warning",
+                    ("google", "daily_quota_warning"),
+                    "int",
+                    "Daily request warning threshold",
+                    description=(
+                        "Log a warning once any one source's HTTP requests for the day "
+                        "pass this number (every source, not only Google)."
+                    ),
+                ),
             ),
         ),
         SectionSpec(
@@ -321,6 +392,12 @@ def schema() -> tuple[SectionSpec, ...]:
                     "enum",
                     "Source",
                     choices=("file", "calendar", "contacts"),
+                ),
+                _f(
+                    "birthdays.file_path",
+                    ("birthdays", "file_path"),
+                    "str",
+                    "Birthdays file (for source=file)",
                 ),
                 _f(
                     "birthdays.lookahead_days",
@@ -441,6 +518,19 @@ def schema() -> tuple[SectionSpec, ...]:
                         "the bundled config/quotes.json. Point it outside the repository to "
                         "survive `make deploy`."
                     ),
+                ),
+            ),
+        ),
+        SectionSpec(
+            name="photo",
+            title="Photo theme",
+            fields=(
+                _f(
+                    "photo.path",
+                    ("photo", "path"),
+                    "str",
+                    "Photo path",
+                    description="JPEG or PNG shown by the photo theme.",
                 ),
             ),
         ),

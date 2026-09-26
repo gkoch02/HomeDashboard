@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import logging
 
+import yaml  # type: ignore[import-untyped]
 from flask import Blueprint, current_app, jsonify, render_template, request
 
 from src.config import load_config
@@ -65,11 +66,15 @@ def config_page():
     concrete_themes = sorted(t for t in AVAILABLE_THEMES if t not in _RANDOM_THEMES)
     all_theme_options = sorted(AVAILABLE_THEMES)
 
+    from src.config_schema import LOG_LEVELS, QUANTIZATION_MODES
+
     return render_template(
         "config.html",
         cfg=cfg_data,
         concrete_themes=concrete_themes,
         all_theme_options=all_theme_options,
+        log_levels=LOG_LEVELS,
+        quantization_modes=QUANTIZATION_MODES,
     )
 
 
@@ -87,13 +92,13 @@ def get_config_backups():
 
 @config_bp.route("/api/config/schema")
 def get_config_schema():
-    """Return the v5 config schema, optionally with current values inlined.
+    """Return the v5 config schema with current values inlined.
 
-    The schema drives the web editor's form generation: every editable
-    field, its label, type, choices, and whether it's secret. Secret
-    fields are returned with a ``has_value`` boolean instead of a
-    plaintext value. Replaces the hand-rolled per-field rendering that
-    v4's config.html used to do.
+    Every field, its label, type, choices, and whether it is secret or
+    editable; secret fields carry a ``has_value`` boolean instead of a
+    value. This is a machine-readable view for API clients and tooling —
+    the config page's form is still hand-written in ``config.html``, and
+    ``tests/test_web_config_schema_coverage.py`` holds the two together.
     """
     config_path = current_app.config["APP_CONFIG_PATH"]
     cfg_data = get_config_for_web(config_path)
@@ -104,29 +109,39 @@ def get_config_schema():
 def _flatten_for_schema(cfg_for_web: dict) -> dict:
     """Flatten the nested ``get_config_for_web`` output to dotted-path keys.
 
-    Secret fields surface as ``_*_set`` flags in the source dict; the
-    schema view consumes them via ``has_value`` instead, so we copy them
-    into their dotted path (truthy when ``True``) and ignore plaintext.
-    Some non-secret legacy/template values are prefixed with ``_`` (for
-    example ``google._calendar_id``); those are preserved under their
-    public schema path.
+    A secret surfaces as ``_<name>_set``; that flag becomes the secret's
+    ``has_value`` only when ``<section>.<name>`` really is a secret schema
+    path. The suffix alone is not enough: ``purpleair._sensor_id_set`` is a
+    display flag for a plain int field, and reading it as the value reported
+    the sensor ID as ``True`` (#308). Other ``_``-prefixed keys are read-only
+    values (``display._model``, ``google._calendar_id``) and keep their
+    public path.
     """
+    from src.config_schema import secret_field_paths
+
+    secrets = secret_field_paths()
     out: dict[str, object] = {}
     for top_key, value in cfg_for_web.items():
-        if isinstance(value, dict):
-            for inner_key, inner_value in value.items():
-                if inner_key.startswith("_"):
-                    # _api_key_set → drives `has_value` for that secret.
-                    if inner_key.endswith("_set"):
-                        secret_name = inner_key[1:-4]  # strip leading "_" and trailing "_set"
-                        out[f"{top_key}.{secret_name}"] = inner_value
-                    else:
-                        public_name = inner_key[1:]
-                        out[f"{top_key}.{public_name}"] = inner_value
-                    continue
-                out[f"{top_key}.{inner_key}"] = inner_value
-        else:
+        if top_key == "theme_rules_yaml":
+            try:
+                out["theme_rules"] = yaml.safe_load(value or "") or []
+            except yaml.YAMLError:
+                out["theme_rules"] = []
+            continue
+        if not isinstance(value, dict):
             out[top_key] = value
+            continue
+        for inner_key, inner_value in value.items():
+            if not inner_key.startswith("_"):
+                out[f"{top_key}.{inner_key}"] = inner_value
+                continue
+            name = inner_key[1:]
+            if name.endswith("_set"):
+                path = f"{top_key}.{name[:-4]}"
+                if path in secrets:
+                    out[path] = inner_value
+                continue
+            out[f"{top_key}.{name}"] = inner_value
     return out
 
 

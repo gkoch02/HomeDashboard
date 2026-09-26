@@ -155,6 +155,12 @@ _SAMPLE_VALUES: dict[str, object] = {
     "google.caldav_username": "tester",
     "google.caldav_calendar_url": "https://caldav.example.com/dav/calendars/tester/events/",
     "purpleair.sensor_id": 99999,
+    # #307 additions.
+    "display.quantization_mode": "ordered",
+    "photo.path": "/srv/dashboard/photo.jpg",
+    "birthdays.file_path": "/srv/dashboard/birthdays.json",
+    "google.additional_calendars": ["ZZZ-extra@group.calendar.google.com"],
+    "google.daily_quota_warning": 123,
 }
 
 
@@ -288,7 +294,9 @@ def test_get_config_for_web_sensitive_fields_are_booleans(cfg_path):
     # Sensitive fields should be _*_set booleans, never plaintext strings
     assert isinstance(result["weather"]["_api_key_set"], bool)
     assert isinstance(result["purpleair"]["_api_key_set"], bool)
-    assert isinstance(result["google"]["_service_account_set"], bool)
+    assert isinstance(result["google"]["_service_account_path_set"], bool)
+    assert isinstance(result["google"]["_caldav_password_file_set"], bool)
+    assert isinstance(result["google"]["_additional_ical_urls_set"], bool)
 
 
 def test_get_config_for_web_no_raw_api_key(cfg_path):

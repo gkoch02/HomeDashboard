@@ -19,7 +19,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from src.config_schema import ONE_CALL_VERSIONS
+from src.config_schema import ONE_CALL_VERSIONS, QUANTIZATION_MODES
 
 if TYPE_CHECKING:
     # Annotation-only: importing src.config at runtime would deadlock the
@@ -320,7 +320,7 @@ def validate_config(
             )
 
     # --- Display quantization mode ---
-    _VALID_QUANT = ("threshold", "floyd_steinberg", "ordered")
+    _VALID_QUANT = QUANTIZATION_MODES
     if cfg.display.quantization_mode not in _VALID_QUANT:
         errors.append(
             ConfigError(
