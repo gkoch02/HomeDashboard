@@ -73,6 +73,56 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Fixed
 
+- **Idle ticks on a cooldown-throttled panel are no longer "deferred changes."**
+  `OutputService.publish()` checks the image hash before the cooldown, so an
+  unchanged frame inside the cooldown is logged as unchanged and no longer
+  rewrites `latest.png` (#292).
+- **`daypart` rules survive weather served from cache across midnight.**
+  Sunrise and sunset are read as a time of day in the configured zone, so
+  yesterday's cached sun times no longer make the whole day read as `night`
+  (#293).
+- **A rejected API key is not retried every run.** `retry_fetch` treats an
+  HTTP 4xx (other than 408/429) as permanent, reading the response status,
+  never the message (#295).
+- **Contacts birthdays with a text-only entry first are no longer skipped.**
+  Every `birthdays[]` entry is inspected; the first with a month and day
+  wins, preferring one with a year (#298).
+- **A long dashboard title no longer overprints the timestamp**; it is
+  truncated short of it (#310).
+- **`halftone_agenda_wide` books only the part of a multi-day timed event
+  that falls on the agenda day** (#311).
+- **The quota warning counts what it says.** Each source's HTTP requests are
+  tallied on its worker thread (OWM and PurpleAir by a session hook, ICS per
+  feed, Google per page) and recorded even when the fetch fails; the warning
+  is checked for every enabled source, not a hard-coded three; and the day
+  resets on the configured timezone. The status page no longer shows a
+  previous day's counts as today's (#296).
+- **PurpleAir temperature and humidity are ambient readings in your units.**
+  PurpleAir's documented housing offsets (−8 °F, +4 % RH) are applied and the
+  temperature converted to `weather.units`, so a metric install no longer
+  shows a Fahrenheit card beside Celsius weather (#297).
+- **Web config page** — Discard and Restore reset the One Call dropdown;
+  validation messages are HTML-escaped; an expired session (after a restart
+  with the ephemeral key) says to reload instead of "check network"; and
+  `/api/health` answers uptime probes without Basic Auth, returning only the
+  status code and `{healthy}` to an anonymous caller (#309).
+- **`/api/config/schema` reports secrets truthfully.** Flags are named after
+  their schema paths, so a set service account or CalDAV password file no
+  longer reads as unset, and PurpleAir's sensor ID is no longer reported as
+  `True`. A coverage test now holds the schema, the web read model and the
+  hand-written form together — it found the quotes path, rendered on the
+  config page but never saved, and `min_refresh_interval_seconds`, editable
+  through the API but not on the page; both now work (#308).
+- **The renderer waits for a synced clock after boot.** `dashboard.service`
+  is ordered after `time-sync.target` and `make pi-enable` enables
+  `systemd-time-wait-sync`, so an RTC-less Pi no longer judges quiet hours and
+  cache ages against its last shutdown time (#301).
+- **`pip install ".[pi]"` installs the Inky driver**: the extra mirrors
+  `requirements-pi.txt`, with a parity test (#299).
+- **Docs** — README theme count (now checked against the registry), a link to
+  the v4 upgrade guide, the 94 % coverage gate, and the `photo` theme, which
+  has no header bar despite four places saying it did (#300).
+
 - **A failure in post-fetch bookkeeping is no longer a fetch failure.** The
   cache write, breaker and quota saves and the success log ran inside the
   same `try` as the fetch, so an exception there was logged as a fetch error,
@@ -222,6 +272,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- **Config validation** rejects non-positive cache TTLs and the air-quality
+  fetch interval, `max_failures`/`max_partials_before_full` below 1, a negative
+  breaker cooldown, and coordinates off the globe; it warns when an explicit
+  `display.width`/`height` disagrees with the model (#306).
+- **The web editor covers more of the config.** Log level offers every name
+  `logging` accepts (`CRITICAL`, `FATAL`, `WARN` included); quantization mode,
+  the photo path, the birthdays file, additional Google calendars, the daily
+  request warning and the refresh cooldown are editable; provider and model
+  are shown read-only (#307).
+- **`make configure` asks which calendar source you use** — ICS, CalDAV or the
+  Google API — writes that source's settings, switches off a
+  higher-precedence one left from an earlier answer, and points at
+  `docs/setup.md`. It now checks for the venv it runs (#302).
+- **The shipped template carries `schema_version: 5`**, and the in-memory
+  v4→v5 stamp logs at DEBUG, not INFO on every load (#304).
+- **ruff is pinned** to one version in `[dev]` and the pre-commit hook, with a
+  test that they agree (#303).
+
 - **`halftone_agenda` sets whole-hour time ranges on one line.** A row whose
   event starts and ends on the hour now reads `10a–12p` beside its title
   instead of `10a –` over `12p`. Only a pair that needs minutes on either end
@@ -257,6 +325,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   convention (`###` for groups, `#### <theme>` for entries).
 
 ### Removed
+
+- **`display.week_days`.** It was parsed and web-editable but nothing read it;
+  every week layout is a fixed seven-column grid. A config that still sets it
+  loads without complaint (#305).
+- **`astronomy.dark_sky_window()`**, which had no callers and returned an
+  inverted window (#294).
+- **`docs/improvement-plan.md`**, a dated snapshot linked from nowhere (#300).
 
 - **Combined split previews.** `scripts/build_split_previews.py`, the
   `make previews-split` target, and the 37 `assets/previews/theme_*_split.png`
