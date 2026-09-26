@@ -18,7 +18,7 @@ import logging
 import os
 import sys
 
-from flask import Response, request
+from flask import Response, g, request
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +50,13 @@ def check_password(password: str, stored_hash: str) -> bool:
         return False
 
 
+# Paths an uptime monitor must reach without credentials: a probe that cannot
+# send Basic Auth got a 401 indistinguishable from "down" (#309). An
+# unauthenticated caller gets the status code and a bare healthy flag — the
+# route reads ``g.web_authenticated`` — never timestamps or exception types.
+PUBLIC_PATHS = frozenset({"/api/health"})
+
+
 def make_auth_middleware(username: str | None, password_hash: str | None):
     """Return a before_request function that enforces Basic Auth.
 
@@ -63,14 +70,18 @@ def make_auth_middleware(username: str | None, password_hash: str | None):
         )
 
         def _no_auth():
-            pass
+            pass  # open access: routes treat an unset g.web_authenticated as True
 
         return _no_auth
 
     def _check_auth():
         auth = request.authorization
         if auth and auth.username == username and check_password(auth.password, password_hash):
-            return None  # authenticated
+            g.web_authenticated = True
+            return None
+        if request.path in PUBLIC_PATHS:
+            g.web_authenticated = False
+            return None
         return Response(
             "Dashboard authentication required.",
             401,

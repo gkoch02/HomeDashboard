@@ -79,7 +79,7 @@ example `python -c "import secrets; print(secrets.token_hex(32))"`. The
 template's `replace-me-with-a-random-secret` placeholder, and any key shorter
 than 16 characters, is treated as **no key**: the server logs a warning and
 signs sessions with a random per-process key instead, so logins and CSRF
-tokens are invalidated on every restart until a real key is set. A key that
+tokens are invalidated on every restart until a real key is set. (An open tab that tries to save after such a restart is told its session expired and to reload the page.) A key that
 is published in this repository would let anyone forge a session cookie.
 
 ### Step 4 — Install and start the systemd service
@@ -222,7 +222,7 @@ Putting a control on the page is a separate step, though: `config.html` is a han
 | `/api/config/backups` | GET | Recent config backup files (newest first) |
 | `/api/config/restore-latest` | POST | Restore the most recent backup (CSRF-protected) |
 | `/api/preview` | POST | Render any registered theme to PNG against dummy data. Body: `{"theme": "<name>"}` plus an optional `"patch"` dict (same flat shape as `POST /api/config`) to render against a candidate config without persisting anything — the config page's **Live preview** button uses this to show unsaved edits. Pseudo names (`random`, `random_daily`, `random_hourly`), unknown themes, and patches that fail validation return 400; render exceptions return 500. CSRF-protected. |
-| `/api/health` | GET | Uptime-monitor probe: HTTP 200 when the last renderer run succeeded (a success marker exists and no error is newer), 503 otherwise. Optional `?max_age=<seconds>` additionally requires the last success to be at most that old; the age check is skipped during quiet hours, when the renderer intentionally doesn't run. Point Uptime Kuma / healthchecks.io at it (they support Basic Auth if you have auth enabled). |
+| `/api/health` | GET | Uptime-monitor probe: HTTP 200 when the last renderer run succeeded (a success marker exists and no error is newer), 503 otherwise. Optional `?max_age=<seconds>` additionally requires the last success to be at most that old; the age check is skipped during quiet hours, when the renderer intentionally doesn't run. Point Uptime Kuma / healthchecks.io at it. It is the one route exempt from Basic Auth, so a probe that can't send credentials still works; without credentials it answers with the status code and `{"healthy": …}` only — timestamps and the error type need auth. |
 
 The preview endpoint powers the "see what this theme looks like" button on the config
 page without touching the live dashboard timer or hardware. Custom UIs can also drive

@@ -688,6 +688,10 @@ function populateConfigForm(data) {
   set_val("cfg-lat",   w.latitude);
   set_val("cfg-lon",   w.longitude);
   set_val("cfg-units", w.units);
+  // Rendered server-side like the rest, but collected on save: without this a
+  // Discard or Restore left the abandoned value in the form while the dirty
+  // badge cleared, and the next Save wrote it (#309).
+  set_val("cfg-onecall", w.one_call_version);
 
   const bday = data.birthdays || {};
   set_val("cfg-bday-source",    bday.source);
@@ -837,12 +841,17 @@ async function saveConfig(btn, opts = {}) {
     });
     const data = await resp.json();
 
-    if (result_el) {
+    if (result_el && !resp.ok && !Array.isArray(data.errors)) {
+      // Not a validation result: an expired session (the CSRF 403 carries its
+      // own "reload the page" message) or a server error.
+      result_el.innerHTML =
+        `<div class="cfg-errors">✗ ${esc_html(data.error || data.message || "Save failed.")}</div>`;
+    } else if (result_el) {
       if (data.saved) {
         setDirty(false);
         const warn_html = data.warnings.length
           ? `<div class="cfg-warnings">${data.warnings.map(w =>
-              `<div>⚠ [${w.field}] ${w.message}${w.hint ? ` — ${w.hint}` : ""}</div>`
+              `<div>⚠ [${esc_html(w.field)}] ${esc_html(w.message)}${w.hint ? ` — ${esc_html(w.hint)}` : ""}</div>`
             ).join("")}</div>` : "";
         result_el.innerHTML =
           `<div class="cfg-ok">✓ Saved${warn_html ? " (with warnings)" : ""}</div>${warn_html}`;
@@ -857,7 +866,7 @@ async function saveConfig(btn, opts = {}) {
           const refreshData = await refreshResp.json();
           result_el.innerHTML += refreshData.ok
             ? '<div class="cfg-ok" style="margin-top:.35rem;">↻ Refresh requested.</div>'
-            : `<div class="cfg-warnings" style="margin-top:.35rem;">Refresh could not be requested: ${refreshData.error || 'unknown error'}</div>`;
+            : `<div class="cfg-warnings" style="margin-top:.35rem;">Refresh could not be requested: ${esc_html(refreshData.error || 'unknown error')}</div>`;
         }
       } else {
         // Highlight individual fields that have errors
@@ -871,11 +880,13 @@ async function saveConfig(btn, opts = {}) {
             el.closest(".field-input-wrap")?.appendChild(msg);
           }
         });
+        // Validation messages echo user input (an unknown theme name, a
+        // non-numeric threshold), so every field is escaped (#309).
         const err_html = data.errors.map(e =>
-          `<div>✗ [${e.field}] ${e.message}${e.hint ? ` — ${e.hint}` : ""}</div>`
+          `<div>✗ [${esc_html(e.field)}] ${esc_html(e.message)}${e.hint ? ` — ${esc_html(e.hint)}` : ""}</div>`
         ).join("");
-        const warn_html = data.warnings.map(w =>
-          `<div>⚠ [${w.field}] ${w.message}</div>`
+        const warn_html = (data.warnings || []).map(w =>
+          `<div>⚠ [${esc_html(w.field)}] ${esc_html(w.message)}</div>`
         ).join("");
         result_el.innerHTML = `<div class="cfg-errors">${err_html}</div>${warn_html
           ? `<div class="cfg-warnings">${warn_html}</div>` : ""}`;

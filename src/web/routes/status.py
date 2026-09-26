@@ -11,7 +11,7 @@ from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlparse
 
-from flask import Blueprint, current_app, jsonify, render_template, request
+from flask import Blueprint, current_app, g, jsonify, render_template, request
 
 from src._time import now_local
 from src.fetchers import one_call_health
@@ -489,6 +489,9 @@ def api_health():
         if seconds_since is None or seconds_since > max_age:
             healthy = False
 
+    if not g.get("web_authenticated", True):
+        # Reached without credentials (auth.PUBLIC_PATHS): the code is the answer.
+        return jsonify({"healthy": healthy}), (200 if healthy else 503)
     body = {
         "healthy": healthy,
         "last_success": success["timestamp"],

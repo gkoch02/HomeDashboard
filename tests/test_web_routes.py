@@ -794,3 +794,71 @@ class TestStatusDoesNotPickTheTheme:
     def test_a_fixed_theme_is_still_reported_verbatim(self, tmp_path):
         body = self._app_with_theme(tmp_path, "terminal").test_client()
         assert body.get("/api/status").get_json()["current_theme"] == "terminal"
+
+
+# ---------------------------------------------------------------------------
+# #309 — health probe without credentials; CSRF expiry as JSON
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture()
+def authed_app(tmp_path):
+    from src.web.auth import hash_password
+
+    web_yaml = tmp_path / "web.yaml"
+    web_yaml.write_text(
+        f"port: 8080\nauth:\n  username: admin\n  password_hash: '{hash_password('secret')}'\n"
+    )
+    cfg_yaml = tmp_path / "config.yaml"
+    cfg_yaml.write_text("")
+    application = create_app(web_config_path=str(web_yaml), app_config_path=str(cfg_yaml))
+    application.config["TESTING"] = True
+    application.config["STATE_DIR"] = str(tmp_path / "state")
+    application.config["OUTPUT_DIR"] = str(tmp_path / "output")
+    (tmp_path / "state").mkdir()
+    (tmp_path / "output").mkdir()
+    return application
+
+
+def test_health_probe_reachable_without_credentials(authed_app):
+    """An uptime monitor that can't send Basic Auth must not read 401 as 'down'."""
+    _write_success(authed_app, "2026-06-09T12:00:00+00:00")
+    resp = authed_app.test_client().get("/api/health")
+    assert resp.status_code == 200
+    # Status only — no timestamps or exception types to an anonymous caller.
+    assert json.loads(resp.data) == {"healthy": True}
+
+
+def test_health_probe_full_body_with_credentials(authed_app):
+    _write_success(authed_app, "2026-06-09T12:00:00+00:00")
+    resp = authed_app.test_client().get(
+        "/api/health", headers={"Authorization": "Basic YWRtaW46c2VjcmV0"}
+    )
+    assert resp.status_code == 200
+    assert json.loads(resp.data)["last_success"] is not None
+
+
+def test_other_routes_still_require_credentials(authed_app):
+    assert authed_app.test_client().get("/api/status").status_code == 401
+
+
+def test_expired_csrf_token_is_json_with_a_reload_hint(client):
+    resp = client.post("/api/config", json={}, headers={"X-CSRF-Token": "stale"})
+    assert resp.status_code == 403
+    data = json.loads(resp.data)
+    assert data["csrf_expired"] is True
+    assert "reload" in data["error"].lower()
+
+
+def test_config_js_escapes_validation_messages_and_resets_one_call():
+    """Static guards on dashboard.js for #309 (no JS runtime in CI)."""
+    from pathlib import Path
+
+    js = (Path(__file__).resolve().parents[1] / "src/web/static/dashboard.js").read_text()
+    populate = js[
+        js.index("function populateConfigForm") : js.index("async function discardConfig")
+    ]
+    assert 'set_val("cfg-onecall", w.one_call_version)' in populate
+    save = js[js.index("async function saveConfig") : js.index("async function saveAndRefresh")]
+    assert "${e.message}" not in save and "${w.message}" not in save
+    assert "esc_html(e.message)" in save
