@@ -222,6 +222,13 @@ def render_dashboard(
     now = data.fetched_at
     today = now.date() if isinstance(now, datetime) else now
 
+    # Config visibility overrides (show_weather etc.) respected regardless of draw_order
+    visibility = {
+        "weather": config.show_weather,
+        "birthdays": config.show_birthdays,
+        "info": config.show_info_panel,
+    }
+
     ctx = RenderContext(
         draw=draw,
         data=data,
@@ -238,14 +245,8 @@ def render_dashboard(
         longitude=longitude,
         state_dir=state_dir,
         image=image,
+        visibility=dict(visibility),
     )
-
-    # Config visibility overrides (show_weather etc.) respected regardless of draw_order
-    visibility = {
-        "weather": config.show_weather,
-        "birthdays": config.show_birthdays,
-        "info": config.show_info_panel,
-    }
 
     for name in layout.draw_order:
         region = getattr(layout, name, None)

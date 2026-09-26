@@ -1,19 +1,25 @@
-"""wide_week theme — the standard dashboard reflowed for a 1360x480 panel.
+"""wide_week theme — the standard week view beside an editorial rail, 1360x480.
 
-The first of the panoramic themes, and the one that needs no new component.
-The 10.85" Waveshare panel is 1360 px wide and 480 tall, nearly three times
-as wide as it is high; the 800x480 week view stretched onto it is unreadable,
-and fitted it is a letterboxed band with a third of the panel blank. This
-theme draws the same header, week grid, weather, birthdays and quote at the
-panel's native size instead, with the extra width spent where a week grid
-wants it: seven columns of 128 px rather than 114, and a full-height rail
-beside them stacking the three information panels top to bottom.
+The week grid is the dashboard's signature, and this theme keeps it exactly as
+the default theme draws it — day columns, spanning all-day bars, the month and
+date block in the weekend's lower half — giving it the right-hand 920 px of the
+strip (seven columns of ~131 px, wider than the 800x480 original's 114). The
+440 px to its left is a rail laid out like a broadsheet column rather than a
+stack of the standard panels: the weekday masthead, the weather now, what is on
+or next, a short forecast beside the sky, birthdays and the day's quote. See
+``src/render/components/wide_week_rail_panel.py``.
+
+There is no header bar: the rail's masthead carries the "updated" stamp and the
+stale mark the header used to, and the grid runs the panel's full height.
+
+The rail's NOW/NEXT line is the one thing that reads the clock, and it moves
+only when an event starts or ends. It can reach into next week on a Sunday, so
+the theme fetches one extra day (``EXTRA_EVENT_DAYS``).
 
 Registered with a red-and-black accent pair. The 10.85" panel has four inks —
-black, white, yellow and red — and the two it lacks resolve to black at render
-time, so a theme meant for it names only the two it has: red for the section
-labels, the title and alerts, black for the glyphs and bullets. On a Spectra 6
-panel the same pair applies, and on a monochrome one both fall back to ink.
+black, white, yellow and red — and names only the two a light plate can carry
+type in: red for the rail's section labels, the alert bar and the grid's
+accents, black for everything else. On a monochrome panel both are ink.
 """
 
 from __future__ import annotations
@@ -29,35 +35,25 @@ from src.render.theme import (
 
 CANVAS_W = 1360
 CANVAS_H = 480
-HEADER_H = 44
-WEEK_W = 900
+RAIL_W = 440
 
 
 def wide_week_theme() -> Theme:
-    """Return the wide_week (panoramic week-view) theme."""
-    rail_x = WEEK_W
-    rail_w = CANVAS_W - WEEK_W
-    body_y = HEADER_H
-    body_h = CANVAS_H - HEADER_H
-    weather_h = 196
-    birthdays_h = 110
+    """Return the wide_week (week grid + editorial rail) theme."""
+    week_w = CANVAS_W - RAIL_W
     return Theme(
         name="wide_week",
         layout=ThemeLayout(
             canvas_w=CANVAS_W,
             canvas_h=CANVAS_H,
-            header=ComponentRegion(0, 0, CANVAS_W, HEADER_H),
-            week_view=ComponentRegion(0, body_y, WEEK_W, body_h),
-            weather=ComponentRegion(rail_x, body_y, rail_w, weather_h),
-            birthdays=ComponentRegion(rail_x, body_y + weather_h, rail_w, birthdays_h),
-            info=ComponentRegion(
-                rail_x,
-                body_y + weather_h + birthdays_h,
-                rail_w,
-                body_h - weather_h - birthdays_h,
-            ),
+            wide_week_rail=ComponentRegion(0, 0, RAIL_W, CANVAS_H),
+            week_view=ComponentRegion(RAIL_W, 0, week_w, CANVAS_H),
+            header=ComponentRegion(0, 0, 0, 0, visible=False),
+            weather=ComponentRegion(0, 0, 0, 0, visible=False),
+            birthdays=ComponentRegion(0, 0, 0, 0, visible=False),
+            info=ComponentRegion(0, 0, 0, 0, visible=False),
             today_view=ComponentRegion(0, 0, 0, 0, visible=False),
-            draw_order=["header", "week_view", "weather", "birthdays", "info"],
+            draw_order=["week_view", "wide_week_rail"],
         ),
         style=ThemeStyle(
             fg=0,

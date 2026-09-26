@@ -228,7 +228,7 @@ the panel's own four inks.
 
 | Theme | Best for | Notes |
 |---|---|---|
-| `wide_week` | the standard dashboard on a strip | The same header, week grid, weather, birthdays and quote at 1360 × 480: seven columns of 128 px, and the three information panels stacked in a full-height rail beside the grid. No new component. |
+| `wide_week` | the week view, with an editorial rail | The standard week grid, unchanged, on the right at full height (seven columns of ~131 px), beside a broadsheet-style rail: the weekday masthead, the weather now, what is on or next, a short forecast beside the sky, birthdays, and the day's quote. |
 | `wide_day` | today, hour by hour | A time axis across the whole middle of the strip with every timed event as a bar over its real span, packed into lanes with its name attached; date and weather at the left end, the next few events and the week's birthdays at the right. A NOW marker and the bar states follow the clock. |
 | `halftone_agenda_wide` | the split-plate agenda on a strip | `halftone_agenda` drawn for the strip: the engraving and weather band at the left, today's agenda at half again its usual width in the middle, and a third pane for what the 800 × 480 plate leaves out — alerts, the next day's events, the forecast, birthdays, air quality and the moon. Same engraving, same treatments, same fonts. |
 | `wide_forecast` | weather station on a strip | Current conditions as a hero block with a detail grid, five forecast cards in a row with precipitation bars, and a band beneath for alerts, air quality and the moon. |
@@ -489,9 +489,18 @@ Victorian botanical plate. **Astloch** blackletter masthead — `PLATE [Roman]` 
 
 #### wide_week
 
-The standard dashboard at the native size of a panoramic panel. The Waveshare 10.85" (G) is 1360 × 480 — nearly three times as wide as it is tall — and an 800 × 480 theme reaches it either stretched, which makes a week grid unreadable, or fitted, which leaves a third of the panel blank on either side. This theme draws the same header, week grid, weather, birthdays and quote at 1360 × 480 instead, spending the width where a week grid wants it: seven columns of 128 px rather than 114, with the three information panels stacked top to bottom in a full-height rail beside the grid — the weather panel tall enough for its forecast strip, then birthdays, then the quote. No new component: every region is one of the standard five at a new size.
+The week view at the native size of a panoramic panel, with the strip's extra width spent on an editorial rail rather than more of the standard panels. The week grid is exactly the default theme's: day columns, spanning all-day bars, the month-and-date block in the weekend's lower half. It takes the right-hand 920 px at the panel's full height (seven columns of about 131 px, against 114 on an 800 × 480 plate), and there is no header bar above it.
 
-Registered with a red-and-black accent pair. The 10.85" panel has four inks — black, white, yellow and red — and the two it lacks resolve to black at render time, so a theme meant for it names only the two it has: red for the section labels, the title and alerts, black for the glyphs and bullets. On a Spectra 6 panel the same pair applies; on a monochrome one both fall back to ink. On an 800 × 480 panel the theme renders as a letterboxed band.
+The 440 px to its left is laid out like a broadsheet column, in Playfair Display with small-caps section labels in the accent and hairline rules between sections. It holds, top to bottom:
+
+- **Masthead:** the weekday, with the ISO week and day of the year beneath it, and the "updated" stamp (with a stale mark when a source is serving cache).
+- **Weather now:** the temperature as a display numeral beside the condition, high and low, feels-like and wind, with an inverted bar for the first active alert.
+- **NOW / NEXT:** the event in progress with its end, or else the next one to start, with the weekday when it isn't today.
+- **Forecast and sky, side by side:** three forecast days next to sunrise and sunset, the day's length and its change since yesterday (when `weather.latitude` / `longitude` are set), and the moon.
+- **Birthdays:** those in the next two weeks, on one line.
+- **Quote:** the day's quote set large, with a hanging accent quote mark.
+
+The NOW/NEXT line is the only thing on the plate that reads the clock, and it moves only when an event starts or ends. Because it reaches into next week on a Sunday evening, the theme fetches one extra day of events. Colour has one job per ink. Red is for labels and warnings: the rail's section labels, the alert bar and the grid's accents. Yellow is a highlighter only, never type or rules, since yellow on paper is the weakest contrast the panel offers. It sits behind black type in three places: a band under NOW/NEXT, chips under each rainy day's chance of rain, and a birthday falling today. On a monochrome panel the reds are ink and the yellow fills drop out, leaving plain black type. On an 800 × 480 panel the theme renders as a letterboxed band. See [Panoramic Themes](wide-themes.md#wide_week) for the four-ink render.
 
 [![Wide week theme](../assets/previews/theme_wide_week.png)](../assets/previews/theme_wide_week.png)
 

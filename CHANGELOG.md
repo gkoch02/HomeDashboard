@@ -37,6 +37,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - **Big Shoulders Display** (OFL) — SemiBold, ExtraBold and Black cuts, via
   `fonts.big_shoulders_semibold/extrabold/black`.
 
+### Changed
+
+- **`wide_week` redesigned.** The standard week grid, unchanged, now sits on the
+  right at the panel's full height, beside a 440-px editorial rail in place of
+  the stacked weather, birthday and quote panels: a weekday masthead with the ISO
+  week and day of the year, the weather now, a NOW/NEXT line (the one element
+  that reads the clock, and only at event boundaries), three forecast days
+  beside sunrise, sunset, day length and the moon, the next two weeks'
+  birthdays, and the day's quote. The full-width header bar is gone; its
+  "updated" and stale marks are in the masthead. The theme now fetches one
+  extra day of events so NEXT can reach Monday from a Sunday evening. On the
+  colour panels the rail uses yellow as a highlighter behind black type (a
+  NOW/NEXT band, chance-of-rain chips, a birthday today) and red for labels and
+  warnings; on a monochrome panel the fills drop out.
+
 ## [6.0.0] - 2026-09-26
 
 A major release: **Waveshare 10.85" (G) support** — the project's first

@@ -78,9 +78,11 @@ class TestRender:
         img = render_dashboard(data, G, theme=load_theme("wide_week"))
         assert img.size == (1360, 480)
         assert set(flatten_pixels(img)) <= set(WAVESHARE_G_PALETTE)
-        # Ink reaches both ends: the header band is inverted across the width.
-        assert img.getpixel((5, 20)) == (0, 0, 0)
-        assert img.getpixel((1354, 20)) == (0, 0, 0)
+        # Ink reaches both ends: the rail's masthead at the left, the week
+        # grid's inverted weekend date block at the right.
+        rgb = img.convert("RGB")
+        assert (0, 0, 0) in {px for _, px in rgb.crop((0, 0, 60, 480)).getcolors(1 << 16)}
+        assert (0, 0, 0) in {px for _, px in rgb.crop((1300, 0, 1360, 480)).getcolors(1 << 16)}
 
     def test_greyscale_theme_keeps_its_dither_on_the_colour_panel(self):
         data = generate_dummy_data(now=FIXED_NOW)
