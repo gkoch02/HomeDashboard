@@ -41,7 +41,7 @@ sudo reboot
 | See the theme catalog in Inky Spectra 6 color | [Inky Previews](docs/inky-previews.md) |
 | See the full `config.yaml` reference | [Configuration Reference](docs/configuration.md) |
 | Regenerate the per-theme preview images | [Theme Previews](docs/previews.md) |
-| Upgrade from an older install | [Upgrading from v3](docs/upgrading-from-v3.md) |
+| Upgrade from an older install | [Upgrading from v4](docs/upgrading-from-v4.md) · [from v3](docs/upgrading-from-v3.md) |
 | Develop locally without hardware | [Development](docs/development.md) |
 | Contribute code or docs | [Contributing](CONTRIBUTING.md) |
 
@@ -50,7 +50,7 @@ sudo reboot
 - Weekly calendar via Google Calendar API or private ICS feed
 - Current weather, forecast, and optional PurpleAir air quality
 - Birthdays from a file, calendar events, or Google Contacts
-- 34 built-in themes plus scheduled and random rotation modes
+- 40 built-in themes plus scheduled and random rotation modes
 - Optional Web UI for status, config editing, and manual refresh
 - Per-source caching, circuit breakers, stale-data indicators, and quiet hours
 

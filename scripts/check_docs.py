@@ -416,9 +416,31 @@ def check_example_config_themes(theme_names: set[str]) -> list[str]:
     return errors
 
 
+README_THEME_COUNT_RE = re.compile(r"\b(\d+) built-in themes\b")
+
+
+def check_readme_theme_count(theme_names: set[str]) -> list[str]:
+    """The README's headline theme count must match the registry.
+
+    ``default`` is a pseudo-name, not a theme a user would count; the README
+    said 34 for six themes after the registry reached 40.
+    """
+    concrete = len(theme_names - {"default"})
+    text = (ROOT / "README.md").read_text()
+    counts = README_THEME_COUNT_RE.findall(text)
+    if not counts:
+        return ["README.md: no 'N built-in themes' line to check against the registry"]
+    return [
+        f"README.md: says {n} built-in themes, the registry has {concrete}"
+        for n in counts
+        if int(n) != concrete
+    ]
+
+
 def main() -> int:
     theme_names = load_theme_names()
     errors = check_links()
+    errors.extend(check_readme_theme_count(theme_names))
     errors.extend(check_theme_inventory(theme_names))
     errors.extend(check_example_config_themes(theme_names))
     errors.extend(check_example_config_fields())

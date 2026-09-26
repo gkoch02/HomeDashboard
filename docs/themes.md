@@ -184,7 +184,7 @@ Rules that reference weather or calendar data silently skip on the first boot (n
 | `moonphase` | moon and sky display | Procedurally-rendered lunar disc (true terminator, maria, craters, earthshine), 7-day progression, illumination, moonrise/moonset, sunrise/sunset, next full/new moon countdown, supermoon badge, weather, quote |
 | `moonphase_invert` | bright moon display | Parchment-engraving variant of `moonphase` |
 | `moonphase_photo` | photographic moon display | Same layout as `moonphase`, but the hero and filmstrip discs are a real moon photograph (`assets/moon_full.png`) occluded by the phase terminator. Replace the bundled photo with your own centred full-moon image to re-skin every disc; falls back to the procedural disc when the asset is absent. |
-| `photo` | custom photo background | Full-canvas image with a bottom header bar; requires `photo.path` |
+| `photo` | custom photo background | Full-canvas image, edge to edge with no header bar; requires `photo.path` |
 
 ### Specialized themes
 

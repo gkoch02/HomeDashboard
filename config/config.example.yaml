@@ -198,8 +198,8 @@ logging:
 
 # Photo theme — set theme: photo and provide a path to a JPEG or PNG file.
 # The image is converted to grayscale, resized to fit the canvas, and dithered
-# to 1-bit using Floyd-Steinberg diffusion.  A header bar at the bottom of the
-# display shows the dashboard title and timestamp.
+# to 1-bit using Floyd-Steinberg diffusion.  The photo fills the display edge to
+# edge — no header bar, title or timestamp is drawn.
 # photo:  # uncomment this line to enable section
 #   path: /home/pi/wallpaper.jpg
 

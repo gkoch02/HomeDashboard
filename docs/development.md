@@ -195,7 +195,7 @@ Key code areas:
 
 - ruff
 - pytest
-- pytest-cov (coverage gate: ≥90%, configured in `pyproject.toml`)
+- pytest-cov (coverage gate: ≥94%, configured in `pyproject.toml`)
 - mypy
 
 ### Optional
