@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [6.0.0] - 2026-09-26
+
 A major release. Existing `config.yaml` files still load unchanged, but a few
 surfaces are gone or behave differently: `display.week_days` is ignored, the
 `make previews-split` target and split preview images are removed, five
