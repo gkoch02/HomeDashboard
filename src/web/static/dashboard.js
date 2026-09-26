@@ -598,7 +598,6 @@ function collectConfigPatch() {
   if ($("cfg-show-weather"))    patch["display.show_weather"]           = b("cfg-show-weather");
   if ($("cfg-show-birthdays"))  patch["display.show_birthdays"]         = b("cfg-show-birthdays");
   if ($("cfg-show-info"))       patch["display.show_info_panel"]        = b("cfg-show-info");
-  if ($("cfg-week-days"))       patch["display.week_days"]              = n("cfg-week-days");
   if ($("cfg-partial-refresh")) patch["display.enable_partial_refresh"] = b("cfg-partial-refresh");
   if ($("cfg-max-partials"))    patch["display.max_partials_before_full"] = n("cfg-max-partials");
   if ($("cfg-scaling"))         patch["display.scaling"]                = v("cfg-scaling");
@@ -677,7 +676,6 @@ function populateConfigForm(data) {
   set_chk("cfg-show-weather",    d.show_weather);
   set_chk("cfg-show-birthdays",  d.show_birthdays);
   set_chk("cfg-show-info",       d.show_info_panel);
-  set_val("cfg-week-days",       d.week_days);
   set_chk("cfg-partial-refresh", d.enable_partial_refresh);
   set_val("cfg-max-partials",    d.max_partials_before_full);
   set_val("cfg-scaling",         d.scaling);

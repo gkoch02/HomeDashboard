@@ -46,8 +46,8 @@ class TestDefaults:
         assert d.height == 480
         assert d.enable_partial_refresh is False
         assert d.max_partials_before_full == 20
-        assert d.week_days == 7
         assert d.show_weather is True
+        assert not hasattr(d, "week_days")
         assert d.show_birthdays is True
         assert d.show_info_panel is True
         assert d.quantization_mode == "threshold"

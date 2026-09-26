@@ -118,7 +118,6 @@ _SAMPLE_VALUES: dict[str, object] = {
     "display.show_weather": False,
     "display.show_birthdays": False,
     "display.show_info_panel": False,
-    "display.week_days": 5,
     "display.enable_partial_refresh": True,
     "display.max_partials_before_full": 99,
     "display.scaling": "fit",

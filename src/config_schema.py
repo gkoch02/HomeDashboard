@@ -155,7 +155,6 @@ def schema() -> tuple[SectionSpec, ...]:
                     "bool",
                     "Show info / quote panel",
                 ),
-                _f("display.week_days", ("display", "week_days"), "int", "Days shown in week view"),
                 _f(
                     "display.enable_partial_refresh",
                     ("display", "enable_partial_refresh"),

@@ -30,7 +30,6 @@ display:
                                   # it and always take the full waveform — see
                                   # "Themes that always refresh fully" below.
   max_partials_before_full: 20    # partial refreshes before forcing a full one
-  week_days: 7                    # number of days in the week view
   show_weather: true
   show_birthdays: true
   show_info_panel: true
@@ -582,4 +581,6 @@ YAML config files carry an optional `schema_version` field — `5` for v5. Confi
 omit the key are treated as v4 and upgraded in-memory by `src/config_migrations.py`
 before parsing. The on-disk file is not rewritten by the runner unless an explicit
 backup-and-rewrite step is registered. See [Upgrading from v4](upgrading-from-v4.md)
-for the migration walkthrough.
+for the migration walkthrough. The shipped template sets `schema_version: 5`; a file
+without it still loads, and the in-memory v4→v5 stamp is logged at DEBUG only, since it
+changes nothing you wrote.

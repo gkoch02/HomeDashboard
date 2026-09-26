@@ -184,7 +184,6 @@ def get_config_for_web(config_path: str) -> dict:
             "show_weather": cfg.display.show_weather,
             "show_birthdays": cfg.display.show_birthdays,
             "show_info_panel": cfg.display.show_info_panel,
-            "week_days": cfg.display.week_days,
             "enable_partial_refresh": cfg.display.enable_partial_refresh,
             "max_partials_before_full": cfg.display.max_partials_before_full,
             "scaling": cfg.display.scaling,

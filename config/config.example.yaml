@@ -9,6 +9,10 @@
 # list stays exhaustive. docs/configuration.md is the prose reference with the
 # longer explanations.
 
+# Config schema version. Files without it are read as v4 and upgraded in
+# memory on every load; keep it at the current version.
+schema_version: 5
+
 display:
   # Display backend/provider.
   # "waveshare" = Waveshare e-Paper HATs using the waveshare_epd Python package.
@@ -35,7 +39,6 @@ display:
   # When partial refresh is on, force a full-waveform refresh after this many
   # partials. Lower it if blacks start looking washed out between full ones.
   max_partials_before_full: 20
-  week_days: 7
   show_weather: true
   show_birthdays: true
   show_info_panel: true

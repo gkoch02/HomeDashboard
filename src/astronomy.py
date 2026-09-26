@@ -462,17 +462,3 @@ def moon_times(
         prev_t, prev_a = cur_t, cur_a
 
     return MoonTimes(rise=rise, set=mset)
-
-
-def dark_sky_window(times: SunTimes) -> tuple[datetime, datetime] | None:
-    """Return the (start, end) of the astronomical dark-sky window.
-
-    Dark sky = end of astronomical dusk tonight → start of astronomical dawn
-    tomorrow.  Returns ``None`` during polar-day periods when no astronomical
-    twilight ends.
-    """
-    if times.astronomical_dusk is None or times.astronomical_dawn is None:
-        return None
-    # astronomical_dawn on the same date is today's pre-dawn — we want tomorrow's.
-    # Caller should pass times for ``today`` and fetch tomorrow's astronomical_dawn separately.
-    return times.astronomical_dusk, times.astronomical_dawn
