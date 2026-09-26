@@ -143,10 +143,10 @@ bars. [Full description ↗](themes.md#wide_forecast)
 ### wide_week
 
 The standard week grid, exactly as the default theme draws it, on the right at the
-panel's full height, beside an editorial rail. The rail is set in Playfair Display
-with red small-caps labels and hairline rules: the weekday masthead, the weather
-now, what is on or next, three forecast days beside the sky, the next two weeks'
-birthdays, and the day's quote. Red carries the labels, the alert bar and the
+panel's full height, beside an editorial rail. The rail pairs Playfair Display
+headlines with a Literata quote, under red small-caps labels and hairline rules:
+the weekday masthead, the weather now, what is on or next, three forecast days
+beside the sky, the next two weeks' birthdays, and the day's quote. Red carries the labels, the alert bar and the
 grid's accents. Yellow is used only as a highlighter behind black type: the
 NOW/NEXT band, the chance-of-rain chips, and a birthday that falls today.
 [Full description ↗](themes.md#wide_week)

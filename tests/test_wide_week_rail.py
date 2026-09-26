@@ -357,3 +357,25 @@ class TestBilevelType:
     def test_the_callers_fontmode_is_restored(self):
         _, draw = self._draw_on_rgb()
         assert draw.fontmode == "L"
+
+
+class TestQuoteWeight:
+    """The quote keeps one stroke weight at every size it can step down to."""
+
+    @staticmethod
+    def _stem(font) -> int:
+        """The median width of an ``l``'s ink rows: its stem, serifs averaged out."""
+        from PIL import Image, ImageDraw
+
+        img = Image.new("1", (60, 60), 1)
+        ImageDraw.Draw(img).text((5, 5), "l", font=font, fill=0)
+        widths = sorted(n for n in (ink(img, (0, y, 60, y + 1)) for y in range(60)) if n)
+        return widths[len(widths) // 2]
+
+    def test_every_quote_size_sets_a_three_pixel_stem(self):
+        stems = {pt: self._stem(rail.quote_font(pt)) for pt in rail.QUOTE_PTS}
+        assert set(stems.values()) == {3}, stems
+
+    def test_the_quote_is_set_in_literata(self):
+        for pt in rail.QUOTE_PTS:
+            assert rail.quote_font(pt).getname()[0] == "Literata"

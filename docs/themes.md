@@ -491,7 +491,7 @@ Victorian botanical plate. **Astloch** blackletter masthead — `PLATE [Roman]` 
 
 The week view at the native size of a panoramic panel, with the strip's extra width spent on an editorial rail rather than more of the standard panels. The week grid is exactly the default theme's: day columns, spanning all-day bars, the month-and-date block in the weekend's lower half. It takes the right-hand 920 px at the panel's full height (seven columns of about 131 px, against 114 on an 800 × 480 plate), and there is no header bar above it.
 
-The 440 px to its left is laid out like a broadsheet column, in Playfair Display with small-caps section labels in the accent and hairline rules between sections. It holds, top to bottom:
+The 440 px to its left is laid out like a broadsheet column — Playfair Display for the weekday and the temperature, DM Sans for the body, Literata (a serif drawn for e-reader screens) for the quote — with small-caps section labels in the accent and hairline rules between sections. It holds, top to bottom:
 
 - **Masthead:** the weekday, with the ISO week and day of the year stacked at its right above the "updated" stamp (with a stale mark when a source is serving cache).
 - **Weather now:** the temperature as a display numeral beside the condition, high and low, feels-like and wind, with an inverted bar for the first active alert.

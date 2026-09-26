@@ -182,6 +182,24 @@ def playfair_bold(size: int) -> ImageFont.FreeTypeFont:
     return get_font("PlayfairDisplay-Bold.ttf", size)
 
 
+# Literata — the text serif Google drew for Play Books, i.e. for reading on
+# screens and e-readers (TypeTogether, OFL).  Low stroke contrast and sturdy
+# serifs, so it survives bilevel rasterisation at text sizes where a display
+# serif like Playfair breaks into hairlines.  Carries the wide_week rail's quote.
+#
+# The upstream file is variable (opsz 7-72, wght 200-900) and ~1 MB; these are
+# static instances cut from it with fontTools at opsz 12 — the small-text
+# optical size, whose sturdier forms suit a 16-19 px quote — and wght 600/700
+# (`fonttools varLib.instancer <variable file> wght=600 opsz=12
+# --update-name-table`, from google/fonts ofl/literata).
+def literata_semibold(size: int) -> ImageFont.FreeTypeFont:
+    return get_font("Literata-SemiBold.ttf", size)
+
+
+def literata_bold(size: int) -> ImageFont.FreeTypeFont:
+    return get_font("Literata-Bold.ttf", size)
+
+
 # Cormorant Garamond — high-contrast Garamond-revival serif (OFL).  Variable
 # font with a wght axis (300–700); paired with Cinzel for moonphase's
 # mystical/celestial body text.

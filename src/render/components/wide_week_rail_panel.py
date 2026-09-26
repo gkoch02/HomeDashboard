@@ -2,8 +2,9 @@
 
 ``wide_week`` keeps the standard week view intact and gives it the right-hand
 920 px of the strip. This module draws the column to its left: a modern
-broadsheet rail, set in Playfair Display with small-caps labels in the accent
-and hairline rules, carrying what the week grid does not — the conditions now,
+broadsheet rail — Playfair Display for its display type, DM Sans for its
+body, Literata for the quote — with small-caps labels in the accent and
+hairline rules, carrying what the week grid does not — the conditions now,
 what is on or up next, a short forecast, the sky, birthdays and the day's
 quote. Top to bottom:
 
@@ -20,8 +21,8 @@ quote. Top to bottom:
   * **Forecast | Sky** — three forecast days beside sunrise, sunset, the day's
     length (and its change since yesterday, with coordinates) and the moon.
   * **Birthdays** — the next two weeks' on one line.
-  * **Quote** — the day's quote set large, a hanging accent quote mark, the
-    author in small caps.
+  * **Quote** — the day's quote set large in Literata, a hanging accent quote
+    mark, the author in small caps.
 
 Colour has two jobs here, one per accent ink. **Red** (the primary accent) is
 for labels and warnings: section labels, the stale mark, the alert bar.
@@ -216,24 +217,37 @@ def sky_rows(
     return rows
 
 
+QUOTE_BOLD_BELOW = 18
+
+
+def quote_font(pt: int):
+    """Literata for the quote at *pt*: SemiBold from 18 px up, Bold below.
+
+    Literata is a reading serif drawn for e-reader screens; Playfair, which set
+    the quote before it, is a display face whose hairlines break up on a plate
+    rasterised without antialiasing. The weight switch is about hinting, not
+    emphasis: bilevel hinting snaps SemiBold's stems to 3 px at 18 px and above
+    but to 2 px at 16-17, which reads as a lighter face, so a long quote
+    stepping down a size would visibly thin out. Bold keeps the 3-px stem there,
+    and the quote holds one weight whatever its length.
+    """
+    return fonts.literata_semibold(pt) if pt >= QUOTE_BOLD_BELOW else fonts.literata_bold(pt)
+
+
 def fit_quote(text: str, width: int, height: int) -> tuple[int, list[str]]:
     """The largest of ``QUOTE_PTS`` at which *text* and its author fit *height*.
 
-    Set in Playfair SemiBold: the lighter cuts' hairline strokes break up on a
-    1-bit plate, where type is rasterised without antialiasing, and at these
-    sizes Medium still reads as thin, unevenly spaced strokes.
-
-    Line pitch is the size plus ``QUOTE_LEAD``, and the author line takes
+    Set in ``quote_font(pt)``. Line pitch is the size plus ``QUOTE_LEAD``, and the author line takes
     ``AUTHOR_H``.
     Failing every size, the smallest, cut to the lines that fit with an ellipsis.
     """
     for pt in QUOTE_PTS:
-        lines = wrap_lines(text, fonts.playfair_semibold(pt), width)
+        lines = wrap_lines(text, quote_font(pt), width)
         if len(lines) * (pt + QUOTE_LEAD) + AUTHOR_H <= height:
             return pt, lines
     pt = QUOTE_PTS[-1]
     room = max(1, (height - AUTHOR_H) // (pt + QUOTE_LEAD))
-    lines = wrap_lines(text, fonts.playfair_semibold(pt), width)
+    lines = wrap_lines(text, quote_font(pt), width)
     if len(lines) > room:
         lines = lines[:room]
         lines[-1] = lines[-1].rstrip(" ,;:.") + "…"
@@ -541,7 +555,7 @@ def _draw_rail(
     draw.text((x0 - 2, qy - 8), "“", font=mark_font, fill=accent)
     qx = x0 + 26
     pt, lines = fit_quote(quote["text"], x1 - qx, region.h - QUOTE_Y - BOTTOM_PAD)
-    qfont = fonts.playfair_semibold(pt)
+    qfont = quote_font(pt)
     lh = pt + QUOTE_LEAD
     for i, ln in enumerate(lines):
         draw.text((qx, qy + i * lh), ln, font=qfont, fill=fg)
