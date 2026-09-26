@@ -241,3 +241,28 @@ def test_script_points_at_docs_setup_not_the_readme():
 def test_make_configure_checks_the_venv():
     makefile = (ROOT / "Makefile").read_text()
     assert re.search(r"^configure:.*_check-venv", makefile, re.M)
+
+
+def test_switching_caldav_servers_drops_the_old_calendar_url(writer, tmp_path):
+    """The specific-calendar URL wins over discovery; a stale one kept the old server."""
+    from src.config import load_config
+
+    cfg = _template(tmp_path)
+    first = ("caldav", "", "https://old.example/", "u", "p", "https://old.example/cal/")
+    assert _run(writer, cfg, calendar=first).returncode == 0
+    assert load_config(str(cfg)).google.caldav_calendar_url == "https://old.example/cal/"
+
+    result = _run(writer, cfg, calendar=("caldav", "", "https://new.example/", "u", "p", ""))
+    assert result.returncode == 0, result.stderr
+    g = load_config(str(cfg)).google
+    assert g.caldav_url == "https://new.example/"
+    assert g.caldav_calendar_url == ""
+
+
+def test_caldav_calendar_url_is_written_when_given(writer, tmp_path):
+    from src.config import load_config
+
+    cfg = _template(tmp_path)
+    run = ("caldav", "", "https://d.example/", "u", "p", "https://d.example/work/")
+    assert _run(writer, cfg, calendar=run).returncode == 0
+    assert load_config(str(cfg)).google.caldav_calendar_url == "https://d.example/work/"

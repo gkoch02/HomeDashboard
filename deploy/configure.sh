@@ -97,7 +97,7 @@ while :; do
     *) echo "  Please answer ics, caldav or google." ;;
   esac
 done
-CALENDAR_ID="" ICAL_URL="" CALDAV_URL="" CALDAV_USER="" CALDAV_PW_FILE=""
+CALENDAR_ID="" ICAL_URL="" CALDAV_URL="" CALDAV_USER="" CALDAV_PW_FILE="" CALDAV_CAL_URL=""
 case "$CAL_SOURCE" in
   google)
     echo "  Calendar ID looks like: abc123@group.calendar.google.com"
@@ -112,6 +112,16 @@ case "$CAL_SOURCE" in
     prompt "CalDAV username" "$(current_in google caldav_username)" CALDAV_USER
     pw_default="$(current_in google caldav_password_file)"
     prompt "CalDAV password file" "${pw_default:-credentials/caldav_password.txt}" CALDAV_PW_FILE
+    # The specific-calendar URL wins over discovery, so one left from another
+    # server would keep the fetch pointed there. Offer the current one only
+    # when the server is unchanged; "-" clears it.
+    cal_default=""
+    if [ "$CALDAV_URL" = "$(current_in google caldav_url)" ]; then
+      cal_default="$(current_in google caldav_calendar_url)"
+    fi
+    echo "  Specific calendar URL is optional — leave empty (or \"-\") to use the first calendar."
+    prompt "CalDAV calendar URL" "$cal_default" CALDAV_CAL_URL
+    [ "$CALDAV_CAL_URL" = "-" ] && CALDAV_CAL_URL=""
     ;;
 esac
 echo ""
@@ -128,7 +138,7 @@ echo ""
 # Write values into config.yaml using Python for reliable YAML editing
 # ---------------------------------------------------------------------------
 venv/bin/python - "$CONFIG" "$DISPLAY_PROVIDER" "$DISPLAY_MODEL" "$WEATHER_KEY" "$LAT" "$LON" "$UNITS" "$TIMEZONE" "$CALENDAR_ID" "$PA_KEY" "$PA_SENSOR" \
-  "$CAL_SOURCE" "$ICAL_URL" "$CALDAV_URL" "$CALDAV_USER" "$CALDAV_PW_FILE" <<'PYEOF'
+  "$CAL_SOURCE" "$ICAL_URL" "$CALDAV_URL" "$CALDAV_USER" "$CALDAV_PW_FILE" "$CALDAV_CAL_URL" <<'PYEOF'
 import re
 import sys
 
@@ -145,9 +155,9 @@ pa_key = sys.argv[10]
 pa_sensor = sys.argv[11]
 # Calendar source and its settings. Optional so the writer still runs with the
 # eleven arguments older callers pass: that is the Google API path.
-extra = sys.argv[12:17] + [""] * (5 - len(sys.argv[12:17]))
+extra = sys.argv[12:18] + [""] * (6 - len(sys.argv[12:18]))
 cal_source = extra[0] or "google"
-ical_url, caldav_url, caldav_user, caldav_pw_file = extra[1:]
+ical_url, caldav_url, caldav_user, caldav_pw_file, caldav_cal_url = extra[1:]
 
 with open(config_path) as f:
     text = f.read()
@@ -293,12 +303,24 @@ if cal_source == "caldav":
     text = enable_in_section(text, "google", "caldav_url", q(caldav_url))
     text = enable_in_section(text, "google", "caldav_username", q(caldav_user))
     text = enable_in_section(text, "google", "caldav_password_file", q(caldav_pw_file))
+    # fetch_from_caldav() uses this ahead of discovery: an empty answer must
+    # switch off a URL left from a previous server, not leave it in force.
+    if caldav_cal_url:
+        text = enable_in_section(text, "google", "caldav_calendar_url", q(caldav_cal_url))
+    else:
+        text = disable_in_section(text, "google", "caldav_calendar_url")
 elif cal_source == "ics":
-    for key in ("caldav_url", "caldav_username", "caldav_password_file"):
+    for key in ("caldav_url", "caldav_username", "caldav_password_file", "caldav_calendar_url"):
         text = disable_in_section(text, "google", key)
     text = enable_in_section(text, "google", "ical_url", q(ical_url))
 else:
-    for key in ("caldav_url", "caldav_username", "caldav_password_file", "ical_url"):
+    for key in (
+        "caldav_url",
+        "caldav_username",
+        "caldav_password_file",
+        "caldav_calendar_url",
+        "ical_url",
+    ):
         text = disable_in_section(text, "google", key)
     text = set_in_section(text, "google", "calendar_id", q(calendar_id))
 
