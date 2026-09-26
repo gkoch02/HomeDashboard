@@ -11,7 +11,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - **Per-theme repaint slots** — `ThemeLayout.repaint_slot_hours` limits a
   theme to one panel write per clock-aligned block of that many local hours;
   a change inside a slot is painted on the first run of the next one.
-  `wide_horizon` sets 3, so it now repaints at most eight times a day instead
+  `wide_horizon` sets 1, so it now repaints at most once an hour instead
   of on every weather fetch (~every 30 minutes), each of which was a
   twenty-second colour flash on the four-ink panel. A switch to the theme
   mid-slot still paints at once, and `--force-full-refresh` bypasses it. The

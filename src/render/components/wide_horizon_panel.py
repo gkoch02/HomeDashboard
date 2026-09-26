@@ -48,8 +48,8 @@ moves at most eight times a day on the clock — the forecast grid itself only
 changes about that often. Nothing else reads the clock, and events carry no
 past/current state, so an idle tick renders byte-identically. The hero's
 reading and "updated" caption do move with every weather fetch, which is why
-the theme also declares ``repaint_slot_hours=3``: the panel is written at
-most once per slot, whatever changes inside it.
+the theme also declares ``repaint_slot_hours=1``: the panel is written at
+most once per clock hour, whatever changes inside it.
 """
 
 from __future__ import annotations

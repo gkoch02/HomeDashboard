@@ -1024,7 +1024,7 @@ class TestRepaintSlot:
         assert self._publish(svc, datetime(2026, 4, 8, 12, 30, tzinfo=timezone.utc))
 
 
-def test_wide_horizon_declares_a_three_hour_repaint_slot():
+def test_wide_horizon_repaints_at_most_hourly():
     from src.render.themes.wide_horizon import wide_horizon_theme
 
-    assert wide_horizon_theme().layout.repaint_slot_hours == 3
+    assert wide_horizon_theme().layout.repaint_slot_hours == 1
