@@ -275,6 +275,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- **`halftone_agenda_wide` uses its two accents on the agenda and dateline.**
+  On a colour panel a timed event's tick is yellow and an all-day event's red
+  (on mono the all-day tick stays outlined), the weather band's date is red and
+  the "updated" stamp yellow. The colours key on the kind of event, never the
+  clock, so the plate still repaints only when the data moves. The air-and-moon
+  foot grows from 52 to 72 px with its type scaled up, taken from the birthdays
+  cell, which now shows up to five rows in whatever room is left.
 - **Config validation warns** about non-positive cache TTLs and air-quality
   fetch interval, `max_failures` below 1, a negative breaker cooldown,
   `max_partials_before_full` below 1 with partial refresh on, coordinates off

@@ -26,7 +26,7 @@ strip's own shape, in three panes divided by full-height ordered-Bayer rules:
     following day's first events (``TOMORROW``, or the day after that once
     the agenda has rolled over — the theme fetches two extra days for it);
     the forecast, one row per day with glyph, high, low and chance of rain;
-    the coming birthdays; and a bottom row pairing the air-quality index
+    up to five coming birthdays, in whatever room is left; and a bottom row pairing the air-quality index
     with the moon's phase.
 
 Nothing on the plate reads the clock except through ``agenda_day`` and the
@@ -43,6 +43,7 @@ from PIL import Image, ImageDraw
 
 from src.data.models import AirQualityData, Birthday, CalendarEvent, DashboardData, WeatherData
 from src.render.artkit import accent_red as _accent_red
+from src.render.artkit import accent_yellow_solid as _accent_yellow
 from src.render.artkit import ink as _ink
 from src.render.artkit import to_local_naive
 from src.render.components.day_arc_panel import agenda_day
@@ -94,7 +95,7 @@ SCENE_SCALE = 0.8
 # fit in what is left of the rail is dropped whole rather than clipped.
 TOMORROW_MAX = 3
 FORECAST_MAX = 4
-BIRTHDAY_MAX = 3
+BIRTHDAY_MAX = 5
 BIRTHDAY_LOOKAHEAD_DAYS = 14
 
 # The agenda rolls to tomorrow after dark and the rail then shows the day
@@ -128,8 +129,14 @@ _WIDE_TIERS: tuple[tuple[int, int, int, int, int, bool, bool], ...] = (
     (12, 32, 66, 14, 16, False, False),
 )
 _CELL_GAP = 8
-# The air-and-moon foot, anchored to the rail bottom.
-FOOT_H = 52
+# The air-and-moon foot, anchored to the rail bottom. Birthdays are the rail's
+# flex cell and give up rows to it: five fit on a day with no alert and a
+# short TOMORROW list, fewer on a busy one.
+FOOT_H = 72
+_FOOT_CAP_PT = 13  # AIR / MOON captions
+_FOOT_HERO_PT = 36  # AQI numeral and moon glyph
+_FOOT_NAME_PT = 15  # category / phase name
+_FOOT_SUB_PT = 13  # PM2.5 / illumination
 
 
 def art_rect(region: ComponentRegion) -> tuple[int, int, int, int]:
@@ -183,6 +190,7 @@ def draw_halftone_agenda_wide(
             h=band_h,
             sunrise=sunrise,
             sunset=sunset,
+            date_fill=_accent_red(mode),
         )
     draw_bayer_rule(image, x0 + art_w, y0, DIVIDER_W, h, mode, orientation="vertical")
 
@@ -206,8 +214,7 @@ def draw_halftone_agenda_wide(
         w=pane_w - AGENDA_PAD_X * 2,
         h=h - 14 - FOOTER_H,
     )
-    ink = _ink(mode)
-    footer_font = style.font_medium(16)
+    footer_font = style.font_bold(16)
     stamp = f"updated {_clock_text(to_local_naive(content_time(data, now), tz)).lower()}"
     sw = text_width(draw, stamp, footer_font)
     draw.text(
@@ -217,7 +224,7 @@ def draw_halftone_agenda_wide(
         ),
         stamp,
         font=footer_font,
-        fill=ink,
+        fill=_accent_yellow(mode),
     )
 
     # --- Rail.
@@ -443,8 +450,10 @@ def _draw_wide_row(
     treatments — perforated past, inverted running event, accented next —
     each cost a full repaint at an event boundary, and on the four-ink panel
     a repaint is a twenty-second flash; a plate that reads the same all day
-    is the point of this one. A timed event's tick is filled, an all-day
-    event's outlined.
+    is the point of this one. The tick's colour keys on the kind of event,
+    never the clock: a timed event's is filled yellow, an all-day event's red.
+    On a monochrome plate both accents are ink, so the all-day tick is drawn
+    outlined there to keep the two apart.
     """
     mode = image.mode
     ink = _ink(mode)
@@ -466,10 +475,12 @@ def _draw_wide_row(
 
     _draw_time_cell(draw, start_str, end_str, x0=x0, y=y, time_pt=time_pt, row_h=row_h, fill=ink)
     tick = (x0 + time_w, bar_top, x0 + time_w + 3, bar_bot)
-    if event.is_all_day:
-        draw.rectangle(tick, outline=ink)
+    if not event.is_all_day:
+        draw.rectangle(tick, fill=_accent_yellow(mode))
+    elif mode == "RGB":
+        draw.rectangle(tick, fill=_accent_red(mode))
     else:
-        draw.rectangle(tick, fill=ink)
+        draw.rectangle(tick, outline=ink)
     used = draw_text_truncated(draw, (title_x, y + 2), event.summary, title_font, title_w, fill=ink)
     if show_location and used:
         location = _location_text(event)
@@ -776,7 +787,7 @@ def _draw_rail(
     rows = upcoming_birthdays(
         data.birthdays, today, days=BIRTHDAY_LOOKAHEAD_DAYS, limit=BIRTHDAY_MAX
     )
-    brow_h = 22
+    brow_h = 21
     foot_top = y0 + h - FOOT_H
     room = foot_top - _CELL_GAP - cur.y
     if rows and room >= 34 + brow_h:
@@ -800,8 +811,8 @@ def _draw_rail(
     # --- Foot: air quality beside the moon, anchored to the rail bottom.
     draw_bayer_rule(image, x0, foot_top, w, 3, mode)
     half = w // 2
-    _draw_air_cell(image, draw, data.air_quality, style, x0, foot_top + 9, half - 8)
-    _draw_moon_cell(image, draw, today, style, x0 + half + 8, foot_top + 9, w - half - 8)
+    _draw_air_cell(image, draw, data.air_quality, style, x0, foot_top + 10, half - 8)
+    _draw_moon_cell(image, draw, today, style, x0 + half + 8, foot_top + 10, w - half - 8)
 
 
 def _draw_air_cell(
@@ -815,25 +826,28 @@ def _draw_air_cell(
 ) -> None:
     """``AIR`` caption, then the index numeral with its category beside it."""
     ink = _ink(image.mode)
-    cap_font = (style.font_section_label or style.font_bold)(11)
+    cap_font = (style.font_section_label or style.font_bold)(_FOOT_CAP_PT)
     draw.text((x, y), "AIR", font=cap_font, fill=ink)
-    y += text_height(cap_font) + 2
+    y += text_height(cap_font) + 6
     if air is None:
-        draw.text((x, y + 4), "No sensor", font=style.font_medium(13), fill=ink)
+        draw.text((x, y + 8), "No sensor", font=style.font_medium(_FOOT_NAME_PT), fill=ink)
         return
-    aqi_font = (style.font_title or style.font_bold)(26)
+    aqi_font = (style.font_title or style.font_bold)(_FOOT_HERO_PT)
     aqi = str(air.aqi)
     ab = draw.textbbox((0, 0), aqi, font=aqi_font)
     fill = _accent_red(image.mode) if air.aqi >= 101 else ink
     draw.text((x - ab[0], y - ab[1]), aqi, font=aqi_font, fill=fill)
-    tx = x + (ab[2] - ab[0]) + 8
-    cat_font = style.font_semibold(12)
-    draw_text_truncated(draw, (tx, y), air.category.upper(), cat_font, w - (tx - x), fill=ink)
-    draw.text(
-        (tx, y + text_height(cat_font) + 1),
+    tx = x + (ab[2] - ab[0]) + 10
+    _draw_foot_pair(
+        draw,
+        style,
+        air.category.upper(),
         f"PM2.5 {air.pm25:.1f}",
-        font=style.font_regular(11),
-        fill=ink,
+        tx,
+        y,
+        ab[3] - ab[1],
+        w - (tx - x),
+        ink,
     )
 
 
@@ -848,21 +862,53 @@ def _draw_moon_cell(
 ) -> None:
     """``MOON`` caption, then the phase glyph with its name and illumination."""
     ink = _ink(image.mode)
-    cap_font = (style.font_section_label or style.font_bold)(11)
+    cap_font = (style.font_section_label or style.font_bold)(_FOOT_CAP_PT)
     draw.text((x, y), "MOON", font=cap_font, fill=ink)
-    y += text_height(cap_font) + 2
-    glyph_font = weather_icon(26)
+    y += text_height(cap_font) + 6
+    glyph_font = weather_icon(_FOOT_HERO_PT)
     glyph = moon_phase_glyph(today)
     gb = draw.textbbox((0, 0), glyph, font=glyph_font)
     draw.text((x - gb[0], y - gb[1]), glyph, font=glyph_font, fill=ink)
-    tx = x + (gb[2] - gb[0]) + 8
-    name_font = style.font_semibold(12)
-    draw_text_truncated(
-        draw, (tx, y), moon_phase_name(today).upper(), name_font, w - (tx - x), fill=ink
-    )
-    draw.text(
-        (tx, y + text_height(name_font) + 1),
+    tx = x + (gb[2] - gb[0]) + 10
+    _draw_foot_pair(
+        draw,
+        style,
+        moon_phase_name(today).upper(),
         f"{moon_illumination(today):.0f}% lit",
-        font=style.font_regular(11),
-        fill=ink,
+        tx,
+        y,
+        gb[3] - gb[1],
+        w - (tx - x),
+        ink,
     )
+
+
+def _draw_foot_pair(
+    draw: ImageDraw.ImageDraw,
+    style: ThemeStyle,
+    name: str,
+    sub: str,
+    x: int,
+    y: int,
+    hero_h: int,
+    w: int,
+    ink,
+) -> None:
+    """A name over a detail line, centred on the hero mark beside them.
+
+    A two-word phase name that overruns the column (``WANING GIBBOUS``) breaks
+    onto two lines instead of truncating; the detail line then follows it.
+    """
+    name_font = style.font_semibold(_FOOT_NAME_PT)
+    sub_font = style.font_regular(_FOOT_SUB_PT)
+    lines = [name]
+    if text_width(draw, name, name_font) > w and " " in name:
+        lines = name.split(" ", 1)
+    lines = lines[:2]
+    line_h = text_height(name_font) + 2
+    block_h = line_h * len(lines) + text_height(sub_font)
+    ty = y + max(0, (hero_h - block_h) // 2)
+    for line in lines:
+        draw_text_truncated(draw, (x, ty), line, name_font, w, fill=ink)
+        ty += line_h
+    draw.text((x, ty), sub, font=sub_font, fill=ink)

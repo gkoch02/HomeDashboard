@@ -41,6 +41,27 @@ def _data(**kw):
     return data
 
 
+def _allday(name: str, day=TODAY) -> CalendarEvent:
+    start = datetime.combine(day, datetime.min.time())
+    return CalendarEvent(summary=name, start=start, end=start + timedelta(days=1), is_all_day=True)
+
+
+def _colour(data, now=FIXED_NOW):
+    """Render through the four-ink 10.85" backend; pixels come back as its inks."""
+    data.fetched_at = now
+    cfg = DisplayConfig(model="epd10in85g", width=1360, height=480)
+    return render_dashboard(data, cfg, theme=load_theme("halftone_agenda_wide"))
+
+
+def _inks(img, box) -> set:
+    return set(flatten_pixels(img.crop(box)))
+
+
+YELLOW = (255, 255, 0)
+RED = (255, 0, 0)
+AGENDA = (hw.ART_W + hw.DIVIDER_W, 0, hw.RAIL_X - hw.DIVIDER_W, 480)
+
+
 def _plate(data=None, now=FIXED_NOW, style=None):
     img = Image.new("L", (1360, 480), 255)
     d = ImageDraw.Draw(img)
@@ -242,6 +263,17 @@ class TestAgenda:
         pane = img.crop((hw.ART_W + hw.DIVIDER_W, 0, hw.RAIL_X - hw.DIVIDER_W, 480))
         assert (255, 0, 0) not in set(flatten_pixels(pane))
 
+    def test_colour_plate_does_not_repaint_at_event_boundaries(self):
+        """The event accents key on the kind of event, never the clock."""
+        d = _data(
+            events=[_event(10, mins=60), _event(13, mins=60), _allday("Offsite")],
+            content_at=FIXED_NOW - timedelta(minutes=12),
+        )
+        before = _colour(d, now=FIXED_NOW.replace(hour=9))
+        during = _colour(d, now=FIXED_NOW.replace(hour=10, minute=30))
+        after = _colour(d, now=FIXED_NOW.replace(hour=14))
+        assert before.tobytes() == during.tobytes() == after.tobytes()
+
     def test_idle_tick_is_byte_identical(self):
         d = _data(content_at=FIXED_NOW - timedelta(minutes=12))
         a = _plate(d, now=FIXED_NOW)
@@ -380,3 +412,56 @@ class TestAgendaRender:
         a = _plate(d, now=FIXED_NOW)
         b = _plate(d, now=FIXED_NOW + timedelta(minutes=4))
         assert a.tobytes() == b.tobytes()
+
+
+# ---------------------------------------------------------------------------
+# Colour accents on the four-ink panel
+# ---------------------------------------------------------------------------
+
+
+class TestColourAccents:
+    def test_timed_event_tick_is_yellow(self):
+        timed = _colour(_data(events=[_event(10, mins=60)]))
+        empty = _colour(_data(events=[]))
+        rows = (AGENDA[0], 100, AGENDA[2], 400)
+        assert YELLOW in _inks(timed, rows)
+        assert YELLOW not in _inks(empty, rows)
+
+    def test_all_day_tick_is_red(self):
+        allday = _colour(_data(events=[_allday("Spring Break")]))
+        timed = _colour(_data(events=[_event(10, mins=60)]))
+        assert RED in _inks(allday, AGENDA)
+        assert RED not in _inks(timed, AGENDA)
+
+    def test_all_day_tick_stays_outlined_on_monochrome(self):
+        """Both accents are ink on mono, so the outline is what tells them apart."""
+        allday = _plate(_data(events=[_allday("Spring Break")]))
+        timed = _plate(_data(events=[_event(10, mins=60)]))
+        tick_x = hw.ART_W + hw.DIVIDER_W + hw.AGENDA_PAD_X + hw._WIDE_TIERS[0][2] + 1
+        box = (tick_x, 110, tick_x + 2, 130)
+        assert ink(timed, box) == 2 * 20
+        assert ink(allday, box) == 0
+
+    def test_dateline_is_red(self):
+        img = _colour(_data())
+        dateline = (0, 440, hw.ART_W // 2, 480)
+        assert RED in _inks(img, dateline)
+
+    def test_updated_stamp_is_yellow(self):
+        img = _colour(_data(events=[]))
+        footer = (AGENDA[0], 480 - hw.FOOTER_H, AGENDA[2], 480)
+        assert YELLOW in _inks(img, footer)
+
+
+class TestBirthdays:
+    def _quiet(self, n: int):
+        people = [Birthday(f"Person {i}", date(1990, 4, 7 + i)) for i in range(n)]
+        d = _data(events=[], birthdays=people)
+        d.weather.alerts = []
+        return _plate(d)
+
+    def test_up_to_five_rows_on_a_quiet_day(self):
+        band = (hw.RAIL_X, 0, 1360, 480 - hw.FOOT_H - 4)
+        four, five, six = (ink(self._quiet(n), band) for n in (4, 5, 6))
+        assert five > four + 100
+        assert six == five

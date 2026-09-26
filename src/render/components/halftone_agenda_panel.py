@@ -345,8 +345,12 @@ def _draw_weather_band(
     h: int,
     sunrise: datetime | None,
     sunset: datetime | None,
+    date_fill: int | tuple[int, int, int] | None = None,
 ) -> None:
     """Paint the typeset weather read-out under the illustration.
+
+    *date_fill* colours the dateline (default: ink); the wide plate sets it in
+    its red accent.
 
     ┌────────────────────────────────┐
     │        PARTLY CLOUDY           │
@@ -448,7 +452,10 @@ def _draw_weather_band(
     date_text = today.strftime("%a · %b %-d · %Y").upper()
     db = draw.textbbox((0, 0), date_text, font=date_font)
     draw.text(
-        (left - db[0], date_mid - (db[3] - db[1]) // 2 - db[1]), date_text, font=date_font, fill=ink
+        (left - db[0], date_mid - (db[3] - db[1]) // 2 - db[1]),
+        date_text,
+        font=date_font,
+        fill=ink if date_fill is None else date_fill,
     )
 
     if weather is not None and weather.feels_like is not None:
