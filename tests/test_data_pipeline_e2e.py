@@ -393,6 +393,52 @@ class TestRetryFetch:
         with pytest.raises(ValueError):
             retry_fetch("test", lambda: (_ for _ in ()).throw(ValueError("bad")))
 
+    @staticmethod
+    def _http_error(status):
+        import requests
+
+        resp = requests.Response()
+        resp.status_code = status
+        return requests.HTTPError(f"{status} Client Error", response=resp)
+
+    @pytest.mark.parametrize("status", [401, 403, 404])
+    def test_no_retry_on_permanent_http_status(self, status):
+        """A bad key or wrong sensor fails identically on retry (#295)."""
+        calls = []
+
+        def rejected():
+            calls.append(1)
+            raise self._http_error(status)
+
+        with pytest.raises(Exception, match=str(status)):
+            retry_fetch("test", rejected)
+        assert len(calls) == 1
+
+    @pytest.mark.parametrize("status", [408, 429, 500, 503])
+    def test_retries_on_transient_http_status(self, status):
+        calls = []
+
+        def flaky():
+            calls.append(1)
+            if len(calls) == 1:
+                raise self._http_error(status)
+            return "ok"
+
+        assert retry_fetch("test", flaky) == "ok"
+        assert len(calls) == 2
+
+    def test_status_in_message_alone_is_not_permanent(self):
+        """Classification reads the response, never the text."""
+        calls = []
+
+        def flaky():
+            calls.append(1)
+            if len(calls) == 1:
+                raise ConnectionError("upstream said 401")
+            return "ok"
+
+        assert retry_fetch("test", flaky) == "ok"
+
     def test_retry_failure_raises(self):
         """When retry also fails, the exception from the retry is raised."""
 

@@ -260,13 +260,41 @@ class TestPublishHardware:
         )
 
         with (
-            patch("src.services.output.image_changed", return_value=True) as mock_changed,
+            patch("src.services.output.image_changed", return_value=True),
             patch("src.services.output.build_display_driver") as mock_build,
         ):
             svc.publish(image, dry_run=False, force_full=False, now=_now(), theme_name="default")
 
-        mock_changed.assert_not_called()
         mock_build.assert_not_called()
+        # A real deferral: the pending frame is published to the web UI.
+        assert (Path(cfg.output_dir) / "latest.png").exists()
+
+    def test_unchanged_image_within_cooldown_is_not_a_deferral(self, tmp_path, caplog):
+        """Same image inside the cooldown is an idle tick, not a deferred change (#292)."""
+        cfg = _make_cfg(tmp_path)
+        cfg.display.provider = "inky"
+        cfg.display.model = "impression_7_3_2025"
+        cfg.display.min_refresh_interval_seconds = None
+        svc = OutputService(cfg, _make_tz())
+        image = Image.new("RGB", (800, 480), "white")
+        state_dir = Path(cfg.state_dir)
+        state_dir.mkdir(parents=True, exist_ok=True)
+        last = (_now() - timedelta(seconds=30)).isoformat()
+        (state_dir / "refresh_throttle_state.json").write_text(
+            json.dumps({"last_refresh_at": last})
+        )
+
+        with (
+            caplog.at_level("INFO", logger="src.services.output"),
+            patch("src.services.output.image_changed", return_value=False),
+            patch("src.services.output.build_display_driver") as mock_build,
+        ):
+            svc.publish(image, dry_run=False, force_full=False, now=_now(), theme_name="default")
+
+        mock_build.assert_not_called()
+        assert "Image unchanged" in caplog.text
+        assert "rate-limited" not in caplog.text
+        assert not (Path(cfg.output_dir) / "latest.png").exists()
 
     def test_inky_default_cooldown_passes_after_60s(self, tmp_path):
         cfg = _make_cfg(tmp_path)

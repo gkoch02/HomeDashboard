@@ -166,6 +166,30 @@ class TestCurrentDaypart:
         # Past sunset is night (new spec — was previously dusk for +60min)
         assert _current_daypart(_now(hour=19, minute=50), w) == "night"
 
+    def test_sun_times_from_a_previous_day_still_bucket_by_time_of_day(self):
+        """Cached weather across midnight carries yesterday's sun times (#293)."""
+        w = _wx(
+            sunrise=datetime(2026, 4, 22, 6, 5),
+            sunset=datetime(2026, 4, 22, 19, 43),
+        )
+        assert _current_daypart(_now(hour=7), w) == "dawn"
+        assert _current_daypart(_now(hour=12), w) == "day"
+        assert _current_daypart(_now(hour=19), w) == "dusk"
+        assert _current_daypart(_now(hour=22), w) == "night"
+
+    def test_aware_sun_times_are_read_in_nows_zone(self):
+        from zoneinfo import ZoneInfo
+
+        la = ZoneInfo("America/Los_Angeles")
+        utc = ZoneInfo("UTC")
+        # 06:05 PDT sunrise expressed in UTC is 13:05 the same day.
+        w = _wx(
+            sunrise=datetime(2026, 4, 23, 13, 5, tzinfo=utc),
+            sunset=datetime(2026, 4, 24, 2, 43, tzinfo=utc),
+        )
+        assert _current_daypart(datetime(2026, 4, 23, 6, 30, tzinfo=la), w) == "dawn"
+        assert _current_daypart(datetime(2026, 4, 23, 19, 0, tzinfo=la), w) == "dusk"
+
     def test_day_runs_from_dawn_end_to_dusk_start(self):
         w = _wx(
             sunrise=datetime(2026, 4, 23, 6, 5),

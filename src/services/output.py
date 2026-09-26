@@ -171,12 +171,19 @@ class OutputService:
             return
 
         # Two-stage refresh suppression:
-        #   1. Cooldown — minimum seconds between hardware writes regardless
-        #      of whether content changed. Blocks rapid-fire refreshes on
-        #      slow panels (Inky default 60s; set 3600 to restore v4 hourly).
-        #   2. Image hash — short-circuits identical-content refreshes.
-        # The cooldown intentionally blocks novel content too; the cap is a
+        #   1. Image hash — short-circuits identical-content refreshes.
+        #   2. Cooldown — minimum seconds between hardware writes. Blocks
+        #      rapid-fire refreshes on slow panels (Inky default 60s; set 3600
+        #      to restore v4 hourly).
+        # The hash is checked first: an unchanged image is the common idle
+        # tick, and reaching the cooldown branch with it logged a "deferred
+        # content change" that did not exist and rewrote latest.png for
+        # nothing (#292). The cooldown still blocks novel content — it is a
         # rate-limiter on the hardware, not just a dedup filter.
+        if not force_full and not image_changed(image, self.cfg.output_dir):
+            logger.info("Image unchanged — skipping display refresh")
+            return
+
         min_interval = _resolve_min_refresh_seconds(
             self.cfg.display.provider,
             self.cfg.display.min_refresh_interval_seconds,
@@ -191,7 +198,7 @@ class OutputService:
         ):
             logger.info(
                 "Display refresh rate-limited (cooldown %ds, theme '%s') — "
-                "deferring any pending content change to the next eligible run",
+                "deferring a content change to the next eligible run",
                 min_interval,
                 theme_name,
             )
@@ -202,10 +209,6 @@ class OutputService:
             # sets 3600 on Inky to restore the v4 hourly throttle, which is the
             # configuration the docs recommend (#245).
             self._save_latest_png(image)
-            return
-
-        if not image_changed(image, self.cfg.output_dir) and not force_full:
-            logger.info("Image unchanged — skipping display refresh")
             return
 
         # A theme can decline the fast waveform (Theme.allows_partial_refresh).

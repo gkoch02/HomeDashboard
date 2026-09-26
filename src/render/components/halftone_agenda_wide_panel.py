@@ -275,9 +275,25 @@ def fmt_duration(minutes: int) -> str:
     return f"{m}m"
 
 
-def booked_minutes(events: list[CalendarEvent]) -> int:
-    """Minutes covered by timed *events*, overlaps counted once."""
-    spans = sorted((e.start, e.end) for e in events if not e.is_all_day and e.end > e.start)
+def booked_minutes(events: list[CalendarEvent], day: date | None = None) -> int:
+    """Minutes covered by timed *events*, overlaps counted once.
+
+    With *day*, each span is clipped to that day first: a timed event running
+    across several days books only the part that falls on it, not its whole
+    length — "136H BOOKED" for one day was the unclipped sum (#311).
+    """
+    spans = []
+    for e in events:
+        if e.is_all_day:
+            continue
+        start, end = e.start, e.end
+        if day is not None:
+            day_start = datetime.combine(day, datetime.min.time(), tzinfo=start.tzinfo)
+            start = max(start, day_start)
+            end = min(end, day_start + timedelta(days=1))
+        if end > start:
+            spans.append((start, end))
+    spans.sort()
     total = 0
     cursor = None
     for start, end in spans:
@@ -507,7 +523,7 @@ def _draw_wide_agenda(
     else:
         draw.text((x0, y0 + 3), "TODAY", font=title_font, fill=ink)
     parts = [f"{len(day_events)} EVENT" + ("S" if len(day_events) != 1 else "")]
-    booked = booked_minutes(timed)
+    booked = booked_minutes(timed, day)
     if booked:
         parts.append(f"{fmt_duration(booked).upper()} BOOKED")
     meta = " · ".join(parts)

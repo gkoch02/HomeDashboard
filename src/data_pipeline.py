@@ -100,12 +100,40 @@ def _merge_air_quality_with_weather_fallback(
     )
 
 
+# 4xx responses that can succeed on an immediate retry: a request timeout and
+# a rate limit. Every other client error (401 bad key, 403, 404 wrong sensor)
+# fails the same way twice.
+_RETRYABLE_CLIENT_STATUSES = frozenset({408, 429})
+
+
+def _http_status(exc: BaseException) -> int | None:
+    """Return the HTTP status carried by *exc*, or ``None``.
+
+    Reads ``exc.response.status_code`` (``requests.HTTPError``) — never the
+    message text, where a "401" is not evidence of a 401 response.
+    """
+    status = getattr(getattr(exc, "response", None), "status_code", None)
+    return status if isinstance(status, int) else None
+
+
+def _is_permanent(exc: BaseException) -> bool:
+    if isinstance(exc, (RuntimeError, ValueError, TypeError, KeyError)):
+        return True
+    status = _http_status(exc)
+    return status is not None and 400 <= status < 500 and status not in _RETRYABLE_CLIENT_STATUSES
+
+
 def retry_fetch(label: str, fn):
-    """Attempt fn() twice only for likely transient failures."""
+    """Attempt fn() twice only for likely transient failures.
+
+    A permanent failure — a config/data error, or an HTTP 4xx other than
+    408/429 — is raised at once: retrying a bad API key only doubles the
+    rejected call every run (#295).
+    """
     try:
         return fn()
     except Exception as exc:
-        if isinstance(exc, (RuntimeError, ValueError, TypeError, KeyError)):
+        if _is_permanent(exc):
             raise
         logger.warning("%s failed, retrying: %s", label, exc)
     try:

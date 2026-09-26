@@ -6,7 +6,13 @@ from PIL import ImageDraw
 
 from src.data.models import StalenessLevel
 from src.render import layout as L
-from src.render.primitives import filled_rect, hline, text_height, text_width
+from src.render.primitives import (
+    draw_text_truncated,
+    filled_rect,
+    hline,
+    text_height,
+    text_width,
+)
 from src.render.theme import ComponentRegion, ThemeStyle
 
 
@@ -52,7 +58,6 @@ def draw_header(
     title_font = _title_fn(20)
     th = text_height(title_font)
     title_y = y + (h - th) // 2
-    draw.text((x + pad, title_y), title, font=title_font, fill=title_fill)
 
     # Last updated (right) — "Updated  Mar 15 · 9:43p"
     label_font = style.font_regular(11)
@@ -97,5 +102,15 @@ def draw_header(
     ts_y = y + (h - ts_h) // 2
 
     right_edge = x + w - pad
+    # The title yields to the timestamp: drawn at full width, a long title ran
+    # under the right-aligned block and the two overprinted (#310).
+    draw_text_truncated(
+        draw,
+        (x + pad, title_y),
+        title,
+        title_font,
+        max(0, right_edge - total_w - pad - (x + pad)),
+        fill=title_fill,
+    )
     draw.text((right_edge - total_w, label_y), updated_label, font=label_font, fill=text_fill)
     draw.text((right_edge - ts_w, ts_y), ts, font=time_font, fill=text_fill)

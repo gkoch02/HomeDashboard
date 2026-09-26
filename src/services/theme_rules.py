@@ -34,6 +34,13 @@ def _listify(val) -> list[str]:
     return [str(val).lower()]
 
 
+def _minute_of_day(dt: datetime, now: datetime) -> float:
+    """Wall-clock minute of *dt* in *now*'s zone (when both are aware)."""
+    if dt.tzinfo is not None and now.tzinfo is not None:
+        dt = dt.astimezone(now.tzinfo)
+    return dt.hour * 60 + dt.minute + dt.second / 60
+
+
 def _current_daypart(now: datetime, weather) -> str:
     """Return the daypart bucket for *now*.
 
@@ -50,11 +57,13 @@ def _current_daypart(now: datetime, weather) -> str:
     hour = now.hour + now.minute / 60
     now_min = hour * 60
     if weather is not None and weather.sunrise and weather.sunset:
-        midnight = now.replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=None)
-        sr = weather.sunrise.replace(tzinfo=None) if weather.sunrise.tzinfo else weather.sunrise
-        ss = weather.sunset.replace(tzinfo=None) if weather.sunset.tzinfo else weather.sunset
-        sr_min = (sr - midnight).total_seconds() / 60
-        ss_min = (ss - midnight).total_seconds() / 60
+        # Minutes since each timestamp's *own* midnight, not today's: weather
+        # served from cache across midnight carries yesterday's sun times, and
+        # subtracting today's midnight made them negative, so every bucket
+        # test failed and the whole day read as "night" (#293). A day's shift
+        # in sunrise is a minute or two, well inside the ±90/60 windows.
+        sr_min = _minute_of_day(weather.sunrise, now)
+        ss_min = _minute_of_day(weather.sunset, now)
         if sr_min - 90 <= now_min <= sr_min + 90:
             return "dawn"
         if ss_min - 60 <= now_min <= ss_min:
