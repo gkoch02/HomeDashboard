@@ -170,8 +170,11 @@ def should_throttle_display_refresh(
 
 
 def _slot_key(when: datetime, hours: int, tz) -> tuple:
+    # The UTC offset tells the two passes of a fall-back hour apart: without
+    # it, 01:05 before the transition and 01:55 after share a key, and a
+    # one-hour slot holds a change for nearly two real hours.
     local = when.astimezone(tz) if tz is not None else when
-    return (local.date(), local.hour // hours)
+    return (local.date(), local.hour // hours, local.utcoffset())
 
 
 def in_same_repaint_slot(

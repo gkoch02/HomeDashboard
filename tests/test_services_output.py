@@ -990,6 +990,18 @@ class TestRepaintSlot:
         assert self._publish(svc, datetime(2026, 4, 8, 14, 30, tzinfo=plus1))
         assert self._publish(svc, datetime(2026, 4, 8, 15, 30, tzinfo=plus1))
 
+    def test_repeated_fall_back_hour_is_two_slots(self, tmp_path):
+        import zoneinfo
+
+        ny = zoneinfo.ZoneInfo("America/New_York")
+        svc = OutputService(_make_cfg(tmp_path), _make_tz())
+        # 2026-11-01: 01:00–02:00 EDT happens, then 01:00–02:00 EST again.
+        first = datetime(2026, 11, 1, 5, 5, tzinfo=timezone.utc).astimezone(ny)
+        second = datetime(2026, 11, 1, 6, 55, tzinfo=timezone.utc).astimezone(ny)
+        assert first.hour == second.hour == 1
+        assert self._publish(svc, first, slot=1)
+        assert self._publish(svc, second, slot=1)
+
     def test_switching_to_the_theme_mid_slot_paints(self, tmp_path):
         svc = OutputService(_make_cfg(tmp_path), _make_tz())
         assert self._publish(svc, datetime(2026, 4, 8, 12, 5, tzinfo=timezone.utc), theme="today")
