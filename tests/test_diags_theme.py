@@ -629,3 +629,20 @@ class TestDiagsNotInRandomPool:
 
         pool = eligible_themes(include=["diags"], exclude=[])
         assert "diags" not in pool
+
+
+def test_diags_sensor_temp_uses_the_readings_unit():
+    """The diags row labels the sensor temperature in its own units (#297)."""
+    from PIL import ImageDraw
+
+    from src.render.components.diags_panel import _aq_section
+    from src.render.theme import ThemeStyle
+
+    def render(unit):
+        img = Image.new("1", (400, 300), 1)
+        aq = AirQualityData(aqi=42, category="Good", pm25=9.8, temperature=22.0)
+        aq.temperature_unit = unit
+        _aq_section(ImageDraw.Draw(img), 0, 0, 400, aq, diags_theme().style or ThemeStyle())
+        return img
+
+    assert render("°F").tobytes() != render("°C").tobytes()

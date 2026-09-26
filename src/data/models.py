@@ -74,9 +74,12 @@ class AirQualityData:
     pm10: float | None = None  # PM10 µg/m³ (may be absent)
     sensor_id: int | None = None  # PurpleAir sensor_index
     pm1: float | None = None  # PM1.0 µg/m³ (may be absent)
-    temperature: float | None = None  # °F — PurpleAir ambient sensor reading
-    humidity: float | None = None  # % relative humidity — PurpleAir ambient
+    # Corrected ambient temperature, in the units named by temperature_unit —
+    # weather.units since #297; a cache entry from before then is raw °F.
+    temperature: float | None = None
+    humidity: float | None = None  # % relative humidity — PurpleAir ambient, corrected
     pressure: float | None = None  # hPa atmospheric pressure — PurpleAir ambient
+    temperature_unit: str = "°F"  # display suffix for temperature: "°F", "°C" or " K"
     fallback_fields: set[str] = field(default_factory=set)  # Fields filled from OWM fallback
 
 

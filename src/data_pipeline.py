@@ -97,6 +97,7 @@ def _merge_air_quality_with_weather_fallback(
         temperature=temperature,
         humidity=humidity,
         pressure=pressure,
+        temperature_unit=air_quality.temperature_unit,
         fallback_fields=fallback_fields,
     )
 

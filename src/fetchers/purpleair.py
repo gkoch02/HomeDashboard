@@ -131,8 +131,42 @@ def _first_float(sensor: dict[str, Any], keys: list[str]) -> float | None:
     return None
 
 
-def fetch_air_quality(cfg: PurpleAirConfig) -> AirQualityData:
+# PurpleAir documents its onboard readings as taken inside the sensor housing,
+# which the electronics warm: "on average ... 8F higher than ambient" and
+# humidity "4% lower". Applied at fetch time so every panel shows ambient.
+_TEMP_OFFSET_F = -8.0
+_HUMIDITY_OFFSET = 4.0
+
+# weather.units → display suffix; the sensor itself always reports °F.
+_TEMP_UNIT_SUFFIX = {"imperial": "°F", "metric": "°C", "standard": " K"}
+
+
+def _ambient_temperature(raw_f: float | None, units: str) -> float | None:
+    """Correct a housing reading to ambient and convert it to *units*."""
+    if raw_f is None:
+        return None
+    f = raw_f + _TEMP_OFFSET_F
+    if units == "metric":
+        return (f - 32) * 5 / 9
+    if units == "standard":
+        return (f - 32) * 5 / 9 + 273.15
+    return f
+
+
+def _ambient_humidity(raw: float | None) -> float | None:
+    if raw is None:
+        return None
+    return max(0.0, min(100.0, raw + _HUMIDITY_OFFSET))
+
+
+def fetch_air_quality(cfg: PurpleAirConfig, units: str = "imperial") -> AirQualityData:
     """Fetch current air quality from a PurpleAir sensor.
+
+    Temperature and humidity are corrected from the sensor housing to ambient
+    and the temperature is converted to *units* (``weather.units``), so a
+    metric install no longer shows a Fahrenheit card beside Celsius weather,
+    and the OWM fallback merged into the same field is in the same units
+    (#297).
 
     Raises ``RuntimeError`` when credentials are missing or the API returns an
     unrecoverable error (403 invalid key, 404 sensor not found).  Transient
@@ -194,8 +228,8 @@ def fetch_air_quality(cfg: PurpleAirConfig) -> AirQualityData:
 
     pm1 = _first_float(sensor, ["pm1.0_atm", "pm1.0_atm_a", "pm1.0_atm_b"])
     pm10 = _first_float(sensor, ["pm10.0_atm", "pm10.0_atm_a", "pm10.0_atm_b"])
-    temperature = _first_float(sensor, ["temperature"])
-    humidity = _first_float(sensor, ["humidity"])
+    temperature = _ambient_temperature(_first_float(sensor, ["temperature"]), units)
+    humidity = _ambient_humidity(_first_float(sensor, ["humidity"]))
     pressure = _first_float(sensor, ["pressure"])
     aqi, category = _pm25_to_aqi(pm25_60min)
 
@@ -217,6 +251,7 @@ def fetch_air_quality(cfg: PurpleAirConfig) -> AirQualityData:
         temperature=temperature,
         humidity=humidity,
         pressure=pressure,
+        temperature_unit=_TEMP_UNIT_SUFFIX.get(units, "°F"),
     )
 
 
@@ -228,7 +263,7 @@ def fetch_air_quality(cfg: PurpleAirConfig) -> AirQualityData:
 def _air_quality_fetch(ctx) -> AirQualityData:
     from src import data_pipeline
 
-    return data_pipeline.fetch_air_quality(ctx.cfg.purpleair)
+    return data_pipeline.fetch_air_quality(ctx.cfg.purpleair, units=ctx.cfg.weather.units)
 
 
 def _air_quality_enabled(cfg) -> bool:

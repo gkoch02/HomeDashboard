@@ -337,7 +337,9 @@ def _draw_ambient_cards(
     cards: list[tuple[str, str, str]] = []  # (glyph, value, label)
     # Only show temperature if it's from native sensor, not from OWM fallback
     if aq.temperature is not None and "temperature" not in aq.fallback_fields:
-        cards.append((_GLYPH_THERMOMETER, f"{aq.temperature:.0f}°F", "Sensor Temp"))
+        cards.append(
+            (_GLYPH_THERMOMETER, f"{aq.temperature:.0f}{aq.temperature_unit}", "Sensor Temp")
+        )
     if aq.humidity is not None:
         cards.append((_GLYPH_HUMIDITY, f"{aq.humidity:.0f}%", "Humidity"))
     if aq.pressure is not None:
