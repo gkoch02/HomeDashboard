@@ -30,6 +30,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   the weather; an older cache entry loads with an empty list. Dummy data
   carries a realistic 40-slot grid.
 - `astronomy.solar_altitude(dt, lat, lon)` — the sun's altitude at an instant.
+- **Panoramic Themes guide** (`docs/wide-themes.md`), linked from the panoramic
+  section of the theme catalog: setting up the 10.85" panel, choosing between the
+  five wide themes, how often each repaints, the data each needs, and committed
+  previews of all five in the panel's own four inks (`theme_<name>_g.png`).
 - **Big Shoulders Display** (OFL) — SemiBold, ExtraBold and Black cuts, via
   `fonts.big_shoulders_semibold/extrabold/black`.
 

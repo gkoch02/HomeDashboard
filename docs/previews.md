@@ -178,7 +178,9 @@ Timestamped dry runs are also written automatically:
   (`weatherglass`, `postcard`, `naturalist` draw at 1600 × 960) keeps the panel's
   size and its LANCZOS downsample. To preview the four-ink rendering of the Waveshare
   10.85" (G) panel, pass `--model epd10in85g`; the files take a `_g` suffix so they
-  never overwrite the monochrome set.
+  never overwrite the monochrome set. The five panoramic themes' `_g` previews are
+  committed and embedded in [Panoramic Themes](wide-themes.md), which lists the
+  command that regenerates them.
 - The `astronomy` theme uses `weather.latitude` / `weather.longitude` for twilight math;
   the preview degrades gracefully without them (OWM sunrise/sunset only, no twilight).
 - The `photo` theme will still render in dry-run mode even if no custom photo path is configured,
