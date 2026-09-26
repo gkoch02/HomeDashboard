@@ -8,12 +8,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [6.0.0] - 2026-09-26
 
-A major release. Existing `config.yaml` files still load unchanged, but a few
-surfaces are gone or behave differently: `display.week_days` is ignored, the
-`make previews-split` target and split preview images are removed, five
-unlicensed bundled fonts (and the `nucore` accessor) are replaced, and ICS /
-CalDAV outages now fail the fetch and fall back to cache instead of rendering
-an empty calendar. See **Removed** and **Changed** below.
+A major release: **Waveshare 10.85" (G) support** — the project's first
+four-ink panel and first non-800 × 480 shape — with `display.scaling` and four
+panoramic 1360 × 480 themes (`wide_week`, `wide_day`, `wide_forecast`,
+`halftone_agenda_wide`) built for it. Existing `config.yaml` files load
+unchanged. A few smaller surfaces were removed (`display.week_days`, split
+previews, five unlicensed fonts); see **Removed**.
 
 ### Added
 
