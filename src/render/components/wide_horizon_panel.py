@@ -78,6 +78,9 @@ from src.render.quantize import INKY_SPECTRA6_PALETTE
 from src.render.theme import INKY_RED, INKY_YELLOW, ComponentRegion, ThemeStyle
 
 Rect = tuple[int, int, int, int]
+# A box in canvas coordinates that may fall between pixels: label and body
+# extents, which are computed from float axis positions.
+Box = tuple[float, float, float, float]
 Fill = int | tuple[int, int, int]
 
 # ---------------------------------------------------------------------------
@@ -586,7 +589,7 @@ def event_label(evt: CalendarEvent) -> tuple[str, str]:
 # ---------------------------------------------------------------------------
 
 
-def _text_box(draw: ImageDraw.ImageDraw, text: str, font) -> tuple[int, int, int, int]:
+def _text_box(draw: ImageDraw.ImageDraw, text: str, font) -> Box:
     return draw.textbbox((0, 0), text, font=font)
 
 
@@ -595,7 +598,7 @@ def _dotted_vline(draw, x: int, y0: int, y1: int, fill, gap: int = 3) -> None:
         draw.point((x, y), fill=fill)
 
 
-def _dither_rect(image: Image.Image, box: Rect, cover: float, ink: Fill) -> None:
+def _dither_rect(image: Image.Image, box: Box, cover: float, ink: Fill) -> None:
     """Stamp *ink* through the Bayer screen at *cover* over *box* (x0, y0, x1, y1)."""
     x0, y0, x1, y1 = (int(round(v)) for v in box)
     w, h = x1 - x0, y1 - y0
@@ -748,9 +751,11 @@ def moon_transit(day: date) -> datetime:
     return datetime.combine(day, datetime.min.time()) + timedelta(hours=hours)
 
 
-def _draw_moons(image, draw, axis: TimeAxis, sky_y0: int, ink: Inks, altitude, slots=()):
+def _draw_moons(
+    image, draw, axis: TimeAxis, sky_y0: int, ink: Inks, altitude, slots=()
+) -> list[Box]:
     """The moon at each transit that falls in darkness; returns the discs' boxes."""
-    boxes: list[Rect] = []
+    boxes: list[Box] = []
     day = axis.start.date() - timedelta(days=1)
     while day <= axis.end.date():
         t = moon_transit(day)
@@ -804,12 +809,12 @@ def sun_hidden(slots, noon: datetime) -> bool:
 
 def _draw_suns(
     draw, axis, sky_y0, ink: Inks, weather, latitude, longitude, tz, altitude, slots=()
-) -> list[Rect]:
+) -> list[Box]:
     """A sun at each solar noon, as high in the band as it will climb; returns their boxes.
 
     A noon under an overcast or wet slot gets no sun — its clouds are the sky.
     """
-    boxes: list[Rect] = []
+    boxes: list[Box] = []
     for noon, peak in solar_noons(axis, weather, latitude, longitude, tz, altitude):
         if sun_hidden(slots, noon):
             continue
@@ -938,7 +943,7 @@ SUN_CLEARANCE = 22  # a partly cloudy sky keeps its clouds this far off the sun
 
 
 def _draw_sky_weather(
-    image, draw, axis: TimeAxis, alt, slots, sky_y0: int, ink: Inks, bodies: list[Rect]
+    image, draw, axis: TimeAxis, alt, slots, sky_y0: int, ink: Inks, bodies: list[Box]
 ) -> None:
     """Clouds, rain, snow, lightning and fog over each forecast slot's span.
 
@@ -988,9 +993,11 @@ def _draw_sky_weather(
                         draw.line((sx, sy, sx - 4, sy + ln), fill=mark, width=2 if heavy else 1)
                 elif precip == "snow":
                     for _ in range(int(w / 5)):
-                        sx = rng.uniform(x - w / 2 + 6, x + w / 2 - 6)
-                        sy = base + 4 + rng.uniform(0, 30)
-                        draw.ellipse((sx - 1.5, sy - 1.5, sx + 1.5, sy + 1.5), fill=mark)
+                        flake_x = rng.uniform(x - w / 2 + 6, x + w / 2 - 6)
+                        flake_y = base + 4 + rng.uniform(0, 30)
+                        draw.ellipse(
+                            (flake_x - 1.5, flake_y - 1.5, flake_x + 1.5, flake_y + 1.5), fill=mark
+                        )
                 if first_cloud is None:
                     first_cloud = (x, base)
             x += w * _CLOUD_ADVANCE[level] * rng.uniform(0.85, 1.15)
@@ -1011,12 +1018,12 @@ def _draw_sky_weather(
 # --- temperature ------------------------------------------------------------
 
 
-def _overlaps(a: Rect, b: Rect, pad: int = 3) -> bool:
+def _overlaps(a: Box, b: Box, pad: int = 3) -> bool:
     return a[0] - pad < b[2] and b[0] < a[2] + pad and a[1] - pad < b[3] and b[1] < a[3] + pad
 
 
 def place_label(
-    x: float, ty: float, tw: int, th: int, bodies: list[Rect], x0: float, x1: float
+    x: float, ty: float, tw: float, th: float, bodies: list[Box], x0: float, x1: float
 ) -> float:
     """Left edge for a *tw*-wide label centred on *x*, moved clear of *bodies*.
 
@@ -1049,7 +1056,7 @@ def _draw_temperature(
     sky_x0: int,
     sky_y0: int,
     ink: Inks,
-    bodies: list[Rect] | None = None,
+    bodies: list[Box] | None = None,
     real_from: datetime | None = None,
 ):
     if len(slots) < 2:
@@ -1262,7 +1269,7 @@ def _draw_events(draw, data: DashboardData, axis: TimeAxis, y0: int, y1: int, in
     events = events_in_window(data.events, axis)
     title_font = fonts.dm_bold(15)
     time_font = fonts.dm_semibold(12)
-    items = []
+    bars = []
     for evt in events:
         x0, x1 = axis.x(evt.start), axis.x(evt.end)
         x1 = max(x1, x0 + 6)
@@ -1270,8 +1277,8 @@ def _draw_events(draw, data: DashboardData, axis: TimeAxis, y0: int, y1: int, in
         need = max(text_width(draw, title, title_font), text_width(draw, when, time_font)) + 14
         inside = (x1 - x0) >= need
         extent = x1 if inside else x1 + LABEL_PAD + min(need, MAX_BESIDE_LABEL_W)
-        items.append((x0, min(extent, axis.x1) + 4, (evt, x0, x1, inside)))
-    lanes = pack_lanes(items)
+        bars.append((x0, min(extent, axis.x1) + 4, (evt, x0, x1, inside)))
+    lanes = pack_lanes(bars)
     lanes_avail = max(0, (y1 - y) // LANE_H)
     if len(lanes) > lanes_avail or overflow_starts:
         # Something will be counted: keep the footer row clear for the count.
