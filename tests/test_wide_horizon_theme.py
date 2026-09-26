@@ -441,6 +441,35 @@ def _event(summary, start, hours=1.0, all_day=False):
     return CalendarEvent(summary, start, start + timedelta(hours=hours), is_all_day=all_day)
 
 
+class TestDayHeaders:
+    # A headline "pixel" per character times 3, a caption one per character:
+    # enough to put each rung of the fallback in or out of reach.
+    @staticmethod
+    def _measure(text, caption):
+        return len(text) * (1 if caption else 3)
+
+    def _label(self, day, room, now=datetime(2026, 4, 6, 20, 10)):
+        return wh.header_label(day, now, _axis(now), room, self._measure)
+
+    def test_today_that_fits_is_a_headline(self):
+        assert self._label(date(2026, 4, 6), 21) == ("TONIGHT", False)
+
+    def test_a_sliver_of_today_is_a_caption_not_its_weekday(self):
+        assert self._label(date(2026, 4, 6), 20) == ("TONIGHT", True)
+
+    def test_another_day_falls_back_to_its_short_weekday(self):
+        assert self._label(date(2026, 4, 8), 27) == ("WEDNESDAY", False)
+        assert self._label(date(2026, 4, 8), 26) == ("WED", False)
+
+    def test_nothing_fits_nothing_is_drawn(self):
+        assert self._label(date(2026, 4, 6), 6) == ("", False)
+        assert self._label(date(2026, 4, 8), 8) == ("", False)
+
+    def test_today_reads_today_before_the_evening_slot(self):
+        morning = datetime(2026, 4, 6, 10, 30)
+        assert self._label(date(2026, 4, 6), 100, now=morning) == ("TODAY", False)
+
+
 class TestLabelPlacement:
     def test_a_label_clear_of_bodies_stays_centred(self):
         assert wh.place_label(500, 50, 40, 30, [], 236, 1360) == 480

@@ -1176,13 +1176,33 @@ def _day_name(day: date, now: datetime, axis: TimeAxis) -> str:
     return day.strftime("%A").upper()
 
 
-# The day name steps down through these before falling back to the short
-# weekday: a 6-hour evening sliver fits "TONIGHT" at 26 pt but not at 34.
-DAY_NAME_PTS = (34, 26)
+DAY_NAME_PT = 34
+
+
+def header_label(
+    day: date, now: datetime, axis: TimeAxis, room: float, measure
+) -> tuple[str, bool]:
+    """``(text, is_caption)`` for a day's header in *room* pixels, or ``("", False)``.
+
+    A day gets its name as a headline, or failing that its short weekday. Today
+    is the exception: "MON" over an evening sliver says the wrong thing, and a
+    shrunken headline reads as a mistake beside full-size ones, so a sliver of
+    today too narrow for its headline carries the name as a *caption*, in the
+    date labels' face — a note, not a smaller headline. *measure* is
+    ``(text, is_caption) -> width``.
+    """
+    name = _day_name(day, now, axis)
+    options = [(name, False)]
+    options.append((name, True) if day == now.date() else (day.strftime("%a").upper(), False))
+    for text, caption in options:
+        if measure(text, caption) <= room:
+            return text, caption
+    return "", False
 
 
 def _draw_day_headers(draw, axis: TimeAxis, y0: int, now: datetime, ink: Inks) -> None:
     small = fonts.dm_bold(13)
+    headline = fonts.big_shoulders_black(DAY_NAME_PT)
     baseline = y0 + 36
     starts = [(axis.x0, axis.start.date())] + _midnights(axis)
     for i, (x, day) in enumerate(starts):
@@ -1190,22 +1210,23 @@ def _draw_day_headers(draw, axis: TimeAxis, y0: int, now: datetime, ink: Inks) -
         if i > 0:
             draw.line((x, y0, x, y0 + HEAD_H), fill=ink.black, width=2)
         room = x_end - x - 16
-        candidates = [(_day_name(day, now, axis), pt) for pt in DAY_NAME_PTS]
-        candidates.append((day.strftime("%a").upper(), DAY_NAME_PTS[-1]))
-        fitting = [
-            (n, pt)
-            for n, pt in candidates
-            if text_width(draw, n, fonts.big_shoulders_black(pt)) <= room
-        ]
-        if not fitting:
+        name, caption = header_label(
+            day,
+            now,
+            axis,
+            room,
+            lambda t, c: text_width(draw, t, small if c else headline),
+        )
+        if not name:
             continue
-        name, pt = fitting[0]
-        font = fonts.big_shoulders_black(pt)
-        tw = text_width(draw, name, font)
+        font = small if caption else headline
         fill = ink.red if (day == now.date() and ink.colour) else ink.black
         # Name and date share a baseline, so the date reads as the name's
         # subscript rather than floating at mid-height.
         draw.text((x + 8, baseline), name, font=font, fill=fill, anchor="ls")
+        if caption:
+            continue
+        tw = text_width(draw, name, font)
         date_label = day.strftime("%b %-d").upper()
         if tw + text_width(draw, date_label, small) + 18 <= room:
             draw.text(
