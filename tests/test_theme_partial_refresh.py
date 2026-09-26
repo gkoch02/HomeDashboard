@@ -56,6 +56,7 @@ DECLINES_PARTIAL = {
     "qotd_invert",
     "terminal",
     "trends",
+    "wide_horizon",
 }
 
 # Themes that overrule the derivation, with the reason each one does. The

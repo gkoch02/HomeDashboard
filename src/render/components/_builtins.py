@@ -43,6 +43,7 @@ from src.render.components import (
     week_view,
     wide_day_panel,
     wide_forecast_panel,
+    wide_horizon_panel,
     year_pulse_panel,
 )
 from src.render.components.registry import RenderContext, register_component
@@ -520,4 +521,21 @@ def _halftone_agenda_wide(ctx: RenderContext) -> None:
         image=ctx.image,
         region=ctx.layout.halftone_agenda_wide,
         style=ctx.style,
+    )
+
+
+@register_component("wide_horizon")
+def _wide_horizon(ctx: RenderContext) -> None:
+    region = ctx.layout.wide_horizon
+    ctx.dither_regions.append(wide_horizon_panel.sky_rect(region))
+    wide_horizon_panel.draw_wide_horizon(
+        ctx.draw,
+        ctx.data,
+        ctx.today,
+        ctx.now,
+        image=ctx.image,
+        region=region,
+        style=ctx.style,
+        latitude=ctx.latitude,
+        longitude=ctx.longitude,
     )

@@ -22,6 +22,7 @@ from src.data.models import (
     CalendarEvent,
     DashboardData,
     DayForecast,
+    HourlyForecast,
     StalenessLevel,
     WeatherAlert,
     WeatherData,
@@ -360,6 +361,16 @@ def _ser_weather(w: WeatherData) -> dict:
             for f in w.forecast
         ],
         "alerts": [{"event": a.event} for a in w.alerts],
+        "hourly": [
+            {
+                "time": h.time.isoformat(),
+                "temp": h.temp,
+                "icon": h.icon,
+                "precip_chance": h.precip_chance,
+                "precip_mm": h.precip_mm,
+            }
+            for h in w.hourly
+        ],
     }
 
 
@@ -455,6 +466,17 @@ def _deser_weather(w: dict) -> WeatherData:
         alerts=[WeatherAlert(event=a["event"]) for a in w.get("alerts", [])],
         location_name=w.get("location_name"),
         units=w.get("units"),
+        # Absent from entries written before the hourly grid was kept.
+        hourly=[
+            HourlyForecast(
+                time=datetime.fromisoformat(h["time"]),
+                temp=h["temp"],
+                icon=h.get("icon", ""),
+                precip_chance=h.get("precip_chance"),
+                precip_mm=h.get("precip_mm"),
+            )
+            for h in w.get("hourly", [])
+        ],
     )
 
 

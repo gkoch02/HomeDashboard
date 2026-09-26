@@ -34,6 +34,21 @@ class DayForecast:
 
 
 @dataclass
+class HourlyForecast:
+    """One slot of the OWM 5-day / 3-hour forecast, kept at its own resolution.
+
+    ``DayForecast`` collapses these slots to one row per day; panels that plot
+    weather on a time axis (``wide_horizon``) need the slots themselves.
+    """
+
+    time: datetime  # aware; the start of the slot
+    temp: float
+    icon: str
+    precip_chance: float | None = None  # 0.0–1.0 probability of precipitation
+    precip_mm: float | None = None  # rain + snow expected over the slot, mm
+
+
+@dataclass
 class WeatherAlert:
     event: str  # Short alert name, e.g. "Flood Watch"
 
@@ -57,6 +72,8 @@ class WeatherData:
     sunset: datetime | None = None
     location_name: str | None = None  # City name from OWM (e.g. "New York")
     units: str | None = None  # OWM unit system: "imperial", "metric", or "standard"
+    # The forecast grid's 3-hour slots, soonest first — up to 40 (five days).
+    hourly: list[HourlyForecast] = field(default_factory=list)
 
 
 @dataclass

@@ -223,6 +223,24 @@ def day_length_delta(today: date, latitude: float, longitude: float) -> timedelt
     return today_len - yesterday_len
 
 
+def solar_altitude(dt: datetime, latitude: float, longitude: float) -> float:
+    """The sun's altitude above the horizon at *dt*, in degrees (negative below).
+
+    Same NOAA approximation ``sun_times`` inverts, evaluated forward: the hour
+    angle comes from true solar time, and refraction is ignored, so the value
+    is about half a degree low at the horizon — immaterial for shading a sky.
+    Naive *dt* is read as UTC, as in ``_julian_day_full``.
+    """
+    ut = dt.astimezone(timezone.utc) if dt.tzinfo is not None else dt.replace(tzinfo=timezone.utc)
+    declination, eot = _solar_declination_and_eot(_julian_day_full(ut))
+    minutes = ut.hour * 60 + ut.minute + ut.second / 60.0
+    hour_angle = math.radians((minutes + eot + 4 * longitude) / 4.0 - 180.0)
+    lat = math.radians(latitude)
+    dec = math.radians(declination)
+    sin_alt = math.sin(lat) * math.sin(dec) + math.cos(lat) * math.cos(dec) * math.cos(hour_angle)
+    return math.degrees(math.asin(max(-1.0, min(1.0, sin_alt))))
+
+
 def next_meteor_shower(today: date) -> tuple[MeteorShower, int]:
     """Return (next upcoming shower, days until its peak).
 

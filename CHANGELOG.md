@@ -6,6 +6,33 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added
+
+- **`wide_horizon` theme** — the next 72 hours on one time axis at 1360 × 480,
+  the first plate built around what the panoramic strip can do and an 800 × 480
+  panel cannot. A sky coloured by the sun's real altitude at every column
+  (paper by day, twilights, night with stars and a phase-correct moon, a sun
+  at each solar noon), clouds, rain, snow, lightning and fog drawn per
+  forecast slot, the temperature as one cased line with each day's turning
+  points labelled, rain chance hanging beneath, and the calendar's all-day
+  events, birthdays and timed events as bars on the same hours. A hero block
+  carries the conditions now and a three-line outlook (warmest, coldest,
+  first rain). On a colour panel the twilights are ordered dithers between
+  pairs of inks, so the four-ink panel shows pale yellow, orange and maroon;
+  every pixel is already an exact ink, so the panel's final snap is the
+  identity. Waking hours get more of the axis than the night. The window
+  starts at the current 3-hour forecast slot, so the clock moves the plate at
+  most eight times a day.
+- **Hourly forecast data** — `WeatherData.hourly`, a list of
+  `HourlyForecast(time, temp, icon, precip_chance, precip_mm)`: the OWM
+  5-day / 3-hour grid the weather fetcher already downloads, kept at its own
+  resolution instead of only collapsed to daily rows. Cached with the rest of
+  the weather; an older cache entry loads with an empty list. Dummy data
+  carries a realistic 40-slot grid.
+- `astronomy.solar_altitude(dt, lat, lon)` — the sun's altitude at an instant.
+- **Big Shoulders Display** (OFL) — SemiBold, ExtraBold and Black cuts, via
+  `fonts.big_shoulders_semibold/extrabold/black`.
+
 ## [6.0.0] - 2026-09-26
 
 A major release: **Waveshare 10.85" (G) support** — the project's first

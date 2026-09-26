@@ -5,6 +5,7 @@ Used by ``main.py --dummy`` to render a dashboard without API credentials.
 
 from __future__ import annotations
 
+import math
 from datetime import date, datetime, timedelta, timezone, tzinfo
 
 from src.data.models import (
@@ -14,10 +15,67 @@ from src.data.models import (
     DashboardData,
     DayForecast,
     HostData,
+    HourlyForecast,
     StalenessLevel,
     WeatherAlert,
     WeatherData,
 )
+
+# (low, high, precip chance, wet icon) for today and the five days after it —
+# the same days ``generate_dummy_data`` sets on ``WeatherData.forecast``.
+_DUMMY_DAYS: list[tuple[float, float, float, str]] = [
+    (35.0, 48.0, 0.10, "03"),
+    (33.0, 45.0, 0.80, "10"),
+    (38.0, 50.0, 0.05, "01"),
+    (36.0, 47.0, 0.30, "04"),
+    (40.0, 52.0, 0.10, "02"),
+    (42.0, 55.0, 0.60, "09"),
+]
+
+
+def _dummy_temp(prev: tuple, day: tuple, nxt: tuple, hour: float) -> float:
+    """A diurnal curve: each low at 06:00, each high at 15:00, cosine between."""
+
+    if hour < 6:  # still on yesterday evening's fall toward this morning's low
+        high, low, t = prev[1], day[0], (hour + 24 - 15) / 15
+    elif hour <= 15:
+        low, high = day[0], day[1]
+        return low + (high - low) * (1 - math.cos(math.pi * (hour - 6) / 9)) / 2
+    else:
+        high, low, t = day[1], nxt[0], (hour - 15) / 15
+    return low + (high - low) * (1 + math.cos(math.pi * t)) / 2
+
+
+def _dummy_hourly(now: datetime, tz: tzinfo) -> list[HourlyForecast]:
+    """Forty 3-hour slots from the one holding *now*, like the OWM grid."""
+    start_day = now.date()
+    first = datetime.combine(start_day, datetime.min.time()).replace(tzinfo=tz)
+    first += timedelta(hours=(now.hour // 3) * 3)
+    slots: list[HourlyForecast] = []
+    for i in range(40):
+        t = first + timedelta(hours=3 * i)
+        idx = min((t.date() - start_day).days, len(_DUMMY_DAYS) - 1)
+        day = _DUMMY_DAYS[idx]
+        nxt = _DUMMY_DAYS[min(idx + 1, len(_DUMMY_DAYS) - 1)]
+        prev = _DUMMY_DAYS[max(idx - 1, 0)]
+        daytime = 6 <= t.hour < 20
+        # Rain arrives in the afternoon on the wet days and clears overnight.
+        wet_slot = day[2] >= 0.3 and 9 <= t.hour <= 21
+        pop = day[2] if wet_slot else round(day[2] * 0.3, 2)
+        icon = (day[3] if wet_slot or day[3] in ("01", "02", "03", "04") else "02") + (
+            "d" if daytime else "n"
+        )
+        mm = round(pop * 2.4, 1) if wet_slot and pop >= 0.5 else None
+        slots.append(
+            HourlyForecast(
+                time=t,
+                temp=round(_dummy_temp(prev, day, nxt, t.hour), 1),
+                icon=icon,
+                precip_chance=pop,
+                precip_mm=mm,
+            )
+        )
+    return slots
 
 
 def generate_dummy_data(
@@ -278,6 +336,7 @@ def generate_dummy_data(
         ),
         units="imperial",
     )
+    weather.hourly = _dummy_hourly(now, dummy_tz)
 
     birthdays = [
         Birthday(name="Mom", date=today + timedelta(days=3)),

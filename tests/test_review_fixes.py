@@ -16,7 +16,7 @@ from src.services.output import _resolve_min_refresh_seconds
 
 LANDSCAPE = (800, 480)
 PANORAMIC = (1360, 480)
-WIDE = {"wide_week", "wide_day", "wide_forecast", "halftone_agenda_wide"}
+WIDE = {"wide_week", "wide_day", "wide_forecast", "wide_horizon", "halftone_agenda_wide"}
 
 
 class TestSpectraAccentsOnTheGPanel:

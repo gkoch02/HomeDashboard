@@ -273,3 +273,20 @@ def antonio_semibold(size: int) -> ImageFont.FreeTypeFont:
 
 def antonio_bold(size: int) -> ImageFont.FreeTypeFont:
     return _get_antonio(size, 700)
+
+
+# Big Shoulders Display — Chicago-signage condensed grotesque (Patric King /
+# XOTYPE, OFL).  Static cuts converted from the Fontsource latin subset, which
+# covers ASCII, the degree sign, the en dash and the arrows.  Condensed enough
+# that a 100-px numeral sits in a narrow column, so the wide_horizon theme sets
+# its day names, temperatures and hero reading in it.
+def big_shoulders_semibold(size: int) -> ImageFont.FreeTypeFont:
+    return get_font("BigShouldersDisplay-SemiBold.ttf", size)
+
+
+def big_shoulders_extrabold(size: int) -> ImageFont.FreeTypeFont:
+    return get_font("BigShouldersDisplay-ExtraBold.ttf", size)
+
+
+def big_shoulders_black(size: int) -> ImageFont.FreeTypeFont:
+    return get_font("BigShouldersDisplay-Black.ttf", size)

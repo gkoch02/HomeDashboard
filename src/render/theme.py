@@ -198,6 +198,11 @@ class ThemeLayout:
     halftone_agenda_wide: ComponentRegion = field(
         default_factory=lambda: ComponentRegion(0, 0, 1360, 480, visible=False)
     )
+    # Used by the ``wide_horizon`` theme: the next 72 hours of sky, temperature,
+    # rain and events on one time axis at 1360x480.
+    wide_horizon: ComponentRegion = field(
+        default_factory=lambda: ComponentRegion(0, 0, 1360, 480, visible=False)
+    )
     draw_order: list[str] = field(
         default_factory=lambda: ["header", "week_view", "weather", "birthdays", "info"]
     )

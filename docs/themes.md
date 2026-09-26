@@ -228,6 +228,7 @@ letterboxed instead (see [`display.scaling`](configuration.md#scaling)). On an
 | `wide_day` | today, hour by hour | A time axis across the whole middle of the strip with every timed event as a bar over its real span, packed into lanes with its name attached; date and weather at the left end, the next few events and the week's birthdays at the right. A NOW marker and the bar states follow the clock. |
 | `halftone_agenda_wide` | the split-plate agenda on a strip | `halftone_agenda` drawn for the strip: the engraving and weather band at the left, today's agenda at half again its usual width in the middle, and a third pane for what the 800 × 480 plate leaves out — alerts, the next day's events, the forecast, birthdays, air quality and the moon. Same engraving, same treatments, same fonts. |
 | `wide_forecast` | weather station on a strip | Current conditions as a hero block with a detail grid, five forecast cards in a row with precipitation bars, and a band beneath for alerts, air quality and the moon. |
+| `wide_horizon` | the next three days at a glance | One 72-hour time axis shared by everything: a sky coloured by the sun's real altitude (day, dithered twilights, night with stars and the moon), clouds and rain drawn per forecast slot, the temperature as one line across it, rain chance hanging beneath, and the calendar's events as bars on the same hours. Conditions now and a three-line outlook in a hero block at the left. |
 
 ### Utility themes
 
@@ -515,6 +516,18 @@ A weather strip. Where [`weather`](#weather) stacks its forecast under the curre
 The colour story is the one the four-ink panel can tell: red for the section labels, today's chip, alerts and an unhealthy AQI; yellow for the precipitation bars, where a light fill behind a hairline outline reads well. On a monochrome panel the bars fill with ink and the chip inverts. Nothing on the plate reads the clock — the caption uses the data timestamp — so an idle tick renders the same image and costs no panel write. DM Sans throughout.
 
 [![Wide forecast theme](../assets/previews/theme_wide_forecast.png)](../assets/previews/theme_wide_forecast.png)
+
+#### wide_horizon
+
+The next three days on one time axis — the plate built for what a 1360-px strip can do and an 800-px one cannot. The window starts at the current three-hour forecast slot and runs 72 hours to the right, and everything that happens in it sits on the same hours, so the relationships read by eye: the dinner on Thursday is after dark, and it will be 38° and raining.
+
+Top to bottom: each day's name set at its midnight (today in the accent, `TONIGHT` once the window starts after 18:00); a **sky** whose colour at every column is the sun's real altitude at that moment, from `weather.latitude` / `longitude` — paper by day, into yellow, red and black through each twilight, stars and the phase-correct moon by night, and a sun at each solar noon as high in the band as it will climb. Clouds, rain, snow, lightning and fog are drawn over each forecast slot's span from its icon, and an overcast or wet noon has no sun. Over the sky runs the **temperature** from the forecast's 3-hour slots, a cased line with each day's real turning points labelled. Beneath the sky, each slot's **chance of rain** hangs as a bar — its depth the chance, its screen density the expected amount — and below the hour axis the calendar: all-day events and birthdays as bands, timed events as bars over their real span, packed into lanes with their names attached. The hero block at the left carries the reading now, the condition, high and low, feels-like and wind, sunrise and sunset, the first alert, and a three-line outlook for the window: its warmest and coldest moments and the first rain.
+
+The axis compresses the hours between 23:00 and 06:00 to a third of a waking hour's width, so the waking hours get about 19 px each. Without coordinates the day's reported sunrise and sunset place every night in the window.
+
+On a colour panel the twilights are **ordered dithers between pairs of inks** — white with yellow, yellow with red, red with black — so the four-ink panel shows pale yellow, orange and maroon it has no ink for; the temperature line and today's name are red, the sun and moon yellow. On a monochrome panel the same altitudes drive one black-and-white Bayer ramp. Every pixel on the plate is already an exact ink (type is set without antialiasing), so the panel's final snap changes nothing at native size. The theme declares `ordered` quantization so a panel that scales it re-screens its tones, which also derives it out of partial refresh. The window moves on at most eight times a day, when a new forecast slot begins; nothing else reads the clock. Type is **Big Shoulders Display** for day names, temperatures and the hero reading, DM Sans for everything else. A weather cache written before the fetcher kept the forecast grid shows the sky and events without the temperature line until the next weather fetch.
+
+[![Wide horizon theme](../assets/previews/theme_wide_horizon.png)](../assets/previews/theme_wide_horizon.png)
 
 #### countdown
 

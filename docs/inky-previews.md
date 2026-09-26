@@ -311,6 +311,12 @@ Accents: **red** primary, **yellow** secondary · [description in Themes ↗](th
 
 [![Wide forecast theme on Inky](../assets/previews/theme_wide_forecast_inky.png)](../assets/previews/theme_wide_forecast_inky.png)
 
+#### wide_horizon
+
+Accents: **red** primary, **yellow** secondary · [description in Themes ↗](themes.md#wide_horizon)
+
+[![Wide horizon theme on Inky](../assets/previews/theme_wide_horizon_inky.png)](../assets/previews/theme_wide_horizon_inky.png)
+
 ### Utility themes
 
 #### countdown
