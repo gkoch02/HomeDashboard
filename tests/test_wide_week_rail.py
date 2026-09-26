@@ -25,7 +25,7 @@ from tests.inkutils import ink
 NATIVE = DisplayConfig(provider="waveshare", model="epd7in5_V2", width=1360, height=480)
 NOW = datetime(2026, 4, 6, 10, 30)  # a Monday
 RAIL = load_theme("wide_week").layout.wide_week_rail
-ALERT_BAND = (0, rail.ALERT_Y, RAIL.w - 2, rail.ALERT_Y + 22)
+ALERT_BAND = (0, rail.ALERT_Y, RAIL.w - 2, rail.ALERT_Y + rail.ALERT_H)
 NEXT_BAND = (0, rail.NEXT_Y, RAIL.w - 2, rail.NEXT_RULE_Y - 2)
 MAST_BAND = (RAIL.w // 2, rail.MAST_LINE_Y - 2, RAIL.w - 2, rail.MAST_RULE_Y - 2)
 
@@ -180,7 +180,7 @@ class TestFitQuote:
         text = " ".join(["words"] * 120)
         pt, lines = rail.fit_quote(text, 360, 78)
         assert pt == rail.QUOTE_PTS[-1]
-        assert len(lines) * (pt + 5) + rail.AUTHOR_H <= 78
+        assert len(lines) * (pt + rail.QUOTE_LEAD) + rail.AUTHOR_H <= 78
         assert lines[-1].endswith("…")
 
 
@@ -287,7 +287,7 @@ class TestYellowHighlighter:
     """Yellow is only ever a fill behind ink type, and only where the panel has it."""
 
     FORECAST = (0, rail.GRID_Y, RAIL.w // 2, rail.GRID_RULE_Y)
-    BIRTHDAYS = (0, rail.BIRTHDAY_Y - 3, RAIL.w - 2, rail.BIRTHDAY_Y + 19)
+    BIRTHDAYS = (0, rail.BIRTHDAY_Y - 3, RAIL.w - 2, rail.BIRTHDAY_Y + 22)
 
     def test_resolves_to_none_where_it_would_be_ink(self):
         style = load_theme("wide_week").style
@@ -326,3 +326,56 @@ class TestYellowHighlighter:
         # No band: the NEXT area is mostly paper, with the type still in ink.
         area = (NEXT_BAND[2] - NEXT_BAND[0]) * (NEXT_BAND[3] - NEXT_BAND[1])
         assert 200 < ink(img, NEXT_BAND) < area * 0.3
+
+
+class TestBilevelType:
+    """The rail's type is rasterised bilevel even on an RGB (colour-panel) canvas.
+
+    Antialiased glyph edges on RGB are cut at mid-grey by the four-ink snap,
+    which erased Playfair's hairlines on the 10.85" G panel.
+    """
+
+    @staticmethod
+    def _draw_on_rgb():
+        from PIL import Image, ImageDraw
+
+        from src.render.theme import ThemeStyle
+
+        img = Image.new("RGB", (RAIL.w, RAIL.h), (255, 255, 255))
+        draw = ImageDraw.Draw(img)
+        style = ThemeStyle(fg=(0, 0, 0), bg=(255, 255, 255))
+        data = generate_dummy_data(now=NOW)
+        data.fetched_at = NOW
+        rail.draw_wide_week_rail(draw, data, NOW.date(), NOW, region=RAIL, style=style)
+        return img, draw
+
+    def test_no_antialiased_pixels_on_an_rgb_plate(self):
+        img, _ = self._draw_on_rgb()
+        colours = {px for _, px in img.getcolors(1 << 16)}
+        assert colours == {(0, 0, 0), (255, 255, 255)}
+
+    def test_the_callers_fontmode_is_restored(self):
+        _, draw = self._draw_on_rgb()
+        assert draw.fontmode == "L"
+
+
+class TestQuoteWeight:
+    """The quote keeps one stroke weight at every size it can step down to."""
+
+    @staticmethod
+    def _stem(font) -> int:
+        """The median width of an ``l``'s ink rows: its stem, serifs averaged out."""
+        from PIL import Image, ImageDraw
+
+        img = Image.new("1", (60, 60), 1)
+        ImageDraw.Draw(img).text((5, 5), "l", font=font, fill=0)
+        widths = sorted(n for n in (ink(img, (0, y, 60, y + 1)) for y in range(60)) if n)
+        return widths[len(widths) // 2]
+
+    def test_every_quote_size_sets_a_three_pixel_stem(self):
+        stems = {pt: self._stem(rail.quote_font(pt)) for pt in rail.QUOTE_PTS}
+        assert set(stems.values()) == {3}, stems
+
+    def test_the_quote_is_set_in_literata(self):
+        for pt in rail.QUOTE_PTS:
+            assert rail.quote_font(pt).getname()[0] == "Literata"
