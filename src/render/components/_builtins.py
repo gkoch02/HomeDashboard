@@ -44,6 +44,7 @@ from src.render.components import (
     wide_day_panel,
     wide_forecast_panel,
     wide_horizon_panel,
+    wide_week_rail_panel,
     year_pulse_panel,
 )
 from src.render.components.registry import RenderContext, register_component
@@ -537,6 +538,22 @@ def _wide_horizon(ctx: RenderContext) -> None:
         image=ctx.image,
         region=region,
         style=ctx.style,
+        latitude=ctx.latitude,
+        longitude=ctx.longitude,
+    )
+
+
+@register_component("wide_week_rail")
+def _wide_week_rail(ctx: RenderContext) -> None:
+    wide_week_rail_panel.draw_wide_week_rail(
+        ctx.draw,
+        ctx.data,
+        ctx.today,
+        ctx.now,
+        region=ctx.layout.wide_week_rail,
+        style=ctx.style,
+        quote_refresh=ctx.quote_refresh,
+        quotes_path=ctx.quotes_path,
         latitude=ctx.latitude,
         longitude=ctx.longitude,
     )

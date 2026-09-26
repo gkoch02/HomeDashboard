@@ -101,17 +101,23 @@ class TestThemes:
             assert theme.layout.supports_partial_refresh is None, name
             assert theme.allows_partial_refresh, name
 
-    def test_wide_week_uses_the_standard_components(self):
+    def test_wide_week_keeps_the_standard_week_view_on_the_right(self):
         layout = load_theme("wide_week").layout
-        assert layout.draw_order == ["header", "week_view", "weather", "birthdays", "info"]
-        assert layout.week_view.w + layout.weather.w == 1360
-        assert layout.weather.h + layout.birthdays.h + layout.info.h == 480 - layout.header.h
+        assert layout.draw_order == ["week_view", "wide_week_rail"]
+        rail, week = layout.wide_week_rail, layout.week_view
+        # Rail left, grid right, together the whole strip, both full height:
+        # no header bar.
+        assert (rail.x, rail.w) == (0, week.x)
+        assert week.x + week.w == 1360
+        assert rail.h == week.h == 480
+        assert not layout.header.visible
 
-    def test_wide_week_puts_the_calendar_left_and_the_rail_right(self):
+    def test_wide_week_draws_the_rail_left_and_the_week_right(self):
         data = generate_dummy_data(now=FIXED_NOW)
         img = render_dashboard(data, NATIVE, theme=load_theme("wide_week"))
-        assert ink(img, (0, 60, 900, 480)) > 3000
-        assert ink(img, (900, 44, 1360, 480)) > 3000
+        rail_w = load_theme("wide_week").layout.wide_week_rail.w
+        assert ink(img, (0, 0, rail_w - 2, 480)) > 3000
+        assert ink(img, (rail_w + 2, 0, 1360, 480)) > 3000
 
 
 # ---------------------------------------------------------------------------

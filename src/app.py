@@ -37,6 +37,8 @@ EXTRA_EVENT_DAYS: dict[str, int] = {
     "halftone_agenda": 1,
     "wide_day": 1,
     "halftone_agenda_wide": 2,
+    # The rail's NEXT line reaches into next week on a Sunday evening.
+    "wide_week": 1,
     # A 72-hour window starting at the current 3-hour slot reaches three days
     # past today, so on a Sunday it runs Mon–Wed of the next week.
     "wide_horizon": 3,

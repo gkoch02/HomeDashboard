@@ -29,7 +29,7 @@ the four-ink renders the 10.85" panel actually shows.
 | [`wide_day`](#wide_day) | Today as an hour-by-hour timeline, with an up-next rail | Today | Every tick (NOW marker, event states) | 1 |
 | [`halftone_agenda_wide`](#halftone_agenda_wide) | Weather engraving, today's agenda, and a rail for tomorrow, forecast, birthdays, air and moon | Today and tomorrow | Once (the after-dark rollover) | 2 |
 | [`wide_forecast`](#wide_forecast) | Current conditions and a five-day forecast | Five days | No | 0 |
-| [`wide_week`](#wide_week) | The standard dashboard (header, week grid, weather, birthdays, quote) reflowed for the strip | This week | No | 0 |
+| [`wide_week`](#wide_week) | The standard week grid beside an editorial rail: weather now, NOW/NEXT, forecast, sky, birthdays, quote | This week | At event boundaries (NOW/NEXT) | 1 |
 
 **Moves on the clock during the day** counts the repaints the clock alone causes
 between midnights. Every theme also repaints when its data changes, such as a new
@@ -84,8 +84,9 @@ pool further.
 - **You want the art theme**: `halftone_agenda_wide`, the split-plate agenda with
   a weather engraving. It repaints least of the calendar themes.
 - **Weather first, calendar elsewhere**: `wide_forecast`.
-- **You are moving from an 800 × 480 panel and want the familiar dashboard**:
-  `wide_week`.
+- **You want the familiar week grid, with today's context beside it**:
+  `wide_week`. The grid is the default theme's, untouched; the rail adds the
+  weather, what is on or next, the sky and the quote.
 
 ## The themes
 
@@ -141,10 +142,12 @@ bars. [Full description ↗](themes.md#wide_forecast)
 
 ### wide_week
 
-The standard dashboard reflowed for the strip. It has seven week columns of 128 px
-and a full-height rail of weather, birthdays and the daily quote beside the grid.
-No new component: every region is one of the standard five at a new size.
-[Full description ↗](themes.md#wide_week)
+The standard week grid, exactly as the default theme draws it, on the right at the
+panel's full height, beside an editorial rail. The rail is set in Playfair Display
+with red small-caps labels and hairline rules: the weekday masthead, the weather
+now, what is on or next, three forecast days beside the sky, the next two weeks'
+birthdays, and the day's quote. Red carries the labels, the alert bar and the
+grid's accents; everything else is ink. [Full description ↗](themes.md#wide_week)
 
 [![Wide week theme on the four-ink panel](../assets/previews/theme_wide_week_g.png)](../assets/previews/theme_wide_week_g.png)
 
@@ -162,8 +165,9 @@ checks and always write: the first run after quiet hours end, which forces a ful
 refresh once each morning, and any run with `--force-full-refresh`. So even a theme
 whose content hasn't changed repaints once a day. Beyond that:
 
-- `wide_forecast` and `wide_week` change when their data does, and when the date
-  changes.
+- `wide_forecast` changes when its data does, and when the date changes.
+- `wide_week` adds its NOW/NEXT line, which moves when an event starts or ends:
+  a handful of extra repaints on a busy day, none on a quiet one.
 - `halftone_agenda_wide` adds one clock-driven change during the day, when the
   agenda rolls over to tomorrow after dark, as well as the date change.
 - `wide_horizon` adds at most eight, when a new three-hour forecast slot begins.
@@ -194,9 +198,9 @@ that shape.
   With `weather.latitude` / `longitude` set, the sky follows the sun's real
   altitude for your location; without them, the day's reported sunrise and sunset
   stand in for every day in the window.
-- **`wide_day`, `halftone_agenda_wide` and `wide_horizon`** fetch 1, 2 and 3 days
-  of calendar events past the standard week, so their views of tomorrow and
-  beyond are never empty on a Sunday. Nothing needs configuring; the event window
+- **`wide_week` and `wide_day`, `halftone_agenda_wide` and `wide_horizon`** fetch
+  1, 1, 2 and 3 days of calendar events past the standard week, so their views of
+  tomorrow and beyond are never empty on a Sunday. Nothing needs configuring; the event window
   widens automatically for the theme in use.
 - **`wide_forecast` and `halftone_agenda_wide`** show air quality when a
   PurpleAir sensor is configured (`purpleair.api_key` and `purpleair.sensor_id`;
