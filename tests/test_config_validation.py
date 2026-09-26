@@ -884,13 +884,17 @@ class TestPartialRefreshWarningExpandsPseudoThemes:
 
 
 class TestRangeAndPositivityChecks:
-    """Values that parsed but cannot work (#306)."""
+    """Values that parsed but misbehave (#306).
+
+    Warnings, not errors: each ran before the check existed and main.py exits
+    on any error, so an upgrade must not stop a working panel over them.
+    """
 
     @staticmethod
     def _fields(items):
         return {i.field for i in items}
 
-    def test_non_positive_ttls_are_errors(self):
+    def test_non_positive_ttls_warn_without_stopping_the_run(self):
         from src.config import CacheConfig
 
         cfg = Config(
@@ -902,36 +906,45 @@ class TestRangeAndPositivityChecks:
                 air_quality_fetch_interval=0,
             )
         )
-        errors, _ = validate_config(cfg)
-        assert {
+        errors, warnings = validate_config(cfg)
+        flagged = {
             "cache.weather_ttl_minutes",
             "cache.events_ttl_minutes",
             "cache.birthdays_ttl_minutes",
             "cache.air_quality_ttl_minutes",
             "cache.air_quality_fetch_interval",
-        } <= self._fields(errors)
+        }
+        assert flagged <= self._fields(warnings)
+        assert not flagged & self._fields(errors)
 
     def test_breaker_settings(self):
         from src.config import CacheConfig
 
-        errors, _ = validate_config(Config(cache=CacheConfig(max_failures=0, cooldown_minutes=-1)))
-        assert {"cache.max_failures", "cache.cooldown_minutes"} <= self._fields(errors)
-        errors, _ = validate_config(Config(cache=CacheConfig(cooldown_minutes=0)))
-        assert "cache.cooldown_minutes" not in self._fields(errors)
+        cfg = Config(cache=CacheConfig(max_failures=0, cooldown_minutes=-1))
+        errors, warnings = validate_config(cfg)
+        assert {"cache.max_failures", "cache.cooldown_minutes"} <= self._fields(warnings)
+        assert not {"cache.max_failures", "cache.cooldown_minutes"} & self._fields(errors)
+        _, warnings = validate_config(Config(cache=CacheConfig(cooldown_minutes=0)))
+        assert "cache.cooldown_minutes" not in self._fields(warnings)
 
-    def test_max_partials_must_be_at_least_one(self):
-        errors, _ = validate_config(Config(display=DisplayConfig(max_partials_before_full=0)))
-        assert "display.max_partials_before_full" in self._fields(errors)
+    def test_max_partials_warns_only_when_partials_are_on(self):
+        on = DisplayConfig(max_partials_before_full=0, enable_partial_refresh=True)
+        _, warnings = validate_config(Config(display=on))
+        assert "display.max_partials_before_full" in self._fields(warnings)
+        off = DisplayConfig(max_partials_before_full=0, enable_partial_refresh=False)
+        errors, warnings = validate_config(Config(display=off))
+        assert "display.max_partials_before_full" not in self._fields(warnings + errors)
 
     def test_out_of_range_coordinates_are_errors(self):
         cfg = Config(weather=WeatherConfig(latitude=200, longitude=-181))
-        errors, _ = validate_config(cfg)
-        assert {"weather.latitude", "weather.longitude"} <= self._fields(errors)
+        errors, warnings = validate_config(cfg)
+        assert {"weather.latitude", "weather.longitude"} <= self._fields(warnings)
+        assert not {"weather.latitude", "weather.longitude"} & self._fields(errors)
 
     def test_boundary_coordinates_are_fine(self):
         cfg = Config(weather=WeatherConfig(latitude=-90, longitude=180))
-        errors, _ = validate_config(cfg)
-        assert not {"weather.latitude", "weather.longitude"} & self._fields(errors)
+        _, warnings = validate_config(cfg)
+        assert not {"weather.latitude", "weather.longitude"} & self._fields(warnings)
 
     def test_dimensions_that_disagree_with_the_model_warn(self):
         cfg = Config(display=DisplayConfig(model="epd7in5_V2", width=1600, height=1200))

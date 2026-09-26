@@ -30,6 +30,7 @@ from typing import Any
 
 from src._io import atomic_write_json
 from src._time import now_utc
+from src.fetchers.errors import http_status
 
 logger = logging.getLogger(__name__)
 
@@ -45,18 +46,6 @@ def _state_path(state_dir: str | Path) -> Path:
     return Path(state_dir) / STATE_FILENAME
 
 
-def _http_status(exc: BaseException) -> int | None:
-    """Return the HTTP status carried by *exc*, if it carries one.
-
-    Read defensively rather than by isinstance: this runs inside a degradation
-    boundary, and an attribute lookup that raised here would defeat the whole
-    point of that boundary.
-    """
-    response = getattr(exc, "response", None)
-    status = getattr(response, "status_code", None)
-    return status if isinstance(status, int) else None
-
-
 def classify(exc: BaseException) -> tuple[str, int | None]:
     """Classify a One Call failure as permanent or transient.
 
@@ -65,7 +54,7 @@ def classify(exc: BaseException) -> tuple[str, int | None]:
     :data:`TRANSIENT` for everything else — timeouts, connection errors, 5xx,
     and unexpected payloads, none of which an operator can act on.
     """
-    status = _http_status(exc)
+    status = http_status(exc)
     if status in (401, 403):
         return AUTH_FAILED, status
     return TRANSIENT, status

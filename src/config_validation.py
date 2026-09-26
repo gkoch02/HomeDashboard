@@ -227,8 +227,10 @@ def validate_config(
         ("weather.longitude", cfg.weather.longitude, 180),
     ):
         if not -bound <= val <= bound:
-            errors.append(
-                ConfigError(
+            # A warning, like the 0,0 check above: weather fails alone and
+            # the calendar still renders, so this must not stop the panel.
+            warnings.append(
+                ConfigWarning(
                     field=label,
                     message=f"{label} must be between -{bound} and {bound}, got {val}",
                     hint="Latitude is -90..90 and longitude -180..180, in decimal degrees.",
@@ -510,14 +512,29 @@ def validate_config(
             )
         )
 
-    # --- Cache fetch intervals and TTLs ---
-    # A zero or negative TTL marks every cached value expired the moment it is
-    # written, so an outage renders with nothing to fall back on.
+    # --- Cache fetch intervals ---
+    for label, val in [
+        ("cache.weather_fetch_interval", cfg.cache.weather_fetch_interval),
+        ("cache.events_fetch_interval", cfg.cache.events_fetch_interval),
+        ("cache.birthdays_fetch_interval", cfg.cache.birthdays_fetch_interval),
+    ]:
+        if val <= 0:
+            errors.append(
+                ConfigError(
+                    field=label,
+                    message=f"Fetch interval must be positive, got {val}",
+                    hint="Set a positive number of minutes.",
+                )
+            )
+
+    # --- Values that run but misbehave (#306) ---
+    # Warnings, not errors: every one of these ran before the check existed,
+    # and main.py exits on any error — an upgrade must not stop a working
+    # panel over, say, a zero TTL for a PurpleAir source that is not even
+    # configured. A zero or negative TTL marks every cached value expired as
+    # it is written, so an outage renders with nothing to fall back on.
     cache = cfg.cache
     for label, val, kind in [
-        ("cache.weather_fetch_interval", cache.weather_fetch_interval, "Fetch interval"),
-        ("cache.events_fetch_interval", cache.events_fetch_interval, "Fetch interval"),
-        ("cache.birthdays_fetch_interval", cache.birthdays_fetch_interval, "Fetch interval"),
         ("cache.air_quality_fetch_interval", cache.air_quality_fetch_interval, "Fetch interval"),
         ("cache.weather_ttl_minutes", cache.weather_ttl_minutes, "Cache TTL"),
         ("cache.events_ttl_minutes", cache.events_ttl_minutes, "Cache TTL"),
@@ -525,36 +542,36 @@ def validate_config(
         ("cache.air_quality_ttl_minutes", cache.air_quality_ttl_minutes, "Cache TTL"),
     ]:
         if val <= 0:
-            errors.append(
-                ConfigError(
+            warnings.append(
+                ConfigWarning(
                     field=label,
-                    message=f"{kind} must be positive, got {val}",
+                    message=f"{kind} should be positive, got {val}",
                     hint="Set a positive number of minutes.",
                 )
             )
     if cache.max_failures <= 0:
-        errors.append(
-            ConfigError(
+        warnings.append(
+            ConfigWarning(
                 field="cache.max_failures",
-                message=f"cache.max_failures must be at least 1, got {cache.max_failures}",
+                message=f"cache.max_failures should be at least 1, got {cache.max_failures}",
                 hint="The number of consecutive failures before a source's breaker opens.",
             )
         )
     if cache.cooldown_minutes < 0:
-        errors.append(
-            ConfigError(
+        warnings.append(
+            ConfigWarning(
                 field="cache.cooldown_minutes",
-                message=f"cache.cooldown_minutes cannot be negative, got {cache.cooldown_minutes}",
+                message=f"cache.cooldown_minutes should not be negative, got {cache.cooldown_minutes}",
                 hint="Minutes an open breaker waits before retrying (0 = retry next run).",
             )
         )
-    if cfg.display.max_partials_before_full <= 0:
-        errors.append(
-            ConfigError(
+    if cfg.display.enable_partial_refresh and cfg.display.max_partials_before_full <= 0:
+        warnings.append(
+            ConfigWarning(
                 field="display.max_partials_before_full",
                 message=(
-                    "display.max_partials_before_full must be at least 1, "
-                    f"got {cfg.display.max_partials_before_full}"
+                    "display.max_partials_before_full should be at least 1, "
+                    f"got {cfg.display.max_partials_before_full} — every refresh will be full"
                 ),
                 hint="To never use partial refresh, set display.enable_partial_refresh: false.",
             )

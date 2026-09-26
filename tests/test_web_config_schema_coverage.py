@@ -31,9 +31,7 @@ JS = (ROOT / "src/web/static/dashboard.js").read_text()
 NOT_ON_FORM = {
     "google.calendar_id",
     "google.contacts_email",
-    "google.caldav_url",
     "google.caldav_username",
-    "google.caldav_calendar_url",
     "purpleair.sensor_id",
     "theme_schedule",
     "theme_rules",
@@ -65,6 +63,8 @@ def test_secrets_report_has_value_from_their_own_flag(tmp_path):
         f"google:\n  service_account_path: {cred}\n  ical_url: https://a/b.ics\n"
         "  additional_ical_urls: [https://c/d.ics]\n"
         f"  caldav_password_file: {pw}\n"
+        "  caldav_url: https://u:t@dav.example/\n"
+        "  caldav_calendar_url: https://u:t@dav.example/cal/\n"
     )
     schema = to_json(values=_flatten_for_schema(get_config_for_web(str(cfg))))
     fields = {f["path"]: f for s in schema["sections"] for f in s["fields"]}
@@ -93,3 +93,18 @@ def test_log_level_choices_cover_every_accepted_name():
     for name in ("DEBUG", "INFO", "WARNING", "WARN", "ERROR", "CRITICAL", "FATAL"):
         assert is_known_log_level(name)
         assert name in LOG_LEVELS
+
+
+def test_credential_bearing_urls_never_reach_the_browser(tmp_path):
+    """A CalDAV URL of the form https://user:token@host/ is a credential."""
+    import json
+
+    cfg = tmp_path / "config.yaml"
+    cfg.write_text(
+        "google:\n  caldav_url: https://alice:s3cret@dav.example/\n"
+        "  caldav_calendar_url: https://alice:s3cret@dav.example/cal/\n"
+    )
+    served = get_config_for_web(str(cfg))
+    schema = to_json(values=_flatten_for_schema(served))
+    assert "s3cret" not in json.dumps(served, default=str)
+    assert "s3cret" not in json.dumps(schema, default=str)

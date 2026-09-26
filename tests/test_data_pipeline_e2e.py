@@ -427,6 +427,38 @@ class TestRetryFetch:
         assert retry_fetch("test", flaky) == "ok"
         assert len(calls) == 2
 
+    def test_no_retry_when_the_4xx_is_wrapped(self):
+        """An ICS 404 arrives as CalendarFetchError raised from the HTTPError."""
+        from src.fetchers.errors import CalendarFetchError
+
+        calls = []
+
+        def feed():
+            calls.append(1)
+            try:
+                raise self._http_error(404)
+            except Exception as exc:
+                raise CalendarFetchError("feed could not be read") from exc
+
+        with pytest.raises(CalendarFetchError):
+            retry_fetch("test", feed)
+        assert len(calls) == 1
+
+    def test_no_retry_on_a_google_api_4xx(self):
+        """googleapiclient carries the status on exc.resp.status."""
+        from googleapiclient.errors import HttpError
+        from httplib2 import Response
+
+        calls = []
+
+        def google():
+            calls.append(1)
+            raise HttpError(Response({"status": 403}), b"forbidden")
+
+        with pytest.raises(HttpError):
+            retry_fetch("test", google)
+        assert len(calls) == 1
+
     def test_status_in_message_alone_is_not_permanent(self):
         """Classification reads the response, never the text."""
         calls = []
@@ -604,8 +636,9 @@ class TestQuotaCountsRequests:
             pipeline.fetch()
 
         assert pipeline.quota.daily_count("weather") == 3
-        # A fetch that made no instrumented request still costs at least one.
-        assert pipeline.quota.daily_count("events") == 1
+        # A fetch that made no request (patched here; a birthdays file in
+        # production) records nothing rather than a phantom one.
+        assert pipeline.quota.daily_count("events") == 0
 
     def test_failed_fetch_and_its_retry_are_counted(self, tmp_path):
         from src.fetchers import request_counter
@@ -655,7 +688,8 @@ def test_request_counter_is_a_no_op_outside_counting():
     assert (outer.count, inner.count) == (2, 2)
 
 
-def test_session_hook_counts_responses():
+def test_attached_session_counts_requests_that_never_get_a_response():
+    """Counted on send, so a timeout — the failing runs quota is for — still counts."""
     import requests
 
     from src.fetchers import request_counter
@@ -663,6 +697,13 @@ def test_session_hook_counts_responses():
     session = requests.Session()
     request_counter.attach(session)
     with request_counter.counting() as tally:
-        for hook in session.hooks["response"]:
-            hook(requests.Response())
+        with pytest.raises(requests.ConnectionError):
+            # Port 9 on localhost: refused immediately, no response object.
+            session.get("http://127.0.0.1:9/", timeout=2)
     assert tally.count == 1
+
+
+def test_attach_tolerates_a_missing_session():
+    from src.fetchers import request_counter
+
+    request_counter.attach(None)  # e.g. a caldav client without .session

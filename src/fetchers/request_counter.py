@@ -8,8 +8,10 @@ not fire (#296).
 
 The pipeline runs each source's fetch in its own worker thread inside
 :func:`counting`; the fetcher bumps the tally at each request it sends, via
-:func:`count_request` or :func:`response_hook` on a ``requests.Session``. A
-call outside :func:`counting` (a test, a direct fetcher call) is a no-op.
+:func:`count_request` or by :func:`attach`-ing its HTTP session. Counting
+happens as a request is *sent*, so one that times out or never connects still
+counts — those are the runs a quota warning is for. A call outside
+:func:`counting` (a test, a direct fetcher call) is a no-op.
 """
 
 from __future__ import annotations
@@ -34,15 +36,23 @@ def count_request(n: int = 1) -> None:
         tally.count += n
 
 
-def response_hook(response, *args, **kwargs):
-    """``requests`` response hook: one response is one request made."""
-    count_request()
-    return response
-
-
 def attach(session) -> None:
-    """Count every response *session* receives."""
-    session.hooks["response"].append(response_hook)
+    """Count every request *session* sends, redirect hops included.
+
+    Wraps ``session.send`` — the one method every ``requests``-style session
+    funnels each request through (``niquests``, which newer ``caldav`` uses,
+    included). A session without one is left alone; its fetch then records
+    only what its caller counts explicitly.
+    """
+    send = getattr(session, "send", None)
+    if not callable(send):
+        return
+
+    def counted_send(request, *args, **kwargs):
+        count_request()
+        return send(request, *args, **kwargs)
+
+    session.send = counted_send
 
 
 @contextmanager

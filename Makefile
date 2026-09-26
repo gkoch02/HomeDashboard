@@ -170,9 +170,6 @@ pi-enable:
 	sudo cp deploy/dashboard.timer /etc/systemd/system/dashboard.timer; \
 	sudo systemctl daemon-reload; \
 	sudo systemctl enable --now dashboard.timer
-	@echo "==> Holding the first run until the clock is synced (no RTC on a Pi)..."
-	@sudo systemctl enable systemd-time-wait-sync.service 2>/dev/null \
-		|| echo "  systemd-time-wait-sync not available — the first run after boot may see an unsynced clock."
 	@echo "==> Installing logrotate config..."
 	@INSTALL_DIR="$$(pwd)"; \
 	sed -e "s|__INSTALL_DIR__|$$INSTALL_DIR|g" \

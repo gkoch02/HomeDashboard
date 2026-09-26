@@ -75,15 +75,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 - **Idle ticks on a cooldown-throttled panel are no longer "deferred changes."**
   `OutputService.publish()` checks the image hash before the cooldown, so an
-  unchanged frame inside the cooldown is logged as unchanged and no longer
-  rewrites `latest.png` (#292).
+  unchanged frame inside the cooldown is logged as unchanged and does not
+  rewrite `latest.png` — unless it holds a frame deferred and then reverted
+  inside the cooldown, which a sidecar hash now detects (#292).
 - **`daypart` rules survive weather served from cache across midnight.**
   Sunrise and sunset are read as a time of day in the configured zone, so
   yesterday's cached sun times no longer make the whole day read as `night`
   (#293).
 - **A rejected API key is not retried every run.** `retry_fetch` treats an
-  HTTP 4xx (other than 408/429) as permanent, reading the response status,
-  never the message (#295).
+  HTTP 4xx (other than 408/429) as permanent — from `requests`, from the
+  Google API client, or wrapped in a `CalendarFetchError` — reading the
+  status the library attached, never the message (#295).
 - **Contacts birthdays with a text-only entry first are no longer skipped.**
   Every `birthdays[]` entry is inspected; the first with a month and day
   wins, preferring one with a year (#298).
@@ -92,8 +94,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - **`halftone_agenda_wide` books only the part of a multi-day timed event
   that falls on the agenda day** (#311).
 - **The quota warning counts what it says.** Each source's HTTP requests are
-  tallied on its worker thread (OWM and PurpleAir by a session hook, ICS per
-  feed, Google per page) and recorded even when the fetch fails; the warning
+  tallied on its worker thread as they are sent (OWM, PurpleAir and CalDAV by
+  wrapping the session, ICS per feed, Google per page), so timeouts and
+  failed fetches count, and a birthdays file counts nothing; the warning
   is checked for every enabled source, not a hard-coded three; and the day
   resets on the configured timezone. The status page no longer shows a
   previous day's counts as today's (#296).
@@ -113,10 +116,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   hand-written form together — it found the quotes path, rendered on the
   config page but never saved, and `min_refresh_interval_seconds`, editable
   through the API but not on the page; both now work (#308).
-- **The renderer waits for a synced clock after boot.** `dashboard.service`
-  is ordered after `time-sync.target` and `make pi-enable` enables
-  `systemd-time-wait-sync`, so an RTC-less Pi no longer judges quiet hours and
-  cache ages against its last shutdown time (#301).
+- **The renderer waits for a synced clock after boot.** Each run waits up to
+  45 s for NTP (`systemd-time-wait-sync`, instant once synced), so an RTC-less
+  Pi no longer judges quiet hours and cache ages against its last shutdown
+  time. Bounded so an offline boot still renders from cache (#301).
 - **`pip install ".[pi]"` installs the Inky driver**: the extra mirrors
   `requirements-pi.txt`, with a parity test (#299).
 - **Docs** — README theme count (now checked against the registry), a link to
@@ -272,15 +275,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
-- **Config validation** rejects non-positive cache TTLs and the air-quality
-  fetch interval, `max_failures`/`max_partials_before_full` below 1, a negative
-  breaker cooldown, and coordinates off the globe; it warns when an explicit
-  `display.width`/`height` disagrees with the model (#306).
+- **Config validation warns** about non-positive cache TTLs and air-quality
+  fetch interval, `max_failures` below 1, a negative breaker cooldown,
+  `max_partials_before_full` below 1 with partial refresh on, coordinates off
+  the globe, and an explicit `display.width`/`height` that disagrees with the
+  model. Warnings, not errors, so an upgrade cannot stop a running panel (#306).
 - **The web editor covers more of the config.** Log level offers every name
   `logging` accepts (`CRITICAL`, `FATAL`, `WARN` included); quantization mode,
   the photo path, the birthdays file, additional Google calendars, the daily
   request warning and the refresh cooldown are editable; provider and model
   are shown read-only (#307).
+- **`google.caldav_url` and `caldav_calendar_url` are treated as secrets** by the
+  web layer: such URLs often embed credentials, so the browser gets only a
+  set/unset flag and `POST /api/config` no longer edits them — change them in
+  `config.yaml`, like the private ICS URL.
 - **`make configure` asks which calendar source you use** — ICS, CalDAV or the
   Google API — writes that source's settings, switches off a
   higher-precedence one left from an earlier answer, and points at

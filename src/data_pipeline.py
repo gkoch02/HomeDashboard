@@ -30,6 +30,7 @@ from src.fetchers.cache import (
 # these names so a patch applied here flows through to the live call site.
 from src.fetchers.calendar import fetch_birthdays, fetch_events  # noqa: F401
 from src.fetchers.circuit_breaker import CircuitBreaker
+from src.fetchers.errors import http_status
 from src.fetchers.host import fetch_host_data
 from src.fetchers.purpleair import fetch_air_quality  # noqa: F401
 from src.fetchers.quota_tracker import QuotaTracker
@@ -108,20 +109,10 @@ def _merge_air_quality_with_weather_fallback(
 _RETRYABLE_CLIENT_STATUSES = frozenset({408, 429})
 
 
-def _http_status(exc: BaseException) -> int | None:
-    """Return the HTTP status carried by *exc*, or ``None``.
-
-    Reads ``exc.response.status_code`` (``requests.HTTPError``) — never the
-    message text, where a "401" is not evidence of a 401 response.
-    """
-    status = getattr(getattr(exc, "response", None), "status_code", None)
-    return status if isinstance(status, int) else None
-
-
 def _is_permanent(exc: BaseException) -> bool:
     if isinstance(exc, (RuntimeError, ValueError, TypeError, KeyError)):
         return True
-    status = _http_status(exc)
+    status = http_status(exc)
     return status is not None and 400 <= status < 500 and status not in _RETRYABLE_CLIENT_STATUSES
 
 
@@ -437,15 +428,16 @@ class DataPipeline:
 
         Runs on the worker thread, so the tally sees only this source's
         requests, and records in ``finally`` so a failed fetch — a 401 on every
-        run — still counts what it cost. A fetch whose requests nothing
-        instrumented (a library that does its own HTTP) counts as one.
+        run — still counts what it cost. A fetch that made no request (a
+        birthdays file) records nothing.
         """
         with request_counter.counting() as tally:
             try:
                 return retry_fetch(label, fn)
             finally:
                 try:
-                    self.quota.record_call(source, max(tally.count, 1))
+                    if tally.count:
+                        self.quota.record_call(source, tally.count)
                 except Exception as exc:
                     logger.warning("%s quota update failed: %s", source.capitalize(), exc)
 

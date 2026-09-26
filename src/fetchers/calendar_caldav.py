@@ -24,6 +24,7 @@ from typing import Any, cast
 
 from src._time import event_window_utc, week_start
 from src.data.models import CalendarEvent
+from src.fetchers import request_counter
 from src.fetchers.errors import CalendarFetchError
 
 logger = logging.getLogger(__name__)
@@ -122,6 +123,9 @@ def fetch_from_caldav(
         client = caldav_mod.DAVClient(
             url=url, username=username, password=password, timeout=_TIMEOUT_SECONDS
         )
+        # Principal discovery, calendar listing and each REPORT are separate
+        # requests on this session; count them all for the daily quota.
+        request_counter.attach(getattr(client, "session", None))
         principal = client.principal()
     except Exception as exc:
         logger.warning("CalDAV auth/principal failed for %s: %s", url, exc)

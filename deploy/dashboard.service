@@ -1,12 +1,7 @@
 [Unit]
 Description=Home Dashboard eInk renderer
-# A Pi has no RTC: until NTP syncs, the clock reads the last shutdown time (or
-# the epoch), and a run then judges quiet hours, the morning-refresh marker and
-# cache ages against the wrong time — and persists wrong timestamps into
-# state/ (#301). time-sync.target is only a real barrier when
-# systemd-time-wait-sync.service is enabled, which `make pi-enable` does.
-After=network-online.target time-sync.target
-Wants=network-online.target time-sync.target
+After=network-online.target
+Wants=network-online.target
 StartLimitBurst=5
 StartLimitIntervalSec=300
 
@@ -24,6 +19,17 @@ Environment=GPIOZERO_PIN_FACTORY=lgpio
 # timer and every later "Refresh Now" (#261). The "-" prefix means a missing
 # file (the normal timer-driven case) is not an error.
 ExecStartPre=-/bin/rm -f __INSTALL_DIR__/state/web_trigger
+# A Pi has no RTC: until NTP syncs, the clock reads the last shutdown time, and
+# a run then judges quiet hours, the morning-refresh marker and cache ages
+# against the wrong time and persists wrong timestamps into state/ (#301).
+# Wait for the sync, but only briefly: systemd-time-wait-sync returns at once
+# when the clock is already synced, and the timeout means an offline boot
+# still renders from cache instead of never running. Deliberately not
+# After=time-sync.target with systemd-time-wait-sync.service enabled — that
+# wait is unbounded, and OnCalendar= timers order themselves after
+# time-sync.target implicitly, so an offline Pi would never fire the timer at
+# all. The "-" prefix ignores a timeout or a system without the helper.
+ExecStartPre=-/usr/bin/timeout 45 /lib/systemd/systemd-time-wait-sync
 ExecStart=__INSTALL_DIR__/venv/bin/python -m src.main --config config/config.yaml
 # No Restart=: the timer runs again in five minutes and the path unit re-fires
 # on the next trigger, so an immediate retry only burned the start limit.

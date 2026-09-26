@@ -8,6 +8,35 @@ siblings, and ``calendar`` imports both).
 from __future__ import annotations
 
 
+def http_status(exc: BaseException) -> int | None:
+    """Return the HTTP status an exception carries, or ``None``.
+
+    The one place a failure is classified by its HTTP status, shared by the
+    pipeline's retry rule and the One Call health record. It reads the status
+    the client library attached — ``requests``' ``exc.response.status_code``,
+    or googleapiclient's ``exc.status_code`` / ``exc.resp.status`` — and never
+    the message text, where a "401" is not evidence of a 401 response. A
+    wrapper raised ``from`` the original (a ``CalendarFetchError`` around a
+    feed's 404) is followed down its ``__cause__`` chain.
+
+    Read defensively rather than by isinstance: it runs inside degradation
+    boundaries, and an attribute lookup that raised would defeat them.
+    """
+    seen = 0
+    current: BaseException | None = exc
+    while current is not None and seen < 8:
+        for status in (
+            getattr(getattr(current, "response", None), "status_code", None),
+            getattr(current, "status_code", None),
+            getattr(getattr(current, "resp", None), "status", None),
+        ):
+            if isinstance(status, int) and not isinstance(status, bool):
+                return status
+        current = current.__cause__
+        seen += 1
+    return None
+
+
 class CalendarFetchError(Exception):
     """A calendar backend could not produce a *complete* answer.
 

@@ -350,6 +350,9 @@ def schema() -> tuple[SectionSpec, ...]:
                     ("google", "caldav_url"),
                     "str",
                     "CalDAV server URL (alternative to Google API / ICS)",
+                    # Commonly carries credentials (https://user:token@host/…),
+                    # so it is handled like the private ICS URL.
+                    secret=True,
                 ),
                 _f(
                     "google.caldav_username",
@@ -369,6 +372,7 @@ def schema() -> tuple[SectionSpec, ...]:
                     ("google", "caldav_calendar_url"),
                     "str",
                     "Specific CalDAV calendar URL (default: first)",
+                    secret=True,
                 ),
                 _f(
                     "google.daily_quota_warning",

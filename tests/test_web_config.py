@@ -151,9 +151,7 @@ _SAMPLE_VALUES: dict[str, object] = {
     "display.min_refresh_interval_seconds": 90,
     "google.calendar_id": "test-cal@group.calendar.google.com",
     "google.contacts_email": "tester@example.com",
-    "google.caldav_url": "https://caldav.example.com/dav/",
     "google.caldav_username": "tester",
-    "google.caldav_calendar_url": "https://caldav.example.com/dav/calendars/tester/events/",
     "purpleair.sensor_id": 99999,
     # #307 additions.
     "display.quantization_mode": "ordered",

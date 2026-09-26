@@ -28,6 +28,7 @@ from src.display.driver import (
     DryRunDisplay,
     build_display_driver,
     image_changed,
+    image_hash,
     persist_image_hash,
 )
 
@@ -151,6 +152,10 @@ def should_throttle_display_refresh(
     return elapsed < min_interval_seconds
 
 
+# Which frame output/latest.png holds (its image_hash), beside the PNG.
+_LATEST_HASH_FILENAME = "latest_image_hash.txt"
+
+
 class OutputService:
     def __init__(self, cfg, tz):
         self.cfg = cfg
@@ -182,6 +187,11 @@ class OutputService:
         # rate-limiter on the hardware, not just a dedup filter.
         if not force_full and not image_changed(image, self.cfg.output_dir):
             logger.info("Image unchanged — skipping display refresh")
+            # Normally latest.png already holds this frame. It does not after
+            # a change that was deferred and then reverted inside the cooldown
+            # (A shown, B deferred into latest.png, A again): the hash still
+            # matches the panel, but the web UI would keep showing B.
+            self._sync_latest_png(image)
             return
 
         min_interval = _resolve_min_refresh_seconds(
@@ -245,17 +255,28 @@ class OutputService:
     def _save_latest_png(self, image) -> None:
         """Write ``output/latest.png`` — the current render, for the web UI.
 
-        Written whether or not the hardware write happened: the unchanged-hash
-        path skips it because the file already matches by definition, but the
-        cooldown path must not, or the "current display" image is stale for the
-        whole cooldown window.
+        Written whether or not the hardware write happened: the cooldown path
+        must write it, or the "current display" image is stale for the whole
+        cooldown window. A sidecar records which frame it holds, so the
+        unchanged-hash path can tell whether it needs rewriting without
+        decoding the PNG.
         """
         try:
-            latest = Path(self.cfg.output_dir) / "latest.png"
-            latest.parent.mkdir(parents=True, exist_ok=True)
-            image.save(latest)
+            out = Path(self.cfg.output_dir)
+            out.mkdir(parents=True, exist_ok=True)
+            image.save(out / "latest.png")
+            (out / _LATEST_HASH_FILENAME).write_text(image_hash(image))
         except Exception as exc:
             logger.warning("Could not save latest.png: %s", exc)
+
+    def _sync_latest_png(self, image) -> None:
+        """Rewrite ``latest.png`` only if it holds a frame other than *image*."""
+        try:
+            held = (Path(self.cfg.output_dir) / _LATEST_HASH_FILENAME).read_text().strip()
+        except OSError:
+            held = ""
+        if held != image_hash(image):
+            self._save_latest_png(image)
 
     def write_health_marker(self) -> None:
         try:
