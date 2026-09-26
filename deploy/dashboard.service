@@ -1,7 +1,12 @@
 [Unit]
 Description=Home Dashboard eInk renderer
-After=network-online.target
-Wants=network-online.target
+# A Pi has no RTC: until NTP syncs, the clock reads the last shutdown time (or
+# the epoch), and a run then judges quiet hours, the morning-refresh marker and
+# cache ages against the wrong time — and persists wrong timestamps into
+# state/ (#301). time-sync.target is only a real barrier when
+# systemd-time-wait-sync.service is enabled, which `make pi-enable` does.
+After=network-online.target time-sync.target
+Wants=network-online.target time-sync.target
 StartLimitBurst=5
 StartLimitIntervalSec=300
 

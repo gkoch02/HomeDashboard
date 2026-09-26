@@ -396,6 +396,14 @@ make pi-enable
 make pi-status
 ```
 
+`make pi-enable` also enables `systemd-time-wait-sync.service`. A Raspberry Pi has no
+real-time clock, so until NTP syncs after boot the clock reads the last shutdown time;
+the renderer unit is ordered after `time-sync.target` so its first run waits for a
+synced clock instead of judging quiet hours and cache ages against a stale one. If you
+install the units by hand, run `sudo systemctl enable systemd-time-wait-sync.service`
+yourself — without it `time-sync.target` is reached immediately and the ordering does
+nothing. (Offline, the first run waits until the network and NTP come up.)
+
 The timer fires every 5 minutes. The app handles scheduling internally:
 
 | Time window | Behaviour |

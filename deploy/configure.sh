@@ -73,11 +73,47 @@ echo "  Use an IANA name (e.g. America/New_York) or \"local\" for system clock."
 prompt "Timezone" "$(current timezone)" TIMEZONE
 echo ""
 
-# --- Google Calendar ---
-echo "--- Google Calendar ---"
-echo "  Calendar ID looks like: abc123@group.calendar.google.com"
-echo "  See README > Google Calendar Setup for service account instructions."
-prompt "Calendar ID" "$(current calendar_id)" CALENDAR_ID
+# --- Calendar source ---
+# Default to whichever source the config already uses (CalDAV > ICS > Google,
+# the same precedence the fetcher applies).
+if [ -n "$(current_in google caldav_url)" ]; then
+  CAL_DEFAULT="caldav"
+elif [ -n "$(current_in google ical_url)" ]; then
+  CAL_DEFAULT="ics"
+else
+  CAL_DEFAULT="google"
+fi
+echo "--- Calendar ---"
+echo "  ics    — a calendar's secret iCal address; no Google Cloud project needed"
+echo "           (recommended for most setups)"
+echo "  caldav — Nextcloud / Radicale / iCloud / Fastmail / any CalDAV server"
+echo "  google — Google Calendar API with a service account"
+echo "  See docs/setup.md for each option."
+CAL_SOURCE=""
+while :; do
+  prompt "Calendar source (ics/caldav/google)" "$CAL_DEFAULT" CAL_SOURCE
+  case "$CAL_SOURCE" in
+    ics|caldav|google) break ;;
+    *) echo "  Please answer ics, caldav or google." ;;
+  esac
+done
+CALENDAR_ID="" ICAL_URL="" CALDAV_URL="" CALDAV_USER="" CALDAV_PW_FILE=""
+case "$CAL_SOURCE" in
+  google)
+    echo "  Calendar ID looks like: abc123@group.calendar.google.com"
+    prompt "Calendar ID" "$(current_in google calendar_id)" CALENDAR_ID
+    ;;
+  ics)
+    echo "  Google Calendar: Settings → [calendar] → \"Secret address in iCal format\"."
+    prompt "ICS feed URL" "$(current_in google ical_url)" ICAL_URL
+    ;;
+  caldav)
+    prompt "CalDAV URL" "$(current_in google caldav_url)" CALDAV_URL
+    prompt "CalDAV username" "$(current_in google caldav_username)" CALDAV_USER
+    pw_default="$(current_in google caldav_password_file)"
+    prompt "CalDAV password file" "${pw_default:-credentials/caldav_password.txt}" CALDAV_PW_FILE
+    ;;
+esac
 echo ""
 
 # --- PurpleAir (optional) ---
@@ -91,7 +127,8 @@ echo ""
 # ---------------------------------------------------------------------------
 # Write values into config.yaml using Python for reliable YAML editing
 # ---------------------------------------------------------------------------
-venv/bin/python - "$CONFIG" "$DISPLAY_PROVIDER" "$DISPLAY_MODEL" "$WEATHER_KEY" "$LAT" "$LON" "$UNITS" "$TIMEZONE" "$CALENDAR_ID" "$PA_KEY" "$PA_SENSOR" <<'PYEOF'
+venv/bin/python - "$CONFIG" "$DISPLAY_PROVIDER" "$DISPLAY_MODEL" "$WEATHER_KEY" "$LAT" "$LON" "$UNITS" "$TIMEZONE" "$CALENDAR_ID" "$PA_KEY" "$PA_SENSOR" \
+  "$CAL_SOURCE" "$ICAL_URL" "$CALDAV_URL" "$CALDAV_USER" "$CALDAV_PW_FILE" <<'PYEOF'
 import re
 import sys
 
@@ -106,6 +143,11 @@ tz = sys.argv[8]
 calendar_id = sys.argv[9]
 pa_key = sys.argv[10]
 pa_sensor = sys.argv[11]
+# Calendar source and its settings. Optional so the writer still runs with the
+# eleven arguments older callers pass: that is the Google API path.
+extra = sys.argv[12:17] + [""] * (5 - len(sys.argv[12:17]))
+cal_source = extra[0] or "google"
+ical_url, caldav_url, caldav_user, caldav_pw_file = extra[1:]
 
 with open(config_path) as f:
     text = f.read()
@@ -194,6 +236,48 @@ def ensure_section(text, section, defaults):
     return text.rstrip("\n") + "\n\n" + block
 
 
+def enable_in_section(text, section, key, value):
+    """Set `key:` in `section:`, uncommenting the template's `# key:` line if needed.
+
+    The template ships the ICS and CalDAV keys commented out under `google:`;
+    a live key is replaced, a commented one is brought to life in place, and a
+    missing one is added at the end of the section.
+    """
+    lines = text.splitlines(keepends=True)
+    span = section_span(lines, section)
+    if span is None:
+        raise ConfigWriteError("could not find the '{}:' section".format(section))
+    live = re.compile(r"^(\s+){}:".format(re.escape(key)))
+    commented = re.compile(r"^(\s*)#\s*{}:".format(re.escape(key)))
+    for i in range(*span):
+        if live.match(lines[i]):
+            return set_in_section(text, section, key, value)
+    for i in range(*span):
+        m = commented.match(lines[i])
+        if m:
+            lines[i] = "{}{}: {}\n".format(m.group(1) or "  ", key, value)
+            return "".join(lines)
+    end = span[1]
+    while end > span[0] + 1 and not lines[end - 1].strip():
+        end -= 1
+    lines.insert(end, "  {}: {}\n".format(key, value))
+    return "".join(lines)
+
+
+def disable_in_section(text, section, key):
+    """Comment out a live `key:` in `section:` so a lower-precedence source wins."""
+    lines = text.splitlines(keepends=True)
+    span = section_span(lines, section)
+    if span is None:
+        return text
+    live = re.compile(r"^(\s+)({}:.*)$".format(re.escape(key)), re.S)
+    for i in range(*span):
+        m = live.match(lines[i])
+        if m:
+            lines[i] = "{}# {}".format(m.group(1), m.group(2))
+    return "".join(lines)
+
+
 text = set_in_section(text, "display", "provider", q(display_provider))
 text = set_in_section(text, "display", "model", q(display_model))
 text = set_in_section(text, "weather", "api_key", q(weather_key))
@@ -201,7 +285,22 @@ text = set_in_section(text, "weather", "latitude", lat)
 text = set_in_section(text, "weather", "longitude", lon)
 text = set_in_section(text, "weather", "units", q(units))
 text = set_scalar(text, "timezone", q(tz))
-text = set_in_section(text, "google", "calendar_id", q(calendar_id))
+
+# Calendar source. The fetcher takes CalDAV over ICS over the Google API, so
+# choosing a lower-precedence source has to switch the higher ones off, or a
+# previous answer would keep winning.
+if cal_source == "caldav":
+    text = enable_in_section(text, "google", "caldav_url", q(caldav_url))
+    text = enable_in_section(text, "google", "caldav_username", q(caldav_user))
+    text = enable_in_section(text, "google", "caldav_password_file", q(caldav_pw_file))
+elif cal_source == "ics":
+    for key in ("caldav_url", "caldav_username", "caldav_password_file"):
+        text = disable_in_section(text, "google", key)
+    text = enable_in_section(text, "google", "ical_url", q(ical_url))
+else:
+    for key in ("caldav_url", "caldav_username", "caldav_password_file", "ical_url"):
+        text = disable_in_section(text, "google", key)
+    text = set_in_section(text, "google", "calendar_id", q(calendar_id))
 
 # PurpleAir — only written when a value was given; the section stays off otherwise.
 # Both keys are always written once the section is live: uncommenting the
@@ -226,24 +325,30 @@ with open(config_path, "w") as f:
 print("  config/config.yaml updated.")
 PYEOF
 
-echo ""
-echo "--- Google service account credentials ---"
-echo ""
-echo "  The service account JSON must be downloaded manually from Google Cloud Console."
-echo "  See README > Google Calendar Setup for step-by-step instructions."
-echo ""
-echo "  Expected path: credentials/service_account.json"
-echo ""
-if [ -f "credentials/service_account.json" ]; then
-  echo "  ✓ credentials/service_account.json already present."
-else
-  read -rp "  Press Enter when the file is in place (or Ctrl-C to do it later)..." _
+if [ "$CAL_SOURCE" = "google" ]; then
+  echo ""
+  echo "--- Google service account credentials ---"
+  echo ""
+  echo "  The service account JSON must be downloaded manually from Google Cloud Console."
+  echo "  See docs/setup.md > Google Calendar Setup for step-by-step instructions."
+  echo ""
+  echo "  Expected path: credentials/service_account.json"
+  echo ""
   if [ -f "credentials/service_account.json" ]; then
-    echo "  ✓ Found credentials/service_account.json"
+    echo "  ✓ credentials/service_account.json already present."
   else
-    echo "  WARNING: credentials/service_account.json not found."
-    echo "  Calendar data will not load until it is added."
+    read -rp "  Press Enter when the file is in place (or Ctrl-C to do it later)..." _
+    if [ -f "credentials/service_account.json" ]; then
+      echo "  ✓ Found credentials/service_account.json"
+    else
+      echo "  WARNING: credentials/service_account.json not found."
+      echo "  Calendar data will not load until it is added."
+    fi
   fi
+elif [ "$CAL_SOURCE" = "caldav" ] && [ ! -f "$CALDAV_PW_FILE" ]; then
+  echo ""
+  echo "  NOTE: $CALDAV_PW_FILE does not exist yet. Put the account password in it"
+  echo "  (one line, chmod 600) — see docs/setup.md > CalDAV, Step 2."
 fi
 
 echo ""
