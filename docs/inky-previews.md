@@ -352,7 +352,7 @@ Accents: **green** primary, **blue** secondary · [description in Themes ↗](th
 
 #### wide_diags
 
-Accents: **red** primary, **black** secondary · [description in Themes ↗](themes.md#wide_diags)
+Accents: **green** primary, **blue** secondary · [description in Themes ↗](themes.md#wide_diags)
 
 [![Wide diags theme on Inky](../assets/previews/theme_wide_diags_inky.png)](../assets/previews/theme_wide_diags_inky.png)
 

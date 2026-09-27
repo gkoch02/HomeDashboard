@@ -20,8 +20,8 @@ from __future__ import annotations
 
 from src.render.fonts import cyber_mono, dm_bold, dm_medium
 from src.render.theme import (
-    INKY_BLACK,
-    INKY_RED,
+    INKY_BLUE,
+    INKY_GREEN,
     ComponentRegion,
     Theme,
     ThemeLayout,
@@ -69,7 +69,9 @@ def wide_diags_theme() -> Theme:
 def _register() -> None:
     from src.render.themes.registry import register_theme
 
-    register_theme("wide_diags", wide_diags_theme, inky_palette=(INKY_RED, INKY_BLACK))
+    # diags' own pair: the left pane shares this style, so any other pair would
+    # recolour its headings and it would no longer be the diags readout.
+    register_theme("wide_diags", wide_diags_theme, inky_palette=(INKY_GREEN, INKY_BLUE))
 
 
 _register()

@@ -143,19 +143,14 @@ class TestPlate:
         assert img.size == (1360, 480)
         assert set(np.unique(np.asarray(img.convert("L")))) <= {0, 255}
 
-    @pytest.mark.parametrize("config", [MONO, G_PANEL], ids=["mono", "g"])
+    @pytest.mark.parametrize("config", [MONO, G_PANEL, INKY], ids=["mono", "g", "inky"])
     def test_left_half_is_the_diags_theme(self, config):
+        # Pixel for pixel, accent colours included: the two themes share a
+        # style, so a different registered palette would recolour the headings.
         wide = _render(config).crop((0, 0, 800, 480))
-        narrow_cfg = DisplayConfig(model=config.model, width=800, height=480)
-        diags = _render(narrow_cfg, theme="diags")
-        if config is G_PANEL:
-            # Same readout, but diags names its own accent pair; compare shape.
-            wide, diags = wide.convert("L").point(_ink), diags.convert("L").point(_ink)
+        narrow = DisplayConfig(provider=config.provider, model=config.model, width=800, height=480)
+        diags = _render(narrow, theme="diags")
         assert np.array_equal(np.asarray(wide), np.asarray(diags))
-
-
-def _ink(v: int) -> int:
-    return 0 if v < 250 else 255
 
 
 class TestTheme:
