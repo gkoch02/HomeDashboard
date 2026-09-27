@@ -54,7 +54,7 @@ TIME_DRIVEN = {
 # data regenerates identical HostData, so asserting either way here would only
 # test the fixture. It is excluded from both directions rather than being listed
 # as fixed, which would overstate what this change does.
-ALWAYS_LIVE = {"diags"}
+ALWAYS_LIVE = {"diags", "wide_diags"}
 
 # Not driven by DashboardData in a way this test can hold still.
 NOT_APPLICABLE = {"random", "random_daily", "random_hourly", "photo", "message", "countdown"}

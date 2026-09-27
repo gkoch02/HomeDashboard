@@ -56,6 +56,7 @@ DECLINES_PARTIAL = {
     "qotd_invert",
     "terminal",
     "trends",
+    "wide_diags",
     "wide_horizon",
     "wide_night",
     "wide_night_invert",
