@@ -203,6 +203,11 @@ class ThemeLayout:
     wide_horizon: ComponentRegion = field(
         default_factory=lambda: ComponentRegion(0, 0, 1360, 480, visible=False)
     )
+    # Used by the ``wide_night`` theme: moon, temperature, AQI and weather
+    # glyph spaced across an otherwise empty 1360x480 plate.
+    wide_night: ComponentRegion = field(
+        default_factory=lambda: ComponentRegion(0, 0, 1360, 480, visible=False)
+    )
     # Used by the ``wide_week`` theme: the editorial rail left of its week grid.
     wide_week_rail: ComponentRegion = field(
         default_factory=lambda: ComponentRegion(0, 0, 440, 480, visible=False)

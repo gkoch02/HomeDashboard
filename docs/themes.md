@@ -223,7 +223,7 @@ letterboxed instead (see [`display.scaling`](configuration.md#scaling)). On an
 800 × 480 panel the panoramic themes letterbox the other way, as a band.
 
 **[Panoramic Themes](wide-themes.md)** is the guide to this set: setting up the
-10.85" panel, choosing between the five, how often each repaints, and previews in
+10.85" panel, choosing between the seven, how often each repaints, and previews in
 the panel's own four inks.
 
 | Theme | Best for | Notes |
@@ -232,6 +232,8 @@ the panel's own four inks.
 | `wide_day` | today, hour by hour | A time axis across the whole middle of the strip with every timed event as a bar over its real span, packed into lanes with its name attached; date and weather at the left end, the next few events and the week's birthdays at the right. A NOW marker and the bar states follow the clock. |
 | `halftone_agenda_wide` | the split-plate agenda on a strip | `halftone_agenda` drawn for the strip: the engraving and weather band at the left, today's agenda at half again its usual width in the middle, and a third pane for what the 800 × 480 plate leaves out — alerts, the next day's events, the forecast, birthdays, air quality and the moon. Same engraving, same treatments, same fonts. |
 | `wide_forecast` | weather station on a strip | Current conditions as a hero block with a detail grid, five forecast cards in a row with precipitation bars, and a band beneath for alerts, air quality and the moon. |
+| `wide_night` | a night mode for the strip | Almost all negative space: the moon's phase, the temperature, the air-quality index and the weather glyph at one shared height, evenly spaced across the middle with small letter-spaced labels beneath, in black on a solid red ground. Jura throughout. Not in the random rotation — schedule it for after dark. |
+| `wide_night_invert` | the night mode, red on black | `wide_night` with ground and ink swapped: red marks and labels on a black ground (black on white on monochrome). |
 | `wide_horizon` | the next three days at a glance | One 72-hour time axis shared by everything: a sky coloured by the sun's real altitude (day, dithered twilights, night with stars and the moon), clouds and rain drawn per forecast slot, the temperature as one line across it, rain chance hanging beneath, and the calendar's events as bars on the same hours. Conditions now and a three-line outlook in a hero block at the left. |
 
 ### Utility themes
@@ -541,6 +543,24 @@ The axis compresses the hours between 23:00 and 06:00 to a third of a waking hou
 On a colour panel the twilights are **ordered dithers between pairs of inks** — white with yellow, yellow with red, red with black — so the four-ink panel shows pale yellow, orange and maroon it has no ink for; the temperature line and today's name are red, the sun and moon yellow. On a monochrome panel the same altitudes drive one black-and-white Bayer ramp. Every pixel on the plate is already an exact ink (type is set without antialiasing), so the panel's final snap changes nothing at native size. The theme declares `ordered` quantization so a panel that scales it re-screens its tones, which also derives it out of partial refresh. The window moves on at most eight times a day, when a new forecast slot begins; nothing else reads the clock. Type is **Big Shoulders Display** for day names, temperatures and the hero reading, DM Sans for everything else. A weather cache written before the fetcher kept the forecast grid shows the sky and events without the temperature line until the next weather fetch.
 
 [![Wide horizon theme](../assets/previews/theme_wide_horizon.png)](../assets/previews/theme_wide_horizon.png)
+
+#### wide_night
+
+A night mode for the strip, built to be left up in a dark room. Four marks and nothing else: the moon's phase (the lit part only — no outline on the dark limb, so a new moon shows nothing), the temperature now, the air-quality index, and the current weather glyph. All four are drawn at one shared height with equal gaps between them and at both ends, and each carries a small instrument-panel label on one shared baseline beneath the row — `MOON`, `TEMP`, `AQI`, `SKY` — in fixed-size, letter-spaced caps. The row and its labels are centred on the plate as one group.
+
+The spacing sets the size, not the other way round: the gaps are at least 0.9× the mark height, and the marks take the tallest height at which they fit with those gaps, up to 80% of the plate — about 134 px for a typical four (`42°`, `57`), taller with three. Wide gaps are the point: each reading stands alone, and the space between a numeral and its degree sign never reads as a gap between marks. On a new-moon night the `MOON` label sits over an empty slot. Every piece of type is **Jura** — SemiBold for the numerals, Bold for the labels — a squarish technical face after Soviet instrument-panel lettering.
+
+On the four-ink panel (and on Inky) the ground is solid red and the marks are black ink, set without antialiasing so they reach the panel as exact inks. A monochrome panel has no red, so there the plate is black with the marks in white — the same convention as the `*_invert` themes. A mark whose data is missing is dropped and the rest re-spaced: without a PurpleAir sensor the plate shows three marks, evenly spaced, not four with a gap.
+
+Nothing on the plate reads the clock; the marks move when the data or the date does. The theme writes the panel at most once per clock hour (`repaint_slot_hours = 1`), so a new temperature doesn't set off a twenty-second red flash every weather fetch, and it declines partial refresh because the whole plate is one solid fill. It is **not** in the random rotation — use `theme_schedule` (e.g. `wide_night` at `21:00`, back to a day theme at `06:30`) or a `theme_rules` entry with `daypart: night`.
+
+[![Wide night theme](../assets/previews/theme_wide_night.png)](../assets/previews/theme_wide_night.png)
+
+#### wide_night_invert
+
+[`wide_night`](#wide_night) with ground and ink swapped: the same four marks, labels, spacing and hourly repaint limit, in red on a solid black ground on the four-ink panel and on Inky. A monochrome panel draws it black on white. Like its sibling it stays out of the random rotation and declines partial refresh.
+
+[![Wide night invert theme](../assets/previews/theme_wide_night_invert.png)](../assets/previews/theme_wide_night_invert.png)
 
 #### countdown
 

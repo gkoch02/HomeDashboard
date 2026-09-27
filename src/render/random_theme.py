@@ -42,7 +42,18 @@ _DAILY_STATE_FILE = "random_theme_state.json"
 _HOURLY_STATE_FILE = "random_theme_hourly_state.json"
 # Pseudo-themes and utility views that must never appear in a rotation pool.
 _EXCLUDED_FROM_POOL: frozenset[str] = frozenset(
-    {"random", "random_daily", "random_hourly", "diags", "message", "photo", "countdown"}
+    {
+        "random",
+        "random_daily",
+        "random_hourly",
+        "diags",
+        "message",
+        "photo",
+        "countdown",
+        # Night plates, meant to be scheduled for after dark, not drawn at noon.
+        "wide_night",
+        "wide_night_invert",
+    }
 )
 
 
