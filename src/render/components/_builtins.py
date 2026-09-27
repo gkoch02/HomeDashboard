@@ -42,6 +42,7 @@ from src.render.components import (
     weatherglass_panel,
     week_view,
     wide_day_panel,
+    wide_diags_panel,
     wide_forecast_panel,
     wide_horizon_panel,
     wide_night_panel,
@@ -541,6 +542,20 @@ def _wide_horizon(ctx: RenderContext) -> None:
         style=ctx.style,
         latitude=ctx.latitude,
         longitude=ctx.longitude,
+    )
+
+
+@register_component("wide_diags")
+def _wide_diags(ctx: RenderContext) -> None:
+    # The DIFFUSED row is left continuous for a colour backend to diffuse; the
+    # rest of the plate is exact inks.
+    region = ctx.layout.wide_diags
+    ctx.dither_regions.append(wide_diags_panel.diffused_rect(region))
+    wide_diags_panel.draw_wide_diags(
+        ctx.image if ctx.image is not None else ctx.draw._image,
+        ctx.draw,
+        region=region,
+        style=ctx.style,
     )
 
 

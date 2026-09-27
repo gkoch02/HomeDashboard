@@ -350,6 +350,12 @@ Accents: **green** primary, **blue** secondary · [description in Themes ↗](th
 
 [![Diags theme on Inky](../assets/previews/theme_diags_inky.png)](../assets/previews/theme_diags_inky.png)
 
+#### wide_diags
+
+Accents: **red** primary, **black** secondary · [description in Themes ↗](themes.md#wide_diags)
+
+[![Wide diags theme on Inky](../assets/previews/theme_wide_diags_inky.png)](../assets/previews/theme_wide_diags_inky.png)
+
 ---
 
 ## Regenerating these images

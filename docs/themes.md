@@ -223,7 +223,7 @@ letterboxed instead (see [`display.scaling`](configuration.md#scaling)). On an
 800 × 480 panel the panoramic themes letterbox the other way, as a band.
 
 **[Panoramic Themes](wide-themes.md)** is the guide to this set: setting up the
-10.85" panel, choosing between the seven, how often each repaints, and previews in
+10.85" panel, choosing between the eight, how often each repaints, and previews in
 the panel's own four inks.
 
 | Theme | Best for | Notes |
@@ -243,6 +243,7 @@ the panel's own four inks.
 | `countdown` | days-until tracker | User-configured target dates; one event = hero numeral, multiple = stacked list. Driven by `countdown.events` in `config.yaml`; excluded from random rotation |
 | `message` | one-off reminders | Requires `--message`; excluded from random rotation |
 | `diags` | debugging and validation | Structured data readout; excluded from random rotation |
+| `wide_diags` | panel and pipeline check on the 1360 × 480 strip | The `diags` readout on the left 800 px beside a swatch plate: each ink the panel has, every pair of inks mixed in ordered-dither steps, fine test textures, and a gradient the backend dithers itself. Excluded from random rotation |
 
 ### Theme details and previews
 
@@ -592,6 +593,19 @@ venv/bin/python -m src.main --dry-run --dummy --theme message --message "Dentist
 Structured diagnostic readout for validating live data and system state.
 
 [![Diags theme](../assets/previews/theme_diags.png)](../assets/previews/theme_diags.png)
+
+#### wide_diags
+
+The [`diags`](#diags) readout, unchanged, on the left 800 px of a 1360 × 480 canvas, with a swatch plate filling the 560 px beside it — for checking what a panel, and the render pipeline in front of it, can actually show. Top to bottom:
+
+- **Inks** — one solid swatch per ink the panel has, with its name and the value the plate draws it in. The set is read from the panel, not assumed: four on the Waveshare 10.85" (G), six on Inky, black and white on monochrome.
+- **Pair ramps** — every pair of those inks mixed through an 8 × 8 ordered (Bayer) screen in eighths, from 0% to 100%. Six rows on the four-ink panel; Inky's fifteen split into two columns. With only one or two pairs (monochrome), each also gets a continuous ramp through all 64 screen levels beneath it.
+- **Textures** — single-pixel ink-on-paper patterns: a checkerboard, a 2-px checkerboard, horizontal and vertical line screens, a dot grid and a diagonal.
+- **Diffused** — a full-saturation hue sweep over a grey ramp, left continuous for a colour backend to Floyd-Steinberg onto the inks, so the pipeline's own dither sits beside the hand-screened ones. A monochrome canvas can't hold a gradient, so there it is the grey ramp, dithered by the panel.
+
+Everything but the diffused row is drawn in exact inks with unantialiased type, so it reaches a native-size panel pixel for pixel. The theme declines partial refresh (the fast waveform fades dithered ink) and is excluded from random rotation.
+
+[![Wide diags theme](../assets/previews/theme_wide_diags.png)](../assets/previews/theme_wide_diags.png)
 
 ---
 

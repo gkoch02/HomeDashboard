@@ -208,6 +208,11 @@ class ThemeLayout:
     wide_night: ComponentRegion = field(
         default_factory=lambda: ComponentRegion(0, 0, 1360, 480, visible=False)
     )
+    # Used by the ``wide_diags`` theme: the ink/dither swatch plate beside the
+    # diags readout on the 1360x480 strip.
+    wide_diags: ComponentRegion = field(
+        default_factory=lambda: ComponentRegion(800, 0, 560, 480, visible=False)
+    )
     # Used by the ``wide_week`` theme: the editorial rail left of its week grid.
     wide_week_rail: ComponentRegion = field(
         default_factory=lambda: ComponentRegion(0, 0, 440, 480, visible=False)

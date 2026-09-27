@@ -8,6 +8,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
+- **`wide_diags` theme** — the `diags` readout on the left 800 px of the
+  1360 × 480 strip, beside a swatch plate for checking what the panel and the
+  render pipeline can show: a solid swatch for each ink the panel has (read
+  from the panel — four on the 10.85" (G), six on Inky, two on monochrome),
+  every pair of inks mixed through an 8 × 8 ordered screen in eighths,
+  single-pixel test textures, and a hue sweep and grey ramp left for the
+  backend to Floyd-Steinberg onto the inks. The plate above that row is exact
+  inks, so it reaches a native-size panel pixel for pixel. Declines partial
+  refresh and stays out of the random rotation, like `diags`.
+
 - **`wide_night` theme** — a night mode for the 1360 × 480 panel that is
   almost all negative space: the moon's phase, the temperature, the
   air-quality index and the current weather glyph, at one shared height with

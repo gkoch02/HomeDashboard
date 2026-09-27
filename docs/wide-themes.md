@@ -1,9 +1,9 @@
 # Panoramic Themes
 
-Seven themes are drawn for a panel shaped like a strip rather than a page: the
+Eight themes are drawn for a panel shaped like a strip rather than a page: the
 Waveshare 10.85" e-Paper (G), 1360 × 480 pixels, nearly three times as wide as it
 is tall, with four inks (black, white, yellow and red). This page covers what is
-specific to that panel and to the seven themes built for it: how to set it up, how
+specific to that panel and to the eight themes built for it: how to set it up, how
 to choose between them, how often each one repaints, and what they look like in
 the panel's own four inks.
 
@@ -31,6 +31,7 @@ the four-ink renders the 10.85" panel actually shows.
 | [`wide_forecast`](#wide_forecast) | Current conditions and a five-day forecast | Five days | No | 0 |
 | [`wide_night`](#wide_night) | Moon, temperature, AQI and weather glyph on an empty red plate | Now | No (at most once an hour, data changes included) | 0 |
 | [`wide_night_invert`](#wide_night_invert) | `wide_night` in red on black | Now | No (at most once an hour, data changes included) | 0 |
+| [`wide_diags`](#wide_diags) | The diags readout beside an ink and dither swatch plate | Now | Every tick (live host metrics) | 0 |
 | [`wide_week`](#wide_week) | The standard week grid beside an editorial rail: weather now, NOW/NEXT, forecast, sky, birthdays, quote | This week | At event boundaries (NOW/NEXT) | 1 |
 
 **Moves on the clock during the day** counts the repaints the clock alone causes
@@ -71,7 +72,8 @@ and centred, with the side margins padded in the theme's background. See
 
 `theme: random_daily` and `random_hourly` pick only from these on a panoramic
 panel, because a landscape theme would be fitted with wide empty margins. The
-night plates, `wide_night` and `wide_night_invert`, are never picked at random; schedule it (below). The
+night plates, `wide_night` and `wide_night_invert`, are never picked at random; schedule them (below).
+Nor is the diagnostic `wide_diags`. The
 [`random_theme.include` / `exclude`](themes.md#random-rotation) lists narrow the
 pool further.
 
@@ -100,6 +102,9 @@ pool further.
 
   or as a `theme_rules` entry with `when: {daypart: night}`. `wide_night_invert`
   is the same plate in red on black, for a darker room.
+- **You are setting the panel up, or checking its inks**: `wide_diags`. The
+  data readout from `diags` beside a plate of every ink and every two-ink mix
+  the panel can show. It is a diagnostic, not a daily theme.
 - **You want the familiar week grid, with today's context beside it**:
   `wide_week`. The grid is the default theme's, untouched; the rail adds the
   weather, what is on or next, the sky and the quote.
@@ -175,6 +180,20 @@ ground. Same layout, same hourly limit. [Full description ↗](themes.md#wide_ni
 
 [![Wide night invert theme on the four-ink panel](../assets/previews/theme_wide_night_invert_g.png)](../assets/previews/theme_wide_night_invert_g.png)
 
+### wide_diags
+
+The [`diags`](themes.md#diags) readout on the left 800 px — weather, forecast,
+host metrics, calendar counts, air quality, birthdays and source status — and a
+swatch plate on the right 560 px: each of the panel's four inks, the six pairs
+of them mixed in eighths through an ordered screen (orange from yellow and red,
+maroon from red and black, olive from yellow and black), single-pixel test
+textures, and a hue sweep and grey ramp the backend Floyd-Steinbergs onto the
+inks. Everything above that last row is exact inks, so it shows what the panel
+itself does with fine detail; the last row shows what the render pipeline does
+with a continuous tone. [Full description ↗](themes.md#wide_diags)
+
+[![Wide diags theme on the four-ink panel](../assets/previews/theme_wide_diags_g.png)](../assets/previews/theme_wide_diags_g.png)
+
 ### wide_week
 
 The standard week grid, exactly as the default theme draws it, on the right at the
@@ -221,6 +240,9 @@ whose content hasn't changed repaints once a day. Beyond that:
   red in a dark room every fetch.
 - `wide_day` changes on every tick, because its NOW marker and event states follow
   the clock.
+- `wide_diags` changes on every tick too: like `diags` it reports live host
+  metrics (uptime, load, memory) and the render time. Put it up to check the
+  panel, not to leave it.
 
 If the flash is intrusive, raise `display.min_refresh_interval_seconds`. `900`
 limits writes to one every quarter hour; `3600`, one an hour. Each write still
@@ -262,7 +284,8 @@ pinned date as the other preview sets:
 ```bash
 python3 scripts/build_previews.py --model epd10in85g \
   --theme wide_horizon --theme wide_day --theme halftone_agenda_wide \
-  --theme wide_forecast --theme wide_night --theme wide_night_invert --theme wide_week
+  --theme wide_forecast --theme wide_night --theme wide_night_invert --theme wide_week \
+  --theme wide_diags
 ```
 
 This writes `assets/previews/theme_<name>_g.png`. See [Previews](previews.md) for

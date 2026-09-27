@@ -47,6 +47,7 @@ _EXCLUDED_FROM_POOL: frozenset[str] = frozenset(
         "random_daily",
         "random_hourly",
         "diags",
+        "wide_diags",
         "message",
         "photo",
         "countdown",
