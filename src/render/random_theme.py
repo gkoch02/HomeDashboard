@@ -50,8 +50,9 @@ _EXCLUDED_FROM_POOL: frozenset[str] = frozenset(
         "message",
         "photo",
         "countdown",
-        # A night plate, meant to be scheduled for after dark, not drawn at noon.
+        # Night plates, meant to be scheduled for after dark, not drawn at noon.
         "wide_night",
+        "wide_night_invert",
     }
 )
 

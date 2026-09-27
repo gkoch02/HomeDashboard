@@ -556,6 +556,19 @@ def _wide_night(ctx: RenderContext) -> None:
     )
 
 
+@register_component("wide_night_invert")
+def _wide_night_invert(ctx: RenderContext) -> None:
+    wide_night_panel.draw_wide_night(
+        ctx.draw,
+        ctx.data,
+        ctx.today,
+        ctx.now,
+        region=ctx.layout.wide_night,
+        style=ctx.style,
+        invert=True,
+    )
+
+
 @register_component("wide_week_rail")
 def _wide_week_rail(ctx: RenderContext) -> None:
     wide_week_rail_panel.draw_wide_week_rail(

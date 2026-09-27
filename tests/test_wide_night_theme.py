@@ -300,3 +300,39 @@ class TestTheme:
         style = replace(MONO_STYLE, fg=(255, 255, 255), bg=(0, 0, 0), accent_primary=(255, 0, 0))
         wn.draw_wide_night(draw, _data(), TODAY, FIXED_NOW, region=REGION, style=style)
         assert draw.fontmode == "L"
+
+
+class TestInvert:
+    """wide_night_invert: the same plate with ground and ink swapped."""
+
+    def test_colours_swap_on_both_backends(self):
+        style = ThemeStyle(fg=(255, 255, 255), bg=(0, 0, 0), accent_primary=(255, 0, 0))
+        assert wn.colours(style, invert=True) == ((0, 0, 0), (255, 0, 0))
+        assert wn.colours(MONO_STYLE, invert=True) == (1, 0)
+
+    def test_g_panel_is_red_on_black_in_exact_inks(self):
+        data = generate_dummy_data(now=FIXED_NOW)
+        img = render_dashboard(data, G_PANEL, theme=load_theme("wide_night_invert"))
+        counts = {c: n for n, c in img.getcolors(maxcolors=1 << 16)}
+        assert set(counts) == {(0, 0, 0), (255, 0, 0)}
+        assert counts[(0, 0, 0)] > 0.75 * 1360 * 480
+
+    def test_mono_panel_is_black_on_white(self):
+        data = generate_dummy_data(now=FIXED_NOW)
+        img = render_dashboard(data, MONO, theme=load_theme("wide_night_invert"))
+        assert img.convert("L").histogram()[255] > 0.75 * 1360 * 480
+
+    def test_same_layout_as_wide_night(self):
+        """Every pixel that is ink on one plate is ground on the other."""
+        data = generate_dummy_data(now=FIXED_NOW)
+        a = render_dashboard(data, MONO, theme=load_theme("wide_night")).convert("L")
+        b = render_dashboard(data, MONO, theme=load_theme("wide_night_invert")).convert("L")
+        assert a.point(lambda v: 255 - v).tobytes() == b.tobytes()
+
+    def test_inherits_the_repaint_limit_and_stays_out_of_rotation(self):
+        from src.render.themes.wide_night_invert import wide_night_invert_theme
+
+        theme = wide_night_invert_theme()
+        assert theme.layout.repaint_slot_hours == 1
+        assert theme.layout.draw_order == ["wide_night_invert"]
+        assert "wide_night_invert" in _EXCLUDED_FROM_POOL

@@ -51,7 +51,7 @@ sudo reboot
 - Weekly calendar via Google Calendar API or private ICS feed
 - Current weather, forecast, and optional PurpleAir air quality
 - Birthdays from a file, calendar events, or Google Contacts
-- 42 built-in themes plus scheduled and random rotation modes
+- 43 built-in themes plus scheduled and random rotation modes
 - Optional Web UI for status, config editing, and manual refresh
 - Per-source caching, circuit breakers, stale-data indicators, and quiet hours
 

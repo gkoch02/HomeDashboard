@@ -324,6 +324,12 @@ Accents: **red** primary, **black** secondary · [description in Themes ↗](the
 
 [![Wide night theme on Inky](../assets/previews/theme_wide_night_inky.png)](../assets/previews/theme_wide_night_inky.png)
 
+#### wide_night_invert
+
+Accents: **red** primary, **black** secondary · [description in Themes ↗](themes.md#wide_night_invert)
+
+[![Wide night invert theme on Inky](../assets/previews/theme_wide_night_invert_inky.png)](../assets/previews/theme_wide_night_invert_inky.png)
+
 ### Utility themes
 
 #### countdown

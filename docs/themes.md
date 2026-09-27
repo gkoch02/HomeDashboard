@@ -223,7 +223,7 @@ letterboxed instead (see [`display.scaling`](configuration.md#scaling)). On an
 800 × 480 panel the panoramic themes letterbox the other way, as a band.
 
 **[Panoramic Themes](wide-themes.md)** is the guide to this set: setting up the
-10.85" panel, choosing between the six, how often each repaints, and previews in
+10.85" panel, choosing between the seven, how often each repaints, and previews in
 the panel's own four inks.
 
 | Theme | Best for | Notes |
@@ -233,6 +233,7 @@ the panel's own four inks.
 | `halftone_agenda_wide` | the split-plate agenda on a strip | `halftone_agenda` drawn for the strip: the engraving and weather band at the left, today's agenda at half again its usual width in the middle, and a third pane for what the 800 × 480 plate leaves out — alerts, the next day's events, the forecast, birthdays, air quality and the moon. Same engraving, same treatments, same fonts. |
 | `wide_forecast` | weather station on a strip | Current conditions as a hero block with a detail grid, five forecast cards in a row with precipitation bars, and a band beneath for alerts, air quality and the moon. |
 | `wide_night` | a night mode for the strip | Almost all negative space: the moon's phase, the temperature, the air-quality index and the weather glyph at one shared height, evenly spaced across the middle with small letter-spaced labels beneath, in black on a solid red ground. Jura throughout. Not in the random rotation — schedule it for after dark. |
+| `wide_night_invert` | the night mode, red on black | `wide_night` with ground and ink swapped: red marks and labels on a black ground (black on white on monochrome). |
 | `wide_horizon` | the next three days at a glance | One 72-hour time axis shared by everything: a sky coloured by the sun's real altitude (day, dithered twilights, night with stars and the moon), clouds and rain drawn per forecast slot, the temperature as one line across it, rain chance hanging beneath, and the calendar's events as bars on the same hours. Conditions now and a three-line outlook in a hero block at the left. |
 
 ### Utility themes
@@ -554,6 +555,12 @@ On the four-ink panel (and on Inky) the ground is solid red and the marks are bl
 Nothing on the plate reads the clock; the marks move when the data or the date does. The theme writes the panel at most once per clock hour (`repaint_slot_hours = 1`), so a new temperature doesn't set off a twenty-second red flash every weather fetch, and it declines partial refresh because the whole plate is one solid fill. It is **not** in the random rotation — use `theme_schedule` (e.g. `wide_night` at `21:00`, back to a day theme at `06:30`) or a `theme_rules` entry with `daypart: night`.
 
 [![Wide night theme](../assets/previews/theme_wide_night.png)](../assets/previews/theme_wide_night.png)
+
+#### wide_night_invert
+
+[`wide_night`](#wide_night) with ground and ink swapped: the same four marks, labels, spacing and hourly repaint limit, in red on a solid black ground on the four-ink panel and on Inky. A monochrome panel draws it black on white. Like its sibling it stays out of the random rotation and declines partial refresh.
+
+[![Wide night invert theme](../assets/previews/theme_wide_night_invert.png)](../assets/previews/theme_wide_night_invert.png)
 
 #### countdown
 

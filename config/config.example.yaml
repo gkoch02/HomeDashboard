@@ -219,7 +219,7 @@ logging:
 #                   trends | weatherglass
 #   DITHERED ART    postcard | naturalist
 #   PANORAMIC       wide_week | wide_day | wide_forecast | wide_horizon |
-#                   wide_night | halftone_agenda_wide
+#                   wide_night | wide_night_invert | halftone_agenda_wide
 #   PHOTO OVERLAY   photo
 #   UTILITY         countdown | message | diags
 #   ROTATION        random_daily | random_hourly
@@ -229,7 +229,8 @@ logging:
 # "random_hourly" — rotate once per hour (first refresh after the hour turns).
 # "random" is an alias for "random_daily".
 # Both random modes respect the include/exclude lists in random_theme below.
-# The countdown, diags, message, photo and wide_night themes never appear in a rotation —
+# The countdown, diags, message, photo, wide_night and wide_night_invert themes
+# never appear in a rotation —
 # set them with `theme:` directly.
 # theme: default
 

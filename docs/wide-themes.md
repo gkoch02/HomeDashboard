@@ -1,9 +1,9 @@
 # Panoramic Themes
 
-Six themes are drawn for a panel shaped like a strip rather than a page: the
+Seven themes are drawn for a panel shaped like a strip rather than a page: the
 Waveshare 10.85" e-Paper (G), 1360 × 480 pixels, nearly three times as wide as it
 is tall, with four inks (black, white, yellow and red). This page covers what is
-specific to that panel and to the six themes built for it: how to set it up, how
+specific to that panel and to the seven themes built for it: how to set it up, how
 to choose between them, how often each one repaints, and what they look like in
 the panel's own four inks.
 
@@ -30,6 +30,7 @@ the four-ink renders the 10.85" panel actually shows.
 | [`halftone_agenda_wide`](#halftone_agenda_wide) | Weather engraving, today's agenda, and a rail for tomorrow, forecast, birthdays, air and moon | Today and tomorrow | Once (the after-dark rollover) | 2 |
 | [`wide_forecast`](#wide_forecast) | Current conditions and a five-day forecast | Five days | No | 0 |
 | [`wide_night`](#wide_night) | Moon, temperature, AQI and weather glyph on an empty red plate | Now | No (at most once an hour, data changes included) | 0 |
+| [`wide_night_invert`](#wide_night_invert) | `wide_night` in red on black | Now | No (at most once an hour, data changes included) | 0 |
 | [`wide_week`](#wide_week) | The standard week grid beside an editorial rail: weather now, NOW/NEXT, forecast, sky, birthdays, quote | This week | At event boundaries (NOW/NEXT) | 1 |
 
 **Moves on the clock during the day** counts the repaints the clock alone causes
@@ -70,7 +71,7 @@ and centred, with the side margins padded in the theme's background. See
 
 `theme: random_daily` and `random_hourly` pick only from these on a panoramic
 panel, because a landscape theme would be fitted with wide empty margins. The
-night plate, `wide_night`, is never picked at random; schedule it (below). The
+night plates, `wide_night` and `wide_night_invert`, are never picked at random; schedule it (below). The
 [`random_theme.include` / `exclude`](themes.md#random-rotation) lists narrow the
 pool further.
 
@@ -97,7 +98,8 @@ pool further.
       theme: wide_night
   ```
 
-  or as a `theme_rules` entry with `when: {daypart: night}`.
+  or as a `theme_rules` entry with `when: {daypart: night}`. `wide_night_invert`
+  is the same plate in red on black, for a darker room.
 - **You want the familiar week grid, with today's context beside it**:
   `wide_week`. The grid is the default theme's, untouched; the rail adds the
   weather, what is on or next, the sky and the quote.
@@ -166,6 +168,13 @@ reaches the panel exactly as rendered. [Full description ↗](themes.md#wide_nig
 
 [![Wide night theme on the four-ink panel](../assets/previews/theme_wide_night_g.png)](../assets/previews/theme_wide_night_g.png)
 
+### wide_night_invert
+
+`wide_night` with ground and ink swapped: red marks and labels on a solid black
+ground. Same layout, same hourly limit. [Full description ↗](themes.md#wide_night_invert)
+
+[![Wide night invert theme on the four-ink panel](../assets/previews/theme_wide_night_invert_g.png)](../assets/previews/theme_wide_night_invert_g.png)
+
 ### wide_week
 
 The standard week grid, exactly as the default theme draws it, on the right at the
@@ -206,7 +215,7 @@ whose content hasn't changed repaints once a day. Beyond that:
   how old. A switch *to*
   `wide_horizon` from another theme paints immediately, and
   `--force-full-refresh` and the morning refresh skip the limit.
-- `wide_night` changes only when its data or the date does, and like
+- `wide_night` (and `wide_night_invert`) changes only when its data or the date does, and like
   `wide_horizon` writes the panel at most once per clock hour, so a new
   temperature or AQI waits for the next hour rather than flashing the panel
   red in a dark room every fetch.
@@ -253,7 +262,7 @@ pinned date as the other preview sets:
 ```bash
 python3 scripts/build_previews.py --model epd10in85g \
   --theme wide_horizon --theme wide_day --theme halftone_agenda_wide \
-  --theme wide_forecast --theme wide_night --theme wide_week
+  --theme wide_forecast --theme wide_night --theme wide_night_invert --theme wide_week
 ```
 
 This writes `assets/previews/theme_<name>_g.png`. See [Previews](previews.md) for

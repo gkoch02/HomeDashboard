@@ -94,13 +94,19 @@ def marks_for(data: DashboardData, today: date) -> list[Mark]:
     return out
 
 
-def colours(style: ThemeStyle):
-    """``(ground, ink)`` for this plate on the resolved style."""
+def colours(style: ThemeStyle, *, invert: bool = False):
+    """``(ground, ink)`` for this plate on the resolved style.
+
+    *invert* swaps the two: red marks on a black ground on a colour panel,
+    black on white on monochrome (``wide_night_invert``).
+    """
     accent = style.primary_accent_fill()
     if accent == style.fg:
         # Monochrome: the accent collapsed onto fg, so there is no red.
-        return style.bg, style.fg
-    return accent, style.bg
+        ground, ink = style.bg, style.fg
+    else:
+        ground, ink = accent, style.bg
+    return (ink, ground) if invert else (ground, ink)
 
 
 def draw_wide_night(
@@ -111,15 +117,20 @@ def draw_wide_night(
     *,
     region: ComponentRegion | None = None,
     style: ThemeStyle | None = None,
+    invert: bool = False,
 ) -> None:
-    """Draw the full ``wide_night`` plate into *region*."""
+    """Draw the full ``wide_night`` plate into *region*.
+
+    *invert* draws ``wide_night_invert``: the same plate with ground and ink
+    swapped.
+    """
     if region is None:
         region = ComponentRegion(0, 0, 1360, 480)
     if style is None:
         style = ThemeStyle(fg=1, bg=0)
 
     x0, y0, w, h = region.x, region.y, region.w, region.h
-    ground, ink = colours(style)
+    ground, ink = colours(style, invert=invert)
     draw.rectangle((x0, y0, x0 + w - 1, y0 + h - 1), fill=ground)
 
     marks = marks_for(data, today)
