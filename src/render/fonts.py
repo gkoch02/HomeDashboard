@@ -152,6 +152,10 @@ def jura_semibold(size: int) -> ImageFont.FreeTypeFont:
     return _get_jura(size, 600)
 
 
+def jura_bold(size: int) -> ImageFont.FreeTypeFont:
+    return _get_jura(size, 700)
+
+
 # Rajdhani — squarish semi-condensed techno sans drawn for UI legibility at small
 # sizes (Indian Type Foundry, OFL).  Carries the terminal theme's chrome: month
 # band, section labels (11px), and quote attribution.  Static weights rather than

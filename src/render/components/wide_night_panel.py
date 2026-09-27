@@ -11,8 +11,10 @@ which they do with at least ``MIN_GAP`` between them. On a 1360-px strip they
 never fit at 80% — the moon alone is as wide as it is tall, and two numerals
 at 384 px are ~1500 px — so in practice the height is set by the width of
 tonight's readings, and ``fit_height`` is what decides it. Both numerals are
-set in ``style.font_date_number`` and the AQI caption in ``style.font_semibold``;
-the theme points every font slot at one face.
+set in ``style.font_date_number``. Every mark carries a small label on one
+shared baseline beneath the row — fixed-size, tracked caps in ``style.font_bold``,
+the instrument-panel convention — and the row plus its labels is centred on
+the plate. The theme points every font slot at one face.
 
 The colours come from the theme's style rather than being fixed here, so the
 plate reads the same on every backend:
@@ -52,12 +54,14 @@ BAND_FRACTION = 0.8
 # grow with the type — a fixed gap is overtaken by the space inside a mark
 # (a numeral and its degree sign) as the marks get taller, and the row stops
 # reading as four things — with a floor for very short rows.
-MIN_GAP_FRACTION = 0.35
+MIN_GAP_FRACTION = 0.9
 MIN_GAP = 48
-# The AQI caption, as fractions of the mark height, hung below the numeral.
-CAPTION_FRACTION = 0.14
-CAPTION_GAP_FRACTION = 0.08
-CAPTION_MIN_PT = 16
+# The labels: a fixed size rather than a share of the mark height, so they
+# stay deliberate at any row height; tracked out as a fraction of that size.
+LABEL_PT = 20
+LABEL_TRACKING = 0.4
+# Space between the bottom of the marks and the labels' cap tops.
+LABEL_GAP = 26
 # Font size the measurements are taken at before scaling to the target height.
 _PROBE_PT = 200
 # The weather-icons new-moon glyph: a ring the size of every phase glyph. It is
@@ -70,23 +74,23 @@ _MOON_RING = "\uf095"
 
 @dataclass(frozen=True)
 class Mark:
-    """One item on the plate: its text, font and an optional caption."""
+    """One item on the plate: its text and the label set beneath it."""
 
     kind: str  # "moon" | "temperature" | "aqi" | "weather"
     text: str
-    caption: str | None = None
+    caption: str
 
 
 def marks_for(data: DashboardData, today: date) -> list[Mark]:
     """The marks to draw, left to right, skipping any without data."""
-    out = [Mark("moon", moon_phase_glyph(today))]
+    out = [Mark("moon", moon_phase_glyph(today), "MOON")]
     weather = data.weather
     if weather is not None:
-        out.append(Mark("temperature", f"{weather.current_temp:.0f}°"))
+        out.append(Mark("temperature", f"{weather.current_temp:.0f}°", "TEMP"))
     if data.air_quality is not None:
-        out.append(Mark("aqi", str(data.air_quality.aqi), caption="AQI"))
+        out.append(Mark("aqi", str(data.air_quality.aqi), "AQI"))
     if weather is not None:
-        out.append(Mark("weather", OWM_ICON_MAP.get(weather.current_icon, FALLBACK_ICON)))
+        out.append(Mark("weather", OWM_ICON_MAP.get(weather.current_icon, FALLBACK_ICON), "SKY"))
     return out
 
 
@@ -122,7 +126,12 @@ def draw_wide_night(
     height = fit_height(marks, style, w, int(h * BAND_FRACTION))
     placed = [_measure(m, style, height) for m in marks]
     gap = (w - sum(p.width for p in placed)) / (len(placed) + 1)
-    mid_y = y0 + h / 2
+    label_font = style.font_bold(LABEL_PT)
+    cap_h = ink_box("M", label_font)[3] - ink_box("M", label_font)[1]
+    # Centre the marks and their labels as one group; the marks' own centre
+    # sits above the plate's midline by half the label band.
+    mid_y = y0 + h / 2 - (LABEL_GAP + cap_h) / 2
+    label_top = mid_y + height / 2 + LABEL_GAP
     # Unantialiased type: on an RGB canvas an antialiased edge is cut at
     # mid-grey by the panel's ink snap, which thins the strokes.
     previous_mode = draw.fontmode
@@ -130,7 +139,8 @@ def draw_wide_night(
     try:
         x = x0 + gap
         for p in placed:
-            _draw_placed(draw, p, x, mid_y, style, height, ink)
+            _draw_placed(draw, p, x, mid_y, ink)
+            _draw_label(draw, p.mark.caption, x + p.width / 2, label_top, label_font, ink)
             x += p.width + gap
     finally:
         draw.fontmode = previous_mode
@@ -227,7 +237,7 @@ def min_gap(height: int) -> int:
     return max(MIN_GAP, round(height * MIN_GAP_FRACTION))
 
 
-def _draw_placed(draw, p: Placed, x: float, cy: float, style: ThemeStyle, height: int, ink):
+def _draw_placed(draw, p: Placed, x: float, cy: float, ink) -> None:
     """Draw *p* with its box's left edge at *x*, vertically centred on *cy*."""
     left = round(x - p.box[0])
     top = round(cy - (p.ref[1] + p.ref[3]) / 2)
@@ -235,16 +245,24 @@ def _draw_placed(draw, p: Placed, x: float, cy: float, style: ThemeStyle, height
         # A new moon's glyph is only the ring — the dark limb's outline, which
         # this plate leaves out — so it draws nothing.
         draw.text((left, top), p.mark.text, font=p.font, fill=ink)
-    if p.mark.caption:
-        cap_font = style.font_semibold(max(CAPTION_MIN_PT, round(height * CAPTION_FRACTION)))
-        cb = draw.textbbox((0, 0), p.mark.caption, font=cap_font)
-        centre = left + (p.box[0] + p.box[2]) / 2
-        draw.text(
-            (
-                round(centre - (cb[0] + cb[2]) / 2),
-                round(top + p.ref[3] + height * CAPTION_GAP_FRACTION - cb[1]),
-            ),
-            p.mark.caption,
-            font=cap_font,
-            fill=ink,
-        )
+
+
+def tracked_width(text: str, font) -> float:
+    """Advance width of *text* set with ``LABEL_TRACKING`` between letters."""
+    step = font.size * LABEL_TRACKING
+    return sum(font.getlength(c) for c in text) + step * (len(text) - 1)
+
+
+def _draw_label(draw, text: str, cx: float, cap_top: float, font, ink) -> None:
+    """Set *text* letter by letter, tracked out, centred on *cx*.
+
+    PIL has no tracking, so each letter is placed by its own advance plus the
+    tracking step; the run is centred on its advance width, which for caps is
+    within a pixel of its ink.
+    """
+    x = cx - tracked_width(text, font) / 2
+    top = cap_top - ink_box("M", font)[1]
+    step = font.size * LABEL_TRACKING
+    for c in text:
+        draw.text((round(x), round(top)), c, font=font, fill=ink)
+        x += font.getlength(c) + step
