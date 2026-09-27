@@ -44,6 +44,7 @@ from src.render.components import (
     wide_day_panel,
     wide_forecast_panel,
     wide_horizon_panel,
+    wide_night_panel,
     wide_week_rail_panel,
     year_pulse_panel,
 )
@@ -540,6 +541,18 @@ def _wide_horizon(ctx: RenderContext) -> None:
         style=ctx.style,
         latitude=ctx.latitude,
         longitude=ctx.longitude,
+    )
+
+
+@register_component("wide_night")
+def _wide_night(ctx: RenderContext) -> None:
+    wide_night_panel.draw_wide_night(
+        ctx.draw,
+        ctx.data,
+        ctx.today,
+        ctx.now,
+        region=ctx.layout.wide_night,
+        style=ctx.style,
     )
 
 

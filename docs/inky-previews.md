@@ -318,6 +318,12 @@ Accents: **red** primary, **yellow** secondary · [description in Themes ↗](th
 
 [![Wide horizon theme on Inky](../assets/previews/theme_wide_horizon_inky.png)](../assets/previews/theme_wide_horizon_inky.png)
 
+#### wide_night
+
+Accents: **red** primary, **black** secondary · [description in Themes ↗](themes.md#wide_night)
+
+[![Wide night theme on Inky](../assets/previews/theme_wide_night_inky.png)](../assets/previews/theme_wide_night_inky.png)
+
 ### Utility themes
 
 #### countdown

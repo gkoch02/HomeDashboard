@@ -1,9 +1,9 @@
 # Panoramic Themes
 
-Five themes are drawn for a panel shaped like a strip rather than a page: the
+Six themes are drawn for a panel shaped like a strip rather than a page: the
 Waveshare 10.85" e-Paper (G), 1360 × 480 pixels, nearly three times as wide as it
 is tall, with four inks (black, white, yellow and red). This page covers what is
-specific to that panel and to the five themes built for it: how to set it up, how
+specific to that panel and to the six themes built for it: how to set it up, how
 to choose between them, how often each one repaints, and what they look like in
 the panel's own four inks.
 
@@ -29,6 +29,7 @@ the four-ink renders the 10.85" panel actually shows.
 | [`wide_day`](#wide_day) | Today as an hour-by-hour timeline, with an up-next rail | Today | Every tick (NOW marker, event states) | 1 |
 | [`halftone_agenda_wide`](#halftone_agenda_wide) | Weather engraving, today's agenda, and a rail for tomorrow, forecast, birthdays, air and moon | Today and tomorrow | Once (the after-dark rollover) | 2 |
 | [`wide_forecast`](#wide_forecast) | Current conditions and a five-day forecast | Five days | No | 0 |
+| [`wide_night`](#wide_night) | Moon, temperature, AQI and weather glyph on an empty red plate | Now | No (at most once an hour, data changes included) | 0 |
 | [`wide_week`](#wide_week) | The standard week grid beside an editorial rail: weather now, NOW/NEXT, forecast, sky, birthdays, quote | This week | At event boundaries (NOW/NEXT) | 1 |
 
 **Moves on the clock during the day** counts the repaints the clock alone causes
@@ -67,8 +68,9 @@ native size, and any other theme reaches it fitted: scaled to the panel's height
 and centred, with the side margins padded in the theme's background. See
 [`display.scaling`](configuration.md#scaling).
 
-`theme: random_daily` and `random_hourly` pick only from these five on a panoramic
+`theme: random_daily` and `random_hourly` pick only from these on a panoramic
 panel, because a landscape theme would be fitted with wide empty margins. The
+night plate, `wide_night`, is never picked at random; schedule it (below). The
 [`random_theme.include` / `exclude`](themes.md#random-rotation) lists narrow the
 pool further.
 
@@ -84,6 +86,18 @@ pool further.
 - **You want the art theme**: `halftone_agenda_wide`, the split-plate agenda with
   a weather engraving. It repaints least of the calendar themes.
 - **Weather first, calendar elsewhere**: `wide_forecast`.
+- **The panel is in a bedroom, or you want it quiet after dark**: `wide_night`,
+  scheduled for the evening:
+
+  ```yaml
+  theme_schedule:
+    - time: "06:30"
+      theme: wide_horizon
+    - time: "21:00"
+      theme: wide_night
+  ```
+
+  or as a `theme_rules` entry with `when: {daypart: night}`.
 - **You want the familiar week grid, with today's context beside it**:
   `wide_week`. The grid is the default theme's, untouched; the rail adds the
   weather, what is on or next, the sky and the quote.
@@ -140,6 +154,16 @@ bars. [Full description ↗](themes.md#wide_forecast)
 
 [![Wide forecast theme on the four-ink panel](../assets/previews/theme_wide_forecast_g.png)](../assets/previews/theme_wide_forecast_g.png)
 
+### wide_night
+
+A night mode that is almost all negative space: the moon's phase, the
+temperature, the air-quality index and the weather glyph, spaced evenly across
+the strip on its midline, in black ink on a solid red ground. A mark without data
+is dropped and the rest re-spaced. Every pixel is red or black, so the image
+reaches the panel exactly as rendered. [Full description ↗](themes.md#wide_night)
+
+[![Wide night theme on the four-ink panel](../assets/previews/theme_wide_night_g.png)](../assets/previews/theme_wide_night_g.png)
+
 ### wide_week
 
 The standard week grid, exactly as the default theme draws it, on the right at the
@@ -180,6 +204,10 @@ whose content hasn't changed repaints once a day. Beyond that:
   how old. A switch *to*
   `wide_horizon` from another theme paints immediately, and
   `--force-full-refresh` and the morning refresh skip the limit.
+- `wide_night` changes only when its data or the date does, and like
+  `wide_horizon` writes the panel at most once per clock hour, so a new
+  temperature or AQI waits for the next hour rather than flashing the panel
+  red in a dark room every fetch.
 - `wide_day` changes on every tick, because its NOW marker and event states follow
   the clock.
 
@@ -208,6 +236,8 @@ that shape.
   1, 1, 2 and 3 days of calendar events past the standard week, so their views of
   tomorrow and beyond are never empty on a Sunday. Nothing needs configuring; the event window
   widens automatically for the theme in use.
+- **`wide_night`** shows its AQI mark only when a PurpleAir sensor is
+  configured; without one the other three marks are spaced across the plate.
 - **`wide_forecast` and `halftone_agenda_wide`** show air quality when a
   PurpleAir sensor is configured (`purpleair.api_key` and `purpleair.sensor_id`;
   see the [config reference](configuration.md#full-config-reference)). Without
@@ -221,7 +251,7 @@ pinned date as the other preview sets:
 ```bash
 python3 scripts/build_previews.py --model epd10in85g \
   --theme wide_horizon --theme wide_day --theme halftone_agenda_wide \
-  --theme wide_forecast --theme wide_week
+  --theme wide_forecast --theme wide_night --theme wide_week
 ```
 
 This writes `assets/previews/theme_<name>_g.png`. See [Previews](previews.md) for

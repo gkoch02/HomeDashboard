@@ -57,6 +57,7 @@ DECLINES_PARTIAL = {
     "terminal",
     "trends",
     "wide_horizon",
+    "wide_night",
 }
 
 # Themes that overrule the derivation, with the reason each one does. The

@@ -8,6 +8,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
+- **`wide_night` theme** — a night mode for the 1360 × 480 panel that is
+  almost all negative space: the moon's phase, the temperature, the
+  air-quality index and the current weather glyph, spaced evenly across the
+  strip on its midline, in black ink on a solid red ground. On a monochrome
+  panel, which has no red, it draws white on black. A mark without data (no
+  PurpleAir sensor, no weather) is dropped and the rest re-spaced. Repaints
+  at most once an hour, declines partial refresh (the plate is one solid
+  fill), and stays out of the random rotation — put it up at night with
+  `theme_schedule` or a `daypart: night` rule.
+
 - **Per-theme repaint slots** — `ThemeLayout.repaint_slot_hours` limits a
   theme to one panel write per clock-aligned block of that many local hours;
   a change inside a slot is painted on the first run of the next one.
