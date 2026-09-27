@@ -10,9 +10,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 - **`wide_night` theme** — a night mode for the 1360 × 480 panel that is
   almost all negative space: the moon's phase, the temperature, the
-  air-quality index and the current weather glyph, at one shared height (the
-  tallest that fits, up to 80% of the plate) with equal gaps, in black ink on
-  a solid red ground, set in Jura (newly bundled, OFL). On a monochrome
+  air-quality index and the current weather glyph, at one shared height with
+  wide, equal gaps and a small letter-spaced label under each (`MOON`,
+  `TEMP`, `AQI`, `SKY`), in black ink on a solid red ground, set in Jura
+  (newly bundled, OFL). On a monochrome
   panel, which has no red, it draws white on black. A mark without data (no
   PurpleAir sensor, no weather) is dropped and the rest re-spaced. Repaints
   at most once an hour, declines partial refresh (the plate is one solid

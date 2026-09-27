@@ -95,6 +95,44 @@ def _rows(img: Image.Image, box=BAND) -> tuple[int, int]:
     return lit[0], lit[-1] + 1
 
 
+def _label_top(img: Image.Image) -> int:
+    """First row of the label band: the lowest run of lit rows."""
+    lit = [y for y in range(480) if marks(img, (0, y, 1360, y + 1), background=0)]
+    top = lit[-1]
+    while top - 1 in lit:
+        top -= 1
+    return top
+
+
+class TestLabels:
+    def test_every_mark_is_labelled(self):
+        assert [m.caption for m in wn.marks_for(_data(), TODAY)] == [
+            "MOON",
+            "TEMP",
+            "AQI",
+            "SKY",
+        ]
+
+    def test_labels_share_one_baseline_under_the_row(self):
+        img = _plate(_data())
+        label_top = _label_top(img)
+        _, marks_bottom = _rows(img, (0, 0, 1360, label_top))
+        assert label_top - marks_bottom >= wn.LABEL_GAP - 2
+        # One band: every label's ink starts on the same row (round letters
+        # overshoot flat ones by a pixel).
+        for left, right in _extents(img):
+            first = _rows(img, (left, label_top, right, 480))[0]
+            assert first - label_top <= 1
+
+    def test_labels_are_tracked_out(self):
+        font = MONO_STYLE.font_bold(wn.LABEL_PT)
+        assert wn.tracked_width("AQI", font) > font.getlength("AQI") + 10
+
+    def test_group_is_centred_on_the_plate(self):
+        top, bottom = _rows(_plate(_data()))
+        assert abs((top + bottom) / 2 - 240) <= 2
+
+
 class TestMarks:
     def test_all_four_in_order(self):
         kinds = [m.kind for m in wn.marks_for(_data(), TODAY)]
@@ -104,9 +142,9 @@ class TestMarks:
         temp = next(m for m in wn.marks_for(_data(), TODAY) if m.kind == "temperature")
         assert temp.text == "42°"
 
-    def test_aqi_carries_its_caption(self):
+    def test_aqi_is_the_index(self):
         aqi = next(m for m in wn.marks_for(_data(), TODAY) if m.kind == "aqi")
-        assert (aqi.text, aqi.caption) == ("42", "AQI")
+        assert aqi.text == "42"
 
     def test_no_sensor_drops_the_aqi(self):
         kinds = [m.kind for m in wn.marks_for(_data(air=False), TODAY)]
@@ -148,17 +186,14 @@ class TestSpacing:
             inner = wn.ink_box("°", font)[0] - wn.ink_box(temp.text[:-1], font)[2]
             assert inner < wn.min_gap(height)
 
-    def test_row_is_centred_on_the_midline(self):
-        top, bottom = _rows(_plate(DashboardData(), today=FULL_MOON))
-        assert abs((top + bottom) / 2 - 240) <= 1
-
 
 class TestHeight:
-    def test_a_row_that_fits_spans_the_centre_80_percent(self):
-        """A full moon alone is its whole disc, so it shows the band exactly."""
-        top, bottom = _rows(_plate(DashboardData(), today=FULL_MOON))
+    def test_a_row_that_fits_is_80_percent_of_the_plate(self):
+        """A full moon alone is its whole disc, so it shows the height exactly."""
+        img = _plate(DashboardData(), today=FULL_MOON)
+        label_top = _label_top(img)
+        top, bottom = _rows(img, (0, 0, 1360, label_top))
         assert abs((bottom - top) - 0.8 * 480) <= 3
-        assert abs(top - 48) <= 2
 
     def test_a_row_too_wide_for_80_percent_shrinks_to_fit(self):
         ms = wn.marks_for(_data(), TODAY)
@@ -192,8 +227,11 @@ class TestMoon:
         top, bottom = _rows(img)
         assert right - left < 0.6 * (bottom - top)
 
-    def test_new_moon_draws_nothing(self):
-        assert marks(_plate(DashboardData(), today=NEW_MOON), background=0) == 0
+    def test_new_moon_leaves_its_slot_empty_under_the_label(self):
+        img = _plate(DashboardData(), today=NEW_MOON)
+        label_top = _label_top(img)
+        assert marks(img, (0, 0, 1360, label_top), background=0) == 0
+        assert marks(img, background=0) > 0  # the MOON label itself
 
     def test_ink_box_is_the_ink_not_the_cell(self):
         font = wn.weather_icon_font(200)

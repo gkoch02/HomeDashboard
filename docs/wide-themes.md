@@ -158,8 +158,9 @@ bars. [Full description ↗](themes.md#wide_forecast)
 
 A night mode that is almost all negative space: the moon's phase, the
 temperature, the air-quality index and the weather glyph, at one shared height
-(as tall as fits, up to 80% of the plate) with equal gaps across the strip, in
-black ink on a solid red ground, set in Jura. A mark without data
+with wide, equal gaps across the strip and a small letter-spaced label under
+each (`MOON`, `TEMP`, `AQI`, `SKY`), in black ink on a solid red ground, set in
+Jura. A mark without data
 is dropped and the rest re-spaced. Every pixel is red or black, so the image
 reaches the panel exactly as rendered. [Full description ↗](themes.md#wide_night)
 
