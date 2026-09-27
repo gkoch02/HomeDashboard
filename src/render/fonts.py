@@ -136,6 +136,22 @@ def orbitron_black(size: int) -> ImageFont.FreeTypeFont:
     return _get_orbitron(size, 900)
 
 
+# Jura — a squarish, slightly rounded technical sans (Daniel Johnson, OFL),
+# drawn after the lettering on Soviet-era instrument panels. Variable font,
+# wght 300-700. Sets the ``wide_night`` temperature at display size, where its
+# open, even forms read across a dark room; SemiBold (600) keeps the stems
+# solid on the four-ink panel without the numerals clotting.
+@lru_cache(maxsize=32)
+def _get_jura(size: int, wght: int) -> ImageFont.FreeTypeFont:
+    font = ImageFont.truetype(str(FONT_DIR / "Jura-Variable.ttf"), size)
+    font.set_variation_by_axes([wght])
+    return font
+
+
+def jura_semibold(size: int) -> ImageFont.FreeTypeFont:
+    return _get_jura(size, 600)
+
+
 # Rajdhani — squarish semi-condensed techno sans drawn for UI legibility at small
 # sizes (Indian Type Foundry, OFL).  Carries the terminal theme's chrome: month
 # band, section labels (11px), and quote attribution.  Static weights rather than

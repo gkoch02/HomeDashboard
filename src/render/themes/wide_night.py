@@ -24,7 +24,7 @@ dark room every fetch.
 
 from __future__ import annotations
 
-from src.render.fonts import dm_bold, dm_medium, dm_regular, dm_semibold
+from src.render.fonts import jura_semibold
 from src.render.theme import (
     INKY_BLACK,
     INKY_RED,
@@ -59,10 +59,12 @@ def wide_night_theme() -> Theme:
         style=ThemeStyle(
             fg=1,
             bg=0,
-            font_regular=dm_regular,
-            font_medium=dm_medium,
-            font_semibold=dm_semibold,
-            font_bold=dm_bold,
+            # One face for the whole plate: numerals and the AQI caption.
+            font_regular=jura_semibold,
+            font_medium=jura_semibold,
+            font_semibold=jura_semibold,
+            font_bold=jura_semibold,
+            font_date_number=jura_semibold,
             accent_primary=INKY_RED,
             accent_secondary=INKY_BLACK,
             inky_palette=(INKY_RED, INKY_BLACK),

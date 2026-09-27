@@ -12,7 +12,6 @@ from __future__ import annotations
 from dataclasses import replace
 from datetime import date, datetime
 
-import pytest
 from PIL import Image, ImageDraw
 
 from src.config import DisplayConfig
@@ -30,9 +29,13 @@ TODAY = FIXED_NOW.date()
 G_PANEL = DisplayConfig(model="epd10in85g", width=1360, height=480)
 MONO = DisplayConfig(model="epd7in5_V2", width=1360, height=480)
 REGION = ComponentRegion(0, 0, 1360, 480)
-# The style the monochrome path hands the panel: accents collapse onto fg.
-MONO_STYLE = ThemeStyle(fg=1, bg=0, accent_primary=1)
-BAND = (0, 120, 1360, 360)  # the band the marks live in
+# The theme's style as the monochrome path hands it to the panel: accents
+# collapse onto fg.
+MONO_STYLE = replace(wide_night_theme().style, accent_primary=1, accent_secondary=1)
+BAND = (0, 0, 1360, 480)
+FULL_MOON = date(2026, 5, 1)
+NEW_MOON = date(2026, 4, 17)
+CRESCENT = date(2026, 4, 20)
 
 
 def _weather(**kw) -> WeatherData:
@@ -65,8 +68,9 @@ def _plate(data: DashboardData, today: date = TODAY) -> Image.Image:
     return img
 
 
-def _mark_centres(img: Image.Image, min_gap: int = 40, extents: bool = False) -> list:
-    """Midpoints (or ``(first, last)`` columns) of the separated groups of lit columns."""
+def _extents(img: Image.Image, min_gap: int = wn.MIN_GAP - 4) -> list[tuple[int, int]]:
+    # MIN_GAP is the floor; every real row's gaps are at least that.
+    """``(first, last + 1)`` columns of each horizontally separated mark."""
     x0, y0, x1, y1 = BAND
     lit = [x for x in range(x0, x1) if marks(img, (x, y0, x + 1, y1), background=0)]
     groups: list[list[int]] = []
@@ -75,9 +79,20 @@ def _mark_centres(img: Image.Image, min_gap: int = 40, extents: bool = False) ->
             groups[-1].append(x)
         else:
             groups.append([x])
-    if extents:
-        return [(g[0], g[-1]) for g in groups]
-    return [(g[0] + g[-1] + 1) / 2 for g in groups]
+    return [(g[0], g[-1] + 1) for g in groups]
+
+
+def _gaps(img: Image.Image) -> list[int]:
+    """Blank columns before, between and after the marks."""
+    edges = [0, *(v for e in _extents(img) for v in e), 1360]
+    return [edges[i + 1] - edges[i] for i in range(0, len(edges), 2)]
+
+
+def _rows(img: Image.Image, box=BAND) -> tuple[int, int]:
+    """``(first, last + 1)`` lit rows inside *box*."""
+    x0, y0, x1, y1 = box
+    lit = [y for y in range(y0, y1) if marks(img, (x0, y, x1, y + 1), background=0)]
+    return lit[0], lit[-1] + 1
 
 
 class TestMarks:
@@ -108,38 +123,84 @@ class TestMarks:
 
 
 class TestSpacing:
-    def test_centres_are_evenly_spaced_with_half_gap_margins(self):
-        cs = wn.centres(4, 0, 1360)
-        assert cs == [170, 510, 850, 1190]
-        gaps = {b - a for a, b in zip(cs, cs[1:])}
-        assert gaps == {340}
-        assert cs[0] == 1360 - cs[-1] == 340 // 2
-
-    def test_rendered_marks_sit_in_their_slices(self):
-        img = _plate(_data())
-        for cx in wn.centres(4, 0, 1360):
-            assert marks(img, (cx - 150, 120, cx + 150, 360), background=0) > 0
-
-    def test_marks_are_centred_in_their_slices(self):
-        assert _mark_centres(_plate(_data())) == pytest.approx([170, 510, 850, 1190], abs=3)
+    def test_gaps_are_equal_between_marks_and_at_both_ends(self):
+        gaps = _gaps(_plate(_data()))
+        assert len(gaps) == 5
+        assert max(gaps) - min(gaps) <= 2
 
     def test_missing_mark_is_respaced_not_left_as_a_gap(self):
-        centres = _mark_centres(_plate(_data(air=False)))
-        assert centres == pytest.approx(wn.centres(3, 0, 1360), abs=3)
+        img = _plate(_data(air=False))
+        assert len(_extents(img)) == 3
+        gaps = _gaps(img)
+        assert max(gaps) - min(gaps) <= 2
 
-    def test_everything_else_is_ground(self):
-        img = _plate(_data())
-        assert marks(img, (0, 0, 1360, 120), background=0) == 0
-        assert marks(img, (0, 380, 1360, 480), background=0) == 0
+    def test_full_row_fits_with_at_least_the_minimum_gap(self):
+        height = wn.fit_height(wn.marks_for(_data(), TODAY), MONO_STYLE, 1360, 384)
+        assert min(_gaps(_plate(_data()))) >= wn.min_gap(height) - 2
+
+    def test_space_inside_a_mark_is_narrower_than_between_marks(self):
+        """The degree sign must not read as a mark of its own at any size."""
+        for data in (_data(), _data(air=False), _data(weather=True, air=False)):
+            ms = wn.marks_for(data, TODAY)
+            height = wn.fit_height(ms, MONO_STYLE, 1360, 384)
+            temp = next(m for m in ms if m.kind == "temperature")
+            font = wn._measure(temp, MONO_STYLE, height).font
+            inner = wn.ink_box("°", font)[0] - wn.ink_box(temp.text[:-1], font)[2]
+            assert inner < wn.min_gap(height)
+
+    def test_row_is_centred_on_the_midline(self):
+        top, bottom = _rows(_plate(DashboardData(), today=FULL_MOON))
+        assert abs((top + bottom) / 2 - 240) <= 1
+
+
+class TestHeight:
+    def test_a_row_that_fits_spans_the_centre_80_percent(self):
+        """A full moon alone is its whole disc, so it shows the band exactly."""
+        top, bottom = _rows(_plate(DashboardData(), today=FULL_MOON))
+        assert abs((bottom - top) - 0.8 * 480) <= 3
+        assert abs(top - 48) <= 2
+
+    def test_a_row_too_wide_for_80_percent_shrinks_to_fit(self):
+        ms = wn.marks_for(_data(), TODAY)
+        height = wn.fit_height(ms, MONO_STYLE, 1360, 384)
+        assert height < 384
+        placed = [wn._measure(m, MONO_STYLE, height) for m in ms]
+        assert sum(p.width for p in placed) + 5 * wn.min_gap(height) <= 1360
+        # ...and it is the tallest that fits: one step up overflows.
+        up = height + 2
+        bigger = [wn._measure(m, MONO_STYLE, up) for m in ms]
+        assert sum(p.width for p in bigger) + 5 * wn.min_gap(up) > 1360
+
+    def test_every_mark_shares_the_height(self):
+        ms = wn.marks_for(_data(), FULL_MOON)
+        height = wn.fit_height(ms, MONO_STYLE, 1360, 384)
+        for m in ms:
+            ref = wn._measure(m, MONO_STYLE, height).ref
+            assert abs((ref[3] - ref[1]) - height) <= 3, m.kind
+
+    def test_temperature_uses_the_hero_numeral_face(self):
+        temp = next(m for m in wn.marks_for(_data(), TODAY) if m.kind == "temperature")
+        placed = wn._measure(temp, MONO_STYLE, 200)
+        assert placed.font.path.endswith("Jura-Variable.ttf")
 
 
 class TestMoon:
-    def test_crescent_is_drawn_inside_the_whole_disc(self):
-        """The phase glyphs ink only the lit part — a crescent alone is a
-        sliver half the disc's width, so the ring beneath it must show."""
-        crescent = date(2026, 4, 20)
-        (moon,) = _mark_centres(_plate(DashboardData(), today=crescent), extents=True)
-        assert moon[1] - moon[0] >= 90
+    def test_crescent_has_no_outline_on_its_dark_limb(self):
+        """The lit sliver alone — no ring around the unlit part of the disc."""
+        img = _plate(DashboardData(), today=CRESCENT)
+        ((left, right),) = _extents(img)
+        top, bottom = _rows(img)
+        assert right - left < 0.6 * (bottom - top)
+
+    def test_new_moon_draws_nothing(self):
+        assert marks(_plate(DashboardData(), today=NEW_MOON), background=0) == 0
+
+    def test_ink_box_is_the_ink_not_the_cell(self):
+        font = wn.weather_icon_font(200)
+        glyph = wn.moon_phase_glyph(CRESCENT)
+        cell = font.getbbox(glyph)
+        ink = wn.ink_box(glyph, font)
+        assert ink[2] - ink[0] < 0.6 * (cell[2] - cell[0])
 
     def test_phase_changes_the_plate(self):
         a = _plate(DashboardData(), today=date(2026, 4, 6))
@@ -163,13 +224,13 @@ class TestColours:
         assert colours == {(255, 0, 0), (0, 0, 0)}
         counts = dict((c, n) for n, c in img.getcolors(maxcolors=1 << 16))
         # Largely negative space: the red ground is the overwhelming majority.
-        assert counts[(255, 0, 0)] > 0.9 * 1360 * 480
+        assert counts[(255, 0, 0)] > 0.75 * 1360 * 480
 
     def test_mono_panel_is_white_on_black(self):
         data = generate_dummy_data(now=FIXED_NOW)
         img = render_dashboard(data, MONO, theme=load_theme("wide_night"))
         black = img.convert("L").histogram()[0]
-        assert black > 0.9 * 1360 * 480
+        assert black > 0.75 * 1360 * 480
         assert black < 1360 * 480
 
 

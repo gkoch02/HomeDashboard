@@ -1,9 +1,18 @@
 """wide_night_panel.py — a near-empty night plate for the 1360x480 strip.
 
 Four marks and nothing else: the moon's phase, the temperature now, the
-air-quality index and the current weather glyph, spaced evenly across the
-strip and centred on its midline. Everything else is ground — on the
-four-ink panel a solid red field with the marks in black ink.
+air-quality index and the current weather glyph, centred on the strip's
+midline with equal gaps between them and at both ends. Everything else is
+ground — on the four-ink panel a solid red field with the marks in black ink.
+
+**Size.** Every mark is drawn at one shared ink height: ``BAND_FRACTION`` (80%)
+of the plate when the four fit across it, and otherwise the tallest height at
+which they do with at least ``MIN_GAP`` between them. On a 1360-px strip they
+never fit at 80% — the moon alone is as wide as it is tall, and two numerals
+at 384 px are ~1500 px — so in practice the height is set by the width of
+tonight's readings, and ``fit_height`` is what decides it. Both numerals are
+set in ``style.font_date_number`` and the AQI caption in ``style.font_semibold``;
+the theme points every font slot at one face.
 
 The colours come from the theme's style rather than being fixed here, so the
 plate reads the same on every backend:
@@ -26,8 +35,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date, datetime
+from functools import lru_cache
 
-from PIL import ImageDraw
+from PIL import Image, ImageDraw
 
 from src.data.models import DashboardData
 from src.render.fonts import weather_icon as weather_icon_font
@@ -35,15 +45,26 @@ from src.render.icons import FALLBACK_ICON, OWM_ICON_MAP
 from src.render.moon import moon_phase_glyph
 from src.render.theme import ComponentRegion, ThemeStyle
 
-# Glyph size (weather icons font) and numeral size. Chosen so every mark is
-# about a quarter of the plate's height: large enough to read across a dark
-# room, small enough that the plate stays mostly ground.
-GLYPH_PT = 128
-NUMERAL_PT = 132
-CAPTION_PT = 22
-# Gap between the AQI numeral and its caption.
-CAPTION_GAP = 18
-# The weather-icons new-moon glyph: a ring the size of every phase glyph.
+# The share of the plate's height each mark spans when the row fits at it.
+BAND_FRACTION = 0.8
+# The narrowest gap the row will accept between marks (and at either end)
+# before the shared height is reduced: a share of the height, so the gaps
+# grow with the type — a fixed gap is overtaken by the space inside a mark
+# (a numeral and its degree sign) as the marks get taller, and the row stops
+# reading as four things — with a floor for very short rows.
+MIN_GAP_FRACTION = 0.35
+MIN_GAP = 48
+# The AQI caption, as fractions of the mark height, hung below the numeral.
+CAPTION_FRACTION = 0.14
+CAPTION_GAP_FRACTION = 0.08
+CAPTION_MIN_PT = 16
+# Font size the measurements are taken at before scaling to the target height.
+_PROBE_PT = 200
+# The weather-icons new-moon glyph: a ring the size of every phase glyph. It is
+# only ever measured, to size the moon by its whole disc and centre it on the
+# disc's height — never drawn: the plate shows the lit part alone, with no
+# outline on the dark limb. The moon's *width* in the row is its lit part's, so
+# the gaps between marks are even to the eye rather than to an invisible disc.
 _MOON_RING = "\uf095"
 
 
@@ -67,16 +88,6 @@ def marks_for(data: DashboardData, today: date) -> list[Mark]:
     if weather is not None:
         out.append(Mark("weather", OWM_ICON_MAP.get(weather.current_icon, FALLBACK_ICON)))
     return out
-
-
-def centres(n: int, x0: int, w: int) -> list[int]:
-    """Horizontal centres of *n* marks spaced evenly across ``[x0, x0 + w)``.
-
-    Each mark gets an equal slice and sits at its middle, so the outer margins
-    are half the gap between neighbours — the spacing reads as even whatever
-    *n* is.
-    """
-    return [x0 + round(w * (i + 0.5) / n) for i in range(n)]
 
 
 def colours(style: ThemeStyle):
@@ -108,59 +119,132 @@ def draw_wide_night(
     draw.rectangle((x0, y0, x0 + w - 1, y0 + h - 1), fill=ground)
 
     marks = marks_for(data, today)
-    mid_y = y0 + h // 2
+    height = fit_height(marks, style, w, int(h * BAND_FRACTION))
+    placed = [_measure(m, style, height) for m in marks]
+    gap = (w - sum(p.width for p in placed)) / (len(placed) + 1)
+    mid_y = y0 + h / 2
     # Unantialiased type: on an RGB canvas an antialiased edge is cut at
     # mid-grey by the panel's ink snap, which thins the strokes.
     previous_mode = draw.fontmode
     draw.fontmode = "1"
     try:
-        for mark, cx in zip(marks, centres(len(marks), x0, w)):
-            _draw_mark(draw, mark, cx, mid_y, style, ink)
+        x = x0 + gap
+        for p in placed:
+            _draw_placed(draw, p, x, mid_y, style, height, ink)
+            x += p.width + gap
     finally:
         draw.fontmode = previous_mode
 
 
-def _draw_mark(draw, mark: Mark, cx: int, cy: int, style: ThemeStyle, ink) -> None:
+@dataclass(frozen=True)
+class Placed:
+    """A mark measured at the shared height: its font and layout boxes.
+
+    ``box`` is the ink box that sets the mark's width and horizontal position;
+    ``ref`` the one that sets its vertical centre — a digit's box for the
+    numerals, so the degree sign does not lift them off a shared baseline, and
+    the full disc for the moon.
+    """
+
+    mark: Mark
+    font: object
+    box: tuple[int, int, int, int]
+    ref: tuple[int, int, int, int]
+
+    @property
+    def width(self) -> int:
+        return self.box[2] - self.box[0]
+
+
+def _font_for(mark: Mark, style: ThemeStyle):
     if mark.kind in ("moon", "weather"):
-        font = weather_icon_font(GLYPH_PT)
-    else:
-        font = style.font_medium(NUMERAL_PT)
+        return weather_icon_font
+    # Both numerals are set in the hero numeral face, so the row is one face.
+    return style.font_date_number or style.font_bold
 
+
+def _refs(mark: Mark) -> tuple[str, str]:
+    """``(horizontal, vertical)`` reference strings for *mark*'s boxes."""
     if mark.kind == "moon":
-        # The phase glyphs ink only the lit part, which on its own reads as a
-        # blob rather than a phase; the new-moon glyph is the disc's outline,
-        # so drawing it beneath shows the whole moon with its lit part filled.
-        _draw_centred(draw, _MOON_RING, font, cx, cy, ink)
-        _draw_centred(draw, mark.text, font, cx, cy, ink, h_ref=_MOON_RING, v_ref=_MOON_RING)
-        return
+        return mark.text, _MOON_RING
+    if mark.kind == "weather":
+        return mark.text, mark.text
+    return mark.text, "0"
 
-    # Numerals share one baseline: centre them vertically on a digit's box
-    # rather than their own, which the degree sign would lift.
-    v_ref = None if mark.kind == "weather" else "0"
-    bottom = _draw_centred(draw, mark.text, font, cx, cy, ink, v_ref=v_ref)
-    if mark.caption:
-        cap_font = style.font_semibold(CAPTION_PT)
-        cb = draw.textbbox((0, 0), mark.caption, font=cap_font)
+
+@lru_cache(maxsize=256)
+def ink_box(text: str, font) -> tuple[int, int, int, int]:
+    """The box *text*'s pixels actually cover, in ``textbbox`` coordinates.
+
+    ``textbbox`` is not an ink box for the weather-icons face: every moon phase
+    reports the whole disc's cell, a crescent included, so spacing by it puts
+    a crescent's gap on the wrong side. Rasterising bilevel, as the plate does,
+    and taking the pixels' extent is exact.
+    """
+    left, top, right, bottom = font.getbbox(text)
+    ox, oy = max(0, -left), max(0, -top)
+    img = Image.new("L", (right + ox + 2, bottom + oy + 2), 0)
+    draw = ImageDraw.Draw(img)
+    draw.fontmode = "1"
+    draw.text((ox, oy), text, font=font, fill=255)
+    box = img.getbbox()
+    if box is None:
+        return (0, 0, 0, 0)
+    return (box[0] - ox, box[1] - oy, box[2] - ox, box[3] - oy)
+
+
+def _measure(mark: Mark, style: ThemeStyle, height: int) -> Placed:
+    """*mark* at the font size whose reference box is *height* tall."""
+    fn = _font_for(mark, style)
+    h_ref, v_ref = _refs(mark)
+    probe = ink_box(v_ref, fn(_PROBE_PT))
+    size = max(1, round(_PROBE_PT * height / max(1, probe[3] - probe[1])))
+    font = fn(size)
+    return Placed(mark, font, ink_box(h_ref, font), ink_box(v_ref, font))
+
+
+def fit_height(marks: list[Mark], style: ThemeStyle, width: int, cap: int) -> int:
+    """The tallest shared mark height, up to *cap*, at which *marks* fit *width*.
+
+    Widths and gaps both scale with height, so one proportional step gets
+    close; font sizes are integers, so a few 2-px steps settle it.
+    """
+
+    def needed(height: int) -> int:
+        marks_w = sum(_measure(m, style, height).width for m in marks)
+        return marks_w + (len(marks) + 1) * min_gap(height)
+
+    height = cap
+    if needed(height) > width:
+        height = int(height * width / needed(height))
+    while height > 8 and needed(height) > width:
+        height -= 2
+    return height
+
+
+def min_gap(height: int) -> int:
+    """The narrowest gap allowed around marks *height* tall."""
+    return max(MIN_GAP, round(height * MIN_GAP_FRACTION))
+
+
+def _draw_placed(draw, p: Placed, x: float, cy: float, style: ThemeStyle, height: int, ink):
+    """Draw *p* with its box's left edge at *x*, vertically centred on *cy*."""
+    left = round(x - p.box[0])
+    top = round(cy - (p.ref[1] + p.ref[3]) / 2)
+    if not (p.mark.kind == "moon" and p.mark.text == _MOON_RING):
+        # A new moon's glyph is only the ring — the dark limb's outline, which
+        # this plate leaves out — so it draws nothing.
+        draw.text((left, top), p.mark.text, font=p.font, fill=ink)
+    if p.mark.caption:
+        cap_font = style.font_semibold(max(CAPTION_MIN_PT, round(height * CAPTION_FRACTION)))
+        cb = draw.textbbox((0, 0), p.mark.caption, font=cap_font)
+        centre = left + (p.box[0] + p.box[2]) / 2
         draw.text(
-            (cx - (cb[0] + cb[2]) / 2, bottom + CAPTION_GAP - cb[1]),
-            mark.caption,
+            (
+                round(centre - (cb[0] + cb[2]) / 2),
+                round(top + p.ref[3] + height * CAPTION_GAP_FRACTION - cb[1]),
+            ),
+            p.mark.caption,
             font=cap_font,
             fill=ink,
         )
-
-
-def _draw_centred(
-    draw, text, font, cx, cy, fill, *, h_ref: str | None = None, v_ref: str | None = None
-) -> int:
-    """Draw *text* with its ink box centred on ``(cx, cy)``; return its bottom.
-
-    *h_ref* / *v_ref* centre on a different string's box on that axis — a
-    digit, so numerals share a baseline, or the moon disc, so a phase glyph
-    lands exactly over the disc drawn beneath it.
-    """
-    bx = draw.textbbox((0, 0), h_ref or text, font=font)
-    by = draw.textbbox((0, 0), v_ref or text, font=font)
-    x = round(cx - (bx[0] + bx[2]) / 2)
-    y = round(cy - (by[1] + by[3]) / 2)
-    draw.text((x, y), text, font=font, fill=fill)
-    return y + by[3]
