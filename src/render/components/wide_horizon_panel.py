@@ -799,7 +799,12 @@ def _draw_moons(
 
 
 def _moon_disc(image, draw, cx: int, cy: int, r: int, day: date, ink: Inks) -> None:
-    """Phase-correct moon: the lit part solid (yellow on colour), the rest outlined."""
+    """Phase-correct moon: the lit part solid white, the rest outlined.
+
+    White on every panel, never the yellow the sun wears: at a glance on the
+    strip a yellow disc reads as a sun whatever its phase. The moon is only
+    drawn deep in twilight or night, so white always lands on red or black.
+    """
     k = moon_illumination(day) / 100.0
     waxing = is_waxing(day)
     size = 2 * r + 1
@@ -809,8 +814,7 @@ def _moon_disc(image, draw, cx: int, cy: int, r: int, day: date, ink: Inks) -> N
     term = (1 - 2 * k) * edge
     lit = inside & ((xx >= term) if waxing else (-xx >= term))
     mask = Image.fromarray((lit * 255).astype(np.uint8), mode="L")
-    lit_ink = ink.yellow if ink.colour else ink.white
-    image.paste(Image.new(image.mode, (size, size), lit_ink), (cx - r, cy - r), mask)
+    image.paste(Image.new(image.mode, (size, size), ink.white), (cx - r, cy - r), mask)
     # The dark limb as a dotted ring, so a crescent still reads as a disc.
     for a in range(0, 360, 12):
         px = cx + r * math.cos(math.radians(a))
