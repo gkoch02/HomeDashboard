@@ -352,6 +352,15 @@ class TestSkyField:
         transit = wh.moon_transit(date(2026, 5, 1))
         assert abs((transit - datetime(2026, 5, 2, 0)).total_seconds()) < 3 * 3600
 
+    def test_moon_is_white_not_the_suns_yellow(self):
+        # A full moon on a black night sky: every lit pixel is white, none yellow.
+        ink = wh.inks_for("RGB")
+        img = Image.new("RGB", (41, 41), ink.black)
+        wh._moon_disc(img, ImageDraw.Draw(img), 20, 20, 15, date(2026, 5, 1), ink)
+        colours = {c for _, c in img.getcolors(41 * 41)}
+        assert ink.white in colours
+        assert ink.yellow not in colours
+
 
 # ---------------------------------------------------------------------------
 # Temperature

@@ -72,6 +72,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- **`wide_horizon` draws the moon in white on the colour panels.** It was the
+  same yellow as the sun, so a moon at a glance read as a second sun. The moon
+  only appears deep in twilight or at night, so white always sits on red or
+  black sky; monochrome panels were already white.
+
 - **`wide_week` redesigned.** The standard week grid, unchanged, now sits on the
   right at the panel's full height, beside a 440-px editorial rail in place of
   the stacked weather, birthday and quote panels: a weekday masthead with the ISO
