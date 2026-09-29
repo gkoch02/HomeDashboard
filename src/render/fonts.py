@@ -220,16 +220,12 @@ def literata_bold(size: int) -> ImageFont.FreeTypeFont:
     return get_font("Literata-Bold.ttf", size)
 
 
-# Inter — a neutral grotesque drawn for screens (OFL). Static Bold and
-# ExtraBold, full glyph set, from the official v4.1 release
-# (extras/ttf in github.com/rsms/inter). ExtraBold sets a 4-px stem at 21 px
-# on a 1-bit plate and Bold 3 px at 17 px, where DM Sans Bold hints to 2 px.
-def inter_bold(size: int) -> ImageFont.FreeTypeFont:
-    return get_font("Inter-Bold.ttf", size)
-
-
-def inter_extrabold(size: int) -> ImageFont.FreeTypeFont:
-    return get_font("Inter-ExtraBold.ttf", size)
+# Figtree — a friendly geometric sans (OFL). Static ExtraBold, full glyph
+# set, the Google Fonts build (as repackaged by @expo-google-fonts/figtree).
+# Sets a 3-px stem at both 17 and 21 px on a 1-bit plate, where DM Sans Bold
+# hints to 2 px.
+def figtree_extrabold(size: int) -> ImageFont.FreeTypeFont:
+    return get_font("Figtree-ExtraBold.ttf", size)
 
 
 # Cormorant Garamond — high-contrast Garamond-revival serif (OFL).  Variable
