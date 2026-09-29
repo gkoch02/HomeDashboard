@@ -676,6 +676,24 @@ class TestDayLists:
             assert self._stem(fonts.figtree_extrabold(pt)) >= 3, pt
         assert self._stem(fonts.dm_bold(18)) == 2  # the face it replaced
 
+    @pytest.mark.parametrize("title", ["Встреча", "Συνάντηση", "Họp mặt"])
+    def test_a_title_figtree_cannot_set_falls_back(self, title):
+        # Figtree is Latin-only; Pillow draws .notdef boxes rather than
+        # falling back, so the row picks a face that covers the title.
+        assert not fonts.has_glyphs(fonts.figtree_extrabold(wh.ROW_TITLE_PT), title)
+        face = wh.title_font(title, wh.ROW_TITLE_PT)
+        assert fonts.has_glyphs(face, title)
+        assert wh.title_font("Dentist Łódź", wh.ROW_TITLE_PT).getname()[0] == "Figtree"
+
+    def test_the_fallback_reaches_the_plate(self):
+        evt = _event("Встреча", datetime(2026, 4, 7, 14))
+        data = DashboardData(events=[evt])
+        tue = date(2026, 4, 7)
+        fallback = self._list(_plate(data, mode="L").convert("1"), tue, h=wh.ROW_H)
+        with patch.object(wh, "title_font", lambda _t, s: fonts.figtree_extrabold(s)):
+            boxes = self._list(_plate(data, mode="L").convert("1"), tue, h=wh.ROW_H)
+        assert fallback != boxes
+
     def test_the_rows_draw_in_figtree(self):
         evt = _event("Dentist Appointment", datetime(2026, 4, 7, 14))
         data = DashboardData(events=[evt])

@@ -85,7 +85,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   serif (Literata) held the weight but read wrong beside the plate's
   condensed display type. Figtree ExtraBold is bundled as a static TTF with
   the full glyph set (the Google Fonts build), with `fonts/Figtree-OFL.txt`;
-  new accessor `fonts.figtree_extrabold`.
+  new accessor `fonts.figtree_extrabold`. Figtree is Latin-only, and Pillow
+  has no per-character fallback, so a title it cannot set (Cyrillic, Greek,
+  Vietnamese) is drawn in Literata Bold instead of as a row of boxes; the
+  check is the new `fonts.has_glyphs()`.
 
 - **`wide_horizon` lists each day's events instead of hanging labels on the
   time axis.** A waking hour is about 19 px wide and a label about 150, so
