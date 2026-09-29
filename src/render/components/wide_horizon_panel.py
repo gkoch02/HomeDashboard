@@ -23,9 +23,10 @@ Bands, top to bottom, right of a hero block for the conditions now:
   * **Rain** — each slot's chance of precipitation as a bar hanging from the
     sky, its depth the chance and its density the expected amount.
   * **Hours** — a tick and label at 6a, 12p and 6p; midnight is the day rule.
-  * **Events** — all-day events and birthdays as a band per day, timed events
-    as bars over their real span, packed into lanes by bar-plus-label extent
-    (``wide_day_panel.pack_lanes``).
+  * **Events** — a schedule strip with a block over each timed event's real
+    span; all-day events and birthdays as chips, multi-day spans above single
+    days (``stack_chips``); then one list per day in that day's column, a line
+    per event.
 
 The axis is not linear. Hours between ``SLEEP_HOUR`` and ``WAKE_HOUR`` take
 ``NIGHT_WEIGHT`` of a waking hour's width, which buys the waking hours ~19 px
@@ -58,6 +59,7 @@ import math
 import random
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone, tzinfo
+from typing import TypeVar
 
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter
@@ -66,7 +68,6 @@ from src.astronomy import solar_altitude, sun_times
 from src.data.models import Birthday, CalendarEvent, DashboardData, HourlyForecast, WeatherData
 from src.render import fonts
 from src.render.artkit import to_local_naive
-from src.render.components.wide_day_panel import pack_lanes
 from src.render.moon import is_waxing, moon_illumination, moon_phase_age
 from src.render.primitives import (
     content_time,
@@ -85,6 +86,7 @@ Rect = tuple[int, int, int, int]
 # extents, which are computed from float axis positions.
 Box = tuple[float, float, float, float]
 Fill = int | tuple[int, int, int]
+T = TypeVar("T")
 
 # ---------------------------------------------------------------------------
 # Geometry (relative to the region's origin; the plate is drawn for 1360x480)
@@ -106,9 +108,14 @@ ALLDAY_H = 22
 STRIP_H = 10
 STRIP_GAP = 8
 # Each day's events listed in its own column, one line apiece.
-ROW_H = 25
-ROW_TITLE_PT = 18
-ROW_TIME_PT = 15
+# Literata Bold, a reading serif drawn for e-readers: a 4-px stem on the
+# titles and 3 px on the times on a 1-bit plate, where DM Sans Bold set 2 px
+# and only its blunt axis maximum went heavier. SemiBold would snap the times
+# to 2 px below 18 px (as on wide_week's rail). Six rows still fill the band
+# below the strip when no all-day chip crosses it.
+ROW_H = 26
+ROW_TITLE_PT = 21
+ROW_TIME_PT = 17
 COL_PAD = 8  # a column's text keeps this far off the midnight rules (= day-name inset)
 TIME_GAP = 8  # between the time cell and the title
 MIN_COL_W = 90  # a day's column narrower than this lists nothing, only a count
@@ -1279,6 +1286,42 @@ def _draw_day_headers(draw, axis: TimeAxis, y0: int, now: datetime, ink: Inks) -
 # --- events -----------------------------------------------------------------
 
 
+def stack_chips(items: list[tuple[float, float, bool, T]]) -> list[list[T]]:
+    """Rows of all-day chips, multi-day spans above the single days they cross.
+
+    *items* are ``(x0, x1, multi_day, chip)``. Spans are seated first, longest
+    first where they start together, each in the first row free across its
+    extent. A single day then takes the first free row *below* every span it
+    overlaps, so a trip over the week never sits under Tuesday's dentist —
+    while a day no span crosses still starts at the top row.
+    """
+    rows: list[list[tuple[float, float]]] = []
+    placed: list[list[T]] = []
+    span_rows: list[tuple[float, float, int]] = []
+
+    def free(ri: int, x0: float, x1: float) -> bool:
+        return all(b <= x0 or a >= x1 for a, b in rows[ri])
+
+    def seat(x0: float, x1: float, chip: T, floor: int) -> int:
+        ri = floor
+        while ri < len(rows) and not free(ri, x0, x1):
+            ri += 1
+        while len(rows) <= ri:
+            rows.append([])
+            placed.append([])
+        rows[ri].append((x0, x1))
+        placed[ri].append(chip)
+        return ri
+
+    spans = sorted((i for i in items if i[2]), key=lambda i: (i[0], -(i[1] - i[0])))
+    for x0, x1, _multi, chip in spans:
+        span_rows.append((x0, x1, seat(x0, x1, chip, 0)))
+    for x0, x1, _multi, chip in sorted((i for i in items if not i[2]), key=lambda i: i[0]):
+        over = [ri for a, b, ri in span_rows if a < x1 and b > x0]
+        seat(x0, x1, chip, max(over) + 1 if over else 0)
+    return placed
+
+
 def chip_label(label: str, short: str, width: float, measure) -> str:
     """*label* if it fits a chip *width* wide, else its *short* form.
 
@@ -1362,8 +1405,9 @@ def _draw_events(draw, data: DashboardData, axis: TimeAxis, y0: int, y1: int, in
             x0, x1 = axis.x(start), axis.x(end)
             label = chip_label(label, short, x1 - x0, lambda t: text_width(draw, t, font_ad))
             lw = text_width(draw, label, font_ad) + CHIP_PAD
-            items.append((x0, max(x1, x0 + lw), (x0, x1, label, bday, start)))
-        packed = pack_lanes(items)
+            multi = end - start > timedelta(days=1)
+            items.append((x0, max(x1, x0 + lw), multi, (x0, x1, label, bday, start)))
+        packed = stack_chips(items)
         hidden += [chip[4] for lane in packed[ALLDAY_MAX_ROWS:] for chip in lane]
         for ri, row in enumerate(packed[:ALLDAY_MAX_ROWS]):
             cy = y + ri * ALLDAY_H
@@ -1384,9 +1428,9 @@ def _draw_events(draw, data: DashboardData, axis: TimeAxis, y0: int, y1: int, in
                     )
 
     hidden_by_day = overflow_counts(hidden, axis)
-    title_font = fonts.dm_bold(ROW_TITLE_PT)
-    time_font = fonts.dm_semibold(ROW_TIME_PT)
-    more_font = fonts.dm_bold(ROW_TIME_PT)
+    title_font = fonts.literata_bold(ROW_TITLE_PT)
+    time_font = fonts.literata_bold(ROW_TIME_PT)
+    more_font = fonts.literata_bold(ROW_TIME_PT)
 
     def measure_title(t: str) -> float:
         return text_width(draw, t, title_font)

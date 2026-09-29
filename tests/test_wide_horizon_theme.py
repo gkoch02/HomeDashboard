@@ -662,6 +662,29 @@ class TestDayLists:
         rows = [self._list(img, day.date(), top=i * wh.ROW_H, h=wh.ROW_H) for i in range(6)]
         assert all(r > 100 for r in rows)
 
+    @staticmethod
+    def _stem(font) -> int:
+        """The median width of an ``l``'s ink rows: its stem, serifs averaged out."""
+        img = Image.new("1", (60, 60), 1)
+        ImageDraw.Draw(img).text((5, 5), "l", font=font, fill=0)
+        widths = sorted(n for n in (ink(img, (0, y, 60, y + 1)) for y in range(60)) if n)
+        return widths[len(widths) // 2]
+
+    def test_rows_are_set_in_literata_with_heavy_stems(self):
+        # Read at a glance across a room: DM Sans Bold at 18 px set a 2-px stem.
+        title, time = fonts.literata_bold(wh.ROW_TITLE_PT), fonts.literata_bold(wh.ROW_TIME_PT)
+        assert self._stem(title) >= 4
+        assert self._stem(time) >= 3
+
+    def test_the_rows_draw_in_literata(self):
+        evt = _event("Dentist Appointment", datetime(2026, 4, 7, 14))
+        data = DashboardData(events=[evt])
+        tue = date(2026, 4, 7)
+        lit = self._list(_plate(data, mode="L").convert("1"), tue, h=wh.ROW_H)
+        with patch.object(fonts, "literata_bold", fonts.dm_bold):
+            dm = self._list(_plate(data, mode="L").convert("1"), tue, h=wh.ROW_H)
+        assert lit > dm * 1.15
+
     def test_a_chip_on_another_day_does_not_push_the_list_down(self):
         evt = _event("Dentist", datetime(2026, 4, 7, 14))
         chip = _event("Conference", datetime(2026, 4, 8), hours=24, all_day=True)
@@ -681,6 +704,39 @@ class TestDayLists:
         tue = date(2026, 4, 7)
         second = dict(top=wh.ALLDAY_H + 4, h=wh.ROW_H - 4)
         assert self._list(under, tue, **second) > self._list(alone, tue, **second) + 100
+
+
+class TestChipHierarchy:
+    def test_spans_take_the_top_rows(self):
+        # A single day starting with a span, or before it, would win row 0 on
+        # a left-to-right packing; the span takes it here.
+        items = [(0, 50, False, "dentist"), (0, 300, True, "trip"), (100, 150, False, "gym")]
+        assert wh.stack_chips(items) == [["trip"], ["dentist", "gym"]]
+
+    def test_a_single_day_stays_below_every_span_it_crosses(self):
+        # Two overlapping spans take rows 0 and 1; a day under the second span
+        # goes below it even where row 0 is free.
+        items = [(0, 200, True, "a"), (150, 400, True, "b"), (250, 300, False, "day")]
+        assert wh.stack_chips(items) == [["a"], ["b"], ["day"]]
+
+    def test_a_day_no_span_crosses_starts_at_the_top(self):
+        items = [(0, 200, True, "trip"), (300, 350, False, "day")]
+        assert wh.stack_chips(items) == [["trip", "day"]]
+
+    def test_longer_span_first_when_spans_start_together(self):
+        items = [(0, 100, True, "short"), (0, 300, True, "long")]
+        assert wh.stack_chips(items) == [["long"], ["short"]]
+
+    def test_render_puts_the_span_on_the_top_row(self):
+        tue = datetime(2026, 4, 7)
+        single = _event("Holiday", tue, hours=24, all_day=True)
+        trip = _event("Trip", tue, hours=48, all_day=True)
+        axis = _axis()
+        x = int(axis.x(datetime(2026, 4, 8, 12)))  # Wednesday: only the trip covers it
+        y0 = EVENTS_Y0 + wh.STRIP_H + wh.STRIP_GAP
+        top = (x - 20, y0, x + 20, y0 + wh.ALLDAY_H - 4)
+        img = _plate(DashboardData(events=[single, trip]))
+        assert _count(img, RED, top) > 300
 
 
 class TestOverflow:
@@ -984,7 +1040,11 @@ class TestRender:
 class TestFonts:
     @pytest.mark.parametrize(
         "accessor",
-        [fonts.big_shoulders_semibold, fonts.big_shoulders_extrabold, fonts.big_shoulders_black],
+        [
+            fonts.big_shoulders_semibold,
+            fonts.big_shoulders_extrabold,
+            fonts.big_shoulders_black,
+        ],
     )
     def test_loads_and_covers_the_glyphs_used(self, accessor):
         font = accessor(30)
