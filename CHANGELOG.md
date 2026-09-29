@@ -72,6 +72,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- **`wide_horizon` lists each day's events instead of hanging labels on the
+  time axis.** A waking hour is about 19 px wide and a label about 150, so
+  every label ran eight hours past its own bar and neighbouring events
+  staircased into lanes: the sample Tuesday drew three of its six meetings and
+  counted the rest as `+3 more` beside 250 px of empty band. The band is now a
+  thin schedule strip — a block over each event's real span, so the day's shape
+  still lines up with the sky — above one list per day in that day's column,
+  one line per event (`9a  Morning Standup`) at 18 px, up from 15 px titles and
+  12 px times. A day's list clears only the all-day chips over its own column,
+  and a day with more than fits ends on a `+N more` row of its own.
+
 - **`wide_horizon` draws the moon in white on the colour panels.** It was the
   same yellow as the sun, so a moon at a glance read as a second sun. The moon
   only appears deep in twilight or at night, so white always sits on red or
