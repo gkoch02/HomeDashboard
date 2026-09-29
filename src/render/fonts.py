@@ -1,9 +1,32 @@
 from functools import lru_cache
 from pathlib import Path
 
-from PIL import ImageFont
+from PIL import Image, ImageDraw, ImageFont
 
 FONT_DIR = Path(__file__).parent.parent.parent / "fonts"
+
+
+def _glyph_bits(font: ImageFont.FreeTypeFont, ch: str) -> bytes:
+    side = int(font.size) * 2
+    img = Image.new("1", (side, side), 0)
+    ImageDraw.Draw(img).text((0, 0), ch, font=font, fill=1)
+    return img.tobytes()
+
+
+@lru_cache(maxsize=4096)
+def _has_glyph(path: str, ch: str) -> bool:
+    font = ImageFont.truetype(path, 24)
+    # U+FFFF is a noncharacter, so every font draws its .notdef box for it.
+    return _glyph_bits(font, ch) != _glyph_bits(font, "\uffff")
+
+
+def has_glyphs(font: ImageFont.FreeTypeFont, text: str) -> bool:
+    """Whether *font* draws every character of *text*, rather than its .notdef box.
+
+    Pillow has no per-character font fallback, so a face missing a script
+    renders it as a row of boxes; callers use this to pick a fallback face.
+    """
+    return all(ch.isspace() or _has_glyph(str(font.path), ch) for ch in text)
 
 
 @lru_cache(maxsize=32)
@@ -218,6 +241,14 @@ def literata_semibold(size: int) -> ImageFont.FreeTypeFont:
 
 def literata_bold(size: int) -> ImageFont.FreeTypeFont:
     return get_font("Literata-Bold.ttf", size)
+
+
+# Figtree — a friendly geometric sans (OFL). Static ExtraBold, full glyph
+# set, the Google Fonts build (as repackaged by @expo-google-fonts/figtree).
+# Sets a 3-px stem at both 17 and 21 px on a 1-bit plate, where DM Sans Bold
+# hints to 2 px.
+def figtree_extrabold(size: int) -> ImageFont.FreeTypeFont:
+    return get_font("Figtree-ExtraBold.ttf", size)
 
 
 # Cormorant Garamond — high-contrast Garamond-revival serif (OFL).  Variable

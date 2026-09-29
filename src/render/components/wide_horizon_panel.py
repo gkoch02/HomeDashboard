@@ -108,11 +108,12 @@ ALLDAY_H = 22
 STRIP_H = 10
 STRIP_GAP = 8
 # Each day's events listed in its own column, one line apiece.
-# Literata Bold, a reading serif drawn for e-readers: a 4-px stem on the
-# titles and 3 px on the times on a 1-bit plate, where DM Sans Bold set 2 px
-# and only its blunt axis maximum went heavier. SemiBold would snap the times
-# to 2 px below 18 px (as on wide_week's rail). Six rows still fill the band
-# below the strip when no all-day chip crosses it.
+# Figtree ExtraBold for titles and times: a 3-px stem at both sizes on a 1-bit
+# plate, where DM Sans Bold set 2 px and only its blunt axis maximum went
+# heavier. Figtree is Latin-only, so a title it cannot set (Cyrillic, Greek,
+# Vietnamese) falls back to Literata Bold, which covers them at a matching
+# weight (``title_font``). Six rows still fill the band below the strip when
+# no all-day chip crosses it.
 ROW_H = 26
 ROW_TITLE_PT = 21
 ROW_TIME_PT = 17
@@ -618,6 +619,12 @@ def allday_in_window(
 
 def _as_date(v) -> date:
     return v.date() if isinstance(v, datetime) else v
+
+
+def title_font(text: str, size: int):
+    """Figtree ExtraBold, or Literata Bold for a title Figtree has no glyphs for."""
+    font = fonts.figtree_extrabold(size)
+    return font if fonts.has_glyphs(font, text) else fonts.literata_bold(size)
 
 
 def fit_text(text: str, width: float, measure) -> str:
@@ -1428,12 +1435,8 @@ def _draw_events(draw, data: DashboardData, axis: TimeAxis, y0: int, y1: int, in
                     )
 
     hidden_by_day = overflow_counts(hidden, axis)
-    title_font = fonts.literata_bold(ROW_TITLE_PT)
-    time_font = fonts.literata_bold(ROW_TIME_PT)
-    more_font = fonts.literata_bold(ROW_TIME_PT)
-
-    def measure_title(t: str) -> float:
-        return text_width(draw, t, title_font)
+    time_font = fonts.figtree_extrabold(ROW_TIME_PT)
+    more_font = fonts.figtree_extrabold(ROW_TIME_PT)
 
     for cx0, cx1, day in day_columns(axis):
         day_events = [e for e in events if column_day(e, axis) == day]
@@ -1460,8 +1463,11 @@ def _draw_events(draw, data: DashboardData, axis: TimeAxis, y0: int, y1: int, in
             baseline = ry + ROW_H - 6
             draw.text((left, baseline), when, font=time_font, fill=ink.black, anchor="ls")
             if right - title_x >= MIN_BESIDE_LABEL_W:
-                title = fit_text(evt.summary, right - title_x, measure_title)
-                draw.text((title_x, baseline), title, font=title_font, fill=ink.black, anchor="ls")
+                face = title_font(evt.summary, ROW_TITLE_PT)
+                title = fit_text(
+                    evt.summary, right - title_x, lambda t, f=face: text_width(draw, t, f)
+                )
+                draw.text((title_x, baseline), title, font=face, fill=ink.black, anchor="ls")
         if more:
             ry = top + shown * ROW_H
             draw.text(

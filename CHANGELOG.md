@@ -77,11 +77,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   took the top row and pushed the trip under it. Spans are now seated first,
   and a single day goes below every span it overlaps; a day no span crosses
   still uses the top row.
-- **`wide_horizon` event rows are set in Literata Bold.** Titles are 21 px
-  and times 17 px, up from DM Sans Bold 18 px over SemiBold 15 px, in 26-px
-  rows, so a full day still shows six. On a 1-bit plate the title stem goes
-  from 2 px to 4; the reading serif the `wide_week` quote already uses keeps
-  its weight where the sans faces hint thin.
+- **`wide_horizon` event rows are set in Figtree ExtraBold.** Titles are
+  21 px and times 17 px, up from DM Sans Bold 18 px over SemiBold 15 px, in
+  26-px rows, so a full day still shows six. On a 1-bit plate both keep a
+  3-px stem where DM Sans Bold set 2 px; the other bundled sans faces hint
+  thin at this size, DM Sans pushed to its axis maximum went blunt, and a
+  serif (Literata) held the weight but read wrong beside the plate's
+  condensed display type. Figtree ExtraBold is bundled as a static TTF with
+  the full glyph set (the Google Fonts build), with `fonts/Figtree-OFL.txt`;
+  new accessor `fonts.figtree_extrabold`. Figtree is Latin-only, and Pillow
+  has no per-character fallback, so a title it cannot set (Cyrillic, Greek,
+  Vietnamese) is drawn in Literata Bold instead of as a row of boxes; the
+  check is the new `fonts.has_glyphs()`.
 
 - **`wide_horizon` lists each day's events instead of hanging labels on the
   time axis.** A waking hour is about 19 px wide and a label about 150, so

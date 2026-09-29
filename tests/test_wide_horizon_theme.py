@@ -670,20 +670,38 @@ class TestDayLists:
         widths = sorted(n for n in (ink(img, (0, y, 60, y + 1)) for y in range(60)) if n)
         return widths[len(widths) // 2]
 
-    def test_rows_are_set_in_literata_with_heavy_stems(self):
+    def test_row_faces_set_heavy_stems(self):
         # Read at a glance across a room: DM Sans Bold at 18 px set a 2-px stem.
-        title, time = fonts.literata_bold(wh.ROW_TITLE_PT), fonts.literata_bold(wh.ROW_TIME_PT)
-        assert self._stem(title) >= 4
-        assert self._stem(time) >= 3
+        for pt in (wh.ROW_TITLE_PT, wh.ROW_TIME_PT):
+            assert self._stem(fonts.figtree_extrabold(pt)) >= 3, pt
+        assert self._stem(fonts.dm_bold(18)) == 2  # the face it replaced
 
-    def test_the_rows_draw_in_literata(self):
+    @pytest.mark.parametrize("title", ["Встреча", "Συνάντηση", "Họp mặt"])
+    def test_a_title_figtree_cannot_set_falls_back(self, title):
+        # Figtree is Latin-only; Pillow draws .notdef boxes rather than
+        # falling back, so the row picks a face that covers the title.
+        assert not fonts.has_glyphs(fonts.figtree_extrabold(wh.ROW_TITLE_PT), title)
+        face = wh.title_font(title, wh.ROW_TITLE_PT)
+        assert fonts.has_glyphs(face, title)
+        assert wh.title_font("Dentist Łódź", wh.ROW_TITLE_PT).getname()[0] == "Figtree"
+
+    def test_the_fallback_reaches_the_plate(self):
+        evt = _event("Встреча", datetime(2026, 4, 7, 14))
+        data = DashboardData(events=[evt])
+        tue = date(2026, 4, 7)
+        fallback = self._list(_plate(data, mode="L").convert("1"), tue, h=wh.ROW_H)
+        with patch.object(wh, "title_font", lambda _t, s: fonts.figtree_extrabold(s)):
+            boxes = self._list(_plate(data, mode="L").convert("1"), tue, h=wh.ROW_H)
+        assert fallback != boxes
+
+    def test_the_rows_draw_in_figtree(self):
         evt = _event("Dentist Appointment", datetime(2026, 4, 7, 14))
         data = DashboardData(events=[evt])
         tue = date(2026, 4, 7)
-        lit = self._list(_plate(data, mode="L").convert("1"), tue, h=wh.ROW_H)
-        with patch.object(fonts, "literata_bold", fonts.dm_bold):
+        figtree = self._list(_plate(data, mode="L").convert("1"), tue, h=wh.ROW_H)
+        with patch.object(fonts, "figtree_extrabold", fonts.dm_bold):
             dm = self._list(_plate(data, mode="L").convert("1"), tue, h=wh.ROW_H)
-        assert lit > dm * 1.15
+        assert figtree > dm * 1.05
 
     def test_a_chip_on_another_day_does_not_push_the_list_down(self):
         evt = _event("Dentist", datetime(2026, 4, 7, 14))
@@ -1044,6 +1062,7 @@ class TestFonts:
             fonts.big_shoulders_semibold,
             fonts.big_shoulders_extrabold,
             fonts.big_shoulders_black,
+            fonts.figtree_extrabold,
         ],
     )
     def test_loads_and_covers_the_glyphs_used(self, accessor):
