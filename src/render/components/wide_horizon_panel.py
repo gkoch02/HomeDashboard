@@ -102,8 +102,16 @@ RAIN_H = 26  # bars hang from the sky's bottom edge into this band
 HOURS_H = 18
 EVENTS_GAP = 6
 ALLDAY_H = 22
-LANE_H = 31
-BAR_H = 27
+# The schedule strip: every timed event as a block over its real span.
+STRIP_H = 10
+STRIP_GAP = 8
+# Each day's events listed in its own column, one line apiece.
+ROW_H = 25
+ROW_TITLE_PT = 18
+ROW_TIME_PT = 15
+COL_PAD = 8  # a column's text keeps this far off the midnight rules (= day-name inset)
+TIME_GAP = 8  # between the time cell and the title
+MIN_COL_W = 90  # a day's column narrower than this lists nothing, only a count
 
 # The panorama.
 WINDOW_HOURS = 72
@@ -124,10 +132,7 @@ CURVE_TOP = 0.40
 CURVE_BOTTOM = 0.86
 MIN_TEMP_SPAN = 14.0
 
-# Beside-labels on narrow bars, as on wide_day.
-LABEL_PAD = 6
-MAX_BESIDE_LABEL_W = 200
-MIN_BESIDE_LABEL_W = 24
+MIN_BESIDE_LABEL_W = 24  # a title with less room than this is left out
 
 STARS_PER_100PX = 16
 # A slot below this chance of rain draws no bar: a 2-px sliver across a dry
@@ -136,7 +141,6 @@ RAIN_MIN_CHANCE = 0.1
 MIN_CHIP_LABEL_W = 48  # an all-day chip narrower than this carries no label
 ALLDAY_MAX_ROWS = 2
 CHIP_PAD = 16  # an all-day chip's horizontal padding around its label
-OVERFLOW_H = 16  # footer row kept for "+N more" when anything is hidden
 
 
 # ---------------------------------------------------------------------------
@@ -609,9 +613,15 @@ def _as_date(v) -> date:
     return v.date() if isinstance(v, datetime) else v
 
 
-def event_label(evt: CalendarEvent) -> tuple[str, str]:
-    """Title and time line for a bar."""
-    return evt.summary, f"{fmt_time(evt.start)}–{fmt_time(evt.end)}"
+def fit_text(text: str, width: float, measure) -> str:
+    """*text*, or its longest prefix plus an ellipsis, that *measure* fits in *width*."""
+    if measure(text) <= width:
+        return text
+    for n in range(len(text) - 1, 0, -1):
+        cut = text[:n].rstrip() + "…"
+        if measure(cut) <= width:
+            return cut
+    return ""
 
 
 # ---------------------------------------------------------------------------
@@ -1278,18 +1288,72 @@ def chip_label(label: str, short: str, width: float, measure) -> str:
     return label if measure(label) + CHIP_PAD <= width else short
 
 
+def day_columns(axis: TimeAxis) -> list[tuple[float, float, date]]:
+    """``(x0, x1, day)`` for each day's slice of the window, left to right."""
+    starts = [(axis.x0, axis.start.date())] + _midnights(axis)
+    return [
+        (x, starts[i + 1][0] if i + 1 < len(starts) else axis.x1, day)
+        for i, (x, day) in enumerate(starts)
+    ]
+
+
+def column_day(evt: CalendarEvent, axis: TimeAxis) -> date:
+    """The day whose column lists *evt*: its start, or the window's first day if earlier."""
+    return max(evt.start, axis.start).date()
+
+
+def row_time(evt: CalendarEvent, axis: TimeAxis) -> str:
+    """The time cell for a list row: the start, or ``–end`` for one begun before the window."""
+    if evt.start < axis.start:
+        return f"–{fmt_time(evt.end)}"
+    return fmt_time(evt.start)
+
+
+def allday_depth(chip_rows: list[tuple[int, float, float]], x0: float, x1: float) -> int:
+    """How many all-day rows a column spanning *x0*–*x1* must clear: one past its lowest chip."""
+    rows = [r for r, cx0, cx1 in chip_rows if cx0 < x1 and cx1 > x0]
+    return max(rows) + 1 if rows else 0
+
+
+def list_rows(n_events: int, n_hidden: int, avail: int) -> tuple[int, int]:
+    """``(rows drawn, count for "+N more")`` for a day with *avail* rows of space.
+
+    Every event is listed when it fits. When it doesn't — or when all-day items
+    of the day were already left out — the last row carries the count instead
+    of an event, so the day never ends on a row that pretends to be its last.
+    """
+    if n_events <= avail and not n_hidden:
+        return n_events, 0
+    shown = max(0, min(n_events, avail - 1))
+    return shown, n_events - shown + n_hidden
+
+
+def _draw_schedule_strip(draw, events: list[CalendarEvent], axis: TimeAxis, y0: int, ink: Inks):
+    """A block per timed event over its real span: where the days are busy and where free.
+
+    Blocks keep a pixel of paper either side, so back-to-back meetings read as
+    two rather than one long one.
+    """
+    draw.line((axis.x0, y0 + STRIP_H, axis.x1, y0 + STRIP_H), fill=ink.black, width=1)
+    for evt in events:
+        x0, x1 = axis.x(evt.start), axis.x(evt.end)
+        x0, x1 = int(round(x0)) + 1, max(int(round(x1)) - 1, int(round(x0)) + 3)
+        draw.rectangle((x0, y0, x1, y0 + STRIP_H - 1), fill=ink.black)
+
+
 def _draw_events(draw, data: DashboardData, axis: TimeAxis, y0: int, y1: int, ink: Inks):
-    # Midnight rules and hour hairlines through the events band.
+    # Midnight rules run down through the rain, hours and events bands.
     for x, _day in _midnights(axis):
         draw.line((x, y0 - EVENTS_GAP - HOURS_H - RAIN_H, x, y1), fill=ink.black, width=2)
-    t = axis.start
-    while t <= axis.end:
-        if t.hour in (6, 12, 18):
-            _dotted_vline(draw, int(round(axis.x(t))), y0, y1, ink.black, gap=4)
-        t += timedelta(hours=1)
 
-    y = y0
-    overflow_starts: list[datetime] = []  # starts of everything not drawn
+    events = events_in_window(data.events, axis)
+    _draw_schedule_strip(draw, events, axis, y0, ink)
+    y = y0 + STRIP_H + STRIP_GAP
+
+    hidden: list[datetime] = []  # starts of all-day items with no row
+    # Each chip drawn, as its row and x-extent: a day's list starts below the
+    # chips that cross its column, not below every chip on the plate.
+    chip_rows: list[tuple[int, float, float]] = []
     allday = allday_in_window(data.events, data.birthdays, axis)
     font_ad = fonts.dm_bold(13)
     if allday:
@@ -1300,67 +1364,69 @@ def _draw_events(draw, data: DashboardData, axis: TimeAxis, y0: int, y1: int, in
             lw = text_width(draw, label, font_ad) + CHIP_PAD
             items.append((x0, max(x1, x0 + lw), (x0, x1, label, bday, start)))
         packed = pack_lanes(items)
-        rows = packed[:ALLDAY_MAX_ROWS]
-        overflow_starts += [chip[4] for lane in packed[ALLDAY_MAX_ROWS:] for chip in lane]
-        for row in rows:
+        hidden += [chip[4] for lane in packed[ALLDAY_MAX_ROWS:] for chip in lane]
+        for ri, row in enumerate(packed[:ALLDAY_MAX_ROWS]):
+            cy = y + ri * ALLDAY_H
             for x0, x1, label, bday, _start in row:
                 bx0, bx1 = x0 + 2, x1 - 3
+                chip_rows.append((ri, bx0, bx1))
                 if bday:
                     draw.rectangle(
-                        (bx0, y, bx1, y + ALLDAY_H - 4), fill=ink.white, outline=ink.red, width=2
+                        (bx0, cy, bx1, cy + ALLDAY_H - 4), fill=ink.white, outline=ink.red, width=2
                     )
                     fill_t = ink.red
                 else:
-                    draw.rectangle((bx0, y, bx1, y + ALLDAY_H - 4), fill=ink.red)
+                    draw.rectangle((bx0, cy, bx1, cy + ALLDAY_H - 4), fill=ink.red)
                     fill_t = ink.white
                 if bx1 - bx0 >= MIN_CHIP_LABEL_W:
                     draw_text_truncated(
-                        draw, (bx0 + 7, y + 2), label, font_ad, bx1 - bx0 - 12, fill=fill_t
+                        draw, (bx0 + 7, cy + 2), label, font_ad, bx1 - bx0 - 12, fill=fill_t
                     )
-            y += ALLDAY_H
 
-    events = events_in_window(data.events, axis)
-    title_font = fonts.dm_bold(15)
-    time_font = fonts.dm_semibold(12)
-    bars = []
-    for evt in events:
-        x0, x1 = axis.x(evt.start), axis.x(evt.end)
-        x1 = max(x1, x0 + 6)
-        title, when = event_label(evt)
-        need = max(text_width(draw, title, title_font), text_width(draw, when, time_font)) + 14
-        inside = (x1 - x0) >= need
-        extent = x1 if inside else x1 + LABEL_PAD + min(need, MAX_BESIDE_LABEL_W)
-        bars.append((x0, min(extent, axis.x1) + 4, (evt, x0, x1, inside)))
-    lanes = pack_lanes(bars)
-    lanes_avail = max(0, (y1 - y) // LANE_H)
-    if len(lanes) > lanes_avail or overflow_starts:
-        # Something will be counted: keep the footer row clear for the count.
-        lanes_avail = max(0, (y1 - OVERFLOW_H - y) // LANE_H)
-    shown = lanes[:lanes_avail]
-    overflow_starts += [evt.start for lane in lanes[lanes_avail:] for evt, *_ in lane]
+    hidden_by_day = overflow_counts(hidden, axis)
+    title_font = fonts.dm_bold(ROW_TITLE_PT)
+    time_font = fonts.dm_semibold(ROW_TIME_PT)
+    more_font = fonts.dm_bold(ROW_TIME_PT)
 
-    for li, lane in enumerate(shown):
-        ly = y + li * LANE_H
-        for evt, x0, x1, inside in lane:
-            title, when = event_label(evt)
-            clipped_left = evt.start < axis.start
-            draw.rectangle((x0 + 1, ly, x1 - 1, ly + BAR_H - 1), fill=ink.black)
-            if clipped_left:
-                draw.polygon(
-                    [(x0 + 1, ly), (x0 + 7, ly + BAR_H / 2), (x0 + 1, ly + BAR_H - 1)],
-                    fill=ink.white,
-                )
-            if inside:
-                tx, room, fill = x0 + 7, x1 - x0 - 12, ink.white
-            else:
-                tx, fill = x1 + LABEL_PAD, ink.black
-                room = min(MAX_BESIDE_LABEL_W, axis.x1 - tx - 4)
-                if room < MIN_BESIDE_LABEL_W:
-                    continue
-            draw_text_truncated(draw, (tx, ly - 2), title, title_font, room, fill=fill)
-            draw_text_truncated(draw, (tx, ly + 14), when, time_font, room, fill=fill)
+    def measure_title(t: str) -> float:
+        return text_width(draw, t, title_font)
 
-    _draw_overflow(draw, axis, overflow_starts, y1, ink)
+    for cx0, cx1, day in day_columns(axis):
+        day_events = [e for e in events if column_day(e, axis) == day]
+        chips = allday_depth(chip_rows, cx0, cx1)
+        top = y + chips * ALLDAY_H
+        avail = max(0, (y1 - top) // ROW_H)
+        shown, more = list_rows(len(day_events), hidden_by_day.get(day, 0), avail)
+        left, right = cx0 + COL_PAD, cx1 - COL_PAD
+        room = right - left
+        if room < MIN_COL_W:
+            # A sliver (an evening's tail, the last morning): no room for a
+            # row, so the whole day is a count — kept on the plate.
+            more, shown = len(day_events) + hidden_by_day.get(day, 0), 0
+            if more:
+                label = f"+{more}"
+                x = max(axis.x0 + 2, min(cx1 - 4, axis.x1) - text_width(draw, label, more_font))
+                draw.text((x, top + 2), label, font=more_font, fill=ink.black)
+            continue
+        times = [row_time(e, axis) for e in day_events[:shown]]
+        time_w = max((text_width(draw, t, time_font) for t in times), default=0)
+        title_x = left + time_w + TIME_GAP
+        for i, (evt, when) in enumerate(zip(day_events[:shown], times)):
+            ry = top + i * ROW_H
+            baseline = ry + ROW_H - 6
+            draw.text((left, baseline), when, font=time_font, fill=ink.black, anchor="ls")
+            if right - title_x >= MIN_BESIDE_LABEL_W:
+                title = fit_text(evt.summary, right - title_x, measure_title)
+                draw.text((title_x, baseline), title, font=title_font, fill=ink.black, anchor="ls")
+        if more:
+            ry = top + shown * ROW_H
+            draw.text(
+                (left, ry + ROW_H - 6),
+                f"+{more} more",
+                font=more_font,
+                fill=ink.red if ink.colour else ink.black,
+                anchor="ls",
+            )
 
 
 def overflow_counts(starts: list[datetime], axis: TimeAxis) -> dict[date, int]:
@@ -1370,17 +1436,6 @@ def overflow_counts(starts: list[datetime], axis: TimeAxis) -> dict[date, int]:
         day = max(start, axis.start).date()
         counts[day] = counts.get(day, 0) + 1
     return counts
-
-
-def _draw_overflow(draw, axis: TimeAxis, starts: list[datetime], y1: int, ink: Inks) -> None:
-    """``+N more`` at the right of each day's column, in the reserved footer row."""
-    font = fonts.dm_bold(12)
-    for day, n in sorted(overflow_counts(starts, axis).items()):
-        end = datetime.combine(day + timedelta(days=1), datetime.min.time())
-        label = f"+{n} more"
-        tw = text_width(draw, label, font)
-        x = max(axis.x0 + 4, min(axis.x(end), axis.x1) - tw - 6)
-        draw.text((x, y1 - 14), label, font=font, fill=ink.red if ink.colour else ink.black)
 
 
 # --- hero -------------------------------------------------------------------

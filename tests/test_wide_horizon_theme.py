@@ -596,6 +596,93 @@ class TestDaylightSaving:
         assert rain == "Sat 10p–2p · 80%"
 
 
+class TestDayLists:
+    def test_columns_run_midnight_to_midnight(self):
+        axis = _axis()
+        cols = wh.day_columns(axis)
+        assert [d for *_x, d in cols] == [date(2026, 4, d) for d in (6, 7, 8, 9)]
+        assert cols[0][0] == axis.x0 and cols[-1][1] == axis.x1
+        assert all(a[1] == b[0] for a, b in zip(cols, cols[1:]))
+
+    def test_an_event_is_listed_on_its_start_day_or_the_first(self):
+        axis = _axis()
+        late = _event("Late", datetime(2026, 4, 7, 23), hours=3)
+        assert wh.column_day(late, axis) == date(2026, 4, 7)
+        early = _event("Running", datetime(2026, 4, 5, 20), hours=16)
+        assert wh.column_day(early, axis) == date(2026, 4, 6)
+
+    def test_row_time_is_the_start_or_the_end_of_one_already_running(self):
+        axis = _axis()
+        assert wh.row_time(_event("A", datetime(2026, 4, 7, 15, 30)), axis) == "3:30p"
+        assert wh.row_time(_event("B", datetime(2026, 4, 6, 8), hours=3), axis) == "–11a"
+
+    def test_list_rows(self):
+        assert wh.list_rows(3, 0, 6) == (3, 0)
+        assert wh.list_rows(6, 0, 6) == (6, 0)
+        # One too many: the last row is the count, never a silent cut.
+        assert wh.list_rows(7, 0, 6) == (5, 2)
+        # Hidden all-day items are counted even when the events fit.
+        assert wh.list_rows(2, 1, 6) == (2, 1)
+        assert wh.list_rows(6, 1, 6) == (5, 2)
+        assert wh.list_rows(4, 0, 0) == (0, 4)
+
+    def test_allday_depth_counts_only_chips_over_the_column(self):
+        chips = [(0, 100, 300), (1, 250, 400)]
+        assert wh.allday_depth(chips, 0, 90) == 0
+        assert wh.allday_depth(chips, 90, 200) == 1
+        assert wh.allday_depth(chips, 350, 500) == 2
+
+    def test_fit_text(self):
+        assert wh.fit_text("Standup", 7, len) == "Standup"
+        assert wh.fit_text("Design review", 7, len) == "Design…"
+        assert wh.fit_text("Design review", 0, len) == ""
+
+    @staticmethod
+    def _list(img, day, top=0, h=None):
+        """Ink in a day's column below the strip (optionally a slice of it)."""
+        axis = _axis()
+        x0, x1 = next((a, b) for a, b, d in wh.day_columns(axis) if d == day)
+        y0 = EVENTS_Y0 + wh.STRIP_H + wh.STRIP_GAP + top
+        return ink(img, (int(x0) + 3, y0, int(x1) - 3, 480 - 6 if h is None else y0 + h))
+
+    def test_events_are_listed_in_their_days_column(self):
+        evt = _event("Dentist appointment", datetime(2026, 4, 7, 14))
+        empty = _plate(DashboardData(), mode="L").convert("1")
+        booked = _plate(DashboardData(events=[evt]), mode="L").convert("1")
+        tue, wed = date(2026, 4, 7), date(2026, 4, 8)
+        assert self._list(booked, tue, h=wh.ROW_H) > self._list(empty, tue, h=wh.ROW_H) + 200
+        assert self._list(booked, wed) == self._list(empty, wed)
+
+    def test_one_line_per_event_not_a_staircase(self):
+        # Six back-to-back events whose labels would overlap on the time axis
+        # fill six rows, and all of them are drawn.
+        day = datetime(2026, 4, 7, 9)
+        events = [_event(f"Meeting {i}", day + timedelta(hours=i)) for i in range(6)]
+        img = _plate(DashboardData(events=events), mode="L").convert("1")
+        rows = [self._list(img, day.date(), top=i * wh.ROW_H, h=wh.ROW_H) for i in range(6)]
+        assert all(r > 100 for r in rows)
+
+    def test_a_chip_on_another_day_does_not_push_the_list_down(self):
+        evt = _event("Dentist", datetime(2026, 4, 7, 14))
+        chip = _event("Conference", datetime(2026, 4, 8), hours=24, all_day=True)
+        alone = _plate(DashboardData(events=[evt]), mode="L").convert("1")
+        beside = _plate(DashboardData(events=[evt, chip]), mode="L").convert("1")
+        tue = date(2026, 4, 7)
+        # The first row, not the column: a list pushed down keeps its ink.
+        first = dict(h=wh.ROW_H)
+        assert self._list(beside, tue, **first) == self._list(alone, tue, **first)
+        assert self._list(alone, tue, **first) > 200
+
+    def test_a_chip_over_the_day_starts_its_list_below_it(self):
+        evt = _event("Dentist", datetime(2026, 4, 7, 14))
+        chip = _event("Holiday", datetime(2026, 4, 7), hours=24, all_day=True)
+        alone = _plate(DashboardData(events=[evt]), mode="L").convert("1")
+        under = _plate(DashboardData(events=[evt, chip]), mode="L").convert("1")
+        tue = date(2026, 4, 7)
+        second = dict(top=wh.ALLDAY_H + 4, h=wh.ROW_H - 4)
+        assert self._list(under, tue, **second) > self._list(alone, tue, **second) + 100
+
+
 class TestOverflow:
     def test_counts_by_day_with_an_early_start_on_the_first(self):
         axis = _axis()
@@ -606,41 +693,40 @@ class TestOverflow:
         ]
         assert wh.overflow_counts(starts, axis) == {date(2026, 4, 6): 2, date(2026, 4, 8): 1}
 
-    @staticmethod
-    def _footer_ink(data):
-        img = _plate(data, mode="L").convert("1")
-        return ink(img, (SKY[0], 480 - 6 - wh.OVERFLOW_H, 1360, 480 - 6))
+    def test_a_busy_day_ends_on_a_count_in_its_own_column(self):
+        day = datetime(2026, 4, 7, 8)
+        events = [_event(f"Meeting {i}", day + timedelta(hours=i)) for i in range(9)]
+        many = _plate(DashboardData(events=events))
+        six = _plate(DashboardData(events=events[:6]))
+        x0, x1 = next((a, b) for a, b, d in wh.day_columns(_axis()) if d == day.date())
+        y0 = EVENTS_Y0 + wh.STRIP_H + wh.STRIP_GAP + 5 * wh.ROW_H
+        last = (int(x0), y0, int(x1), y0 + wh.ROW_H)
+        assert _count(many, RED, last) > 50  # "+4 more" in the accent
+        assert _count(six, RED, last) == 0  # six fit exactly: no count
 
     def test_an_all_day_item_past_the_rows_is_counted(self):
         day = datetime(2026, 4, 7)
         chips = [_event(f"Holiday {i}", day, hours=24, all_day=True) for i in range(3)]
-        two = self._footer_ink(DashboardData(events=chips[:2]))
-        three = self._footer_ink(DashboardData(events=chips))
-        assert three > two + 20  # the rules and hairlines cross the footer too
+        two = _plate(DashboardData(events=chips[:2]), mode="L").convert("1")
+        three = _plate(DashboardData(events=chips), mode="L").convert("1")
+        first = dict(top=2 * wh.ALLDAY_H, h=wh.ROW_H)
+        assert TestDayLists._list(three, day.date(), **first) > (
+            TestDayLists._list(two, day.date(), **first) + 50
+        )
 
     def test_a_count_for_a_narrow_first_day_stays_on_the_plate(self):
         # At 21:30 the window opens at 21:00 and today is a ~45-px sliver, too
-        # narrow for "+N more" — the count must not slide into the hero block.
+        # narrow for a row — the count must not slide into the hero block.
         now = datetime(2026, 4, 6, 21, 30)
         events = [_event(f"Late {i}", datetime(2026, 4, 6, 21, 30), hours=1) for i in range(8)]
-        foot = (SKY[0], 480 - 6 - wh.OVERFLOW_H, SKY[0] + 60, 480 - 6)
-        edge = (SKY[0], foot[1], SKY[0] + 4, foot[3])  # where a clipped label would cross
+        x1 = int(wh.day_columns(_axis(now))[0][1])
+        y0 = EVENTS_Y0 + wh.STRIP_H + wh.STRIP_GAP
+        col = (SKY[0], y0, x1 - 2, y0 + wh.ROW_H)
+        edge = (SKY[0], y0, SKY[0] + 2, y0 + wh.ROW_H)  # where a clipped count would cross
         busy = _plate(DashboardData(events=events), mode="L", now=now).convert("1")
-        few = _plate(DashboardData(events=events[:2]), mode="L", now=now).convert("1")
-        assert ink(busy, foot) > ink(few, foot) + 20
-        assert ink(busy, edge) == ink(few, edge)
-
-    def test_the_count_keeps_clear_of_the_last_lane(self):
-        # Two all-day rows plus more timed events than fit: the last lane drawn
-        # must end above the footer row the count sits in.
-        day = datetime(2026, 4, 7)
-        chips = [_event(f"Trip {i}", day, hours=24, all_day=True) for i in range(2)]
-        timed = [_event(f"Meeting {i}", datetime(2026, 4, 7, 10), hours=1) for i in range(9)]
-        axis = _axis()
-        x0 = int(axis.x(datetime(2026, 4, 7, 10))) + 2
-        bars = (x0, 480 - 6 - wh.OVERFLOW_H, x0 + 10, 480 - 6)
-        img = _plate(DashboardData(events=chips + timed), mode="L").convert("1")
-        assert ink(img, bars) == 0
+        none = _plate(DashboardData(), mode="L", now=now).convert("1")
+        assert ink(busy, col) > ink(none, col) + 20
+        assert ink(busy, edge) == ink(none, edge)
 
 
 class TestOutlook:
@@ -820,22 +906,24 @@ class TestRender:
         assert _count(clear, YELLOW, disc) > 200
         assert _count(overcast, YELLOW, disc) == 0
 
-    def test_an_event_is_a_bar_at_its_time(self):
+    def test_an_event_is_a_block_on_the_strip_at_its_time(self):
         evt = _event("Dentist", datetime(2026, 4, 7, 14), hours=2)
         axis = _axis()
         x0, x1 = int(axis.x(evt.start)), int(axis.x(evt.end))
-        band = (x0 + 2, EVENTS_Y0, x1 - 2, EVENTS_Y0 + wh.LANE_H)
-        empty = _plate(DashboardData(), mode="L")
-        booked = _plate(DashboardData(events=[evt]), mode="L")
-        assert ink(booked.convert("1"), band) > ink(empty.convert("1"), band) + 200
+        band = (x0 + 2, EVENTS_Y0, x1 - 2, EVENTS_Y0 + wh.STRIP_H)
+        elsewhere = (x1 + 10, EVENTS_Y0, x1 + 60, EVENTS_Y0 + wh.STRIP_H)
+        empty = _plate(DashboardData(), mode="L").convert("1")
+        booked = _plate(DashboardData(events=[evt]), mode="L").convert("1")
+        assert ink(booked, band) > ink(empty, band) + (x1 - x0 - 6) * (wh.STRIP_H - 1)
+        assert ink(booked, elsewhere) == ink(empty, elsewhere)
 
-    def test_overflowing_lanes_count_the_rest(self):
-        day = datetime(2026, 4, 7, 10)
-        events = [_event(f"Meeting {i}", day, hours=1) for i in range(12)]
-        img = _plate(DashboardData(events=events), mode="L")
-        few = _plate(DashboardData(events=events[:3]), mode="L")
-        foot = (SKY[0], 480 - 22, 1360, 480)
-        assert ink(img.convert("1"), foot) > ink(few.convert("1"), foot)
+    def test_back_to_back_events_stay_two_blocks(self):
+        a = _event("A", datetime(2026, 4, 7, 10))
+        b = _event("B", datetime(2026, 4, 7, 11))
+        x = int(round(_axis().x(b.start)))
+        seam = (x - 1, EVENTS_Y0, x + 1, EVENTS_Y0 + wh.STRIP_H - 1)
+        img = _plate(DashboardData(events=[a, b]), mode="L").convert("1")
+        assert ink(img, seam) < 2 * (wh.STRIP_H - 1)
 
     def test_hero_shows_the_reading_and_an_alert(self):
         calm = _plate(DashboardData(weather=_weather(_diurnal())))

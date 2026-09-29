@@ -118,9 +118,10 @@ the sun's real altitude: paper by day, then yellow, red and black through each
 twilight, with stars and a phase-correct moon at night. Clouds, rain, snow,
 lightning and fog are drawn over each three-hour forecast slot. The temperature
 runs across the sky as one line, with each day's high and low marked. Each slot's
-chance of rain hangs beneath the sky, and the calendar's events sit below on the
-same hours. A hero block at the left carries the conditions now and an outlook for
-the window: warmest, coldest and first rain.
+chance of rain hangs beneath the sky, and the calendar sits below: a strip
+marking each event on the same hours, over a list of each day's events in its
+own column. A hero block at the left carries the conditions now and an outlook
+for the window: warmest, coldest and first rain.
 
 On this panel the twilights are patterns mixing two inks at a time: white with
 yellow, yellow with red, red with black. The panel shows pale yellow, orange and
