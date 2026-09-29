@@ -108,9 +108,11 @@ ALLDAY_H = 22
 STRIP_H = 10
 STRIP_GAP = 8
 # Each day's events listed in its own column, one line apiece.
-ROW_H = 25
-ROW_TITLE_PT = 18
-ROW_TIME_PT = 15
+# The heaviest DM Sans, a size up: read at a glance across a room. Six
+# rows still fill the band below the strip when no all-day chip crosses it.
+ROW_H = 26
+ROW_TITLE_PT = 21
+ROW_TIME_PT = 17
 COL_PAD = 8  # a column's text keeps this far off the midnight rules (= day-name inset)
 TIME_GAP = 8  # between the time cell and the title
 MIN_COL_W = 90  # a day's column narrower than this lists nothing, only a count
@@ -1423,9 +1425,9 @@ def _draw_events(draw, data: DashboardData, axis: TimeAxis, y0: int, y1: int, in
                     )
 
     hidden_by_day = overflow_counts(hidden, axis)
-    title_font = fonts.dm_bold(ROW_TITLE_PT)
-    time_font = fonts.dm_semibold(ROW_TIME_PT)
-    more_font = fonts.dm_bold(ROW_TIME_PT)
+    title_font = fonts.dm_extrablack(ROW_TITLE_PT)
+    time_font = fonts.dm_black(ROW_TIME_PT)
+    more_font = fonts.dm_black(ROW_TIME_PT)
 
     def measure_title(t: str) -> float:
         return text_width(draw, t, title_font)

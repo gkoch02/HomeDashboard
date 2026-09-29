@@ -77,6 +77,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   took the top row and pushed the trip under it. Spans are now seated first,
   and a single day goes below every span it overlaps; a day no span crosses
   still uses the top row.
+- **`wide_horizon` event rows are heavier.** Titles are DM Sans at its axis
+  maximum weight (1000) at 21 px and times weight 900 at 17 px, up from Bold
+  18 px over SemiBold 15 px; rows grow to 26 px and a full day still shows
+  six. Weights 800 and 900 at this size hint to the same 1-bit stems as Bold,
+  which is why the step goes to the maximum. New accessors `fonts.dm_black`
+  and `fonts.dm_extrablack`.
 
 - **`wide_horizon` lists each day's events instead of hanging labels on the
   time axis.** A waking hour is about 19 px wide and a label about 150, so

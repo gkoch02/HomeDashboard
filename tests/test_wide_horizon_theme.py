@@ -662,6 +662,17 @@ class TestDayLists:
         rows = [self._list(img, day.date(), top=i * wh.ROW_H, h=wh.ROW_H) for i in range(6)]
         assert all(r > 100 for r in rows)
 
+    def test_rows_are_set_heavier_than_bold(self):
+        # Read at a glance across a room: the titles are the axis-maximum
+        # weight, which sets visibly more ink than DM Sans Bold at the same size.
+        evt = _event("Dentist Appointment", datetime(2026, 4, 7, 14))
+        data = DashboardData(events=[evt])
+        tue = date(2026, 4, 7)
+        heavy = self._list(_plate(data, mode="L").convert("1"), tue, h=wh.ROW_H)
+        with patch.object(fonts, "dm_extrablack", fonts.dm_bold):
+            bold = self._list(_plate(data, mode="L").convert("1"), tue, h=wh.ROW_H)
+        assert heavy > bold * 1.15
+
     def test_a_chip_on_another_day_does_not_push_the_list_down(self):
         evt = _event("Dentist", datetime(2026, 4, 7, 14))
         chip = _event("Conference", datetime(2026, 4, 8), hours=24, all_day=True)
@@ -1017,7 +1028,13 @@ class TestRender:
 class TestFonts:
     @pytest.mark.parametrize(
         "accessor",
-        [fonts.big_shoulders_semibold, fonts.big_shoulders_extrabold, fonts.big_shoulders_black],
+        [
+            fonts.big_shoulders_semibold,
+            fonts.big_shoulders_extrabold,
+            fonts.big_shoulders_black,
+            fonts.dm_black,
+            fonts.dm_extrablack,
+        ],
     )
     def test_loads_and_covers_the_glyphs_used(self, accessor):
         font = accessor(30)
