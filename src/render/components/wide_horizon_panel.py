@@ -108,8 +108,11 @@ ALLDAY_H = 22
 STRIP_H = 10
 STRIP_GAP = 8
 # Each day's events listed in its own column, one line apiece.
-# The heaviest DM Sans, a size up: read at a glance across a room. Six
-# rows still fill the band below the strip when no all-day chip crosses it.
+# Literata Bold, a reading serif drawn for e-readers: a 4-px stem on the
+# titles and 3 px on the times on a 1-bit plate, where DM Sans Bold set 2 px
+# and only its blunt axis maximum went heavier. SemiBold would snap the times
+# to 2 px below 18 px (as on wide_week's rail). Six rows still fill the band
+# below the strip when no all-day chip crosses it.
 ROW_H = 26
 ROW_TITLE_PT = 21
 ROW_TIME_PT = 17
@@ -1425,9 +1428,9 @@ def _draw_events(draw, data: DashboardData, axis: TimeAxis, y0: int, y1: int, in
                     )
 
     hidden_by_day = overflow_counts(hidden, axis)
-    title_font = fonts.dm_extrablack(ROW_TITLE_PT)
-    time_font = fonts.dm_black(ROW_TIME_PT)
-    more_font = fonts.dm_black(ROW_TIME_PT)
+    title_font = fonts.literata_bold(ROW_TITLE_PT)
+    time_font = fonts.literata_bold(ROW_TIME_PT)
+    more_font = fonts.literata_bold(ROW_TIME_PT)
 
     def measure_title(t: str) -> float:
         return text_width(draw, t, title_font)

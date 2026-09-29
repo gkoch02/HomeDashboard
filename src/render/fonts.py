@@ -72,15 +72,6 @@ def dm_bold(size: int) -> ImageFont.FreeTypeFont:
     return _get_dm_sans(size, 700)
 
 
-def dm_black(size: int) -> ImageFont.FreeTypeFont:
-    return _get_dm_sans(size, 900)
-
-
-def dm_extrablack(size: int) -> ImageFont.FreeTypeFont:
-    """The axis maximum (1000): 800 and 900 hint to the same 1-bit stems as 700 at ~20 px."""
-    return _get_dm_sans(size, 1000)
-
-
 # Cinzel — Roman inscription caps, used for the D&D Fantasy theme.
 # Variable font with a single weight axis (wght 400–900).
 @lru_cache(maxsize=32)

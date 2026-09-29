@@ -662,16 +662,28 @@ class TestDayLists:
         rows = [self._list(img, day.date(), top=i * wh.ROW_H, h=wh.ROW_H) for i in range(6)]
         assert all(r > 100 for r in rows)
 
-    def test_rows_are_set_heavier_than_bold(self):
-        # Read at a glance across a room: the titles are the axis-maximum
-        # weight, which sets visibly more ink than DM Sans Bold at the same size.
+    @staticmethod
+    def _stem(font) -> int:
+        """The median width of an ``l``'s ink rows: its stem, serifs averaged out."""
+        img = Image.new("1", (60, 60), 1)
+        ImageDraw.Draw(img).text((5, 5), "l", font=font, fill=0)
+        widths = sorted(n for n in (ink(img, (0, y, 60, y + 1)) for y in range(60)) if n)
+        return widths[len(widths) // 2]
+
+    def test_rows_are_set_in_literata_with_heavy_stems(self):
+        # Read at a glance across a room: DM Sans Bold at 18 px set a 2-px stem.
+        title, time = fonts.literata_bold(wh.ROW_TITLE_PT), fonts.literata_bold(wh.ROW_TIME_PT)
+        assert self._stem(title) >= 4
+        assert self._stem(time) >= 3
+
+    def test_the_rows_draw_in_literata(self):
         evt = _event("Dentist Appointment", datetime(2026, 4, 7, 14))
         data = DashboardData(events=[evt])
         tue = date(2026, 4, 7)
-        heavy = self._list(_plate(data, mode="L").convert("1"), tue, h=wh.ROW_H)
-        with patch.object(fonts, "dm_extrablack", fonts.dm_bold):
-            bold = self._list(_plate(data, mode="L").convert("1"), tue, h=wh.ROW_H)
-        assert heavy > bold * 1.15
+        lit = self._list(_plate(data, mode="L").convert("1"), tue, h=wh.ROW_H)
+        with patch.object(fonts, "literata_bold", fonts.dm_bold):
+            dm = self._list(_plate(data, mode="L").convert("1"), tue, h=wh.ROW_H)
+        assert lit > dm * 1.15
 
     def test_a_chip_on_another_day_does_not_push_the_list_down(self):
         evt = _event("Dentist", datetime(2026, 4, 7, 14))
@@ -1032,8 +1044,6 @@ class TestFonts:
             fonts.big_shoulders_semibold,
             fonts.big_shoulders_extrabold,
             fonts.big_shoulders_black,
-            fonts.dm_black,
-            fonts.dm_extrablack,
         ],
     )
     def test_loads_and_covers_the_glyphs_used(self, accessor):
