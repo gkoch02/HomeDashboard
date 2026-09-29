@@ -683,6 +683,39 @@ class TestDayLists:
         assert self._list(under, tue, **second) > self._list(alone, tue, **second) + 100
 
 
+class TestChipHierarchy:
+    def test_spans_take_the_top_rows(self):
+        # A single day starting with a span, or before it, would win row 0 on
+        # a left-to-right packing; the span takes it here.
+        items = [(0, 50, False, "dentist"), (0, 300, True, "trip"), (100, 150, False, "gym")]
+        assert wh.stack_chips(items) == [["trip"], ["dentist", "gym"]]
+
+    def test_a_single_day_stays_below_every_span_it_crosses(self):
+        # Two overlapping spans take rows 0 and 1; a day under the second span
+        # goes below it even where row 0 is free.
+        items = [(0, 200, True, "a"), (150, 400, True, "b"), (250, 300, False, "day")]
+        assert wh.stack_chips(items) == [["a"], ["b"], ["day"]]
+
+    def test_a_day_no_span_crosses_starts_at_the_top(self):
+        items = [(0, 200, True, "trip"), (300, 350, False, "day")]
+        assert wh.stack_chips(items) == [["trip", "day"]]
+
+    def test_longer_span_first_when_spans_start_together(self):
+        items = [(0, 100, True, "short"), (0, 300, True, "long")]
+        assert wh.stack_chips(items) == [["long"], ["short"]]
+
+    def test_render_puts_the_span_on_the_top_row(self):
+        tue = datetime(2026, 4, 7)
+        single = _event("Holiday", tue, hours=24, all_day=True)
+        trip = _event("Trip", tue, hours=48, all_day=True)
+        axis = _axis()
+        x = int(axis.x(datetime(2026, 4, 8, 12)))  # Wednesday: only the trip covers it
+        y0 = EVENTS_Y0 + wh.STRIP_H + wh.STRIP_GAP
+        top = (x - 20, y0, x + 20, y0 + wh.ALLDAY_H - 4)
+        img = _plate(DashboardData(events=[single, trip]))
+        assert _count(img, RED, top) > 300
+
+
 class TestOverflow:
     def test_counts_by_day_with_an_early_start_on_the_first(self):
         axis = _axis()

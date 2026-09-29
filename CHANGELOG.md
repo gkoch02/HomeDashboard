@@ -72,6 +72,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- **`wide_horizon` stacks multi-day all-day events above single days.** Chips
+  were packed left to right, so a one-day item starting on or before a trip
+  took the top row and pushed the trip under it. Spans are now seated first,
+  and a single day goes below every span it overlaps; a day no span crosses
+  still uses the top row.
+
 - **`wide_horizon` lists each day's events instead of hanging labels on the
   time axis.** A waking hour is about 19 px wide and a label about 150, so
   every label ran eight hours past its own bar and neighbouring events
