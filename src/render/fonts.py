@@ -220,6 +220,18 @@ def literata_bold(size: int) -> ImageFont.FreeTypeFont:
     return get_font("Literata-Bold.ttf", size)
 
 
+# Inter — a neutral grotesque drawn for screens (OFL). Static Bold and
+# ExtraBold, full glyph set, from the official v4.1 release
+# (extras/ttf in github.com/rsms/inter). ExtraBold sets a 4-px stem at 21 px
+# on a 1-bit plate and Bold 3 px at 17 px, where DM Sans Bold hints to 2 px.
+def inter_bold(size: int) -> ImageFont.FreeTypeFont:
+    return get_font("Inter-Bold.ttf", size)
+
+
+def inter_extrabold(size: int) -> ImageFont.FreeTypeFont:
+    return get_font("Inter-ExtraBold.ttf", size)
+
+
 # Cormorant Garamond — high-contrast Garamond-revival serif (OFL).  Variable
 # font with a wght axis (300–700); paired with Cinzel for moonphase's
 # mystical/celestial body text.
