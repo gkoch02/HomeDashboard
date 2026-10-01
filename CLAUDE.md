@@ -372,7 +372,7 @@ The cooldown is `display.min_refresh_interval_seconds` (config), defaulting to 6
 | `PlusJakartaSans-*.ttf` | `regular`, `medium`, `semibold`, `bold` | Default font for all themes |
 | `weathericons-regular.ttf` | `weather_icon` | Weather condition icons + moon phase glyphs (all themes) |
 | `ShareTechMono-Regular.ttf` | `cyber_mono` | `terminal` — all four base text slots (`font_regular`/`medium`/`semibold`/`bold`), so every element not claimed by a specialised slot: event rows, weather readings, birthday rows, header timestamp; `diags` — all data rows |
-| `Oxanium-Variable.ttf` (OFL, variable) | `oxanium`, `oxanium_bold` | `terminal` — dashboard title, day column headers, quote body |
+| `Oxanium-Variable.ttf` (OFL, variable) | `oxanium`, `oxanium_bold`, `oxanium_extrabold` | `terminal` — dashboard title, day column headers, quote body; `wide_night` — the tracked labels (ExtraBold) |
 | `Rajdhani-Regular.ttf` / `Rajdhani-SemiBold.ttf` (OFL) | `rajdhani`, `rajdhani_semibold` | `terminal` — month band, section labels, quote attribution |
 | `Orbitron-Variable.ttf` (OFL, variable) | `orbitron_black` | `terminal` — large today date numeral |
 | `DMSans.ttf` | `dm_regular/medium/semibold/bold` | `minimalist`, `weather`, `fuzzyclock`, `diags` (section labels), `countdown`, `astronomy`, `agenda`, `light_cycle`, `constellation_map` (margin) |
@@ -391,7 +391,7 @@ The cooldown is `display.min_refresh_interval_seconds` (config), defaulting to 6
 | `Audiowide-Regular.ttf` (OFL) | `audiowide` | `constellation_map` — cardinal letters, star + constellation labels |
 | `Righteous-Regular.ttf` (OFL) | `righteous` | `light_cycle` — hero day-of-month numeral; `halftone` — every typeset element; `day_arc` — chrome (dateline, numeral, labels) |
 | `Rye-Regular.ttf` (OFL) | `rye` | `weatherglass` — Western-saloon instrument-deck masthead |
-| `Jura-Variable.ttf` (OFL, variable, wght 300–700) | `jura_semibold`, `jura_bold` | `wide_night` — numerals (SemiBold) and the tracked labels (Bold) |
+| `Jura-Variable.ttf` (OFL, variable, wght 300–700) | `jura_semibold` | `wide_night` — numerals |
 | `BigShouldersDisplay-{SemiBold,ExtraBold,Black}.ttf` (OFL; static cuts converted from the Fontsource latin subset) | `big_shoulders_semibold/extrabold/black` | `wide_horizon` — day names, temperature labels, hero reading and outlook |
 
 ### `ThemeLayout` rendering fields

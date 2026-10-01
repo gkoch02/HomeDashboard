@@ -122,7 +122,7 @@ def cinzel_black(size: int) -> ImageFont.FreeTypeFont:
 
 # Oxanium — techno/cyberpunk display sans whose squared geometric terminals read
 # as retro-future (Sev Meyer, OFL).  Carries the terminal theme's title, day
-# column headers, and quote body.  Chosen over the wider Orbitron for these roles
+# column headers, and quote body, and (at ExtraBold) the ``wide_night`` labels.  Chosen over the wider Orbitron for these roles
 # because it stays legible in a 14px day header and a wrapped quote line, where a
 # wide face would force the text size down.
 #
@@ -144,6 +144,10 @@ def oxanium_bold(size: int) -> ImageFont.FreeTypeFont:
     return _get_oxanium(size, 700)
 
 
+def oxanium_extrabold(size: int) -> ImageFont.FreeTypeFont:
+    return _get_oxanium(size, 800)
+
+
 # Orbitron — the canonical geometric sci-fi display face (Matt McInerney, OFL).
 # Very wide, so it is reserved for the terminal theme's single hero element: the
 # large today date numeral.  Variable font, wght 400-900; Black (900) gives the
@@ -163,7 +167,8 @@ def orbitron_black(size: int) -> ImageFont.FreeTypeFont:
 # drawn after the lettering on Soviet-era instrument panels. Variable font,
 # wght 300-700. Sets the ``wide_night`` temperature at display size, where its
 # open, even forms read across a dark room; SemiBold (600) keeps the stems
-# solid on the four-ink panel without the numerals clotting.
+# solid on the four-ink panel without the numerals clotting. Its 700 is too
+# light for the 20-px labels, which are set in Oxanium ExtraBold instead.
 @lru_cache(maxsize=32)
 def _get_jura(size: int, wght: int) -> ImageFont.FreeTypeFont:
     font = ImageFont.truetype(str(FONT_DIR / "Jura-Variable.ttf"), size)
@@ -173,10 +178,6 @@ def _get_jura(size: int, wght: int) -> ImageFont.FreeTypeFont:
 
 def jura_semibold(size: int) -> ImageFont.FreeTypeFont:
     return _get_jura(size, 600)
-
-
-def jura_bold(size: int) -> ImageFont.FreeTypeFont:
-    return _get_jura(size, 700)
 
 
 # Rajdhani — squarish semi-condensed techno sans drawn for UI legibility at small

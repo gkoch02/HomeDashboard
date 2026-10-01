@@ -24,7 +24,7 @@ dark room every fetch.
 
 from __future__ import annotations
 
-from src.render.fonts import jura_bold, jura_semibold
+from src.render.fonts import jura_semibold, oxanium_extrabold
 from src.render.theme import (
     INKY_BLACK,
     INKY_RED,
@@ -59,12 +59,14 @@ def wide_night_theme() -> Theme:
         style=ThemeStyle(
             fg=1,
             bg=0,
-            # One face for the whole plate.
+            # Jura for the marks.
             font_regular=jura_semibold,
             font_medium=jura_semibold,
             font_semibold=jura_semibold,
-            # The tracked labels under each mark.
-            font_bold=jura_bold,
+            # The tracked labels under each mark: Oxanium ExtraBold, because
+            # Jura tops out at 700 and its 20-px stems read thin across a
+            # dark room. Same squared instrument-panel letter, twice the stem.
+            font_bold=oxanium_extrabold,
             font_date_number=jura_semibold,
             accent_primary=INKY_RED,
             accent_secondary=INKY_BLACK,

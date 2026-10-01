@@ -218,6 +218,12 @@ class TestHeight:
         placed = wn._measure(temp, MONO_STYLE, 200)
         assert placed.font.path.endswith("Jura-Variable.ttf")
 
+    def test_labels_set_a_three_pixel_stem(self):
+        """Jura's heaviest weight laid a 2-px stem at the label size, which read
+        thin across a dark room; the label face must hold 3 px, bilevel."""
+        box = wn.ink_box("I", MONO_STYLE.font_bold(wn.LABEL_PT))
+        assert box[2] - box[0] >= 3
+
 
 class TestMoon:
     def test_crescent_has_no_outline_on_its_dark_limb(self):
