@@ -14,7 +14,7 @@ tonight's readings, and ``fit_height`` is what decides it. Both numerals are
 set in ``style.font_date_number``. Every mark carries a small label on one
 shared baseline beneath the row — fixed-size, tracked caps in ``style.font_bold``,
 the instrument-panel convention — and the row plus its labels is centred on
-the plate. The theme points every font slot at one face.
+the plate.
 
 The colours come from the theme's style rather than being fixed here, so the
 plate reads the same on every backend:

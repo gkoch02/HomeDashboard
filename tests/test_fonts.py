@@ -12,6 +12,7 @@ from src.render.fonts import (
     orbitron_black,
     oxanium,
     oxanium_bold,
+    oxanium_extrabold,
     rajdhani,
     rajdhani_semibold,
     regular,
@@ -50,6 +51,9 @@ class TestFontAccessors:
     def test_oxanium_bold(self):
         assert isinstance(oxanium_bold(12), ImageFont.FreeTypeFont)
 
+    def test_oxanium_extrabold(self):
+        assert isinstance(oxanium_extrabold(12), ImageFont.FreeTypeFont)
+
     def test_orbitron_black(self):
         assert isinstance(orbitron_black(12), ImageFont.FreeTypeFont)
 
@@ -82,6 +86,7 @@ class TestFontAccessors:
             return marks(img, background=255)
 
         assert stroke_mass(oxanium_bold(48)) > stroke_mass(oxanium(48))
+        assert stroke_mass(oxanium_extrabold(48)) > stroke_mass(oxanium_bold(48))
         assert stroke_mass(antonio_bold(48)) > stroke_mass(antonio_semibold(48))
 
     def test_caching_returns_same_object(self):

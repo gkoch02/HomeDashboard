@@ -22,8 +22,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   almost all negative space: the moon's phase, the temperature, the
   air-quality index and the current weather glyph, at one shared height with
   wide, equal gaps and a small letter-spaced label under each (`MOON`,
-  `TEMP`, `AQI`, `SKY`), in black ink on a solid red ground, set in Jura
-  (newly bundled, OFL). **`wide_night_invert`** is the same plate with
+  `TEMP`, `AQI`, `SKY`), in black ink on a solid red ground, the numerals set in Jura
+  (newly bundled, OFL) and the labels in Oxanium ExtraBold. **`wide_night_invert`** is the same plate with
   ground and ink swapped: red on black on the colour panels, black on white
   on monochrome. On a monochrome
   panel, which has no red, it draws white on black. A mark without data (no
