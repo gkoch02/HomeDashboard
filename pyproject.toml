@@ -36,7 +36,7 @@ dev = [
     # Pinned, and pinned to the same version as .pre-commit-config.yaml
     # (tests/test_requirements_sync.py holds them together): ruff's formatter
     # output changes between minors, so a floor let the hook and CI disagree.
-    "ruff==0.15.8",
+    "ruff==0.16.9",
     "mypy>=1.0",
     "flask>=3.0",
     "waitress>=3.0",
