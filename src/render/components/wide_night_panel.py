@@ -53,8 +53,10 @@ BAND_FRACTION = 0.8
 # before the shared height is reduced: a share of the height, so the gaps
 # grow with the type — a fixed gap is overtaken by the space inside a mark
 # (a numeral and its degree sign) as the marks get taller, and the row stops
-# reading as four things — with a floor for very short rows.
-MIN_GAP_FRACTION = 0.9
+# reading as four things — with a floor for very short rows. At 0.5 a
+# four-mark row (with AQI) sets ~169 px marks, ~94% of the three-mark size;
+# 0.9 shrank them to 135 px the moment PurpleAir added the fourth.
+MIN_GAP_FRACTION = 0.5
 MIN_GAP = 48
 # The labels: a fixed size rather than a share of the mark height, so they
 # stay deliberate at any row height; tracked out as a fraction of that size.
