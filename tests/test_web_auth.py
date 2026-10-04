@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import logging
 import runpy
 import sys
@@ -112,6 +113,14 @@ def test_middleware_returns_401_with_wrong_username():
     client = app.test_client()
     # other:secret
     resp = client.get("/ping", headers={"Authorization": "Basic b3RoZXI6c2VjcmV0"})
+    assert resp.status_code == 401
+
+
+@pytest.mark.parametrize("credentials", [b"admin", b"admin:"])
+def test_middleware_returns_401_with_username_but_no_password(credentials):
+    app = _app_with_auth("admin", hash_password("secret"))
+    header = "Basic " + base64.b64encode(credentials).decode()
+    resp = app.test_client().get("/ping", headers={"Authorization": header})
     assert resp.status_code == 401
 
 
