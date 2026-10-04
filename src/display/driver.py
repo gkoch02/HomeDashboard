@@ -19,7 +19,9 @@ logger = logging.getLogger(__name__)
 # see below), and its dimensions must be the driver's own ``EPD_WIDTH`` /
 # ``EPD_HEIGHT``: a driver's ``getbuffer()`` compares the image against those
 # constants and returns a blank buffer on a mismatch, so a wrong size here is a
-# white panel with no error. Check the vendor repo before adding a model.
+# white panel with no error. Check the vendor repo before adding a model:
+# ``epd9in7`` and ``epd7in5_V3`` have no module there (the 9.7" panel is
+# IT8951-driven), so listing them fails at import.
 WAVESHARE_MODELS: dict[str, tuple[str, int, int]] = {
     "epd7in5": ("waveshare_epd.epd7in5", 640, 384),
     "epd7in5_V2": ("waveshare_epd.epd7in5_V2", 800, 480),

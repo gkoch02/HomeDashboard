@@ -137,8 +137,8 @@ your v4 settings around does not block the CalDAV path.
 
 v5 stamps `schema_version: 5` into in-memory configs at parse time. v4 configs (no
 `schema_version` field) are upgraded transparently — no rewrite of your `config.yaml`
-on disk and no data loss. Future schema changes will use the same runner with
-versioned `.bak-v<N>` backups when they need to mutate the file directly.
+on disk and no data loss. Future schema changes will use the same runner; one that
+needs to mutate the file directly will take its own backup first.
 
 ### Web UI editor
 

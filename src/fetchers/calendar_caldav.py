@@ -94,11 +94,10 @@ def fetch_from_caldav(
         CalendarFetchError: on connection, authentication, calendar-lookup or
             search failure. The return value is the caller's complete
             calendar — it gets cached, marked fresh, and counted as a breaker
-            success — so an unreachable server cannot be reported as an empty
-            week without overwriting the last good calendar, silently and with
-            no staleness indicator. Individual unparseable VEVENTs are still
-            skipped, since those
-            genuinely are per-event problems.
+            success — so returning ``[]`` for an unreachable server would
+            overwrite the last good calendar silently, with no staleness
+            indicator. Individual unparseable VEVENTs are still skipped, since
+            those genuinely are per-event problems.
         RuntimeError: if the ``caldav`` package is not installed, or the
             password file is missing/unreadable/empty.
     """
