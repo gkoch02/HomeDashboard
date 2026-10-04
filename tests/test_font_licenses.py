@@ -82,7 +82,6 @@ def test_every_bundled_font_ships_its_license(font: Path):
 # sibling licence file's word for it.
 GRANT_VERIFIED_UPSTREAM = {
     # google/fonts ofl/astloch/METADATA.pb records `license: "OFL"`.
-    "Astloch-Regular.ttf": "https://github.com/google/fonts/blob/main/ofl/astloch/METADATA.pb",
     "Astloch-Bold.ttf": "https://github.com/google/fonts/blob/main/ofl/astloch/METADATA.pb",
     # google/fonts ofl/tangerine/METADATA.pb records `license: "OFL"`. The
     # binary's copyright reads "All rights reserved", the pre-2012 Google Fonts

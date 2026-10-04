@@ -8,13 +8,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
-- Repo-hygiene guards, run by `make lint`, the lint CI job and the test suite:
-  `tools/check_test_assertions.py` fails a test that asserts nothing,
-  `tools/check_dead_code.py` runs vulture over `src/` with tests and scripts
-  counted as callers, ruff `PGH003` / `RUF100` require a `type: ignore` to name
-  its code and drop stale `noqa`, and `check_docs` holds `CLAUDE.md` to a word
-  budget. The PR template asks for an independent review on Claude-authored
-  changes.
+- Repo-hygiene guards. The test suite runs `tools/check_test_assertions.py`,
+  which fails a test that asserts nothing. `make lint` and the lint CI job run
+  `tools/check_dead_code.py` (vulture over `src/`, with scripts but not tests
+  counted as callers) and ruff `PGH003` / `RUF100`, which require a
+  `type: ignore` to name its code and drop stale `noqa`. `make docs-check` holds
+  `CLAUDE.md` to a word budget. The PR template asks for an independent review
+  on Claude-authored changes. `fonts/Astloch-Regular.ttf`, unused, is removed.
 
 - **`wide_diags` theme** — the `diags` readout on the left 800 px of the
   1360 × 480 strip, beside a swatch plate for checking what the panel and the

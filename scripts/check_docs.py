@@ -452,11 +452,15 @@ def gotcha_bullets(text: str) -> list[str]:
     end = text.find("\n## ", start + 1)
     section = text[start : end if end >= 0 else len(text)]
     bullets: list[str] = []
+    open_bullet = False
     for line in section.splitlines():
         if re.match(r"\s*- ", line):
             bullets.append(line.strip())
-        elif bullets and line.strip() and not line.lstrip().startswith("#"):
+            open_bullet = True
+        elif open_bullet and line.startswith((" ", "\t")) and line.strip():
             bullets[-1] += " " + line.strip()
+        else:
+            open_bullet = False
     return bullets
 
 
@@ -476,6 +480,8 @@ def check_claude_md_budget(text: str | None = None) -> list[str]:
     if words > CLAUDE_MD_MAX_WORDS:
         errors.append(f"CLAUDE.md: {words} words, budget is {CLAUDE_MD_MAX_WORDS}")
     bullets = gotcha_bullets(text)
+    if not bullets:
+        errors.append("CLAUDE.md: no `## Gotchas` bullets found; the budget cannot be checked")
     total = sum(len(b.split()) for b in bullets)
     if total > GOTCHAS_MAX_WORDS:
         errors.append(f"CLAUDE.md Gotchas: {total} words, budget is {GOTCHAS_MAX_WORDS}")

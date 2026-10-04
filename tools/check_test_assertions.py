@@ -9,7 +9,10 @@ A test that really is a "does not raise" smoke test says so with
 ``# allow-no-assert`` on its ``def`` line, so the choice is visible in review.
 
 A test that delegates its checks to a helper is recognised when the helper's
-name starts with ``assert_`` or ``_assert`` (e.g. ``_assert_filmstrip``).
+name starts with ``assert_`` or ``_assert`` (e.g. ``_assert_filmstrip``); a
+method call counts when its name starts with ``assert`` (mock and unittest).
+Checks inside a nested function or lambda do not count: they run only if
+something calls them.
 
 Usage::
 
@@ -25,28 +28,43 @@ import sys
 from pathlib import Path
 
 _MARKER = "allow-no-assert"
-_RAISES = {"raises", "warns", "deprecated_call"}
+_PYTEST_CHECKS = {"raises", "warns", "deprecated_call", "fail"}
 
 
-def _call_name(node: ast.Call) -> str:
+def _own_nodes(fn: ast.AST):
+    """Walk *fn*'s body without entering nested functions, lambdas or classes.
+
+    An ``assert`` inside a nested callback only runs if something calls the
+    callback, so it is not evidence that the test checks anything.
+    """
+    stack = list(ast.iter_child_nodes(fn))
+    while stack:
+        node = stack.pop()
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda, ast.ClassDef)):
+            continue
+        yield node
+        stack.extend(ast.iter_child_nodes(node))
+
+
+def _is_check_call(node: ast.Call) -> bool:
     func = node.func
     if isinstance(func, ast.Attribute):
-        return func.attr
+        receiver = func.value
+        if isinstance(receiver, ast.Name) and receiver.id == "pytest":
+            return func.attr in _PYTEST_CHECKS
+        # mock.assert_called_once_with(...), self.assertEqual(...)
+        return func.attr.startswith("assert")
     if isinstance(func, ast.Name):
-        return func.id
-    return ""
+        return func.id.startswith(("assert_", "_assert"))
+    return False
 
 
 def _checks_something(fn: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
-    for node in ast.walk(fn):
+    for node in _own_nodes(fn):
         if isinstance(node, ast.Assert):
             return True
-        if isinstance(node, ast.Call):
-            name = _call_name(node)
-            if name in _RAISES or name == "fail":
-                return True
-            if name.startswith(("assert_", "_assert", "assert")):
-                return True
+        if isinstance(node, ast.Call) and _is_check_call(node):
+            return True
     return False
 
 
@@ -72,7 +90,7 @@ def check_file(path: Path) -> list[tuple[int, str]]:
     return violations
 
 
-def main(argv: list[str] | None = None) -> int:
+def main() -> int:
     repo_root = Path(__file__).resolve().parent.parent
     tests_root = repo_root / "tests"
     if not tests_root.exists():
@@ -96,4 +114,4 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main(sys.argv[1:]))
+    raise SystemExit(main())

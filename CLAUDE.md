@@ -388,7 +388,7 @@ The cooldown is `display.min_refresh_interval_seconds` (config), defaulting to 6
 | `SpaceGrotesk-Medium.ttf` | `sg_medium` | `air_quality`, `message` |
 | `SpaceGrotesk-Bold.ttf` | `sg_bold` | `air_quality`, `message` |
 | `Antonio-Variable.ttf` (OFL, variable) | `antonio_semibold`, `antonio_bold` | `sunrise`, `tides` — title + section labels (condensed display); `halftone_agenda_wide` — agenda time cells and duration column |
-| `Astloch-Bold.ttf` (OFL; `Astloch-Regular.ttf` is bundled but unused) | `astloch_bold` | `almanac` — blackletter masthead + dateline character font |
+| `Astloch-Bold.ttf` (OFL) | `astloch_bold` | `almanac` — blackletter masthead + dateline character font |
 | `Audiowide-Regular.ttf` (OFL) | `audiowide` | `constellation_map` — cardinal letters, star + constellation labels |
 | `Righteous-Regular.ttf` (OFL) | `righteous` | `light_cycle` — hero day-of-month numeral; `halftone` — every typeset element; `day_arc` — chrome (dateline, numeral, labels) |
 | `Rye-Regular.ttf` (OFL) | `rye` | `weatherglass` — Western-saloon instrument-deck masthead |
@@ -451,7 +451,7 @@ art themes, in the panel's module docstring. Keep new entries to that shape.
 
 ### Repo hygiene
 
-- Four guards hold the code to the shape above; fix the code, not the guard. `tools/check_test_assertions.py` fails a `test_*` that asserts nothing (a deliberate smoke test marks its `def` line `# allow-no-assert`). `tools/check_dead_code.py` runs vulture over `src/`, counting tests and scripts as callers; exclusions are patterns in the script, never single names. Ruff `PGH003` and `RUF100` require a `type: ignore` to name its code and drop stale `noqa`. `check_docs` holds this file to its word budget.
+- Four guards hold the code to the shape above; fix the code, not the guard. The test suite runs `tools/check_test_assertions.py`, which fails a `test_*` that asserts nothing (a deliberate smoke test marks its `def` line `# allow-no-assert`). `make lint` runs `tools/check_dead_code.py`: vulture over `src/` with scripts, never tests, as callers; `TEST_ONLY_BASELINE` there may only shrink. Ruff `PGH003` and `RUF100` require a `type: ignore` to name its code and drop stale `noqa`. `make docs-check` holds this file to its word budget.
 
 ### Version and release
 
