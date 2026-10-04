@@ -60,7 +60,7 @@ def test_load_web_config_returns_empty_dict_for_empty_file(tmp_path):
 
 
 def test_create_app_uses_default_config_when_app_path_missing(tmp_path):
-    """Missing app config → fall back to defaults from Config() (line 70-72)."""
+    """Missing app config → fall back to defaults from Config()."""
     web_yaml = tmp_path / "web.yaml"
     web_yaml.write_text("")
     # Point at a non-existent app config — factory must fall through to Config().
@@ -72,7 +72,7 @@ def test_create_app_uses_default_config_when_app_path_missing(tmp_path):
 
 
 def test_create_app_uses_defaults_when_load_config_raises(tmp_path, caplog):
-    """If load_config raises, factory falls back to Config() and warns (line 66-67)."""
+    """If load_config raises, factory falls back to Config() and warns."""
     web_yaml = tmp_path / "web.yaml"
     web_yaml.write_text("")
     cfg_yaml = tmp_path / "config.yaml"

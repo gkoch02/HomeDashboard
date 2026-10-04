@@ -1404,7 +1404,7 @@ class TestICalFetcher:
 
 
 class TestBuildPeopleService:
-    """Cover lines 57, 65-66, 76-93 of src/fetchers/calendar.py."""
+    """People API service construction, caching, and cache clearing."""
 
     def test_clear_people_service_cache(self):
         from src.fetchers.calendar import _clear_people_service_cache, _people_service_cache

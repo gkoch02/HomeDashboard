@@ -28,7 +28,6 @@ from tests.inkutils import marks
 NEW = 0.0
 FIRST_QUARTER = 7.38
 FULL = 14.77
-LAST_QUARTER = 22.15
 
 
 @pytest.fixture

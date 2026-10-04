@@ -222,7 +222,7 @@ class TestTimelinePanel:
         assert col_values == [0, 1]
 
     def test_renders_with_default_region(self):
-        """When region=None, line 52 fallback ComponentRegion(0,40,800,360) is used."""
+        """When region=None, the default ComponentRegion(0, 40, 800, 360) is used."""
         from src.render.components.timeline_panel import draw_timeline
 
         draw, img = self._make_draw()
@@ -230,7 +230,7 @@ class TestTimelinePanel:
         assert img.mode == "1"
 
     def test_hour_label_break_when_y_exceeds_region(self):
-        """A very short region forces the `if y > y0 + h: break` branch (line 81)."""
+        """A very short region stops drawing rows once they pass the region bottom."""
         from src.render.components.timeline_panel import draw_timeline
         from src.render.theme import ComponentRegion
 
@@ -240,7 +240,7 @@ class TestTimelinePanel:
         assert img.mode == "1"
 
     def test_renders_outlined_allday_bars(self):
-        """invert_allday_bars=False exercises the outline branch (lines 124-125)."""
+        """invert_allday_bars=False draws all-day bars outlined rather than filled."""
         from dataclasses import replace as dc_replace
 
         from src.render.components.timeline_panel import draw_timeline
@@ -268,7 +268,7 @@ class TestTimelinePanel:
         assert img.mode == "1"
 
     def test_event_outside_visible_range_is_skipped(self):
-        """An event entirely before _START_HOUR clamps to start==end, hitting line 155."""
+        """An event entirely before _START_HOUR clamps to a zero-length span."""
         from src.render.components.timeline_panel import draw_timeline
         from src.render.theme import ComponentRegion
 
@@ -514,8 +514,8 @@ class TestMonthlyPanel:
 
         img = Image.new("1", (800, 480), 1)
         draw = ImageDraw.Draw(img)
-        # No events at all in the month — exercises lines 129 (today marker on empty
-        # cell) and 212 (meta-text "looks open" branch).
+        # No events at all in the month: the today marker lands on an empty cell
+        # and the meta text takes its "looks open" wording.
         data = DashboardData(events=[])
         draw_monthly(draw, data, date(2026, 4, 5))
         assert ink(img) > 0, "the empty-month grid drew nothing"

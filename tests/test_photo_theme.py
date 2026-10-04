@@ -31,9 +31,6 @@ from src.render.quantize import blend_inky_palette, flatten_pixels
 from src.render.theme import AVAILABLE_THEMES, ThemeLayout, ThemeStyle, load_theme
 from src.render.themes.photo import _draw_photo_background, photo_theme
 
-FIXED_NOW_STR = "2026-04-05T10:30:00"
-
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

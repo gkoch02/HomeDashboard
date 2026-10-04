@@ -232,7 +232,6 @@ class TestVisibilitySwitches:
     """``display.show_*`` hide the rail's matching section, not just the grid's."""
 
     WEATHER_BAND = (0, rail.WEATHER_Y, RAIL.w - 2, rail.ALERT_Y - 2)
-    GRID_BAND = (0, rail.GRID_Y, RAIL.w - 2, rail.GRID_RULE_Y - 2)
     BIRTHDAY_BAND = (0, rail.BIRTHDAY_Y, RAIL.w - 2, rail.QUOTE_Y - 2)
     QUOTE_BAND = (0, rail.QUOTE_Y, RAIL.w - 2, 478)
 

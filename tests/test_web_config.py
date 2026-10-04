@@ -851,7 +851,7 @@ def test_list_config_backups_missing_parent_returns_empty(tmp_path):
 
 
 def test_list_config_backups_skips_unstatable_entries(tmp_path):
-    """A backup file whose stat() raises OSError must be silently skipped (line 110-111)."""
+    """A backup file whose stat() raises OSError must be silently skipped."""
     cfg = tmp_path / "config.yaml"
     cfg.write_text("title: T\n")
     (tmp_path / "config.yaml.bak").write_text("title: A\n")
@@ -876,7 +876,7 @@ def test_list_config_backups_skips_unstatable_entries(tmp_path):
 
 
 def test_restore_latest_backup_wraps_unexpected_exception(tmp_path):
-    """An unexpected exception during restore is wrapped in (False, str(exc)) (line 132-133)."""
+    """An unexpected exception during restore is wrapped in (False, str(exc))."""
     from src.web.config_editor import restore_latest_backup as _restore
 
     cfg = tmp_path / "config.yaml"
@@ -933,7 +933,7 @@ def test_write_raw_yaml_swallows_backup_temp_cleanup_error(tmp_path, caplog):
 
 
 def test_validate_raw_swallows_temp_cleanup_error(tmp_path):
-    """If unlinking the validation tempfile fails, the result is still returned (line 333-334)."""
+    """If unlinking the validation tempfile fails, the result is still returned."""
     import os as _os
 
     from src.web.config_editor import _validate_raw
@@ -954,7 +954,7 @@ def test_validate_raw_swallows_temp_cleanup_error(tmp_path):
 
 # ---------------------------------------------------------------------------
 # In-memory config reload is defensive — a failed reload after save/restore
-# must not break the HTTP response (routes/config.py lines 75-76 and 106-107).
+# must not break the HTTP response.
 # ---------------------------------------------------------------------------
 
 
