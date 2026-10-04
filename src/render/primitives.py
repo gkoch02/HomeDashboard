@@ -239,22 +239,6 @@ def filled_rect(
     draw.rectangle(rect, fill=fill)
 
 
-def inverted_text(
-    draw: ImageDraw.ImageDraw,
-    rect: tuple[int, int, int, int],
-    text: str,
-    font: ImageFont.FreeTypeFont,
-):
-    """Draw white text on a black-filled rectangle."""
-    filled_rect(draw, rect, fill=BLACK)
-    x0, y0, x1, y1 = rect
-    tw = text_width(draw, text, font)
-    th = text_height(font)
-    tx = x0 + (x1 - x0 - tw) // 2
-    ty = y0 + (y1 - y0 - th) // 2
-    draw.text((tx, ty), text, font=font, fill=WHITE)
-
-
 def location_line(location: str | None) -> str:
     """The one line of a location worth a row on a panel.
 

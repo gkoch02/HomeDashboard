@@ -124,10 +124,6 @@ class TestAppendEvent:
 
 
 class TestReadRecentEvents:
-    def _write_events(self, path: Path, count: int) -> None:
-        for i in range(count):
-            append_event(str(path.parent), "kind", f"Event {i}", index=i)
-
     def test_returns_empty_when_no_file(self, tmp_path):
         result = read_recent_events(str(tmp_path))
         assert result == []

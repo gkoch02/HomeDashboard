@@ -87,7 +87,7 @@ class TestDrawInfo:
         assert len(plates) > 1, "the quote never changed across a week"
 
     def test_long_quote_adapts_to_smaller_font(self, tmp_path):
-        """A very long quote triggers the smaller font (regular(12)) path (lines 62-65)."""
+        """A very long quote triggers the smaller font (regular(12))."""
         import json
 
         # Build a quote whose wrapped length exceeds 3 lines at size 14
@@ -108,7 +108,7 @@ class TestDrawInfo:
         assert ink(img) > 0, "the custom quote store rendered nothing"
 
     def test_corrupt_quotes_json_falls_back_gracefully(self, tmp_path):
-        """Corrupt quotes.json triggers except path (lines 62-63) in _quote_for_today."""
+        """Corrupt quotes.json falls back to the built-in default quotes in _quote_for_today."""
         corrupt = tmp_path / "quotes.json"
         corrupt.write_text("{bad json}")
         from src.render.components.info_panel import _quote_for_today
@@ -121,7 +121,7 @@ class TestDrawInfo:
         assert ink(img) > 0, "the corrupt-store fallback rendered nothing"
 
     def test_missing_quotes_file_uses_defaults(self, tmp_path):
-        """Missing quotes.json triggers else path (lines 64-65) in _quote_for_today."""
+        """Missing quotes.json falls back to the built-in default quotes in _quote_for_today."""
         missing = tmp_path / "nonexistent_quotes.json"
         from src.render.components.info_panel import _quote_for_today
 

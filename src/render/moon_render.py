@@ -82,11 +82,6 @@ def _load_moon_photo(path: str) -> Image.Image | None:
     return img.crop((left, top, left + s, top + s))
 
 
-def moon_photo_available(path: str | None = None) -> bool:
-    """True when a usable moon photograph is bundled (or present at *path*)."""
-    return _load_moon_photo(str(path or _MOON_PHOTO_PATH)) is not None
-
-
 def _lit_span(xlim: float, c: float, waxing: bool) -> tuple[float, float]:
     """Return the sunlit ``[x0, x1]`` span of one scanline (disc-centred coords).
 

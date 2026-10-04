@@ -34,23 +34,11 @@ FRAMEWORK_HOOKS = [
     "web_authenticated",  # set on flask.g, read by name
 ]
 TEST_ONLY_BASELINE = [
-    "AGENDA_X",
-    "THEMES_NEEDING_TOMORROW",
     "_clear_people_service_cache",
-    "_get_variable_font",
     "all_component_names",
-    "assert_aware",
-    "big_shoulders_semibold",
-    "birthday_line",
-    "cinzel_regular",
-    "event_lanes",
-    "field_spec_by_path",
-    "inverted_text",
     "load_cached",
     "load_cached_source",
     "load_cached_source_with_metadata",
-    "moon_photo_available",
-    "quantize_to_palette",
     "save_cache",
     "unregister_component",
     "unregister_fetcher",

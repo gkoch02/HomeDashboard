@@ -389,7 +389,6 @@ All persistent timestamps in production code go through `src/_time.py`:
 | `now_utc()` | aware UTC datetime |
 | `now_local(tz)` | aware datetime in *tz* (UTC if `tz` is None) |
 | `to_aware(value, tz)` | attaches *tz* (or UTC) to a naive datetime; passes aware values through |
-| `assert_aware(value)` | raises `ValueError` on a naive value, returns it otherwise |
 
 `tools/check_naive_datetime.py` is an AST-based CI guard that fails on `datetime.now()`
 (no args) or `datetime.utcnow()` outside `src/_time.py`. The guard is enforced in CI by

@@ -74,7 +74,6 @@ _SUNSET_GLYPH = ""  # wi-sunset
 
 ART_W = 372  # left pane: illustration + weather band
 DIVIDER_W = 6  # full-height vertical Bayer rule
-AGENDA_X = ART_W + DIVIDER_W  # 378 — right pane starts here
 
 HERO_H = 292  # illustration height inside the left pane
 RULE_H = 6  # horizontal Bayer rule under the illustration

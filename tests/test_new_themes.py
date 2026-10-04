@@ -222,7 +222,7 @@ class TestTimelinePanel:
         assert col_values == [0, 1]
 
     def test_renders_with_default_region(self):
-        """When region=None, line 52 fallback ComponentRegion(0,40,800,360) is used."""
+        """When region=None, the default ComponentRegion(0, 40, 800, 360) is used."""
         from src.render.components.timeline_panel import draw_timeline
 
         draw, img = self._make_draw()
@@ -230,7 +230,7 @@ class TestTimelinePanel:
         assert img.mode == "1"
 
     def test_hour_label_break_when_y_exceeds_region(self):
-        """A very short region forces the `if y > y0 + h: break` branch (line 81)."""
+        """A very short region stops drawing rows once they pass the region bottom."""
         from src.render.components.timeline_panel import draw_timeline
         from src.render.theme import ComponentRegion
 
@@ -240,7 +240,7 @@ class TestTimelinePanel:
         assert img.mode == "1"
 
     def test_renders_outlined_allday_bars(self):
-        """invert_allday_bars=False exercises the outline branch (lines 124-125)."""
+        """invert_allday_bars=False draws all-day bars outlined rather than filled."""
         from dataclasses import replace as dc_replace
 
         from src.render.components.timeline_panel import draw_timeline
@@ -267,24 +267,32 @@ class TestTimelinePanel:
         # No assertions on pixel content — just confirm no crash.
         assert img.mode == "1"
 
-    def test_event_outside_visible_range_is_skipped(self):
-        """An event entirely before _START_HOUR clamps to start==end, hitting line 155."""
-        from src.render.components.timeline_panel import draw_timeline
+    def test_event_before_default_window_widens_the_axis(self):
+        """An event before _START_HOUR moves the axis start to its hour, so it draws."""
+        from src.render.components.timeline_panel import (
+            _AXIS_W,
+            _PAD_RIGHT,
+            axis_hours,
+            draw_timeline,
+        )
         from src.render.theme import ComponentRegion
 
-        draw, img = self._make_draw()
-        events = [
-            # Whole event is before 7am — start_min and end_min both clamp to 0
-            CalendarEvent(
-                summary="Pre-dawn",
-                start=datetime(2026, 4, 5, 3, 0),
-                end=datetime(2026, 4, 5, 5, 0),
-            ),
-        ]
-        draw_timeline(
-            draw, events, date(2026, 4, 5), FIXED_NOW, region=ComponentRegion(0, 0, 800, 360)
+        pre_dawn = CalendarEvent(
+            summary="Pre-dawn",
+            start=datetime(2026, 4, 5, 3, 0),
+            end=datetime(2026, 4, 5, 5, 0),
         )
-        assert img.mode == "1"
+        assert axis_hours([pre_dawn], date(2026, 4, 5)) == (3, 21)
+
+        draw, img = self._make_draw()
+        draw_timeline(
+            draw, [pre_dawn], date(2026, 4, 5), FIXED_NOW, region=ComponentRegion(0, 0, 800, 360)
+        )
+        # 3a-9p over 360 px is 1/3 px per minute, so the two-hour block fills
+        # the top 40 rows of the timeline, its title knocked out in white.
+        block = (_AXIS_W + 2, 1, 800 - _PAD_RIGHT - 2, 39)
+        area = (block[2] - block[0]) * (block[3] - block[1])
+        assert ink(img, block) > area * 0.8, "the pre-dawn event drew no block"
 
     def test_minutes_from_start_past_day_clamps_to_zero(self):
         """A datetime on a previous day clamps to 0 (start of visible window)."""
@@ -514,8 +522,8 @@ class TestMonthlyPanel:
 
         img = Image.new("1", (800, 480), 1)
         draw = ImageDraw.Draw(img)
-        # No events at all in the month — exercises lines 129 (today marker on empty
-        # cell) and 212 (meta-text "looks open" branch).
+        # No events at all in the month: the today marker lands on an empty cell
+        # and the meta text takes its "looks open" wording.
         data = DashboardData(events=[])
         draw_monthly(draw, data, date(2026, 4, 5))
         assert ink(img) > 0, "the empty-month grid drew nothing"

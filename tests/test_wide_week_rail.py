@@ -122,7 +122,7 @@ class TestWhenLabel:
         assert rail.when_label("NEXT", later, NOW) == "Thu 9a"
 
 
-class TestBirthdayLine:
+class TestBirthdayEntries:
     def test_two_weeks_soonest_first_with_ages(self):
         today = date(2026, 4, 6)
         bdays = [
@@ -132,9 +132,12 @@ class TestBirthdayLine:
             Birthday("Kid", date(2020, 4, 7), age=6),
             Birthday("Me", date(1985, 4, 6)),
         ]
-        assert rail.birthday_line(bdays, today) == (
-            "Me · today     Kid 6 · tomorrow     Mom · Thu     Alice 26 · Apr 18"
-        )
+        assert [text for text, _ in rail.birthday_entries(bdays, today)] == [
+            "Me · today",
+            "Kid 6 · tomorrow",
+            "Mom · Thu",
+            "Alice 26 · Apr 18",
+        ]
 
     def test_entries_flag_today(self):
         entries = rail.birthday_entries(
@@ -143,7 +146,7 @@ class TestBirthdayLine:
         assert entries == [("Me · today", True), ("Mom · Thu", False)]
 
     def test_none_in_range_is_empty(self):
-        assert rail.birthday_line([Birthday("X", date(1990, 9, 1))], date(2026, 4, 6)) == ""
+        assert rail.birthday_entries([Birthday("X", date(1990, 9, 1))], date(2026, 4, 6)) == []
 
 
 class TestSkyRows:
@@ -232,7 +235,6 @@ class TestVisibilitySwitches:
     """``display.show_*`` hide the rail's matching section, not just the grid's."""
 
     WEATHER_BAND = (0, rail.WEATHER_Y, RAIL.w - 2, rail.ALERT_Y - 2)
-    GRID_BAND = (0, rail.GRID_Y, RAIL.w - 2, rail.GRID_RULE_Y - 2)
     BIRTHDAY_BAND = (0, rail.BIRTHDAY_Y, RAIL.w - 2, rail.QUOTE_Y - 2)
     QUOTE_BAND = (0, rail.QUOTE_Y, RAIL.w - 2, 478)
 

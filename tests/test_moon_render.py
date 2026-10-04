@@ -18,7 +18,6 @@ from src.render.moon_render import (
     _lit_span,
     _load_moon_photo,
     _tone_luminance,
-    moon_photo_available,
     render_moon_disc,
 )
 from src.render.quantize import flatten_pixels
@@ -28,7 +27,6 @@ from tests.inkutils import marks
 NEW = 0.0
 FIRST_QUARTER = 7.38
 FULL = 14.77
-LAST_QUARTER = 22.15
 
 
 @pytest.fixture
@@ -50,13 +48,12 @@ def fake_photo(tmp_path: Path) -> Path:
 
 class TestPhotoLoading:
     def test_bundled_asset_is_available(self):
-        assert moon_photo_available() is True
+        assert _load_moon_photo(str(moon_render._MOON_PHOTO_PATH)) is not None
 
     def test_missing_path_returns_none(self, tmp_path):
         _load_moon_photo.cache_clear()
         missing = tmp_path / "nope.png"
         assert _load_moon_photo(str(missing)) is None
-        assert moon_photo_available(str(missing)) is False
 
     def test_loaded_photo_is_square(self, fake_photo):
         img = _load_moon_photo(str(fake_photo))
@@ -273,4 +270,4 @@ def _restore_photo_cache():
     """Ensure the real bundled-asset cache entry isn't poisoned across tests."""
     yield
     _load_moon_photo.cache_clear()
-    assert moon_render.moon_photo_available() is True
+    assert _load_moon_photo(str(moon_render._MOON_PHOTO_PATH)) is not None

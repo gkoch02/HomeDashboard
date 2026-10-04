@@ -133,7 +133,7 @@ Three internal plugin registries collapse the v4 hard-coded dispatch sites. Addi
 Each registry's package `__init__.py` runs side-effect imports of its members so consumers see a fully-populated registry by the time they read it. Re-registration of a name is a silent no-op so module reloads in tests don't raise. See [Adding a fetcher / theme / component](development.md) in the development guide for full recipes.
 
 ### Aware-datetime discipline
-`src/_time.py` exposes `now_utc`, `now_local`, `to_aware`, and `assert_aware` as the sanctioned way to produce timestamps. The CI guard `tools/check_naive_datetime.py` (run via `tests/test_naive_datetime_guard.py`) fails the build on bare `datetime.now()` (no args) or `datetime.utcnow()` outside `src/_time.py`. Lines that genuinely want naive local wall-clock time (file-name timestamps, quiet-hours config comparisons, test fallbacks) carry an `# allow-naive-datetime` marker.
+`src/_time.py` exposes `now_utc`, `now_local`, and `to_aware` as the sanctioned way to produce timestamps. The CI guard `tools/check_naive_datetime.py` (run via `tests/test_naive_datetime_guard.py`) fails the build on bare `datetime.now()` (no args) or `datetime.utcnow()` outside `src/_time.py`. Lines that genuinely want naive local wall-clock time (file-name timestamps, quiet-hours config comparisons, test fallbacks) carry an `# allow-naive-datetime` marker.
 
 ### Display backend abstraction
 `src/display/backend.py` defines `DisplayBackend.resize_and_finalize(image, ...)` with two implementations:

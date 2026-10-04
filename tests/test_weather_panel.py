@@ -1,5 +1,5 @@
-"""Tests for weather_panel.py; ink is measured with the local ``_ink`` / ``_ink_bbox``,
-differentially where possible.
+"""Tests for weather_panel.py; ink is measured with ``tests.inkutils``, differentially
+where possible.
 """
 
 from datetime import date, datetime, timedelta, timezone
@@ -22,6 +22,7 @@ from src.render.components.weather_panel import (
 from src.render.primitives import aqi_accent
 from src.render.quantize import flatten_pixels
 from src.render.theme import ComponentRegion, ThemeStyle
+from tests.inkutils import ink, ink_bbox
 
 REGION = ComponentRegion(L.WEATHER_X, L.WEATHER_Y, L.WEATHER_W, L.WEATHER_H)
 
@@ -49,36 +50,9 @@ def _make_weather(**kwargs) -> WeatherData:
 # ---------------------------------------------------------------------------
 
 
-def _ink(img: Image.Image, box: tuple[int, int, int, int] | None = None) -> int:
-    """Count ink (value-0) pixels, optionally only inside *box*."""
-    px = flatten_pixels(img)
-    width = img.width
-    if box is None:
-        return sum(1 for v in px if v == 0)
-    x0, y0, x1, y1 = box
-    return sum(1 for y in range(y0, y1) for x in range(x0, x1) if px[y * width + x] == 0)
-
-
 def _row(img: Image.Image, box: tuple[int, int, int, int]) -> list[int]:
     """The flattened pixels inside *box*, for exact equality between renders."""
     return list(flatten_pixels(img.crop(box)))
-
-
-def _ink_bbox(img: Image.Image, box: tuple[int, int, int, int] | None = None):
-    """Bounding box of ink pixels as (x0, y0, x1, y1), or None if there is none."""
-    px = flatten_pixels(img)
-    width = img.width
-    x0, y0, x1, y1 = box if box else (0, 0, img.width, img.height)
-    xs, ys = [], []
-    for y in range(y0, y1):
-        row = y * width
-        for x in range(x0, x1):
-            if px[row + x] == 0:
-                xs.append(x)
-                ys.append(y)
-    if not xs:
-        return None
-    return (min(xs), min(ys), max(xs) + 1, max(ys) + 1)
 
 
 def _bands(region: ComponentRegion = REGION, *, show_forecast: bool = True) -> dict:
@@ -167,11 +141,11 @@ class TestDrawWeatherNone:
             REGION.y + REGION.h // 2 + 14,
         )
 
-        assert _ink(img, centre) > 0, "no message drawn in the centre of the panel"
+        assert ink(img, centre) > 0, "no message drawn in the centre of the panel"
         # The early return happens before the icon and forecast strip.
-        assert _ink(img, bands["icon"]) == 0, "weather icon drawn for None weather"
-        assert _ink(img, bands["forecast"]) == 0, "forecast strip drawn for None weather"
-        assert _ink(img) < _ink(_render(style=_content_style())), (
+        assert ink(img, bands["icon"]) == 0, "weather icon drawn for None weather"
+        assert ink(img, bands["forecast"]) == 0, "forecast strip drawn for None weather"
+        assert ink(img) < ink(_render(style=_content_style())), (
             "None plate should carry less ink than a real one"
         )
 
@@ -181,9 +155,9 @@ class TestDrawWeatherNone:
         with_moon = _render(weather=None, today=date(2024, 3, 15))
         label = _bands()["label"]
 
-        assert _ink(with_moon, label) > _ink(without, label), "moon glyph not drawn"
+        assert ink(with_moon, label) > ink(without, label), "moon glyph not drawn"
         # It belongs in the right-hand end of the label row, beside the label.
-        bbox = _ink_bbox(with_moon, label)
+        bbox = ink_bbox(with_moon, label)
         assert bbox is not None and bbox[2] > REGION.x + REGION.w * 0.7
 
 
@@ -192,11 +166,11 @@ class TestDrawWeatherDetails:
 
     def test_feels_like_renders(self):
         row3 = _bands()["row3"]
-        assert _ink(_render(feels_like=48.0), row3) != _ink(_render(), row3)
+        assert ink(_render(feels_like=48.0), row3) != ink(_render(), row3)
 
     def test_wind_speed_renders(self):
         row3 = _bands()["row3"]
-        assert _ink(_render(wind_speed=15.0), row3) != _ink(_render(), row3)
+        assert ink(_render(wind_speed=15.0), row3) != ink(_render(), row3)
 
     def test_wind_label_follows_units(self):
         """A metric install reads "m/s", not the imperial "mph" (#270).
@@ -210,16 +184,16 @@ class TestDrawWeatherDetails:
         metric = _render(wind_speed=12.0, units="metric")
         standard = _render(wind_speed=12.0, units="standard")
         legacy = _render(wind_speed=12.0, units=None)  # pre-units cache entry
-        assert _ink(metric, row3) != _ink(imperial, row3)
+        assert ink(metric, row3) != ink(imperial, row3)
         assert _row(metric, row3) == _row(standard, row3)
         assert _row(imperial, row3) == _row(legacy, row3)
 
     def test_both_feels_like_and_wind_renders(self):
         """Both set joins them, so row 3 carries more ink than either alone."""
         row3 = _bands()["row3"]
-        both = _ink(_render(feels_like=48.0, wind_speed=12.0), row3)
-        assert both > _ink(_render(feels_like=48.0), row3)
-        assert both > _ink(_render(wind_speed=12.0), row3)
+        both = ink(_render(feels_like=48.0, wind_speed=12.0), row3)
+        assert both > ink(_render(feels_like=48.0), row3)
+        assert both > ink(_render(wind_speed=12.0), row3)
 
     def test_neither_feels_like_nor_wind_falls_back_to_humidity(self):
         """The fallback shows the humidity *value* — changing it changes the row."""
@@ -227,8 +201,8 @@ class TestDrawWeatherDetails:
         humid_72 = _render(feels_like=None, wind_speed=None, humidity=72)
         humid_11 = _render(feels_like=None, wind_speed=None, humidity=11)
 
-        assert _ink(humid_72, row3) > 0
-        assert _ink(humid_72, row3) != _ink(humid_11, row3), (
+        assert ink(humid_72, row3) > 0
+        assert ink(humid_72, row3) != ink(humid_11, row3), (
             "row 3 did not change with humidity — the fallback is not being drawn"
         )
 
@@ -239,21 +213,21 @@ class TestDrawWeatherDetails:
         row4 = _bands()["row4"]
         both = _render(sunrise=self._sun(6, 24), sunset=self._sun(19, 51), today=date(2024, 3, 15))
         neither = _render(today=date(2024, 3, 15))
-        assert _ink(both, row4) > _ink(neither, row4)
+        assert ink(both, row4) > ink(neither, row4)
 
     def test_only_sunrise_renders(self):
         row4 = _bands()["row4"]
         one = _render(sunrise=self._sun(6, 24), sunset=None, today=date(2024, 3, 15))
         both = _render(sunrise=self._sun(6, 24), sunset=self._sun(19, 51), today=date(2024, 3, 15))
         neither = _render(today=date(2024, 3, 15))
-        assert _ink(neither, row4) < _ink(one, row4) < _ink(both, row4)
+        assert ink(neither, row4) < ink(one, row4) < ink(both, row4)
 
     def test_only_sunset_renders(self):
         row4 = _bands()["row4"]
         one = _render(sunrise=None, sunset=self._sun(19, 51), today=date(2024, 3, 15))
         both = _render(sunrise=self._sun(6, 24), sunset=self._sun(19, 51), today=date(2024, 3, 15))
         neither = _render(today=date(2024, 3, 15))
-        assert _ink(neither, row4) < _ink(one, row4) < _ink(both, row4)
+        assert ink(neither, row4) < ink(one, row4) < ink(both, row4)
 
 
 class TestDrawWeatherForecastStrip:
@@ -280,7 +254,7 @@ class TestDrawWeatherForecastStrip:
     def _fill_fraction(self, img, i: int, n_cols: int) -> float:
         box = _fcol(i, n_cols)
         area = (box[2] - box[0]) * (box[3] - box[1])
-        return _ink(img, box) / area
+        return ink(img, box) / area
 
     def test_no_forecast_no_crash(self):
         """No forecast and no alerts means no columns — the strip stays empty.
@@ -289,15 +263,15 @@ class TestDrawWeatherForecastStrip:
         separator are chrome and are drawn either way.
         """
         img = _render(forecast=[], style=_content_style())
-        assert _ink(img, _bands()["forecast"]) == 0
+        assert ink(img, _bands()["forecast"]) == 0
         populated = _render(forecast=self._forecast(3), style=_content_style())
-        assert _ink(populated, _bands()["forecast"]) > 0
+        assert ink(populated, _bands()["forecast"]) > 0
 
     def test_three_forecast_columns_no_alerts(self):
         """Three days fill three columns, none of them inverted."""
         img = _render(forecast=self._forecast(3))
         for i in range(3):
-            assert _ink(img, _fcol(i, 3)) > 0, f"column {i} is empty"
+            assert ink(img, _fcol(i, 3)) > 0, f"column {i} is empty"
             assert self._fill_fraction(img, i, 3) < self.FILLED, f"column {i} is inverted"
 
     def test_one_alert_plus_two_forecast_columns(self):
@@ -305,7 +279,7 @@ class TestDrawWeatherForecastStrip:
         img = _render(forecast=self._forecast(2), alerts=[WeatherAlert(event="Flood Watch")])
         assert self._fill_fraction(img, 0, 3) > self.FILLED, "alert column is not inverted"
         for i in (1, 2):
-            assert 0 < _ink(img, _fcol(i, 3))
+            assert 0 < ink(img, _fcol(i, 3))
             assert self._fill_fraction(img, i, 3) < self.FILLED
 
     def test_two_alerts_plus_one_forecast_column(self):
@@ -346,14 +320,14 @@ class TestDrawWeatherForecastStrip:
         """A precip chance at or above the 5% threshold adds a third text row."""
         box = _fcol(0, 1)
         third_row = (box[0], box[1] + 23, box[2], box[3])
-        assert _ink(_render(forecast=self._one_day(0.75)), third_row) > 0
+        assert ink(_render(forecast=self._one_day(0.75)), third_row) > 0
 
     def test_forecast_below_precip_threshold_no_third_row(self):
         """Below 5% the percentage row is suppressed — the band loses its ink."""
         box = _fcol(0, 1)
         third_row = (box[0], box[1] + 23, box[2], box[3])
-        below = _ink(_render(forecast=self._one_day(0.02, icon="01d")), third_row)
-        above = _ink(_render(forecast=self._one_day(0.75, icon="01d")), third_row)
+        below = ink(_render(forecast=self._one_day(0.02, icon="01d")), third_row)
+        above = ink(_render(forecast=self._one_day(0.75, icon="01d")), third_row)
         assert below < above, "the 5% precip threshold is not being applied"
 
     def test_with_moon_phase(self):
@@ -361,7 +335,7 @@ class TestDrawWeatherForecastStrip:
         label = _bands()["label"]
         with_moon = _render(forecast=self._forecast(2), today=date(2024, 3, 15))
         without = _render(forecast=self._forecast(2))
-        assert _ink(with_moon, label) > _ink(without, label)
+        assert ink(with_moon, label) > ink(without, label)
 
 
 class TestEnhancedWeatherRendering:
@@ -370,15 +344,15 @@ class TestEnhancedWeatherRendering:
     def test_wind_compass_rendered_when_wind_deg_present(self):
         """wind_deg appends a compass point to the wind string."""
         row3 = _bands()["row3"]
-        with_deg = _ink(_render(wind_speed=12.0, wind_deg=270.0), row3)
-        without = _ink(_render(wind_speed=12.0), row3)
+        with_deg = ink(_render(wind_speed=12.0, wind_deg=270.0), row3)
+        without = ink(_render(wind_speed=12.0), row3)
         assert with_deg > without, "compass suffix not drawn"
 
     def test_wind_compass_all_cardinal_directions(self):
         """Each sector draws its own label, so the eight are not all identical."""
         row3 = _bands()["row3"]
         counts = {
-            deg: _ink(_render(wind_speed=10.0, wind_deg=float(deg)), row3)
+            deg: ink(_render(wind_speed=10.0, wind_deg=float(deg)), row3)
             for deg in (0, 45, 90, 135, 180, 225, 270, 315)
         }
         for deg, count in counts.items():
@@ -392,44 +366,44 @@ class TestEnhancedWeatherRendering:
         row3 = _bands()["row3"]
         deg_only = _render(wind_speed=None, wind_deg=90.0)
         neither = _render(wind_speed=None, wind_deg=None)
-        assert _ink(deg_only, row3) == _ink(neither, row3), (
+        assert ink(deg_only, row3) == ink(neither, row3), (
             "a compass appeared without a wind speed to attach it to"
         )
 
     def test_uv_index_renders_in_hilo_row(self):
         hilo = _bands()["hilo"]
-        assert _ink(_render(uv_index=5.0), hilo) > _ink(_render(), hilo)
+        assert ink(_render(uv_index=5.0), hilo) > ink(_render(), hilo)
 
     def test_uv_index_zero_renders(self):
         """UV 0 is a real reading, not a missing one — it still renders."""
         hilo = _bands()["hilo"]
-        assert _ink(_render(uv_index=0.0), hilo) > _ink(_render(uv_index=None), hilo)
+        assert ink(_render(uv_index=0.0), hilo) > ink(_render(uv_index=None), hilo)
 
     def test_uv_index_high_value_renders(self):
         hilo = _bands()["hilo"]
-        assert _ink(_render(uv_index=11.0), hilo) > _ink(_render(), hilo)
+        assert ink(_render(uv_index=11.0), hilo) > ink(_render(), hilo)
 
     def test_uv_index_none_no_crash(self):
         """uv_index=None renders the plain hi/lo row and nothing more."""
         hilo = _bands()["hilo"]
         img = _render(uv_index=None)
-        assert _ink(img, hilo) > 0
-        assert _ink(img, hilo) < _ink(_render(uv_index=5.0), hilo)
+        assert ink(img, hilo) > 0
+        assert ink(img, hilo) < ink(_render(uv_index=5.0), hilo)
 
     def test_all_enhanced_fields_together(self):
         """Every optional field set at once still lands in its own row."""
         bands = _bands()
         img = _render(wind_speed=15.0, wind_deg=135.0, uv_index=8.0, feels_like=52.0)
         plain = _render()
-        assert _ink(img, bands["hilo"]) > _ink(plain, bands["hilo"]), "UV missing"
-        assert _ink(img, bands["row3"]) > _ink(plain, bands["row3"]), "feels/wind missing"
+        assert ink(img, bands["hilo"]) > ink(plain, bands["hilo"]), "UV missing"
+        assert ink(img, bands["row3"]) > ink(plain, bands["row3"]), "feels/wind missing"
 
 
 class TestLocationName:
     def test_location_name_in_label_renders(self):
         """A short name is appended to the WEATHER label."""
         label = _bands()["label"]
-        assert _ink(_render(location_name="San Francisco"), label) > _ink(_render(), label)
+        assert ink(_render(location_name="San Francisco"), label) > ink(_render(), label)
 
     def test_location_name_none_renders_the_bare_label(self):
         """With no name the row still carries the bare label, shorter than with one.
@@ -440,8 +414,8 @@ class TestLocationName:
         label = _bands()["label"]
         bare = _render(location_name=None, style=_content_style())
         named = _render(location_name="San Francisco", style=_content_style())
-        assert _ink(bare, label) > 0, "no label drawn at all"
-        assert _ink(bare, label) < _ink(named, label)
+        assert ink(bare, label) > 0, "no label drawn at all"
+        assert ink(bare, label) < ink(named, label)
 
     def test_very_long_location_name_is_dropped_not_overflowed(self):
         """A name that cannot fit is omitted entirely rather than truncated or spilled.
@@ -452,11 +426,11 @@ class TestLocationName:
         label = _bands()["label"]
         long_name = _render(location_name="A" * 100, style=_content_style())
         bare = _render(style=_content_style())
-        assert _ink(long_name, label) == _ink(bare, label), (
+        assert ink(long_name, label) == ink(bare, label), (
             "an oversized location name reached the plate"
         )
         # And nothing escaped into the strip reserved for the moon glyph.
-        bbox = _ink_bbox(long_name, label)
+        bbox = ink_bbox(long_name, label)
         assert bbox is not None and bbox[2] <= REGION.x + REGION.w - L.PAD
 
 
@@ -484,14 +458,14 @@ class TestStalenessGlyph:
         corner = self._corner(region)
         stale = _render(region=region, staleness=StalenessLevel.STALE)
         none = _render(region=region, staleness=None)
-        assert _ink(stale, corner) > _ink(none, corner), "no staleness badge drawn"
+        assert ink(stale, corner) > ink(none, corner), "no staleness badge drawn"
 
     def test_expired_weather_renders_glyph(self):
         region = ComponentRegion(0, 0, 300, 120)
         corner = self._corner(region)
         expired = _render(region=region, staleness=StalenessLevel.EXPIRED)
         none = _render(region=region, staleness=None)
-        assert _ink(expired, corner) > _ink(none, corner)
+        assert ink(expired, corner) > ink(none, corner)
 
     def test_fresh_weather_draws_no_glyph(self):
         """FRESH is not a warning, so its corner stays clear of the badge STALE draws.
@@ -504,7 +478,7 @@ class TestStalenessGlyph:
         corner = self._corner(region)
         fresh = _render(region=region, staleness=StalenessLevel.FRESH)
         stale = _render(region=region, staleness=StalenessLevel.STALE)
-        assert _ink(fresh, corner) < _ink(stale, corner), "FRESH drew a staleness badge"
+        assert ink(fresh, corner) < ink(stale, corner), "FRESH drew a staleness badge"
 
     def test_stale_weather_without_forecast_strip_still_renders_glyph(self):
         """show_forecast_strip=False returns early — the badge must still be emitted."""
@@ -513,7 +487,7 @@ class TestStalenessGlyph:
         corner = self._corner(region)
         stale = _render(region=region, style=style, staleness=StalenessLevel.STALE)
         none = _render(region=region, style=style, staleness=None)
-        assert _ink(stale, corner) > _ink(none, corner), (
+        assert ink(stale, corner) > ink(none, corner), (
             "the early-return branch skipped the staleness badge"
         )
 
@@ -524,7 +498,7 @@ class TestStalenessGlyph:
         weather = _make_weather(forecast=_make_forecast(3))
         expired = _render(weather=weather, region=region, staleness=StalenessLevel.EXPIRED)
         none = _render(weather=weather, region=region, staleness=None)
-        assert _ink(expired, corner) > _ink(none, corner)
+        assert ink(expired, corner) > ink(none, corner)
 
     def test_none_staleness_draws_no_glyph(self):
         """The default draws no badge either — again measured against STALE."""
@@ -532,8 +506,8 @@ class TestStalenessGlyph:
         corner = self._corner(region)
         default = _render(region=region, staleness=None)
         stale = _render(region=region, staleness=StalenessLevel.STALE)
-        assert _ink(default, corner) < _ink(stale, corner), "staleness=None drew a badge"
-        assert _ink(default, corner) == _ink(
+        assert ink(default, corner) < ink(stale, corner), "staleness=None drew a badge"
+        assert ink(default, corner) == ink(
             _render(region=region, staleness=StalenessLevel.FRESH), corner
         )
 
@@ -590,9 +564,9 @@ class TestAQIForecastColumn:
         )
         no_aq = _render(weather=weather, today=date(2026, 4, 20))
 
-        assert _ink(good, last) > 0
-        assert _ink(good, last) != _ink(no_aq, last), "AQI column looks like a forecast column"
-        assert _ink(good, last) != _ink(unhealthy, last), (
+        assert ink(good, last) > 0
+        assert ink(good, last) != ink(no_aq, last), "AQI column looks like a forecast column"
+        assert ink(good, last) != ink(unhealthy, last), (
             "the AQI reading is not being drawn — two different values rendered identically"
         )
 
@@ -611,7 +585,7 @@ class TestAQIForecastColumn:
             col_h=38,
             style=ThemeStyle(),
         )
-        bbox = _ink_bbox(img, (0, 0, img.width, 38))
+        bbox = ink_bbox(img, (0, 0, img.width, 38))
         assert bbox is not None, "nothing drawn"
         assert bbox[0] >= col_x, "AQI label spilled off the left of its column"
         assert bbox[2] <= col_x + col_w, "AQI label spilled off the right of its column"
@@ -642,7 +616,7 @@ class TestAQIForecastColumn:
             col_h=80,
             style=ThemeStyle(),
         )
-        bbox = _ink_bbox(img)
+        bbox = ink_bbox(img)
         assert bbox is not None, "nothing drawn"
         assert bbox[2] <= 80, "content escaped the column width"
         assert bbox[3] <= 80, "content escaped the column height"

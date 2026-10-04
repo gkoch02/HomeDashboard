@@ -84,10 +84,3 @@ def week_start(day: date) -> date:
     fetchers do not actually use.
     """
     return day - timedelta(days=day.weekday())
-
-
-def assert_aware(value: datetime, name: str = "datetime") -> datetime:
-    """Raise ``ValueError`` if *value* is naive; return it unchanged otherwise."""
-    if value.tzinfo is None:
-        raise ValueError(f"{name} must be timezone-aware, got naive: {value!r}")
-    return value

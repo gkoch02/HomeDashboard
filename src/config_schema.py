@@ -600,14 +600,6 @@ def all_field_specs() -> tuple[FieldSpec, ...]:
     return tuple(field for section in schema() for field in section.fields)
 
 
-def field_spec_by_path(path: str) -> FieldSpec | None:
-    """Return the :class:`FieldSpec` for *path*, or ``None``."""
-    for spec in all_field_specs():
-        if spec.path == path:
-            return spec
-    return None
-
-
 def editable_field_paths() -> dict[str, tuple[str, ...]]:
     """Return ``{flat_path: yaml_path}`` for every editable, non-secret field.
 

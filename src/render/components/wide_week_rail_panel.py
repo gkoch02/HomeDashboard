@@ -158,11 +158,6 @@ def birthday_entries(birthdays: list[Birthday], today: date) -> list[tuple[str, 
 BIRTHDAY_GAP = 20
 
 
-def birthday_line(birthdays: list[Birthday], today: date) -> str:
-    """The birthday entries as one line: ``Mom · Thu     Jake 30 · Mon``."""
-    return "     ".join(text for text, _ in birthday_entries(birthdays, today))
-
-
 def sky_rows(
     weather: WeatherData | None,
     today: date,

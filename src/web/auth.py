@@ -76,7 +76,12 @@ def make_auth_middleware(username: str | None, password_hash: str | None):
 
     def _check_auth():
         auth = request.authorization
-        if auth and auth.username == username and check_password(auth.password, password_hash):
+        if (
+            auth
+            and auth.username == username
+            and auth.password is not None
+            and check_password(auth.password, password_hash)
+        ):
             g.web_authenticated = True
             return None
         if request.path in PUBLIC_PATHS:

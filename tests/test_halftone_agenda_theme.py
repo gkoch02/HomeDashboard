@@ -15,7 +15,6 @@ from src.render.canvas import render_dashboard
 from src.render.components.halftone_agenda_panel import (
     _DENSITY_TIERS,
     AGENDA_PAD_X,
-    AGENDA_X,
     ART_W,
     BAND_Y,
     COND_PT,
@@ -54,6 +53,8 @@ from src.render.theme import (
     ThemeStyle,
     load_theme,
 )
+
+AGENDA_X = ART_W + DIVIDER_W  # the right pane's left edge
 
 FIXED_NOW = datetime(2026, 4, 6, 10, 30)
 TODAY = FIXED_NOW.date()
@@ -149,10 +150,6 @@ class TestHalftoneAgendaRegistration:
 
 
 class TestGeometry:
-    def test_panes_tile_the_canvas(self):
-        assert AGENDA_X == ART_W + DIVIDER_W
-        assert AGENDA_X < 800
-
     def test_band_sits_below_the_hero_and_its_rule(self):
         assert BAND_Y == HERO_H + RULE_H
         assert BAND_Y < 480

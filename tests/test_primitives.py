@@ -11,7 +11,6 @@ from src.render.primitives import (
     draw_text_wrapped,
     filled_rect,
     hline,
-    inverted_text,
     location_line,
     text_height,
     text_width,
@@ -229,20 +228,6 @@ class TestDrawStalenessGlyph:
         style.bg = WHITE
         draw_staleness_glyph(draw, region, style)
         assert ink(img, (0, 0, 30, 20)) > 0, "no badge drawn in the small region"
-
-
-class TestInvertedText:
-    def test_draws_black_background(self, canvas, font):
-        img, draw = canvas
-        inverted_text(draw, rect=(5, 5, 80, 25), text="Hi", font=font)
-        # Background should be black
-        assert img.getpixel((5, 5)) == BLACK
-
-    def test_empty_text_still_fills_the_rect(self, canvas, font):
-        img, draw = canvas
-        inverted_text(draw, rect=(5, 5, 80, 25), text="", font=font)
-        assert img.getpixel((5, 5)) == BLACK
-        assert ink(img, (5, 5, 80, 25)) == (80 - 5) * (25 - 5), "the rect is not solid"
 
 
 class TestLocationLine:

@@ -43,7 +43,6 @@ EXTRA_EVENT_DAYS: dict[str, int] = {
     # past today, so on a Sunday it runs Mon–Wed of the next week.
     "wide_horizon": 3,
 }
-THEMES_NEEDING_TOMORROW = frozenset(EXTRA_EVENT_DAYS)
 
 # State files that belong in state_dir (not output_dir)
 _STATE_FILES = [
@@ -293,7 +292,7 @@ class DashboardApp:
         entry could later resolve to, rather than picking one of them. Picking
         was the older behaviour and it had a real gap: the candidates are
         anchored differently — ``monthly`` to the Sunday-first month grid,
-        ``THEMES_NEEDING_TOMORROW`` to the week anchor plus 8 — and ``monthly``
+        the ``EXTRA_EVENT_DAYS`` themes to the week anchor plus 8 — and ``monthly``
         won unconditionally despite its grid ending on the last day of the
         month. So when a month ends on a Saturday the grid did not reach
         tomorrow, and a post-fetch flip to ``day_arc`` / ``halftone_agenda``

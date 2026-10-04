@@ -244,7 +244,7 @@ class TestLoadConfig:
         assert cfg.schedule.quiet_hours_end == 6
 
     def test_cache_section_loaded(self, tmp_path):
-        """load_config() parses the cache: section into CacheConfig (lines 169-170)."""
+        """load_config() parses the cache: section into CacheConfig."""
         p = tmp_path / "config.yaml"
         p.write_text(
             yaml.dump(
@@ -269,7 +269,7 @@ class TestLoadConfig:
         assert cfg.cache.cooldown_minutes == 15
 
     def test_filters_section_loaded(self, tmp_path):
-        """load_config() parses the filters: section into FilterConfig (lines 182-183)."""
+        """load_config() parses the filters: section into FilterConfig."""
         p = tmp_path / "config.yaml"
         p.write_text(
             yaml.dump(
@@ -288,7 +288,7 @@ class TestLoadConfig:
         assert cfg.filters.exclude_all_day is True
 
     def test_title_loaded_from_config(self, tmp_path):
-        """load_config() stores the top-level title field (line 196)."""
+        """load_config() stores the top-level title field."""
         p = tmp_path / "config.yaml"
         p.write_text(yaml.dump({"title": "My Custom Dashboard"}))
         cfg = load_config(str(p))

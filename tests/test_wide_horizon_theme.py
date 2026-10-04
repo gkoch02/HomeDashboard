@@ -19,7 +19,7 @@ import numpy as np
 import pytest
 from PIL import Image, ImageDraw
 
-from src.app import EXTRA_EVENT_DAYS, THEMES_NEEDING_TOMORROW
+from src.app import EXTRA_EVENT_DAYS
 from src.astronomy import solar_altitude, sun_times
 from src.config import DisplayConfig, WeatherConfig
 from src.data.models import (
@@ -845,7 +845,6 @@ class TestRender:
 
     def test_needs_three_days_past_the_week(self):
         assert EXTRA_EVENT_DAYS["wide_horizon"] == 3
-        assert "wide_horizon" in THEMES_NEEDING_TOMORROW
 
     def test_native_colour_render_is_exact_inks(self):
         img = render_dashboard(
@@ -1059,7 +1058,6 @@ class TestFonts:
     @pytest.mark.parametrize(
         "accessor",
         [
-            fonts.big_shoulders_semibold,
             fonts.big_shoulders_extrabold,
             fonts.big_shoulders_black,
             fonts.figtree_extrabold,

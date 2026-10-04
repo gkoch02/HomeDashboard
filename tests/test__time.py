@@ -5,9 +5,7 @@ from __future__ import annotations
 import zoneinfo
 from datetime import datetime, timezone
 
-import pytest
-
-from src._time import assert_aware, now_local, now_utc, to_aware
+from src._time import now_local, now_utc, to_aware
 
 
 class TestNowUtc:
@@ -64,23 +62,6 @@ class TestToAware:
         result = to_aware(aware, tz=ny)
         assert result is aware
         assert result.tzinfo is timezone.utc
-
-
-class TestAssertAware:
-    def test_aware_datetime_returned_unchanged(self):
-        aware = datetime(2026, 5, 5, 12, 0, tzinfo=timezone.utc)
-        result = assert_aware(aware)
-        assert result is aware
-
-    def test_naive_datetime_raises_value_error(self):
-        naive = datetime(2026, 5, 5, 12, 0)
-        with pytest.raises(ValueError, match="timezone-aware"):
-            assert_aware(naive)
-
-    def test_error_message_includes_custom_name(self):
-        naive = datetime(2026, 5, 5, 12, 0)
-        with pytest.raises(ValueError, match="fetched_at"):
-            assert_aware(naive, name="fetched_at")
 
 
 class TestDayStartUtc:

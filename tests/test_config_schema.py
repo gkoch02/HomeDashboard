@@ -14,11 +14,14 @@ from src.config_schema import (
     SectionSpec,
     all_field_specs,
     editable_field_paths,
-    field_spec_by_path,
     schema,
     secret_field_paths,
     to_json,
 )
+
+
+def _spec(path: str) -> FieldSpec | None:
+    return next((spec for spec in all_field_specs() if spec.path == path), None)
 
 
 class TestSchemaShape:
@@ -52,13 +55,10 @@ class TestSchemaShape:
         paths = [f.path for f in all_field_specs()]
         assert len(paths) == len(set(paths))
 
-    def test_field_spec_by_path_lookup(self):
-        spec = field_spec_by_path("weather.api_key")
+    def test_weather_api_key_is_secret(self):
+        spec = _spec("weather.api_key")
         assert spec is not None
         assert spec.secret is True
-
-    def test_field_spec_by_path_unknown_returns_none(self):
-        assert field_spec_by_path("__never_registered__") is None
 
 
 class TestEditableFieldPaths:
@@ -162,7 +162,7 @@ class TestThemeChoices:
     """`theme` is the one field with a fully known domain (#216)."""
 
     def test_theme_field_is_an_enum_with_choices(self):
-        spec = field_spec_by_path("theme")
+        spec = _spec("theme")
         assert spec is not None
         assert spec.type == "enum"
         assert spec.choices
@@ -170,16 +170,16 @@ class TestThemeChoices:
     def test_theme_choices_cover_every_registered_theme(self):
         from src.render.theme import AVAILABLE_THEMES
 
-        spec = field_spec_by_path("theme")
+        spec = _spec("theme")
         assert set(AVAILABLE_THEMES) <= set(spec.choices)
 
     def test_theme_choices_include_the_random_modes(self):
-        spec = field_spec_by_path("theme")
+        spec = _spec("theme")
         for pseudo in ("random", "random_daily", "random_hourly"):
             assert pseudo in spec.choices
 
     def test_theme_choices_are_sorted_and_unique(self):
-        spec = field_spec_by_path("theme")
+        spec = _spec("theme")
         assert list(spec.choices) == sorted(set(spec.choices))
 
     def test_schema_json_exposes_theme_choices(self):
@@ -190,7 +190,7 @@ class TestThemeChoices:
         assert "agenda" in theme_field["choices"]
 
     def test_theme_stays_editable_and_not_secret(self):
-        spec = field_spec_by_path("theme")
+        spec = _spec("theme")
         assert spec.editable is True
         assert spec.secret is False
         assert "theme" in editable_field_paths()
