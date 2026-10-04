@@ -14,7 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - Reject unreadable or malformed web auth configuration rather than falling back
   to open access; an unspecified web bind address now defaults to localhost.
 - Make the almanac's unspecified-timezone fallback independent of the host timezone.
-- Include fonts, quotes, moon artwork, and web assets in distributions, and render
+- Include fonts, quotes, moon artwork, theme previews, and web assets in distributions, and render
   an installed dashboard outside the checkout in CI.
 - Correct the terminal non-blank assertion and document the hardware-free
   development setup and the limits of the assertion and fetch-timeout checks.

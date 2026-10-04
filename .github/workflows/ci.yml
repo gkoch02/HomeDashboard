@@ -93,9 +93,11 @@ jobs:
           from src.config import DisplayConfig
           from src.dummy_data import generate_dummy_data
           from src.render.canvas import render_dashboard
+          from src._assets import asset_root
           from src.render.fonts import FONT_DIR
           from src.render.quotes import DEFAULT_QUOTES_PATH
           assert FONT_DIR.is_dir() and DEFAULT_QUOTES_PATH.is_file()
+          assert (asset_root() / "assets/previews/theme_default.png").is_file()
           image = render_dashboard(
               generate_dummy_data(now=datetime(2026, 4, 6, 10, 30)), DisplayConfig()
           )

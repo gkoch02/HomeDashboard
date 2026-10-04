@@ -13,6 +13,8 @@ from pathlib import Path
 from flask import Blueprint, current_app, send_file
 from werkzeug.exceptions import NotFound
 
+from src._assets import asset_root
+
 image_bp = Blueprint("image", __name__)
 
 # Allowlist: only filenames matching [a-z0-9_] to prevent path traversal.
@@ -42,7 +44,9 @@ def _output_dir() -> Path:
 
 def _preview_dir() -> Path:
     """Committed theme-preview asset directory (assets/previews)."""
-    return _resolve_dir("PREVIEW_DIR", ("assets", "previews"))
+    if current_app.config.get("PREVIEW_DIR") is not None:
+        return _resolve_dir("PREVIEW_DIR", ("assets", "previews"))
+    return asset_root() / "assets" / "previews"
 
 
 @image_bp.route("/image/latest")
