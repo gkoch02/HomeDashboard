@@ -1,34 +1,5 @@
-"""Tests for src/render/components/tides_panel.py
-
-Covers: quote_for(prefix="tides-") (key prefix, refresh cadence, fallback),
-individual band draw functions (_band_header, _band_events, _band_weather,
-_band_forecast, _band_environment, _band_birthdays, _band_quote, _band_host),
-and draw_tides (full render, missing data, band distribution).
-
-Assertion discipline (see #229)
--------------------------------
-Most of the band tests here used to call their function and assert nothing
-at all; the rest asserted ``img.getbbox() is not None``, which on a
-mode-``"1"`` plate filled with 1 can never be false. 40 of the 41 tests
-passed with every band function stubbed to a no-op.
-
-Ink here means **zero-valued** pixels. Watch the polarity: the header,
-weather, environment and quote bands are inverted — filled in ``fg`` with
-their text knocked out in ``bg`` — so for those four *more content means
-less ink*, and the assertions are written in that direction.
-
-At the whole-plate level the structural measure is ``_inverted_runs``: the
-four inverted bands give a fingerprint of which bands were laid down, so
-"losing weather drops a band" and "losing the forecast leaves weather and
-environment contiguous" are checked directly.
-
-Verification: with every band function and draw_tides stubbed to a no-op,
-35 of the 43 tests fail. Of the 8 survivors, 6 are ``quote_for(prefix="tides-")``
-tests that exercise a pure function and never draw; the other two assert
-that a band draws *nothing* (``test_no_weather_noop`` and
-``test_empty_forecast_list_is_also_a_noop``), which a no-op satisfies by
-construction — both were checked instead by making the guard draw a
-placeholder and confirming they go red.
+"""Tests for tides_panel.py (``quote_for``, each ``_band_*`` function and ``draw_tides``); ink is
+counted with the local ``_ink`` and the inverted bands are fingerprinted with ``_inverted_runs``.
 """
 
 from __future__ import annotations

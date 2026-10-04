@@ -270,11 +270,17 @@ class TestLoadData:
 
 
 class TestEventWindowForTheme:
-    def test_default_theme_uses_week_window(self, tmp_path):
+    @pytest.mark.parametrize(
+        "theme, days",
+        [("default", 7), ("day_arc", 8), ("halftone_agenda", 8)],
+        ids=["default_week", "day_arc_one_day_past", "halftone_agenda_one_day_past"],
+    )
+    def test_week_anchored_window_length(self, tmp_path, theme, days):
+        # day_arc and halftone_agenda share the after-dark rollover, so the same widened window.
         app = _make_app(tmp_path)
-        start, days = app._event_window_for_theme("default", datetime(2026, 4, 11, 10, 0))
+        start, got = app._event_window_for_theme(theme, datetime(2026, 4, 11, 10, 0))
         assert start is None
-        assert days == 7
+        assert got == days
 
     def test_monthly_theme_uses_visible_month_grid_window(self, tmp_path):
         from datetime import date
@@ -283,19 +289,6 @@ class TestEventWindowForTheme:
         start, days = app._event_window_for_theme("monthly", datetime(2026, 4, 11, 10, 0))
         assert start == date(2026, 3, 29)
         assert days == 35
-
-    def test_day_arc_fetches_one_day_past_the_week(self, tmp_path):
-        app = _make_app(tmp_path)
-        start, days = app._event_window_for_theme("day_arc", datetime(2026, 4, 11, 10, 0))
-        assert start is None
-        assert days == 8
-
-    def test_halftone_agenda_fetches_one_day_past_the_week(self, tmp_path):
-        # Same rollover behaviour as day_arc, so the same widened window.
-        app = _make_app(tmp_path)
-        start, days = app._event_window_for_theme("halftone_agenda", datetime(2026, 4, 11, 10, 0))
-        assert start is None
-        assert days == 8
 
     def test_day_arc_window_covers_tomorrow_on_a_sunday(self, tmp_path):
         # Regression: the default window is Monday-anchored and 7 days long, so
@@ -1234,7 +1227,8 @@ class TestRunEvents:
     def test_a_failing_event_store_does_not_break_the_run(self, tmp_path):
         app = _real_app(tmp_path)
         with patch("src.web.event_store.append_event", side_effect=OSError("read-only filesystem")):
-            app.run()  # must not raise
+            app.run()
+        assert (Path(app.cfg.output_dir) / "last_success.txt").exists()
 
     def test_run_still_succeeds_when_the_web_package_is_unavailable(self, tmp_path):
         import builtins

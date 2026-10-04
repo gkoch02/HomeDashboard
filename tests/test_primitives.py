@@ -89,10 +89,13 @@ class TestDrawTextTruncated:
         w = draw_text_truncated(draw, (0, 0), "A" * 100, font, max_width=30)
         assert w <= 30
 
-    def test_fill_white(self, canvas, font):
+    def test_fill_is_honoured(self, canvas, font):
+        """White-on-white leaves no ink; the default fill does."""
         img, draw = canvas
-        # Draw white-on-white (invisible) — just ensure no crash
         draw_text_truncated(draw, (0, 0), "Test", font, max_width=200, fill=WHITE)
+        assert ink(img) == 0, "fill=WHITE still drew ink"
+        draw_text_truncated(draw, (0, 0), "Test", font, max_width=200)
+        assert ink(img) > 0
 
     def test_zero_max_width_draws_ellipsis_only(self, canvas, font):
         """When max_width is 0, even a 1-char text can't fit with ellipsis;
@@ -224,7 +227,8 @@ class TestDrawStalenessGlyph:
         style = MagicMock()
         style.fg = BLACK
         style.bg = WHITE
-        draw_staleness_glyph(draw, region, style)  # must not raise
+        draw_staleness_glyph(draw, region, style)
+        assert ink(img, (0, 0, 30, 20)) > 0, "no badge drawn in the small region"
 
 
 class TestInvertedText:
@@ -234,9 +238,11 @@ class TestInvertedText:
         # Background should be black
         assert img.getpixel((5, 5)) == BLACK
 
-    def test_no_crash_with_empty_text(self, canvas, font):
-        _, draw = canvas
+    def test_empty_text_still_fills_the_rect(self, canvas, font):
+        img, draw = canvas
         inverted_text(draw, rect=(5, 5, 80, 25), text="", font=font)
+        assert img.getpixel((5, 5)) == BLACK
+        assert ink(img, (5, 5, 80, 25)) == (80 - 5) * (25 - 5), "the rect is not solid"
 
 
 class TestLocationLine:

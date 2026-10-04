@@ -105,16 +105,13 @@ class TestThemeStyle:
             result = fn(12)
             assert isinstance(result, ImageFont.FreeTypeFont)
 
-    def test_label_font_method_bold(self):
+    @pytest.mark.parametrize(
+        "weight, size", [("bold", 12), ("regular", 11)], ids=["bold", "regular"]
+    )
+    def test_label_font_method(self, weight, size):
         from PIL import ImageFont
 
-        s = ThemeStyle(label_font_weight="bold", label_font_size=12)
-        assert isinstance(s.label_font(), ImageFont.FreeTypeFont)
-
-    def test_label_font_method_regular(self):
-        from PIL import ImageFont
-
-        s = ThemeStyle(label_font_weight="regular", label_font_size=11)
+        s = ThemeStyle(label_font_weight=weight, label_font_size=size)
         assert isinstance(s.label_font(), ImageFont.FreeTypeFont)
 
     def test_custom_fg_bg(self):
@@ -209,39 +206,17 @@ class TestDefaultTheme:
 
 
 class TestLoadTheme:
-    def test_loads_default(self):
-        t = load_theme("default")
+    @pytest.mark.parametrize(
+        "name", ["default", "terminal", "minimalist", "old_fashioned", "today", "fantasy", "qotd"]
+    )
+    def test_loads_by_name(self, name):
+        t = load_theme(name)
         assert isinstance(t, Theme)
-        assert t.name == "default"
-
-    def test_loads_terminal(self):
-        t = load_theme("terminal")
-        assert isinstance(t, Theme)
-        assert t.name == "terminal"
-
-    def test_loads_minimalist(self):
-        t = load_theme("minimalist")
-        assert isinstance(t, Theme)
-        assert t.name == "minimalist"
-
-    def test_loads_old_fashioned(self):
-        t = load_theme("old_fashioned")
-        assert isinstance(t, Theme)
-        assert t.name == "old_fashioned"
+        assert t.name == name
 
     def test_unknown_name_raises_value_error(self):
         with pytest.raises(ValueError, match="Unknown theme"):
             load_theme("nonexistent_theme_xyz")
-
-    def test_loads_today(self):
-        t = load_theme("today")
-        assert isinstance(t, Theme)
-        assert t.name == "today"
-
-    def test_loads_fantasy(self):
-        t = load_theme("fantasy")
-        assert isinstance(t, Theme)
-        assert t.name == "fantasy"
 
     def test_available_themes_contains_expected(self):
         assert "default" in AVAILABLE_THEMES
@@ -251,11 +226,6 @@ class TestLoadTheme:
         assert "today" in AVAILABLE_THEMES
         assert "fantasy" in AVAILABLE_THEMES
         assert "qotd" in AVAILABLE_THEMES
-
-    def test_loads_qotd(self):
-        t = load_theme("qotd")
-        assert isinstance(t, Theme)
-        assert t.name == "qotd"
 
 
 # ---------------------------------------------------------------------------
@@ -280,9 +250,12 @@ class TestRenderDashboardWithThemes:
         assert isinstance(result, Image.Image)
         assert result.size == (800, 480)
 
-    def test_terminal_theme_produces_valid_image(self):
+    @pytest.mark.parametrize(
+        "name", ["terminal", "minimalist", "old_fashioned", "fantasy", "today", "qotd"]
+    )
+    def test_theme_produces_valid_image(self, name):
         data = _make_data()
-        t = load_theme("terminal")
+        t = load_theme(name)
         result = render_dashboard(data, self._cfg(), theme=t)
         assert isinstance(result, Image.Image)
         assert result.mode == "1"
@@ -308,35 +281,13 @@ class TestRenderDashboardWithThemes:
         # (week body, first column, below header)
         assert result.getpixel((10, 200)) == 1  # white in body area
 
-    def test_minimalist_theme_produces_valid_image(self):
-        data = _make_data()
-        t = load_theme("minimalist")
-        result = render_dashboard(data, self._cfg(), theme=t)
-        assert isinstance(result, Image.Image)
-        assert result.mode == "1"
-        assert result.size == (800, 480)
-
-    def test_old_fashioned_theme_produces_valid_image(self):
-        data = _make_data()
-        t = load_theme("old_fashioned")
-        result = render_dashboard(data, self._cfg(), theme=t)
-        assert isinstance(result, Image.Image)
-        assert result.mode == "1"
-        assert result.size == (800, 480)
-
-    def test_fantasy_theme_produces_valid_image(self):
-        data = _make_data()
-        t = load_theme("fantasy")
-        result = render_dashboard(data, self._cfg(), theme=t)
-        assert isinstance(result, Image.Image)
-        assert result.mode == "1"
-        assert result.size == (800, 480)
-
-    def test_fantasy_canvas_starts_black(self):
-        """Fantasy theme uses a black background."""
-        t = load_theme("fantasy")
-        assert t.style.bg == 0  # BLACK
-        assert t.style.fg == 1  # WHITE
+    @pytest.mark.parametrize(
+        "name, bg, fg", [("fantasy", 0, 1), ("qotd", 1, 0)], ids=["fantasy_black", "qotd_white"]
+    )
+    def test_theme_canvas_polarity(self, name, bg, fg):
+        t = load_theme(name)
+        assert t.style.bg == bg
+        assert t.style.fg == fg
 
     def test_fantasy_has_overlay_fn(self):
         """Fantasy theme wires up the decorative border overlay."""
@@ -360,14 +311,6 @@ class TestRenderDashboardWithThemes:
         assert labels.get("weather") != "WEATHER"
         assert labels.get("birthdays") != "BIRTHDAYS"
         assert labels.get("info") != "QUOTE OF THE DAY"
-
-    def test_today_theme_produces_valid_image(self):
-        data = _make_data()
-        t = load_theme("today")
-        result = render_dashboard(data, self._cfg(), theme=t)
-        assert isinstance(result, Image.Image)
-        assert result.mode == "1"
-        assert result.size == (800, 480)
 
     def test_today_theme_hides_week_view(self):
         """The today theme's week_view region should be invisible."""
@@ -442,20 +385,6 @@ class TestRenderDashboardWithThemes:
         t = Theme(name="no-weather", style=ThemeStyle(), layout=layout)
         result = render_dashboard(data, self._cfg(), theme=t)
         assert isinstance(result, Image.Image)
-
-    def test_qotd_theme_produces_valid_image(self):
-        data = _make_data()
-        t = load_theme("qotd")
-        result = render_dashboard(data, self._cfg(), theme=t)
-        assert isinstance(result, Image.Image)
-        assert result.mode == "1"
-        assert result.size == (800, 480)
-
-    def test_qotd_theme_white_background(self):
-        """QOTD theme has a white (1) background."""
-        t = load_theme("qotd")
-        assert t.style.bg == 1
-        assert t.style.fg == 0
 
     def test_qotd_theme_hides_calendar_components(self):
         """QOTD theme has no header, week_view, or birthdays in draw_order."""
@@ -585,9 +514,14 @@ class TestQotdInvertTheme:
         assert result.size == (800, 480)
 
     def test_render_no_weather(self):
+        """Without weather the plate still renders, and differs from one with weather."""
+        theme = load_theme("qotd_invert")
+        with_weather = render_dashboard(_make_data(), self._cfg(), theme=theme)
         data = _make_data()
         data.weather = None
-        render_dashboard(data, self._cfg(), theme=load_theme("qotd_invert"))
+        result = render_dashboard(data, self._cfg(), theme=theme)
+        assert isinstance(result, Image.Image)
+        assert result.tobytes() != with_weather.tobytes(), "the weather band ignores the data"
 
     def test_uses_playfair_fonts(self):
         from PIL import ImageFont

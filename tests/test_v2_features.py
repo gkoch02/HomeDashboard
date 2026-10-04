@@ -43,11 +43,7 @@ from src.render.quantize import flatten_pixels
 
 
 def _ink(img, box=None) -> int:
-    """Count ink (value-0) pixels, optionally only inside *box*.
-
-    (#229) The draw tests below asserted `img.getbbox() is not None` on a
-    mode-"1" plate filled with 1, where getbbox can never return None.
-    """
+    """Count ink (value-0) pixels, optionally only inside *box*."""
     px = flatten_pixels(img)
     width = img.width
     if box is None:
@@ -126,8 +122,7 @@ class TestEventLocationDisplay:
         """Only the first comma-separated component is drawn.
 
         Two locations sharing a first component must render identically; one
-        differing in it must not. The old version asserted getbbox and said in
-        its own docstring that it was "tested via no-crash".
+        differing in it must not.
         """
         today = date(2024, 3, 15)
 

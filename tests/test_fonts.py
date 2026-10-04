@@ -1,5 +1,6 @@
 """Tests for src/render/fonts.py — font loader functions."""
 
+import pytest
 from PIL import ImageFont
 
 from src.render.fonts import (
@@ -24,50 +25,29 @@ from src.render.fonts import (
 class TestFontAccessors:
     """Smoke tests — verify each font accessor loads without error."""
 
-    def test_regular(self):
-        assert isinstance(regular(12), ImageFont.FreeTypeFont)
-
-    def test_medium(self):
-        assert isinstance(medium(12), ImageFont.FreeTypeFont)
-
-    def test_semibold(self):
-        assert isinstance(semibold(12), ImageFont.FreeTypeFont)
-
-    def test_bold(self):
-        assert isinstance(bold(12), ImageFont.FreeTypeFont)
-
-    def test_weather_icon(self):
-        assert isinstance(weather_icon(20), ImageFont.FreeTypeFont)
-
-    def test_cinzel_regular(self):
-        assert isinstance(cinzel_regular(12), ImageFont.FreeTypeFont)
-
-    def test_cinzel_semibold(self):
-        assert isinstance(cinzel_semibold(12), ImageFont.FreeTypeFont)
-
-    def test_oxanium(self):
-        assert isinstance(oxanium(12), ImageFont.FreeTypeFont)
-
-    def test_oxanium_bold(self):
-        assert isinstance(oxanium_bold(12), ImageFont.FreeTypeFont)
-
-    def test_oxanium_extrabold(self):
-        assert isinstance(oxanium_extrabold(12), ImageFont.FreeTypeFont)
-
-    def test_orbitron_black(self):
-        assert isinstance(orbitron_black(12), ImageFont.FreeTypeFont)
-
-    def test_rajdhani(self):
-        assert isinstance(rajdhani(12), ImageFont.FreeTypeFont)
-
-    def test_rajdhani_semibold(self):
-        assert isinstance(rajdhani_semibold(12), ImageFont.FreeTypeFont)
-
-    def test_antonio_semibold(self):
-        assert isinstance(antonio_semibold(12), ImageFont.FreeTypeFont)
-
-    def test_antonio_bold(self):
-        assert isinstance(antonio_bold(12), ImageFont.FreeTypeFont)
+    @pytest.mark.parametrize(
+        "accessor, size",
+        [
+            (regular, 12),
+            (medium, 12),
+            (semibold, 12),
+            (bold, 12),
+            (weather_icon, 20),
+            (cinzel_regular, 12),
+            (cinzel_semibold, 12),
+            (oxanium, 12),
+            (oxanium_bold, 12),
+            (oxanium_extrabold, 12),
+            (orbitron_black, 12),
+            (rajdhani, 12),
+            (rajdhani_semibold, 12),
+            (antonio_semibold, 12),
+            (antonio_bold, 12),
+        ],
+        ids=lambda v: v.__name__ if callable(v) else None,
+    )
+    def test_accessor_loads_a_freetype_font(self, accessor, size):
+        assert isinstance(accessor(size), ImageFont.FreeTypeFont)
 
     def test_variable_faces_are_pinned_off_their_axis_default(self):
         """Oxanium's default variation instance is ExtraLight (200).
@@ -97,7 +77,7 @@ class TestFontAccessors:
 
 
 class TestGetVariableFont:
-    """Test _get_variable_font (lines 15-17) via a mock that supports variation axes."""
+    """_get_variable_font pins the weight axis, checked through a mock font."""
 
     def test_get_variable_font_calls_set_variation_by_axes(self):
         from unittest.mock import MagicMock, patch

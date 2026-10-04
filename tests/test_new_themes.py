@@ -394,15 +394,16 @@ class TestYearPulsePanel:
         countdowns = _build_countdowns(data, today)
         assert all(d >= 0 for d, _ in countdowns), "Past event leaked into countdowns"
 
-    def test_leap_year_birthday_handled(self):
-        """Feb 29 birthdays should not crash when the current year is not a leap year."""
+    def test_leap_year_birthday_rolls_to_feb_28(self):
+        """A Feb 29 birthday in a non-leap year is counted down to Feb 28."""
         from src.render.components.year_pulse_panel import _build_countdowns
 
-        today = date(2026, 4, 5)  # 2026 is not a leap year
+        today = date(2026, 11, 15)  # 2027 is not a leap year; Feb 28 is inside the horizon
         bdays = [Birthday(name="Leap", date=date(2000, 2, 29), age=25)]
         data = DashboardData(events=[], birthdays=bdays)
-        # Should not raise
-        _build_countdowns(data, today)
+        countdowns = _build_countdowns(data, today)
+        leap = [d for d, label in countdowns if "Leap" in label]
+        assert leap == [(date(2027, 2, 28) - today).days], countdowns
 
     def test_birthday_already_past_this_year_rolls_to_next(self):
         """Birthday earlier in the year already passed → next_occ rolls to next year."""

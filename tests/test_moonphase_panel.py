@@ -1,38 +1,5 @@
-"""Tests for src/render/components/moonphase_panel.py.
-
-Assertion discipline (see #229)
--------------------------------
-The 1-bit draw tests asserted ``img.getbbox() is not None`` on a plate
-filled with 1, where every pixel is non-zero and getbbox can never return
-None; 54 of the 59 tests passed with ``draw_moonphase`` stubbed to a no-op.
-(The five that already failed use an L canvas with a *black* background,
-where getbbox is genuinely meaningful — just weak.)
-
-Two things shape the measurements here:
-
-* Polarity is not fixed. This panel is drawn on greyscale plates whose
-  background is black (``moonphase``) or white (``moonphase_invert``), so
-  ``_marks`` counts pixels differing from the background rather than a
-  fixed value, and the real theme styles are used. Passing the default
-  ``ThemeStyle`` (``fg=0, bg=1``, a 1-bit style) onto an L canvas — which
-  the pre-existing L tests did — is a combination the themes never produce,
-  and under it the lunar disc renders inverted: bright at new moon, dark at
-  full. Measuring against it would have pinned an artefact.
-* Counting the filmstrip's discs is phase-dependent and unreliable: a
-  near-new flanking moon has almost no lit area, and the hero's outline ring
-  reads as two marks on a scanline. ``_assert_filmstrip`` measures the
-  strip's span and centring instead, which holds at every phase.
-
-The load-bearing test is ``test_hero_disc_tracks_illumination``: the lit
-area of the hero disc must rank the same way the illumination percentage
-does across the cycle. That is the panel's whole job.
-
-Verification: with ``draw_moonphase`` stubbed to a no-op, 28 of the 63
-tests fail. The survivors are pure helpers (``_ordinal_suffix``,
-``quote_for(prefix="moonphase-")``, ``_luminance``, ``coords_set``), theme-factory
-cases, and tests that drive ``moon_render`` directly — none of which go
-through this entry point — plus ``test_returns_none``, which was checked
-by making the component return a value.
+"""Tests for moonphase_panel.py; marks are counted with ``tests.inkutils.marks`` against the
+real theme styles, because the plate's polarity differs between ``moonphase`` and its invert.
 """
 
 import json

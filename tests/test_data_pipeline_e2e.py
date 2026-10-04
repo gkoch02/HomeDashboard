@@ -706,4 +706,7 @@ def test_attached_session_counts_requests_that_never_get_a_response():
 def test_attach_tolerates_a_missing_session():
     from src.fetchers import request_counter
 
-    request_counter.attach(None)  # e.g. a caldav client without .session
+    assert request_counter.attach(None) is None  # e.g. a caldav client without .session
+    with request_counter.counting() as tally:
+        pass
+    assert tally.count == 0

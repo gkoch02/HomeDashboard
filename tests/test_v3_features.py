@@ -33,12 +33,7 @@ from tests.inkutils import ink
 
 
 def _ink(img, box=None) -> int:
-    """Count ink (value-0) pixels, optionally only inside *box*.
-
-    (#229) The draw tests below asserted `img.getbbox() is not None` on a
-    mode-"1" plate filled with 1, where every pixel is non-zero and getbbox
-    can never return None.
-    """
+    """Count ink (value-0) pixels, optionally only inside *box*."""
     px = flatten_pixels(img)
     width = img.width
     if box is None:

@@ -62,7 +62,7 @@ class TestQuotaTracker:
         assert qt.daily_count("events") == 0
 
     def test_ensure_today_resets_counts_on_day_change(self, tmp_state_dir):
-        """_ensure_today resets _counts when the day changes in a live instance (lines 55-56)."""
+        """_ensure_today resets _counts when the day changes in a live instance."""
         qt = QuotaTracker(state_dir=tmp_state_dir)
         qt.record_call("events", count=10)
         # Simulate the day ticking over on the same instance without reloading
@@ -77,7 +77,8 @@ class TestQuotaTracker:
 
         qt = QuotaTracker(state_dir=tmp_state_dir)
         with patch("src._io.json.dump", side_effect=OSError("disk full")):
-            qt.record_call("events")  # triggers _save(), should not raise
+            qt.record_call("events")
+        assert qt.daily_count("events") == 1
 
 
 class TestQuotaDayFollowsConfiguredZone:

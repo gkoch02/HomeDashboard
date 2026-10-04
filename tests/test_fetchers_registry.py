@@ -98,7 +98,8 @@ class TestRegistryMutation:
             unregister_fetcher("__test_dupe__")
 
     def test_unregister_unknown_is_noop(self):
-        unregister_fetcher("__never_registered__")  # must not raise
+        unregister_fetcher("__never_registered__")
+        assert get_fetcher("__never_registered__") is None
 
 
 class TestEventsCacheMetadata:

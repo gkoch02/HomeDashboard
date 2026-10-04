@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from datetime import date, datetime
 
+import pytest
 from PIL import Image, ImageDraw
 
 from src.data.models import (
@@ -25,6 +26,7 @@ from src.render.components.scorecard_panel import (
 )
 from src.render.quotes import quote_for
 from src.render.theme import ComponentRegion, ThemeStyle
+from tests.inkutils import ink
 
 FIXED_NOW = datetime(2026, 4, 6, 10, 30)
 FIXED_TODAY = FIXED_NOW.date()
@@ -116,22 +118,26 @@ class TestQuoteForPanel:
 
 
 class TestDrawTile:
-    def test_does_not_raise(self):
-        draw, _ = _blank_draw()
-        style = ThemeStyle()
-        _draw_tile(draw, 0, 0, 200, 130, "42", "EVENTS TODAY", "5 this week", style)
+    @pytest.mark.parametrize(
+        "args, kwargs",
+        [
+            ((0, 0, 200, 130, "42", "EVENTS TODAY", "5 this week"), {}),
+            ((0, 0, 200, 130, "72°", "OUTDOOR", "H:80° L:60°"), {"hero_size": 32}),
+        ],
+        ids=["default_hero", "hero_size_override"],
+    )
+    def test_draws_inside_the_tile(self, args, kwargs):
+        draw, img = _blank_draw()
+        x, y, w, h = args[:4]
+        _draw_tile(draw, *args, ThemeStyle(), **kwargs)
+        assert ink(img, (x, y, x + w, y + h)) > 0, "the tile is blank"
 
-    def test_long_context_triggers_truncation_path(self):
-        draw, _ = _blank_draw()
-        style = ThemeStyle()
+    def test_long_context_is_truncated_to_the_tile(self):
+        draw, img = _blank_draw()
         long_ctx = "This is a very long context string that should trigger truncation"
-        # Should not raise even when context is wider than tile
-        _draw_tile(draw, 0, 0, 100, 130, "99", "LABEL", long_ctx, style)
-
-    def test_hero_size_override(self):
-        draw, _ = _blank_draw()
-        style = ThemeStyle()
-        _draw_tile(draw, 0, 0, 200, 130, "72°", "OUTDOOR", "H:80° L:60°", style, hero_size=32)
+        _draw_tile(draw, 0, 0, 100, 130, "99", "LABEL", long_ctx, ThemeStyle())
+        assert ink(img, (0, 0, 100, 130)) > 0, "the tile is blank"
+        assert ink(img, (100, 0, 800, 130)) == 0, "the context ran past the tile's right edge"
 
 
 # ---------------------------------------------------------------------------
@@ -261,16 +267,20 @@ class TestDrawScorecard:
         draw_scorecard(draw, data, FIXED_TODAY, FIXED_NOW, region=region)
         assert img.size == (800, 480)
 
-    def test_custom_style(self):
+    @pytest.mark.parametrize(
+        "kwargs",
+        [
+            dict(style=ThemeStyle(fg=0, bg=1)),
+            dict(quote_refresh="daily"),
+            dict(quote_refresh="twice_daily"),
+            dict(quote_refresh="hourly"),
+        ],
+        ids=["explicit_style", "quote_daily", "quote_twice_daily", "quote_hourly"],
+    )
+    def test_renders_a_non_blank_plate(self, kwargs):
+        """Every style / quote-cadence shape draws something; nothing finer is asserted."""
         data = generate_dummy_data(now=FIXED_NOW)
         img = Image.new("1", (800, 480), color=1)
         draw = ImageDraw.Draw(img)
-        style = ThemeStyle(fg=0, bg=1)
-        draw_scorecard(draw, data, FIXED_TODAY, FIXED_NOW, style=style)
-
-    def test_quote_refresh_modes(self):
-        data = generate_dummy_data(now=FIXED_NOW)
-        for mode in ("daily", "twice_daily", "hourly"):
-            img = Image.new("1", (800, 480), color=1)
-            draw = ImageDraw.Draw(img)
-            draw_scorecard(draw, data, FIXED_TODAY, FIXED_NOW, quote_refresh=mode)
+        draw_scorecard(draw, data, FIXED_TODAY, FIXED_NOW, **kwargs)
+        assert ink(img) > 0

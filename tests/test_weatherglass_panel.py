@@ -14,25 +14,8 @@ suite, which renders every theme at a single pinned moment under imperial
 units — so the metric and standard branches and every pressure-history path
 had no regression protection.
 
-Assertion discipline (see #229)
--------------------------------
-#229 singles this file out: its parametrized sweeps across the AQI scale,
-the wind rose and the UV scale are *deliberate* smoke tests and should keep
-their shape. They have — the change here is only that they can now fail.
-They asserted ``img.getbbox() is not None`` on a white plate with fg=0,
-where getbbox reports the bounds of non-zero pixels and so returns the full
-canvas whether or not anything was drawn; ``_marks`` counts pixels that
-differ from the background instead.
-
-Each sweep also gained one companion test asserting that the range actually
-reaches its instrument. The sweep says every value renders; the companion
-says the values do not all render *identically*. A compass that ignores the
-bearing passes the first and fails the second.
-
-Verification: with ``draw_weatherglass`` stubbed to a no-op, 52 of the 126
-tests fail (10 did before). The survivors are the pure scale/format helpers,
-the theme-registry cases, and the pressure-history tests, which assert on
-files in ``state/`` rather than on pixels.
+Marks are counted with the local ``_marks``; the AQI, wind-rose and UV sweeps are deliberate
+smoke tests, each paired with a companion asserting the range actually reaches its instrument.
 """
 
 from __future__ import annotations
@@ -115,12 +98,7 @@ def _style(mode: str = "L") -> ThemeStyle:
 
 
 def _marks(img, box=None) -> int:
-    """Pixels differing from the canvas background.
-
-    The honest replacement for ``img.getbbox() is not None`` here: the plate
-    is white with fg=0, so getbbox reports the bounds of non-zero pixels and
-    returns the full canvas whether or not anything was drawn.
-    """
+    """Pixels differing from the canvas background, optionally only inside *box*."""
     px = flatten_pixels(img)
     width = img.width
     background = px[0]

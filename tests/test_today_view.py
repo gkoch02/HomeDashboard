@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import date, datetime, timedelta
 from unittest.mock import patch
 
+import pytest
 from PIL import Image, ImageDraw
 
 from src.data.models import CalendarEvent, DayForecast
@@ -51,41 +52,29 @@ TODAY = date(2026, 3, 22)
 
 
 class TestFmtTime:
-    def test_morning_on_the_hour(self):
-        dt = datetime(2026, 3, 22, 9, 0)
+    @pytest.mark.parametrize(
+        "dt, fragment, suffix",
+        [
+            (datetime(2026, 3, 22, 9, 0), "9", "a"),
+            (datetime(2026, 3, 22, 9, 30), "9:30", "a"),
+            (datetime(2026, 3, 22, 14, 0), "2", "p"),
+            (datetime(2026, 3, 22, 15, 45), "3:45", "p"),
+            (datetime(2026, 3, 22, 12, 0), "12", "p"),
+            (datetime(2026, 3, 22, 0, 0), "12", "a"),
+        ],
+        ids=[
+            "morning_on_the_hour",
+            "morning_with_minutes",
+            "afternoon_on_the_hour",
+            "afternoon_with_minutes",
+            "noon",
+            "midnight",
+        ],
+    )
+    def test_hour_and_meridian(self, dt, fragment, suffix):
         result = _fmt_time(dt)
-        assert "9" in result
-        assert result.endswith("a")
-
-    def test_morning_with_minutes(self):
-        dt = datetime(2026, 3, 22, 9, 30)
-        result = _fmt_time(dt)
-        assert "9:30" in result
-        assert result.endswith("a")
-
-    def test_afternoon_on_the_hour(self):
-        dt = datetime(2026, 3, 22, 14, 0)
-        result = _fmt_time(dt)
-        assert "2" in result
-        assert result.endswith("p")
-
-    def test_afternoon_with_minutes(self):
-        dt = datetime(2026, 3, 22, 15, 45)
-        result = _fmt_time(dt)
-        assert "3:45" in result
-        assert result.endswith("p")
-
-    def test_noon(self):
-        dt = datetime(2026, 3, 22, 12, 0)
-        result = _fmt_time(dt)
-        assert "12" in result
-        assert result.endswith("p")
-
-    def test_midnight(self):
-        dt = datetime(2026, 3, 22, 0, 0)
-        result = _fmt_time(dt)
-        assert "12" in result
-        assert result.endswith("a")
+        assert fragment in result
+        assert result.endswith(suffix)
 
     def test_no_am_pm_suffix_in_full_string(self):
         """Result should not contain 'am' or 'pm', only 'a' or 'p'."""
@@ -111,13 +100,9 @@ class TestEventsForToday:
         assert len(result) == 1
         assert result[0] is evt
 
-    def test_timed_event_on_different_day_excluded(self):
-        evt = _timed(TODAY + timedelta(days=1), 9, 10)
-        result = _events_for_today([evt], TODAY)
-        assert result == []
-
-    def test_timed_event_yesterday_excluded(self):
-        evt = _timed(TODAY - timedelta(days=1), 9, 10)
+    @pytest.mark.parametrize("offset_days", [1, -1], ids=["tomorrow", "yesterday"])
+    def test_timed_event_on_another_day_excluded(self, offset_days):
+        evt = _timed(TODAY + timedelta(days=offset_days), 9, 10)
         result = _events_for_today([evt], TODAY)
         assert result == []
 

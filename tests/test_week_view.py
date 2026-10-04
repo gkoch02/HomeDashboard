@@ -221,12 +221,7 @@ class TestDrawWeek:
 
     @staticmethod
     def _header_ink_by_column(img, region=None):
-        """Ink fraction of each of the 7 day-header cells.
-
-        ``img.getbbox() is not None`` is true of any non-blank plate, so it
-        cannot tell an inverted today column from a missing one. Measuring the
-        header band per column can.
-        """
+        """Ink fraction of each of the 7 day-header cells."""
         from src.render.layout import WEEK_H, WEEK_W, WEEK_X, WEEK_Y
 
         x0, y0, w, h = region or (WEEK_X, WEEK_Y, WEEK_W, WEEK_H)
@@ -550,7 +545,7 @@ class TestFontsForTier:
 
 
 # ---------------------------------------------------------------------------
-# _draw_day_events — allday_font default (line 392) and overflow (lines 404-406)
+# _draw_day_events — allday_font default and the "+N more" overflow
 # ---------------------------------------------------------------------------
 
 
@@ -570,7 +565,7 @@ class TestDrawDayEvents:
         )
 
     def test_default_allday_font_is_used_when_none(self):
-        """Calling _draw_day_events without allday_font triggers the default (line 392)."""
+        """Calling _draw_day_events without allday_font falls back to the default face."""
         from src.render.components.week_view import _draw_day_events
         from src.render.fonts import regular, semibold
 
@@ -581,7 +576,7 @@ class TestDrawDayEvents:
             end=datetime(2024, 3, 16),
             is_all_day=True,
         )
-        # Pass allday_font=None (the default) — exercises line 392
+        # Pass allday_font=None (the default) so the fallback face is used
         _draw_day_events(
             draw=draw,
             events=[event],
@@ -591,7 +586,7 @@ class TestDrawDayEvents:
             max_h=280,
             time_font=regular(10),
             title_font=semibold(13),
-            allday_font=None,  # triggers line 392
+            allday_font=None,
         )
         assert ink(img) > 0, "the allday_font=None fallback drew nothing"
 
@@ -649,7 +644,7 @@ class TestDrawDayEvents:
         assert ink(img, (0, 300, 114, 320)) > ink(few, (0, 300, 114, 320))
 
     def test_overflow_indicator_shown_when_events_exceed_space(self):
-        """When events don't fit, '+N more' is shown (lines 404-406)."""
+        """When events don't fit, '+N more' is shown."""
         from src.render.components.week_view import _draw_day_events
         from src.render.fonts import regular, semibold
 

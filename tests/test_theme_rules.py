@@ -5,6 +5,8 @@ from __future__ import annotations
 from datetime import date, datetime, timedelta
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from src.config import (
     ThemeRule,
     ThemeRuleCondition,
@@ -111,27 +113,26 @@ class TestListify:
 
 
 class TestCurrentSeason:
-    def test_april_is_spring(self):
-        assert _current_season(_now(month=4)) == "spring"
-
-    def test_july_is_summer(self):
-        assert _current_season(_now(month=7)) == "summer"
-
-    def test_october_is_fall(self):
-        assert _current_season(_now(month=10)) == "fall"
-
-    def test_january_is_winter(self):
-        assert _current_season(_now(month=1)) == "winter"
+    @pytest.mark.parametrize(
+        "month, season",
+        [(4, "spring"), (7, "summer"), (10, "fall"), (1, "winter")],
+        ids=["april", "july", "october", "january"],
+    )
+    def test_month_maps_to_season(self, month, season):
+        assert _current_season(_now(month=month)) == season
 
 
 class TestCurrentWeekday:
-    def test_monday_weekday(self):
-        now = datetime(2026, 4, 20, 12)  # Monday
-        assert _current_weekday(now) == ("monday", "weekday")
-
-    def test_saturday_weekend(self):
-        now = datetime(2026, 4, 25, 12)  # Saturday
-        assert _current_weekday(now) == ("saturday", "weekend")
+    @pytest.mark.parametrize(
+        "now, expected",
+        [
+            (datetime(2026, 4, 20, 12), ("monday", "weekday")),
+            (datetime(2026, 4, 25, 12), ("saturday", "weekend")),
+        ],
+        ids=["monday", "saturday"],
+    )
+    def test_day_name_and_kind(self, now, expected):
+        assert _current_weekday(now) == expected
 
 
 class TestCurrentDaypart:
@@ -298,15 +299,18 @@ class TestRuleMatches:
         # October is fall in our bucket
         assert _rule_matches(rule, _now(month=10), _data()) is True
 
-    def test_weekday_name_match(self):
-        rule = ThemeRule(when=ThemeRuleCondition(weekday="monday"), theme="today")
-        assert _rule_matches(rule, datetime(2026, 4, 20, 12), _data()) is True
-        assert _rule_matches(rule, datetime(2026, 4, 21, 12), _data()) is False
-
-    def test_weekday_weekend_key(self):
-        rule = ThemeRule(when=ThemeRuleCondition(weekday="weekend"), theme="today")
-        assert _rule_matches(rule, datetime(2026, 4, 25, 12), _data()) is True
-        assert _rule_matches(rule, datetime(2026, 4, 20, 12), _data()) is False
+    @pytest.mark.parametrize(
+        "weekday, matching, other",
+        [
+            ("monday", datetime(2026, 4, 20, 12), datetime(2026, 4, 21, 12)),
+            ("weekend", datetime(2026, 4, 25, 12), datetime(2026, 4, 20, 12)),
+        ],
+        ids=["day_name", "weekend_key"],
+    )
+    def test_weekday_condition(self, weekday, matching, other):
+        rule = ThemeRule(when=ThemeRuleCondition(weekday=weekday), theme="today")
+        assert _rule_matches(rule, matching, _data()) is True
+        assert _rule_matches(rule, other, _data()) is False
 
     def test_all_conditions_must_match(self):
         rule = ThemeRule(
@@ -770,39 +774,36 @@ def _rule(theme: str = "weatherglass", **when) -> ThemeRule:
 
 
 class TestTemperatureConditions:
-    def test_at_most_matches_below_the_bound(self):
-        data = _data(weather=_wx(current_temp=28.0))
-        assert _rule_matches(_rule(temp_at_most=32.0), _now(), data)
-
-    def test_at_most_is_inclusive(self):
-        data = _data(weather=_wx(current_temp=32.0))
-        assert _rule_matches(_rule(temp_at_most=32.0), _now(), data)
-
-    def test_at_most_rejects_above_the_bound(self):
-        data = _data(weather=_wx(current_temp=33.0))
-        assert not _rule_matches(_rule(temp_at_most=32.0), _now(), data)
-
-    def test_at_least_matches_above_the_bound(self):
-        data = _data(weather=_wx(current_temp=95.0))
-        assert _rule_matches(_rule(temp_at_least=90.0), _now(), data)
-
-    def test_at_least_is_inclusive(self):
-        data = _data(weather=_wx(current_temp=90.0))
-        assert _rule_matches(_rule(temp_at_least=90.0), _now(), data)
-
-    def test_at_least_rejects_below_the_bound(self):
-        data = _data(weather=_wx(current_temp=89.9))
-        assert not _rule_matches(_rule(temp_at_least=90.0), _now(), data)
+    @pytest.mark.parametrize(
+        "bound, temp, matches",
+        [
+            ({"temp_at_most": 32.0}, 28.0, True),
+            ({"temp_at_most": 32.0}, 32.0, True),
+            ({"temp_at_most": 32.0}, 33.0, False),
+            ({"temp_at_least": 90.0}, 95.0, True),
+            ({"temp_at_least": 90.0}, 90.0, True),
+            ({"temp_at_least": 90.0}, 89.9, False),
+            ({"temp_at_most": 0.0}, -4.0, True),
+        ],
+        ids=[
+            "at_most_below",
+            "at_most_inclusive",
+            "at_most_above",
+            "at_least_above",
+            "at_least_inclusive",
+            "at_least_below",
+            "negative_temperature",
+        ],
+    )
+    def test_single_bound(self, bound, temp, matches):
+        data = _data(weather=_wx(current_temp=temp))
+        assert _rule_matches(_rule(**bound), _now(), data) is matches
 
     def test_both_bounds_form_a_band(self):
         rule = _rule(temp_at_least=60.0, temp_at_most=75.0)
         assert _rule_matches(rule, _now(), _data(weather=_wx(current_temp=68.0)))
         assert not _rule_matches(rule, _now(), _data(weather=_wx(current_temp=55.0)))
         assert not _rule_matches(rule, _now(), _data(weather=_wx(current_temp=80.0)))
-
-    def test_negative_temperatures_work(self):
-        data = _data(weather=_wx(current_temp=-4.0))
-        assert _rule_matches(_rule(temp_at_most=0.0), _now(), data)
 
     def test_skips_silently_when_weather_is_absent(self):
         """Same contract as the weather condition: no data means no match."""
@@ -887,31 +888,24 @@ class TestNumericConditionParsing:
         assert rules[0].when.temp_at_least is None
         assert rules[0].when.aqi_at_least is None
 
-    def test_unreadable_threshold_drops_the_rule(self, tmp_path):
-        """Widening the rule to 'always' would be worse than dropping it."""
-        rules = self._rules_from(
-            tmp_path,
-            "theme_rules:\n"
-            "  - when: {temp_at_most: chilly}\n"
-            "    theme: weatherglass\n"
-            "  - when: {weekday: weekend}\n"
-            "    theme: today\n",
-        )
-        assert [r.theme for r in rules] == ["today"]
+    @pytest.mark.parametrize(
+        "bad_rule",
+        [
+            "  - when: {temp_at_most: chilly}\n    theme: weatherglass\n",
+            "  - when: {aqi_at_least: [100]}\n    theme: air_quality\n",
+        ],
+        ids=["unreadable_string", "list"],
+    )
+    def test_unreadable_threshold_drops_the_rule(self, tmp_path, bad_rule):
+        """Widening the rule to 'always' would be worse than dropping it.
 
-    def test_list_threshold_drops_the_rule_instead_of_crashing(self, tmp_path):
-        """int()/float() reject these with TypeError, not ValueError.
-
-        Letting that escape crashes load_config() itself — every renderer run,
-        --check-config, and both web pages — over one malformed rule.
+        The list case matters separately: int()/float() reject it with TypeError,
+        not ValueError, and letting that escape crashes load_config() itself —
+        every renderer run, --check-config, and both web pages — over one rule.
         """
         rules = self._rules_from(
             tmp_path,
-            "theme_rules:\n"
-            "  - when: {aqi_at_least: [100]}\n"
-            "    theme: air_quality\n"
-            "  - when: {weekday: weekend}\n"
-            "    theme: today\n",
+            "theme_rules:\n" + bad_rule + "  - when: {weekday: weekend}\n    theme: today\n",
         )
         assert [r.theme for r in rules] == ["today"]
 

@@ -137,11 +137,13 @@ class TestDrawPhotoBackground:
             _draw_photo_background(canvas, layout, style)
         assert any("not found" in record.message for record in caplog.records)
 
-    def test_missing_file_does_not_raise(self):
+    def test_missing_file_leaves_the_canvas_untouched(self):
         canvas = self._make_canvas()
+        before = canvas.tobytes()
         layout = self._make_layout()
         style = self._make_style(path="/nonexistent/does_not_exist.jpg")
-        _draw_photo_background(canvas, layout, style)  # must not raise
+        _draw_photo_background(canvas, layout, style)
+        assert canvas.tobytes() == before
 
     def test_valid_image_pastes_onto_canvas(self, grey_png: Path):
         """After pasting a grey image, the canvas should no longer be all-white."""

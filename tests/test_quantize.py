@@ -70,17 +70,30 @@ class TestReturnContract:
 # ---------------------------------------------------------------------------
 
 
-class TestThresholdMode:
-    def test_pure_black_stays_black(self):
-        result = quantize_for_display(_solid_L(0), mode="threshold")
+class TestEveryModeKeepsTheExtremes:
+    """Solid black and solid white are fixed points of every quantizer."""
+
+    @pytest.mark.parametrize("mode", ["threshold", "floyd_steinberg", "ordered"])
+    def test_pure_black_stays_black(self, mode):
+        result = quantize_for_display(_solid_L(0), mode=mode)
         pixels = list(flatten_pixels(result))
         assert all(p == 0 for p in pixels)
 
-    def test_pure_white_stays_white(self):
-        result = quantize_for_display(_solid_L(255), mode="threshold")
+    @pytest.mark.parametrize("mode", ["threshold", "floyd_steinberg", "ordered"])
+    def test_pure_white_stays_white(self, mode):
+        result = quantize_for_display(_solid_L(255), mode=mode)
         pixels = list(flatten_pixels(result))
         assert all(p != 0 for p in pixels)
 
+    @pytest.mark.parametrize("mode", ["floyd_steinberg", "ordered"])
+    def test_gradient_produces_both_values(self, mode):
+        result = quantize_for_display(_gradient_L(w=256, h=4), mode=mode)
+        pixels = list(flatten_pixels(result))
+        assert 0 in pixels
+        assert any(p != 0 for p in pixels)
+
+
+class TestThresholdMode:
     def test_below_midpoint_maps_to_black(self):
         """Values ≤ 128 should produce black pixels under NONE dithering."""
         result = quantize_for_display(_solid_L(127), mode="threshold")
@@ -102,53 +115,14 @@ class TestThresholdMode:
 
 
 # ---------------------------------------------------------------------------
-# Floyd-Steinberg mode
-# ---------------------------------------------------------------------------
-
-
-class TestFloydSteinbergMode:
-    def test_pure_black_stays_black(self):
-        result = quantize_for_display(_solid_L(0), mode="floyd_steinberg")
-        pixels = list(flatten_pixels(result))
-        assert all(p == 0 for p in pixels)
-
-    def test_pure_white_stays_white(self):
-        result = quantize_for_display(_solid_L(255), mode="floyd_steinberg")
-        pixels = list(flatten_pixels(result))
-        assert all(p != 0 for p in pixels)
-
-    def test_gradient_produces_both_values(self):
-        result = quantize_for_display(_gradient_L(w=256, h=4), mode="floyd_steinberg")
-        pixels = list(flatten_pixels(result))
-        assert 0 in pixels
-        assert any(p != 0 for p in pixels)
-
-
-# ---------------------------------------------------------------------------
 # Ordered (Bayer) mode
 # ---------------------------------------------------------------------------
 
 
 class TestOrderedMode:
-    def test_pure_black_stays_black(self):
-        result = quantize_for_display(_solid_L(0), mode="ordered")
-        pixels = list(flatten_pixels(result))
-        assert all(p == 0 for p in pixels)
-
-    def test_pure_white_stays_white(self):
-        result = quantize_for_display(_solid_L(255), mode="ordered")
-        pixels = list(flatten_pixels(result))
-        assert all(p != 0 for p in pixels)
-
     def test_midgrey_produces_mixed_pattern(self):
         """Mid-grey should produce a mix of black and white under Bayer dithering."""
         result = quantize_for_display(_solid_L(128), mode="ordered")
-        pixels = list(flatten_pixels(result))
-        assert 0 in pixels
-        assert any(p != 0 for p in pixels)
-
-    def test_gradient_produces_both_values(self):
-        result = quantize_for_display(_gradient_L(w=256, h=4), mode="ordered")
         pixels = list(flatten_pixels(result))
         assert 0 in pixels
         assert any(p != 0 for p in pixels)
@@ -204,39 +178,55 @@ class TestRedmeanSq:
 # ---------------------------------------------------------------------------
 
 
+def _solid_rgb(r: int, g: int, b: int, w: int = 8, h: int = 8) -> Image.Image:
+    return Image.new("RGB", (w, h), (r, g, b))
+
+
+# (quantize, exact_quantize, palette): the ordered quantizer is exact at bayer_strength=0,
+# Floyd-Steinberg has no error to diffuse on a solid plate and is exact as it stands.
+_PALETTE_QUANTIZERS = [
+    pytest.param(
+        lambda img: quantize_to_palette_ordered(img, _SMALL_PALETTE),
+        lambda img: quantize_to_palette_ordered(img, _SMALL_PALETTE, bayer_strength=0),
+        set(_SMALL_PALETTE),
+        id="ordered",
+    ),
+    pytest.param(
+        lambda img: quantize_to_palette_fs(img, _SMALL_PALETTE),
+        lambda img: quantize_to_palette_fs(img, _SMALL_PALETTE),
+        set(_SMALL_PALETTE),
+        id="floyd_steinberg",
+    ),
+]
+
+
+@pytest.mark.parametrize("quantize, exact, palette", _PALETTE_QUANTIZERS)
+class TestPaletteQuantizerContract:
+    """What both palette quantizers promise: RGB out, size kept, palette members only,
+    and a solid ink in is that same ink out."""
+
+    def test_returns_rgb_image(self, quantize, exact, palette):
+        assert quantize(_solid_rgb(128, 128, 128)).mode == "RGB"
+
+    def test_preserves_size(self, quantize, exact, palette):
+        assert quantize(_solid_rgb(128, 128, 128, w=40, h=30)).size == (40, 30)
+
+    def test_all_pixels_are_palette_colors(self, quantize, exact, palette):
+        img = Image.new("RGB", (32, 32))
+        # Fill with a gradient so the dither has something to work with
+        img.putdata([(x * 8, y * 8, 128) for y in range(32) for x in range(32)])
+        assert set(flatten_pixels(quantize(img))) <= palette
+
+    def test_pure_red_maps_to_red(self, quantize, exact, palette):
+        assert set(flatten_pixels(exact(_solid_rgb(255, 0, 0)))) == {(255, 0, 0)}
+
+    def test_pure_black_maps_to_black(self, quantize, exact, palette):
+        assert set(flatten_pixels(exact(_solid_rgb(0, 0, 0)))) == {(0, 0, 0)}
+
+
 class TestQuantizeToPaletteOrdered:
     def _solid_rgb(self, r: int, g: int, b: int, w: int = 8, h: int = 8) -> Image.Image:
-        return Image.new("RGB", (w, h), (r, g, b))
-
-    def test_returns_rgb_image(self):
-        img = self._solid_rgb(128, 128, 128)
-        result = quantize_to_palette_ordered(img, _SMALL_PALETTE)
-        assert result.mode == "RGB"
-
-    def test_preserves_size(self):
-        img = self._solid_rgb(128, 128, 128, w=40, h=30)
-        result = quantize_to_palette_ordered(img, _SMALL_PALETTE)
-        assert result.size == (40, 30)
-
-    def test_all_pixels_are_palette_colors(self):
-        img = Image.new("RGB", (32, 32))
-        # Fill with a gradient so the Bayer matrix has something to work with
-        pixels = [(x * 8, y * 8, 128) for y in range(32) for x in range(32)]
-        img.putdata(pixels)
-        result = quantize_to_palette_ordered(img, _SMALL_PALETTE)
-        palette_set = set(_SMALL_PALETTE)
-        assert set(flatten_pixels(result)) <= palette_set
-
-    def test_pure_red_maps_to_red(self):
-        """A fully saturated red image should map entirely to the red palette entry."""
-        img = self._solid_rgb(255, 0, 0)
-        result = quantize_to_palette_ordered(img, _SMALL_PALETTE, bayer_strength=0)
-        assert set(flatten_pixels(result)) == {(255, 0, 0)}
-
-    def test_pure_black_maps_to_black(self):
-        img = self._solid_rgb(0, 0, 0)
-        result = quantize_to_palette_ordered(img, _SMALL_PALETTE, bayer_strength=0)
-        assert set(flatten_pixels(result)) == {(0, 0, 0)}
+        return _solid_rgb(r, g, b, w, h)
 
     def test_bayer_strength_zero_is_nearest_neighbor(self):
         """With bayer_strength=0 every pixel maps to its nearest palette colour."""
@@ -325,33 +315,7 @@ _SMALL_PALETTE_FS = [
 
 class TestQuantizeToPaletteFs:
     def _solid_rgb(self, r: int, g: int, b: int, w: int = 8, h: int = 8) -> Image.Image:
-        return Image.new("RGB", (w, h), (r, g, b))
-
-    def test_returns_rgb_image(self):
-        result = quantize_to_palette_fs(self._solid_rgb(128, 128, 128), _SMALL_PALETTE_FS)
-        assert result.mode == "RGB"
-
-    def test_preserves_size(self):
-        img = self._solid_rgb(128, 128, 128, w=40, h=30)
-        result = quantize_to_palette_fs(img, _SMALL_PALETTE_FS)
-        assert result.size == (40, 30)
-
-    def test_all_pixels_are_palette_colors(self):
-        img = Image.new("RGB", (32, 32))
-        pixels = [(x * 8, y * 8, 128) for y in range(32) for x in range(32)]
-        img.putdata(pixels)
-        result = quantize_to_palette_fs(img, _SMALL_PALETTE_FS)
-        palette_set = set(map(tuple, _SMALL_PALETTE_FS))
-        assert set(flatten_pixels(result)) <= palette_set
-
-    def test_pure_red_maps_to_red(self):
-        """A solid pure-red image should quantize to all red — zero error to diffuse."""
-        result = quantize_to_palette_fs(self._solid_rgb(255, 0, 0), _SMALL_PALETTE_FS)
-        assert set(flatten_pixels(result)) == {(255, 0, 0)}
-
-    def test_pure_black_maps_to_black(self):
-        result = quantize_to_palette_fs(self._solid_rgb(0, 0, 0), _SMALL_PALETTE_FS)
-        assert set(flatten_pixels(result)) == {(0, 0, 0)}
+        return _solid_rgb(r, g, b, w, h)
 
     def test_inky_palette_all_pixels_valid(self):
         """Using the real Inky Spectra 6 palette, all output pixels must be palette members."""

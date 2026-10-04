@@ -1,29 +1,5 @@
-"""Tests for src/render/components/weather_panel.py
-
-Assertion discipline (see #229)
--------------------------------
-These tests used to assert ``img.getbbox() is not None``. On the mode-``"1"``
-canvas built below that is not a weak assertion, it is an *impossible* one:
-the canvas is filled with 1, ``getbbox()`` reports the bounds of non-zero
-pixels, so it returns the full canvas even when nothing was drawn at all.
-Every test in this file passed with ``draw_weather`` stubbed to a no-op.
-
-So ink here means **zero-valued** pixels, counted via ``_ink`` / ``_ink_bbox``
-(``flatten_pixels``, not the deprecated ``Image.getdata()``). Assertions are
-differential wherever possible — render with and without the feature and
-compare the band it owns — so they survive font and padding changes while
-still failing if the behaviour they name is deleted.
-
-Verification (the step that makes the rewrite worth anything): with
-``draw_weather`` stubbed to a no-op, 36 of the 47 tests here fail. The 11
-that still pass are the nine pure-helper tests for ``_fmt_time`` and
-``aqi_accent``, which never touch a canvas, plus two *negative* tests
-(``test_wind_deg_without_wind_speed_no_crash`` and
-``test_aqi_column_suppressed_when_alerts_present``) which assert something is
-NOT drawn and so cannot distinguish a no-op by construction. Both were
-checked the other way instead, by deleting the suppression each names and
-confirming the test then fails. If you add a test here, do the same: delete
-the behaviour it is named for and watch it go red before you trust it.
+"""Tests for weather_panel.py; ink is measured with the local ``_ink`` / ``_ink_bbox``,
+differentially where possible.
 """
 
 from datetime import date, datetime, timedelta, timezone
@@ -89,11 +65,7 @@ def _row(img: Image.Image, box: tuple[int, int, int, int]) -> list[int]:
 
 
 def _ink_bbox(img: Image.Image, box: tuple[int, int, int, int] | None = None):
-    """Bounding box of ink pixels as (x0, y0, x1, y1), or None if there is none.
-
-    The honest replacement for ``Image.getbbox()`` on a white mode-``"1"``
-    plate, where every pixel is non-zero and getbbox can never return None.
-    """
+    """Bounding box of ink pixels as (x0, y0, x1, y1), or None if there is none."""
     px = flatten_pixels(img)
     width = img.width
     x0, y0, x1, y1 = box if box else (0, 0, img.width, img.height)

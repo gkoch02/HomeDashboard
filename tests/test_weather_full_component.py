@@ -1,32 +1,5 @@
-"""Tests for src/render/components/weather_full.py.
-
-Covers: hero zone, metric cards, detail strip, alert banner, forecast grid,
-and the unavailable fallback — exercising branches not covered by the existing
-test_weather_full_aqi.py (which focuses on the AQI card only).
-
-Assertion discipline (see #229)
--------------------------------
-These tests used to assert ``img.getbbox() is not None``, or nothing at all.
-On the mode-``"1"`` canvas built below that assertion has no failing input:
-the plate is filled with 1, ``getbbox()`` reports the bounds of *non-zero*
-pixels, so it returns the full canvas even for a plate nothing was drawn to.
-All 42 tests passed with ``draw_weather_full`` stubbed to a no-op.
-
-Ink here therefore means **zero-valued** pixels, measured per zone with the
-helpers below. The component divides the canvas into fixed proportional
-zones, so each feature can be measured in the band that owns it, and most
-assertions are differential — render with and without, compare.
-
-Verification (the step that makes the rewrite worth anything): with
-``draw_weather_full`` stubbed to a no-op, 42 of the 45 tests here fail. The
-three survivors are all assertions a no-op satisfies by construction —
-``test_returns_none`` (a no-op also returns None),
-``test_default_region_and_style`` and ``test_no_alerts_no_banner`` (both
-assert an equivalence, and two blank plates are equal). Each was checked the
-other way instead, by breaking the behaviour it names — returning a value,
-defaulting to a different region, drawing the banner unconditionally — and
-confirming it then fails. If you add a test here, do the same: break the
-thing it is named for and watch it go red before you trust it.
+"""Tests for weather_full.py beyond the AQI card (see test_weather_full_aqi.py); ink is
+measured per zone with the local ``_ink``, ``_ink_clusters`` and ``_card_count``.
 """
 
 from datetime import date, datetime, timedelta
@@ -201,7 +174,7 @@ class TestDrawWeatherFullSmoke:
         assert draw_weather_full(draw, _make_weather(), TODAY) is None
 
     def test_produces_non_blank_image(self):
-        """Genuinely non-blank: ink pixels exist, which getbbox could never show."""
+        """Something is drawn: the plate carries ink."""
         assert _ink(_render()) > 0
 
     def test_default_region_and_style(self):

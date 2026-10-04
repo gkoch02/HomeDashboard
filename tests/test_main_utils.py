@@ -514,6 +514,8 @@ class TestResolveLogLevel:
         original = logger.level
         try:
             for name in ("info", "DEBUG", "bogus"):
-                logger.setLevel(resolve_log_level(name))
+                level = resolve_log_level(name)
+                logger.setLevel(level)
+                assert logger.level == level, name
         finally:
             logger.setLevel(original)

@@ -1,36 +1,5 @@
-"""Tests for src/render/components/air_quality_panel.py
-and src/render/themes/air_quality.py.
-
-Assertion discipline (see #229)
--------------------------------
-These tests used to assert ``img.getbbox() is not None``, or nothing at all.
-On the mode-``"1"`` canvas built below that assertion has no failing input:
-the plate is filled with 1, ``getbbox()`` reports the bounds of *non-zero*
-pixels, so it returns the full canvas even for a plate nothing was drawn to.
-All 47 tests passed with ``draw_air_quality_full`` stubbed to a no-op.
-
-Ink here therefore means **zero-valued** pixels, measured per zone. Three
-structural measures carry most of the weight, because they check what the
-panel is actually *for* rather than that it drew something:
-
-* ``_card_count`` — ambient cards counted from their rounded-rect outlines.
-* ``_pm_separator_count`` — PM columns counted from the rules between them.
-* ``_scale_bar_fill`` — the AQI health bar's filled width, which must track
-  the reading and clamp at 500.
-
-Verification (the step that makes the rewrite worth anything): with
-``draw_air_quality_full`` stubbed to a no-op, most of the tests here fail.
-The survivors are the ``TestAirQualityTheme`` cases, which exercise the
-theme factory and never draw through this entry point, plus two that assert
-an equivalence which two blank plates satisfy by construction —
-``test_returns_none`` and ``test_default_region_and_style``. Both were
-checked the other way instead, by breaking what they name (returning a
-value; defaulting to a different region) and confirming they go red. If you
-add a test here, do the same before you trust it.
-
-A third such test, ``test_today_does_not_affect_the_panel``, is gone: it
-pinned a ``today`` parameter that this panel accepted and never read, and
-that parameter has since been removed.
+"""Tests for air_quality_panel.py and the air_quality theme; ink is counted per zone with
+the local ``_ink`` helpers (``_card_count``, ``_pm_separator_count``, ``_scale_bar_fill``).
 """
 
 from datetime import date, timedelta
@@ -249,7 +218,7 @@ class TestDrawAirQualityFullSmoke:
         assert draw_air_quality_full(draw, _make_data()) is None
 
     def test_produces_non_blank_image(self):
-        """Genuinely non-blank: ink pixels exist, which getbbox could never show."""
+        """Something is drawn: the plate carries ink."""
         assert _ink(_render()) > 0
 
     def test_default_region_and_style(self):

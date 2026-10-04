@@ -2,6 +2,8 @@
 
 from pathlib import Path
 
+import pytest
+
 from src.config import (
     BirthdayConfig,
     Config,
@@ -399,23 +401,13 @@ class TestThemeScheduleValidation:
         assert not any(e.field.startswith("theme_schedule") for e in errors)
         assert not any(w.field.startswith("theme_schedule") for w in warnings)
 
-    def test_malformed_time_no_colon_is_error(self):
-        cfg = self._cfg_with_schedule(("0600", "default"))
-        errors, _ = validate_config(cfg)
-        assert any(e.field == "theme_schedule[0].time" for e in errors)
-
-    def test_hour_out_of_range_is_error(self):
-        cfg = self._cfg_with_schedule(("25:00", "default"))
-        errors, _ = validate_config(cfg)
-        assert any(e.field == "theme_schedule[0].time" for e in errors)
-
-    def test_minute_out_of_range_is_error(self):
-        cfg = self._cfg_with_schedule(("12:99", "default"))
-        errors, _ = validate_config(cfg)
-        assert any(e.field == "theme_schedule[0].time" for e in errors)
-
-    def test_non_integer_time_is_error(self):
-        cfg = self._cfg_with_schedule(("ab:cd", "default"))
+    @pytest.mark.parametrize(
+        "time_str",
+        ["0600", "25:00", "12:99", "ab:cd"],
+        ids=["no_colon", "hour_out_of_range", "minute_out_of_range", "non_integer"],
+    )
+    def test_malformed_time_is_error(self, time_str):
+        cfg = self._cfg_with_schedule((time_str, "default"))
         errors, _ = validate_config(cfg)
         assert any(e.field == "theme_schedule[0].time" for e in errors)
 
@@ -434,21 +426,18 @@ class TestThemeScheduleValidation:
 
 
 class TestPurpleAirValidation:
-    def test_api_key_without_sensor_id_warns(self):
+    @pytest.mark.parametrize(
+        "api_key, sensor_id, missing_field",
+        [("mykey", 0, "purpleair.sensor_id"), ("", 99999, "purpleair.api_key")],
+        ids=["api_key_without_sensor_id", "sensor_id_without_api_key"],
+    )
+    def test_half_configured_purpleair_warns(self, api_key, sensor_id, missing_field):
         from src.config import PurpleAirConfig
 
         cfg = Config()
-        cfg.purpleair = PurpleAirConfig(api_key="mykey", sensor_id=0)
+        cfg.purpleair = PurpleAirConfig(api_key=api_key, sensor_id=sensor_id)
         _, warnings = validate_config(cfg)
-        assert any(w.field == "purpleair.sensor_id" for w in warnings)
-
-    def test_sensor_id_without_api_key_warns(self):
-        from src.config import PurpleAirConfig
-
-        cfg = Config()
-        cfg.purpleair = PurpleAirConfig(api_key="", sensor_id=99999)
-        _, warnings = validate_config(cfg)
-        assert any(w.field == "purpleair.api_key" for w in warnings)
+        assert any(w.field == missing_field for w in warnings)
 
     def test_both_configured_no_purpleair_warning(self):
         from src.config import PurpleAirConfig
@@ -474,38 +463,25 @@ class TestLoadConfigWarnsOnMissingFile:
 
 
 class TestCalDAVValidation:
-    def test_caldav_bad_scheme_is_error(self):
-        cfg = Config(
-            google=GoogleConfig(
-                caldav_url="caldavs://example.com/dav/",
-                caldav_username="alice",
-                caldav_password_file="/some/file",
-            )
+    @pytest.mark.parametrize(
+        "override, error_field",
+        [
+            ({"caldav_url": "caldavs://example.com/dav/"}, "google.caldav_url"),
+            ({"caldav_username": ""}, "google.caldav_username"),
+            ({"caldav_password_file": ""}, "google.caldav_password_file"),
+        ],
+        ids=["bad_scheme", "missing_username", "missing_password_file"],
+    )
+    def test_incomplete_caldav_settings_are_errors(self, override, error_field):
+        settings = dict(
+            caldav_url="https://example.com/dav/",
+            caldav_username="alice",
+            caldav_password_file="/some/file",
         )
+        settings.update(override)
+        cfg = Config(google=GoogleConfig(**settings))
         errors, _ = validate_config(cfg)
-        assert any(e.field == "google.caldav_url" for e in errors)
-
-    def test_caldav_missing_username_is_error(self):
-        cfg = Config(
-            google=GoogleConfig(
-                caldav_url="https://example.com/dav/",
-                caldav_username="",
-                caldav_password_file="/some/file",
-            )
-        )
-        errors, _ = validate_config(cfg)
-        assert any(e.field == "google.caldav_username" for e in errors)
-
-    def test_caldav_missing_password_file_is_error(self):
-        cfg = Config(
-            google=GoogleConfig(
-                caldav_url="https://example.com/dav/",
-                caldav_username="alice",
-                caldav_password_file="",
-            )
-        )
-        errors, _ = validate_config(cfg)
-        assert any(e.field == "google.caldav_password_file" for e in errors)
+        assert any(e.field == error_field for e in errors)
 
     def test_caldav_password_file_not_on_disk_warns(self, tmp_path):
         cfg = Config(
@@ -548,30 +524,45 @@ class TestThemeRulesValidation:
         )
         return cfg
 
-    def test_unknown_theme_in_rule_warns(self):
-        cfg = self._cfg_with_rule("nonexistent_theme_xyz")
+    @pytest.mark.parametrize(
+        "theme, when, warned_field",
+        [
+            ("nonexistent_theme_xyz", {}, "theme_rules[0].theme"),
+            ("agenda", {"daypart": "noon"}, "theme_rules[0].when.daypart"),
+            ("agenda", {"daypart": ["day", "noon"]}, "daypart"),
+            ("agenda", {"season": "monsoon"}, "theme_rules[0].when.season"),
+            ("agenda", {"weekday": "funday"}, "theme_rules[0].when.weekday"),
+            ("agenda", {"calendar": "partying"}, "theme_rules[0].when.calendar"),
+        ],
+        ids=[
+            "unknown_theme",
+            "invalid_daypart",
+            "daypart_list_with_one_bad_value",
+            "invalid_season",
+            "invalid_weekday",
+            "invalid_calendar_state",
+        ],
+    )
+    def test_invalid_rule_value_warns(self, theme, when, warned_field):
+        cfg = self._cfg_with_rule(theme, **when)
         _, warnings = validate_config(cfg)
-        assert any("theme_rules[0].theme" in w.field for w in warnings)
+        assert any(warned_field in w.field for w in warnings)
 
-    def test_valid_theme_in_rule_no_warning(self):
-        cfg = self._cfg_with_rule("agenda")
+    @pytest.mark.parametrize(
+        "when, field_fragment",
+        [
+            ({}, "theme_rules"),
+            ({"daypart": "day"}, "daypart"),
+            ({"season": "winter"}, "season"),
+            ({"weekday": "weekend"}, "weekday"),
+            ({"calendar": "active"}, "when.calendar"),
+        ],
+        ids=["valid_theme", "valid_daypart", "valid_season", "valid_weekday", "valid_calendar"],
+    )
+    def test_valid_rule_value_no_warning(self, when, field_fragment):
+        cfg = self._cfg_with_rule("agenda", **when)
         _, warnings = validate_config(cfg)
-        assert not any("theme_rules" in w.field for w in warnings)
-
-    def test_invalid_daypart_warns(self):
-        cfg = self._cfg_with_rule("agenda", daypart="noon")
-        _, warnings = validate_config(cfg)
-        assert any("theme_rules[0].when.daypart" in w.field for w in warnings)
-
-    def test_valid_daypart_no_warning(self):
-        cfg = self._cfg_with_rule("agenda", daypart="day")
-        _, warnings = validate_config(cfg)
-        assert not any("daypart" in w.field for w in warnings)
-
-    def test_daypart_list_with_one_bad_value_warns(self):
-        cfg = self._cfg_with_rule("agenda", daypart=["day", "noon"])
-        _, warnings = validate_config(cfg)
-        assert any("daypart" in w.field for w in warnings)
+        assert not any(field_fragment in w.field for w in warnings)
 
     def test_legacy_dayparts_now_warn(self):
         # ``morning`` and ``afternoon`` were removed when the daypart buckets
@@ -581,36 +572,6 @@ class TestThemeRulesValidation:
             cfg = self._cfg_with_rule("agenda", daypart=legacy)
             _, warnings = validate_config(cfg)
             assert any("daypart" in w.field for w in warnings), legacy
-
-    def test_invalid_season_warns(self):
-        cfg = self._cfg_with_rule("agenda", season="monsoon")
-        _, warnings = validate_config(cfg)
-        assert any("theme_rules[0].when.season" in w.field for w in warnings)
-
-    def test_valid_season_no_warning(self):
-        cfg = self._cfg_with_rule("agenda", season="winter")
-        _, warnings = validate_config(cfg)
-        assert not any("season" in w.field for w in warnings)
-
-    def test_invalid_weekday_warns(self):
-        cfg = self._cfg_with_rule("agenda", weekday="funday")
-        _, warnings = validate_config(cfg)
-        assert any("theme_rules[0].when.weekday" in w.field for w in warnings)
-
-    def test_valid_weekday_no_warning(self):
-        cfg = self._cfg_with_rule("agenda", weekday="weekend")
-        _, warnings = validate_config(cfg)
-        assert not any("weekday" in w.field for w in warnings)
-
-    def test_invalid_calendar_state_warns(self):
-        cfg = self._cfg_with_rule("agenda", calendar="partying")
-        _, warnings = validate_config(cfg)
-        assert any("theme_rules[0].when.calendar" in w.field for w in warnings)
-
-    def test_valid_calendar_state_no_warning(self):
-        cfg = self._cfg_with_rule("agenda", calendar="active")
-        _, warnings = validate_config(cfg)
-        assert not any("when.calendar" in w.field for w in warnings)
 
     def test_multiple_rules_indexed_correctly(self):
         from src.config import ThemeRule, ThemeRuleCondition, ThemeRulesConfig
@@ -651,13 +612,11 @@ class TestCountdownValidation:
         _, warnings = validate_config(cfg)
         assert any("countdown.events[0].name" in w.field for w in warnings)
 
-    def test_malformed_date_is_error(self):
-        cfg = self._cfg_with_countdown(("Trip", "01-01-2027"))
-        errors, _ = validate_config(cfg)
-        assert any("countdown.events[0].date" in e.field for e in errors)
-
-    def test_completely_invalid_date_string_is_error(self):
-        cfg = self._cfg_with_countdown(("Trip", "not-a-date"))
+    @pytest.mark.parametrize(
+        "date_str", ["01-01-2027", "not-a-date"], ids=["wrong_order", "not_a_date"]
+    )
+    def test_malformed_date_is_error(self, date_str):
+        cfg = self._cfg_with_countdown(("Trip", date_str))
         errors, _ = validate_config(cfg)
         assert any("countdown.events[0].date" in e.field for e in errors)
 
@@ -702,8 +661,13 @@ class TestNumericThemeRuleValidation:
         )
         return cfg
 
-    def test_sane_temperature_band_warns_nothing(self):
-        cfg = self._cfg_with_rule(temp_at_least=60.0, temp_at_most=75.0)
+    @pytest.mark.parametrize(
+        "at_least, at_most",
+        [(60.0, 75.0), (32.0, 32.0)],
+        ids=["sane_band", "equal_bounds_are_a_single_value"],
+    )
+    def test_ordered_temperature_band_warns_nothing(self, at_least, at_most):
+        cfg = self._cfg_with_rule(temp_at_least=at_least, temp_at_most=at_most)
         _, warnings = validate_config(cfg)
         assert not any("theme_rules" in w.field for w in warnings)
 
@@ -711,11 +675,6 @@ class TestNumericThemeRuleValidation:
         cfg = self._cfg_with_rule(temp_at_least=80.0, temp_at_most=32.0)
         _, warnings = validate_config(cfg)
         assert any("theme_rules[0].when" in w.field for w in warnings)
-
-    def test_equal_bounds_are_a_valid_single_value(self):
-        cfg = self._cfg_with_rule(temp_at_least=32.0, temp_at_most=32.0)
-        _, warnings = validate_config(cfg)
-        assert not any("theme_rules" in w.field for w in warnings)
 
     def test_open_bounds_never_warn_as_inverted(self):
         for kwargs in ({"temp_at_least": 90.0}, {"temp_at_most": 32.0}):
@@ -728,13 +687,9 @@ class TestNumericThemeRuleValidation:
         _, warnings = validate_config(cfg)
         assert not any("theme_rules" in w.field for w in warnings)
 
-    def test_aqi_above_the_epa_scale_warns(self):
-        cfg = self._cfg_with_rule(aqi_at_least=900)
-        _, warnings = validate_config(cfg)
-        assert any("aqi_at_least" in w.field for w in warnings)
-
-    def test_negative_aqi_warns(self):
-        cfg = self._cfg_with_rule(aqi_at_least=-5)
+    @pytest.mark.parametrize("aqi", [900, -5], ids=["above_the_epa_scale", "negative"])
+    def test_aqi_outside_the_epa_scale_warns(self, aqi):
+        cfg = self._cfg_with_rule(aqi_at_least=aqi)
         _, warnings = validate_config(cfg)
         assert any("aqi_at_least" in w.field for w in warnings)
 

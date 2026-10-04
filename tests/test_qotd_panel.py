@@ -1,25 +1,5 @@
-"""Tests for src/render/components/qotd_panel.py.
-
-Assertion discipline (see #229)
--------------------------------
-The draw tests here asserted ``img.getbbox() is not None`` on a mode-``"1"``
-plate filled with 1, where every pixel is non-zero and getbbox can never
-return None. 32 of the 34 tests passed with both draw functions stubbed to
-a no-op.
-
-Ink means **zero-valued** pixels. The weather banner has fixed zone
-boundaries, so each feature is measured in the zone it owns (icon and
-temperature, conditions, forecast columns, moon glyph). For the quote panel
-the measure is ``_text_line_heights``: one band of ink per rendered line,
-whose height tracks the font size — which is how "this quote was set
-larger" becomes something a test can check.
-
-Verification: with ``draw_qotd`` and ``draw_qotd_weather`` stubbed to a
-no-op, 27 of the 38 tests fail. Of the 11 survivors, 10 exercise pure
-helpers (``_wrap_lines``, ``_icon_width``) or the theme's style and never
-draw. The last, ``test_smoke_with_alerts``, asserts the plate does NOT
-change, which a no-op satisfies by construction; it was checked by making
-the banner draw an alert marker and confirming it goes red.
+"""Tests for qotd_panel.py; ink is measured per zone with the local ``_ink`` and
+``_text_line_heights``.
 """
 
 import json
@@ -269,9 +249,7 @@ class TestDrawQotd:
         """A short quote is set larger than a long one — measured, not assumed.
 
         Font size shows up as the height of each band of ink, so the short
-        quote's tallest line must beat the long quote's. The previous version
-        of this test asserted `getbbox() is not None`, which says nothing
-        about size.
+        quote's tallest line must beat the long quote's.
         """
         with _with_quotes([{"text": "Be yourself.", "author": "A. Wise"}], tmp_path):
             short = _quote(date(2099, 2, 20))
