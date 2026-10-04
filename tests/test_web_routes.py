@@ -10,6 +10,7 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
+from PIL import Image
 
 from src.web.app import create_app
 
@@ -862,3 +863,22 @@ def test_config_js_escapes_validation_messages_and_resets_one_call():
     save = js[js.index("async function saveConfig") : js.index("async function saveAndRefresh")]
     assert "${e.message}" not in save and "${w.message}" not in save
     assert "esc_html(e.message)" in save
+
+
+def test_image_theme_uses_bundled_assets_by_default(client, app, tmp_path, monkeypatch):
+    app.config.pop("PREVIEW_DIR", None)
+    bundled = tmp_path / "installed_assets"
+    previews = bundled / "assets" / "previews"
+    previews.mkdir(parents=True)
+    import io
+
+    image = Image.new("RGB", (8, 8), "white")
+    buf = io.BytesIO()
+    image.save(buf, format="PNG")
+    expected = buf.getvalue()
+    (previews / "theme_default.png").write_bytes(expected)
+    monkeypatch.setattr("src.web.routes.image.asset_root", lambda: bundled)
+    response = client.get("/image/theme/default")
+    assert response.status_code == 200
+    assert response.mimetype == "image/png"
+    assert response.data == expected

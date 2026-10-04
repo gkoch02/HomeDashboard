@@ -49,11 +49,11 @@ coverage: _check-venv
 	$(VENV) -m pytest --cov-report=html
 
 lint: _check-venv
-	$(VENV) -m ruff check src/ tests/ scripts/ tools/
+	$(VENV) -m ruff check src/ tests/ scripts/ tools/ setup.py
 	$(VENV) tools/check_dead_code.py
 
 fmt: _check-venv
-	$(VENV) -m ruff format src/ tests/ scripts/ tools/
+	$(VENV) -m ruff format src/ tests/ scripts/ tools/ setup.py
 
 check: _check-venv
 	$(VENV) -m src.main --check-config

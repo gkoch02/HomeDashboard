@@ -1,9 +1,10 @@
 from functools import lru_cache
-from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
-FONT_DIR = Path(__file__).parent.parent.parent / "fonts"
+from src._assets import asset_root
+
+FONT_DIR = asset_root() / "fonts"
 
 
 def _glyph_bits(font: ImageFont.FreeTypeFont, ch: str) -> bytes:

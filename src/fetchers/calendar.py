@@ -426,11 +426,7 @@ def _days_until(d: date, today: date) -> int:
 
 
 def _events_fetch(ctx) -> list[CalendarEvent]:
-    # Dispatch through src.data_pipeline so existing tests that patch
-    # ``src.data_pipeline.fetch_events`` continue to mock the call site.
-    from src import data_pipeline
-
-    return data_pipeline.fetch_events(
+    return fetch_events(
         ctx.cfg.google,
         days=ctx.event_window_days,
         start_date=ctx.event_window_start,
@@ -440,9 +436,7 @@ def _events_fetch(ctx) -> list[CalendarEvent]:
 
 
 def _birthdays_fetch(ctx) -> list[Birthday]:
-    from src import data_pipeline
-
-    return data_pipeline.fetch_birthdays(ctx.cfg.google, ctx.cfg.birthdays, tz=ctx.tz)
+    return fetch_birthdays(ctx.cfg.google, ctx.cfg.birthdays, tz=ctx.tz)
 
 
 def _events_save_metadata(ctx) -> dict:

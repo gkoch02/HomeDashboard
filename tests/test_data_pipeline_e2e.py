@@ -64,9 +64,9 @@ class TestDataPipelineE2E:
         birthdays = _make_birthdays()
 
         with (
-            patch("src.data_pipeline.fetch_events", return_value=events),
-            patch("src.data_pipeline.fetch_weather", return_value=weather),
-            patch("src.data_pipeline.fetch_birthdays", return_value=birthdays),
+            patch("src.fetchers.calendar.fetch_events", return_value=events),
+            patch("src.fetchers.weather.fetch_weather", return_value=weather),
+            patch("src.fetchers.calendar.fetch_birthdays", return_value=birthdays),
             patch("src.data_pipeline.fetch_host_data", return_value=None),
         ):
             data = pipeline.fetch()
@@ -83,9 +83,9 @@ class TestDataPipelineE2E:
     def test_content_at_is_the_fetch_time_on_a_live_fetch(self, tmp_path):
         pipeline = _make_pipeline(tmp_path, force_refresh=True)
         with (
-            patch("src.data_pipeline.fetch_events", return_value=_make_events()),
-            patch("src.data_pipeline.fetch_weather", return_value=_make_weather()),
-            patch("src.data_pipeline.fetch_birthdays", return_value=_make_birthdays()),
+            patch("src.fetchers.calendar.fetch_events", return_value=_make_events()),
+            patch("src.fetchers.weather.fetch_weather", return_value=_make_weather()),
+            patch("src.fetchers.calendar.fetch_birthdays", return_value=_make_birthdays()),
             patch("src.data_pipeline.fetch_host_data", return_value=None),
         ):
             data = pipeline.fetch()
@@ -101,9 +101,9 @@ class TestDataPipelineE2E:
         """
         first = _make_pipeline(tmp_path, force_refresh=True)
         with (
-            patch("src.data_pipeline.fetch_events", return_value=_make_events()),
-            patch("src.data_pipeline.fetch_weather", return_value=_make_weather()),
-            patch("src.data_pipeline.fetch_birthdays", return_value=_make_birthdays()),
+            patch("src.fetchers.calendar.fetch_events", return_value=_make_events()),
+            patch("src.fetchers.weather.fetch_weather", return_value=_make_weather()),
+            patch("src.fetchers.calendar.fetch_birthdays", return_value=_make_birthdays()),
             patch("src.data_pipeline.fetch_host_data", return_value=None),
         ):
             first_data = first.fetch()
@@ -122,9 +122,9 @@ class TestDataPipelineE2E:
         # track the newer weather fetch, not the older cached calendar.
         first = _make_pipeline(tmp_path, force_refresh=True)
         with (
-            patch("src.data_pipeline.fetch_events", return_value=_make_events()),
-            patch("src.data_pipeline.fetch_weather", return_value=_make_weather()),
-            patch("src.data_pipeline.fetch_birthdays", return_value=_make_birthdays()),
+            patch("src.fetchers.calendar.fetch_events", return_value=_make_events()),
+            patch("src.fetchers.weather.fetch_weather", return_value=_make_weather()),
+            patch("src.fetchers.calendar.fetch_birthdays", return_value=_make_birthdays()),
             patch("src.data_pipeline.fetch_host_data", return_value=None),
         ):
             first_data = first.fetch()
@@ -132,7 +132,7 @@ class TestDataPipelineE2E:
         second = _make_pipeline(tmp_path)
         second.interval_map["weather"] = 0  # weather is due again
         with (
-            patch("src.data_pipeline.fetch_weather", return_value=_make_weather()),
+            patch("src.fetchers.weather.fetch_weather", return_value=_make_weather()),
             patch("src.data_pipeline.fetch_host_data", return_value=None),
         ):
             second_data = second.fetch()
@@ -146,9 +146,9 @@ class TestDataPipelineE2E:
         cfg.google.calendar_ids = []
         pipeline = DataPipeline(cfg, cache_dir=str(tmp_path), force_refresh=True)
         with (
-            patch("src.data_pipeline.fetch_events", side_effect=RuntimeError("no calendar")),
-            patch("src.data_pipeline.fetch_weather", side_effect=RuntimeError("no key")),
-            patch("src.data_pipeline.fetch_birthdays", side_effect=RuntimeError("no creds")),
+            patch("src.fetchers.calendar.fetch_events", side_effect=RuntimeError("no calendar")),
+            patch("src.fetchers.weather.fetch_weather", side_effect=RuntimeError("no key")),
+            patch("src.fetchers.calendar.fetch_birthdays", side_effect=RuntimeError("no creds")),
             patch("src.data_pipeline.fetch_host_data", return_value=None),
         ):
             data = pipeline.fetch()
@@ -164,9 +164,9 @@ class TestDataPipelineE2E:
         birthdays = _make_birthdays()
 
         with (
-            patch("src.data_pipeline.fetch_events", return_value=events),
-            patch("src.data_pipeline.fetch_weather", return_value=weather),
-            patch("src.data_pipeline.fetch_birthdays", return_value=birthdays),
+            patch("src.fetchers.calendar.fetch_events", return_value=events),
+            patch("src.fetchers.weather.fetch_weather", return_value=weather),
+            patch("src.fetchers.calendar.fetch_birthdays", return_value=birthdays),
             patch("src.data_pipeline.fetch_host_data", return_value=None),
         ):
             pipeline1.fetch()
@@ -175,9 +175,9 @@ class TestDataPipelineE2E:
         pipeline2 = _make_pipeline(tmp_path, force_refresh=True)
 
         with (
-            patch("src.data_pipeline.fetch_events", return_value=events),
-            patch("src.data_pipeline.fetch_weather", side_effect=ConnectionError("timeout")),
-            patch("src.data_pipeline.fetch_birthdays", return_value=birthdays),
+            patch("src.fetchers.calendar.fetch_events", return_value=events),
+            patch("src.fetchers.weather.fetch_weather", side_effect=ConnectionError("timeout")),
+            patch("src.fetchers.calendar.fetch_birthdays", return_value=birthdays),
             patch("src.data_pipeline.fetch_host_data", return_value=None),
         ):
             data = pipeline2.fetch()
@@ -199,9 +199,9 @@ class TestDataPipelineE2E:
 
         pipeline1 = _make_pipeline(tmp_path, force_refresh=True)
         with (
-            patch("src.data_pipeline.fetch_events", return_value=events),
-            patch("src.data_pipeline.fetch_weather", return_value=weather),
-            patch("src.data_pipeline.fetch_birthdays", return_value=birthdays),
+            patch("src.fetchers.calendar.fetch_events", return_value=events),
+            patch("src.fetchers.weather.fetch_weather", return_value=weather),
+            patch("src.fetchers.calendar.fetch_birthdays", return_value=birthdays),
             patch("src.data_pipeline.fetch_host_data", return_value=None),
         ):
             pipeline1.fetch()
@@ -211,11 +211,11 @@ class TestDataPipelineE2E:
         pipeline2 = _make_pipeline(tmp_path, force_refresh=True)
         with (
             patch(
-                "src.data_pipeline.fetch_events",
+                "src.fetchers.calendar.fetch_events",
                 side_effect=OSError("Unable to find the server at oauth2.googleapis.com"),
             ),
-            patch("src.data_pipeline.fetch_weather", return_value=weather),
-            patch("src.data_pipeline.fetch_birthdays", return_value=birthdays),
+            patch("src.fetchers.weather.fetch_weather", return_value=weather),
+            patch("src.fetchers.calendar.fetch_birthdays", return_value=birthdays),
             patch("src.data_pipeline.fetch_host_data", return_value=None),
         ):
             data = pipeline2.fetch()
@@ -242,9 +242,9 @@ class TestDataPipelineE2E:
         # First run populates the cache with a known birthday list.
         pipeline1 = _make_pipeline(tmp_path, force_refresh=True)
         with (
-            patch("src.data_pipeline.fetch_events", return_value=events),
-            patch("src.data_pipeline.fetch_weather", return_value=weather),
-            patch("src.data_pipeline.fetch_birthdays", return_value=birthdays),
+            patch("src.fetchers.calendar.fetch_events", return_value=events),
+            patch("src.fetchers.weather.fetch_weather", return_value=weather),
+            patch("src.fetchers.calendar.fetch_birthdays", return_value=birthdays),
             patch("src.data_pipeline.fetch_host_data", return_value=None),
         ):
             pipeline1.fetch()
@@ -252,10 +252,10 @@ class TestDataPipelineE2E:
         # Second run: birthday fetch raises a DNS-style error.
         pipeline2 = _make_pipeline(tmp_path, force_refresh=True)
         with (
-            patch("src.data_pipeline.fetch_events", return_value=events),
-            patch("src.data_pipeline.fetch_weather", return_value=weather),
+            patch("src.fetchers.calendar.fetch_events", return_value=events),
+            patch("src.fetchers.weather.fetch_weather", return_value=weather),
             patch(
-                "src.data_pipeline.fetch_birthdays",
+                "src.fetchers.calendar.fetch_birthdays",
                 side_effect=OSError("Unable to find the server at oauth2.googleapis.com"),
             ),
             patch("src.data_pipeline.fetch_host_data", return_value=None),
@@ -274,9 +274,9 @@ class TestDataPipelineE2E:
         pipeline = _make_pipeline(tmp_path, force_refresh=True)
 
         with (
-            patch("src.data_pipeline.fetch_events", side_effect=ConnectionError("fail")),
-            patch("src.data_pipeline.fetch_weather", side_effect=ConnectionError("fail")),
-            patch("src.data_pipeline.fetch_birthdays", side_effect=ConnectionError("fail")),
+            patch("src.fetchers.calendar.fetch_events", side_effect=ConnectionError("fail")),
+            patch("src.fetchers.weather.fetch_weather", side_effect=ConnectionError("fail")),
+            patch("src.fetchers.calendar.fetch_birthdays", side_effect=ConnectionError("fail")),
             patch("src.data_pipeline.fetch_host_data", return_value=None),
         ):
             data = pipeline.fetch()
@@ -294,9 +294,9 @@ class TestDataPipelineE2E:
         birthdays = _make_birthdays()
 
         with (
-            patch("src.data_pipeline.fetch_events", return_value=events),
-            patch("src.data_pipeline.fetch_weather", return_value=weather),
-            patch("src.data_pipeline.fetch_birthdays", return_value=birthdays),
+            patch("src.fetchers.calendar.fetch_events", return_value=events),
+            patch("src.fetchers.weather.fetch_weather", return_value=weather),
+            patch("src.fetchers.calendar.fetch_birthdays", return_value=birthdays),
             patch("src.data_pipeline.fetch_host_data", return_value=None),
         ):
             pipeline1.fetch()
@@ -307,9 +307,9 @@ class TestDataPipelineE2E:
         mock_weather = MagicMock()
 
         with (
-            patch("src.data_pipeline.fetch_events", mock_events),
-            patch("src.data_pipeline.fetch_weather", mock_weather),
-            patch("src.data_pipeline.fetch_birthdays", MagicMock()),
+            patch("src.fetchers.calendar.fetch_events", mock_events),
+            patch("src.fetchers.weather.fetch_weather", mock_weather),
+            patch("src.fetchers.calendar.fetch_birthdays", MagicMock()),
             patch("src.data_pipeline.fetch_host_data", return_value=None),
         ):
             data = pipeline2.fetch()
@@ -332,9 +332,9 @@ class TestDataPipelineE2E:
         weekly_events = _make_events()
 
         with (
-            patch("src.data_pipeline.fetch_events", return_value=weekly_events),
-            patch("src.data_pipeline.fetch_weather", return_value=_make_weather()),
-            patch("src.data_pipeline.fetch_birthdays", return_value=_make_birthdays()),
+            patch("src.fetchers.calendar.fetch_events", return_value=weekly_events),
+            patch("src.fetchers.weather.fetch_weather", return_value=_make_weather()),
+            patch("src.fetchers.calendar.fetch_birthdays", return_value=_make_birthdays()),
             patch("src.data_pipeline.fetch_host_data", return_value=None),
         ):
             pipeline1.fetch()
@@ -354,9 +354,9 @@ class TestDataPipelineE2E:
         )
 
         with (
-            patch("src.data_pipeline.fetch_events", return_value=monthly_events) as mock_events,
-            patch("src.data_pipeline.fetch_weather", MagicMock()),
-            patch("src.data_pipeline.fetch_birthdays", MagicMock()),
+            patch("src.fetchers.calendar.fetch_events", return_value=monthly_events) as mock_events,
+            patch("src.fetchers.weather.fetch_weather", MagicMock()),
+            patch("src.fetchers.calendar.fetch_birthdays", MagicMock()),
             patch("src.data_pipeline.fetch_host_data", return_value=None),
         ):
             data = pipeline2.fetch()
@@ -497,9 +497,9 @@ class TestCalendarOutageKeepsTheCache:
             else {"return_value": events_result}
         )
         with (
-            patch("src.data_pipeline.fetch_events", **kwargs),
-            patch("src.data_pipeline.fetch_weather", return_value=_make_weather()),
-            patch("src.data_pipeline.fetch_birthdays", return_value=[]),
+            patch("src.fetchers.calendar.fetch_events", **kwargs),
+            patch("src.fetchers.weather.fetch_weather", return_value=_make_weather()),
+            patch("src.fetchers.calendar.fetch_birthdays", return_value=[]),
         ):
             cfg = Config()
             cfg.purpleair = PurpleAirConfig(api_key="", sensor_id=0)
@@ -592,8 +592,8 @@ class TestCalendarOutageKeepsTheCache:
             cfg.cache.events_fetch_interval = 0
             with (
                 patch("src.fetchers.calendar_ical.requests.get", return_value=response),
-                patch("src.data_pipeline.fetch_weather", return_value=_make_weather()),
-                patch("src.data_pipeline.fetch_birthdays", return_value=[]),
+                patch("src.fetchers.weather.fetch_weather", return_value=_make_weather()),
+                patch("src.fetchers.calendar.fetch_birthdays", return_value=[]),
             ):
                 return DataPipeline(cfg, cache_dir=str(tmp_path)).fetch()
 
@@ -628,9 +628,9 @@ class TestQuotaCountsRequests:
     def test_counts_every_request_a_fetch_makes(self, tmp_path):
         pipeline = _make_pipeline(tmp_path, force_refresh=True)
         with (
-            patch("src.data_pipeline.fetch_events", return_value=_make_events()),
-            patch("src.data_pipeline.fetch_weather", side_effect=self._requests(3)),
-            patch("src.data_pipeline.fetch_birthdays", return_value=_make_birthdays()),
+            patch("src.fetchers.calendar.fetch_events", return_value=_make_events()),
+            patch("src.fetchers.weather.fetch_weather", side_effect=self._requests(3)),
+            patch("src.fetchers.calendar.fetch_birthdays", return_value=_make_birthdays()),
             patch("src.data_pipeline.fetch_host_data", return_value=None),
         ):
             pipeline.fetch()
@@ -649,9 +649,9 @@ class TestQuotaCountsRequests:
 
         pipeline = _make_pipeline(tmp_path, force_refresh=True)
         with (
-            patch("src.data_pipeline.fetch_events", return_value=_make_events()),
-            patch("src.data_pipeline.fetch_weather", side_effect=failing),
-            patch("src.data_pipeline.fetch_birthdays", return_value=_make_birthdays()),
+            patch("src.fetchers.calendar.fetch_events", return_value=_make_events()),
+            patch("src.fetchers.weather.fetch_weather", side_effect=failing),
+            patch("src.fetchers.calendar.fetch_birthdays", return_value=_make_birthdays()),
             patch("src.data_pipeline.fetch_host_data", return_value=None),
         ):
             pipeline.fetch()
@@ -662,10 +662,10 @@ class TestQuotaCountsRequests:
         pipeline = _make_pipeline(tmp_path, force_refresh=True)
         pipeline.cfg.purpleair = PurpleAirConfig(api_key="k", sensor_id=1)
         with (
-            patch("src.data_pipeline.fetch_events", return_value=_make_events()),
-            patch("src.data_pipeline.fetch_weather", return_value=_make_weather()),
-            patch("src.data_pipeline.fetch_birthdays", return_value=_make_birthdays()),
-            patch("src.data_pipeline.fetch_air_quality", return_value=None),
+            patch("src.fetchers.calendar.fetch_events", return_value=_make_events()),
+            patch("src.fetchers.weather.fetch_weather", return_value=_make_weather()),
+            patch("src.fetchers.calendar.fetch_birthdays", return_value=_make_birthdays()),
+            patch("src.fetchers.purpleair.fetch_air_quality", return_value=None),
             patch("src.data_pipeline.fetch_host_data", return_value=None),
             patch.object(pipeline.quota, "check_warning") as check,
         ):

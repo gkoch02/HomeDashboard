@@ -21,11 +21,13 @@ from datetime import date, datetime
 from functools import lru_cache
 from pathlib import Path
 
+from src._assets import asset_root
+
 logger = logging.getLogger(__name__)
 
 # Bundled store. Read at call time rather than captured at import, so tests and
 # the ``quotes.path`` config option can both redirect it.
-DEFAULT_QUOTES_PATH = Path(__file__).parent.parent.parent / "config" / "quotes.json"
+DEFAULT_QUOTES_PATH = asset_root() / "config" / "quotes.json"
 
 # Used only when the store is missing, unreadable, or empty — an install error
 # rather than a normal state. Enough entries that the panels' distinct key

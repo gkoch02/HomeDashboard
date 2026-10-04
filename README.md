@@ -10,6 +10,22 @@ Home Dashboard is a low-maintenance eInk wall display for family logistics on a 
 
 ![Default theme preview](assets/previews/theme_default.png)
 
+## Try Without Hardware
+
+With Python 3.10+ and `make`, run from a clone:
+
+```bash
+make setup
+venv/bin/pip install -e ".[dev]"
+make dry
+make test
+make lint
+make docs-check
+```
+
+`make dry` writes `output/latest.png` using dummy data, without API credentials
+or display hardware. Physical display behavior still requires testing on a Pi.
+
 ## Start Here
 
 For a first install on a Raspberry Pi:

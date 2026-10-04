@@ -23,19 +23,11 @@ from src.fetchers.cache import (
     load_cached_source_with_metadata_from_blob,
     save_source,
 )
-
-# Re-exported so the existing test convention of
-# ``patch("src.data_pipeline.fetch_events", ...)`` keeps working — the
-# registered fetcher adapters in each fetcher module dispatch back through
-# these names so a patch applied here flows through to the live call site.
-from src.fetchers.calendar import fetch_birthdays, fetch_events  # noqa: F401
 from src.fetchers.circuit_breaker import CircuitBreaker
 from src.fetchers.errors import http_status
 from src.fetchers.host import fetch_host_data
-from src.fetchers.purpleair import fetch_air_quality  # noqa: F401
 from src.fetchers.quota_tracker import QuotaTracker
 from src.fetchers.registry import FetchContext, all_fetchers, get_fetcher
-from src.fetchers.weather import fetch_weather  # noqa: F401
 
 logger = logging.getLogger(__name__)
 
@@ -209,21 +201,8 @@ class DataPipeline:
             skip_decisions[f.name] = (cached, skip)
             if skip:
                 cached_values[f.name] = cached
-        # Stash for _launch_fetches: its five-param signature only carries the
-        # built-in sources' decisions, and registry-added fetchers must not
-        # default to "never skip" (bypassing their interval, cache and breaker).
-        self._skip_decisions = skip_decisions
-
-        # Phase 2: launch concurrent fetches for the rest. Old-style five-param
-        # signature is preserved for tests that exercise this method directly.
-        events_skip = skip_decisions.get("events", (None, True))[1]
-        weather_skip = skip_decisions.get("weather", (None, True))[1]
-        birthdays_skip = skip_decisions.get("birthdays", (None, True))[1]
-        purpleair_enabled = bool(self.cfg.purpleair.api_key and self.cfg.purpleair.sensor_id)
-        aq_skip = skip_decisions.get("air_quality", (None, True))[1] if purpleair_enabled else True
-        futures = self._launch_fetches(
-            events_skip, weather_skip, birthdays_skip, purpleair_enabled, aq_skip
-        )
+        # Phase 2: launch concurrent fetches for the non-skipped sources.
+        futures = self._launch_fetches({name: skip for name, (_, skip) in skip_decisions.items()})
 
         # Phase 3: resolve each source, falling back to cache on failure.
         results: dict[str, object] = {}
@@ -367,33 +346,15 @@ class DataPipeline:
             return cached_data, True
         return None, False
 
-    def _launch_fetches(
-        self, events_skip, weather_skip, birthdays_skip, purpleair_enabled, aq_skip
-    ):
-        """Submit retry-wrapped fetch jobs for each non-skipped source.
-
-        The five-parameter shape is kept for the tests that exercise this
-        private method directly. Each job is dispatched via the registry's
-        ``fetch`` callable, so adding a new source does not touch this method.
-        """
-        skip_by_name = {
-            "events": events_skip,
-            "weather": weather_skip,
-            "birthdays": birthdays_skip,
-            "air_quality": aq_skip if purpleair_enabled else True,
-        }
-        # Registry-added fetchers aren't in the legacy five-param signature —
-        # fall back to the phase-1 decisions instead of "never skip".
-        # getattr default keeps direct _launch_fetches test calls (no prior
-        # fetch()) working.
-        phase1: dict[str, tuple] = getattr(self, "_skip_decisions", {})
+    def _launch_fetches(self, skip_by_name: dict[str, bool]):
+        """Submit retry-wrapped jobs for enabled, non-skipped registry sources."""
         ctx = self._fetch_context()
         fetchers = all_fetchers()
         runnable: list = []
         for f in fetchers:
             if not f.enabled(self.cfg):
                 continue
-            if skip_by_name.get(f.name, phase1.get(f.name, (None, False))[1]):
+            if skip_by_name.get(f.name, False):
                 continue
             runnable.append(f)
 
@@ -406,9 +367,9 @@ class DataPipeline:
         # The context-manager exit calls ``shutdown(wait=True)`` with no timeout,
         # which would block until every fetch finishes before this method even
         # returns — defeating the per-source ``future.result(timeout=120)`` bound
-        # applied in ``_resolve_source``. By shutting down with ``wait=False`` we
-        # let the caller resolve each future under its own 120s ceiling, so a
-        # single hung source can't stall the whole run indefinitely.
+        # applied in ``_resolve_source``. ``wait=False`` lets rendering continue
+        # after a source times out; it does not stop the worker. Python joins
+        # these threads at exit, so fetchers must also set HTTP timeouts.
         pool = ThreadPoolExecutor(max_workers=max_workers)
         try:
             for f in runnable:

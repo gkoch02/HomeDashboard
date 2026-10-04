@@ -258,9 +258,7 @@ def _pick_midday(slots: list[dict], tz: tzinfo | None = None) -> dict | None:
 
 
 def _weather_fetch(ctx) -> WeatherData:
-    from src import data_pipeline
-
-    return data_pipeline.fetch_weather(ctx.cfg.weather, tz=ctx.tz, state_dir=ctx.cache_dir or None)
+    return fetch_weather(ctx.cfg.weather, tz=ctx.tz, state_dir=ctx.cache_dir or None)
 
 
 def _weather_log(w: WeatherData) -> str:

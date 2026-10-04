@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
+import pytest
 from PIL import Image, ImageDraw
 
 from src.config import DisplayConfig
@@ -419,3 +420,27 @@ class TestDrawAlmanacDirect:
         )
         assert _ink(polar) > 0, "the polar page rendered blank"
         assert polar.tobytes() != temperate.tobytes()
+
+
+@pytest.mark.parametrize("host_tz", ["UTC", "America/Los_Angeles", "Asia/Tokyo"])
+def test_unspecified_timezone_keeps_supplied_clock(host_tz):
+    import os
+    import subprocess
+    import sys
+
+    # A separate process avoids changing the timezone for other tests.
+    script = """
+import time
+from datetime import datetime, timezone
+from src.render.components.almanac_panel import _fmt_clock
+time.tzset()
+assert _fmt_clock(datetime(2026, 4, 6, 6, 24, tzinfo=timezone.utc), None) == '6:24a'
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", script],
+        env={**os.environ, "TZ": host_tz},
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    assert result.returncode == 0, result.stderr

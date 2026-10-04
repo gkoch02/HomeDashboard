@@ -257,9 +257,7 @@ def fetch_air_quality(cfg: PurpleAirConfig, units: str = "imperial") -> AirQuali
 
 
 def _air_quality_fetch(ctx) -> AirQualityData:
-    from src import data_pipeline
-
-    return data_pipeline.fetch_air_quality(ctx.cfg.purpleair, units=ctx.cfg.weather.units)
+    return fetch_air_quality(ctx.cfg.purpleair, units=ctx.cfg.weather.units)
 
 
 def _air_quality_enabled(cfg) -> bool:

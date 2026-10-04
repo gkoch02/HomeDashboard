@@ -8,6 +8,7 @@ which would be fragile across font rendering differences.
 
 from datetime import datetime
 
+import pytest
 from PIL import Image
 
 from src.config import DisplayConfig
@@ -65,7 +66,7 @@ class TestTerminalThemeSnapshot:
         # Terminal theme has dark bg, so check it's not all black either
         has_white = any(p != 0 for p in pixels)
         has_black = any(p == 0 for p in pixels)
-        assert has_white or has_black, "Image has no variation"
+        assert has_white and has_black, "Image has no variation"
 
 
 class TestAllThemesRender:
@@ -94,3 +95,10 @@ class TestAllThemesRender:
             img = _render_theme(theme_name)
             assert img.size == (800, 480), f"{theme_name} rendered wrong size: {img.size}"
             assert isinstance(img, Image.Image), f"{theme_name} didn't return an Image"
+
+
+@pytest.mark.parametrize("fill", [0, 1])
+def test_terminal_non_blank_check_rejects_uniform_images(monkeypatch, fill):
+    monkeypatch.setattr(__name__ + "._render_theme", lambda _name: Image.new("1", (800, 480), fill))
+    with pytest.raises(AssertionError, match="Image has no variation"):
+        TestTerminalThemeSnapshot().test_renders_non_blank()

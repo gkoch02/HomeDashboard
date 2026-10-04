@@ -107,7 +107,7 @@ make web-status
 port: 8080
 
 # Bind address.
-#   0.0.0.0   — accept connections from anywhere on the LAN (default)
+#   0.0.0.0   — accept connections from anywhere on the LAN (selected in the example)
 #   127.0.0.1 — localhost only; access via SSH tunnel
 host: "0.0.0.0"
 
@@ -130,6 +130,12 @@ sudo systemctl restart dashboard-web.service
 ---
 
 ## Authentication
+
+An existing web configuration that cannot be read, parsed, or interpreted as
+an auth mapping stops startup. With no configured bind address, the server
+listens on `127.0.0.1`; the example explicitly selects `0.0.0.0` for LAN access.
+Configure credentials before using that LAN setting.
+
 
 HTTP Basic Auth is used. Credentials are checked on every request.
 

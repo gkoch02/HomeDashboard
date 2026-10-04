@@ -4,7 +4,7 @@
 # Port to listen on (default: 8080)
 port: 8080
 
-# Bind address. Use 0.0.0.0 to accept connections from the LAN (default),
+# Bind address. Use 0.0.0.0 to accept connections from the LAN (selected here),
 # or 127.0.0.1 to restrict to localhost only (SSH tunnel access).
 host: "0.0.0.0"
 
