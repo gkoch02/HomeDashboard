@@ -41,7 +41,7 @@ from src.data.models import AirQualityData, DashboardData, WeatherData
 from src.render.fonts import weather_icon as weather_icon_font
 from src.render.icons import FALLBACK_ICON, OWM_ICON_MAP
 from src.render.primitives import (
-    Fill,
+    aqi_accent,
     draw_text_truncated,
     filled_rect,
     hline,
@@ -67,14 +67,6 @@ _AQI_ZONES: list[tuple[int, str]] = [
     (500, "Hazardous"),
 ]
 _AQI_MAX = 500
-
-
-def _aqi_accent(style: ThemeStyle, aqi: int) -> Fill:
-    if aqi <= 50:
-        return style.accent_good if style.accent_good is not None else style.fg
-    if aqi <= 150:
-        return style.accent_warn if style.accent_warn is not None else style.fg
-    return style.accent_alert if style.accent_alert is not None else style.fg
 
 
 def draw_air_quality_full(
@@ -140,7 +132,7 @@ def _draw_aqi_hero(
     style: ThemeStyle,
 ) -> None:
     """Left: large AQI number + category label.  Right: 6-zone scale bar."""
-    accent = _aqi_accent(style, aq.aqi)
+    accent = aqi_accent(style, aq.aqi)
 
     split = int(W * 0.28)  # left column width
     pad = 20
@@ -197,7 +189,7 @@ def _draw_scale_bar(
     """Horizontal 6-zone AQI health scale with filled progress and tick."""
     fg = style.fg
     bg = style.bg
-    accent = _aqi_accent(style, aqi)
+    accent = aqi_accent(style, aqi)
 
     # Clamp to valid range
     aqi_clamped = max(0, min(aqi, _AQI_MAX))

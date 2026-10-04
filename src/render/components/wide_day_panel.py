@@ -43,6 +43,7 @@ from src.render.artkit import to_local_naive
 from src.render.components.day_arc_panel import event_state
 from src.render.icons import draw_weather_icon
 from src.render.primitives import (
+    alert_fill,
     content_time,
     dashed_hline,
     dashed_vline,
@@ -95,10 +96,6 @@ BIRTHDAY_LOOKAHEAD_DAYS = 7
 
 # Filled chips on the title row for all-day events.
 ALLDAY_CHIP_MAX = 3
-
-
-def _alert_fill(style: ThemeStyle):
-    return style.fg if style.accent_alert is None else style.accent_alert
 
 
 def _naive(dt: datetime, now: datetime) -> datetime:
@@ -319,7 +316,7 @@ def _draw_left_block(
         bar_font = style.font_semibold(14)
         bar_h = text_height(bar_font) + 10
         bar_y = row2_y + text_height(row_font) + 12
-        fill = _alert_fill(style)
+        fill = alert_fill(style)
         filled_rect(draw, (lx, bar_y, x0 + w - PAD, bar_y + bar_h), fill=fill)
         names = " · ".join(a.event for a in weather.alerts[:2])
         draw_text_truncated(
@@ -447,7 +444,7 @@ def _draw_timeline(
     # NOW marker — only when the moment is on the axis.
     if day_start + timedelta(hours=start_h) <= now < day_start + timedelta(hours=end_h):
         nx = round(x_for(now))
-        fill = _alert_fill(style)
+        fill = alert_fill(style)
         vline(draw, nx, axis_y - 6, lanes_bottom, fill=fill)
         vline(draw, nx + 1, axis_y - 6, lanes_bottom, fill=fill)
         chip_font = style.font_bold(11)
@@ -533,7 +530,7 @@ def _draw_bar(
     bx0, bx1 = bar.x0, bar.x1
     by0, by1 = top, top + LANE_H
     if state == "now":
-        filled_rect(draw, (bx0, by0, bx1, by1), fill=_alert_fill(style))
+        filled_rect(draw, (bx0, by0, bx1, by1), fill=alert_fill(style))
         inside_fill = style.bg
     elif state == "next":
         draw.rectangle((bx0, by0, bx1, by1), outline=style.fg, width=2)

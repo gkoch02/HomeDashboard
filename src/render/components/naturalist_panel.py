@@ -56,6 +56,7 @@ from src.render.primitives import (
     draw_text_truncated,
     draw_text_wrapped,
     events_for_day,
+    roman,
     text_height,
     wrap_lines,
 )
@@ -204,35 +205,10 @@ def _latin_name(season: str, modifier: str) -> str:
 # Plate number (deterministic from today; rolls slowly through the year).
 # ---------------------------------------------------------------------------
 
-_ROMAN = (
-    ("M", 1000),
-    ("CM", 900),
-    ("D", 500),
-    ("CD", 400),
-    ("C", 100),
-    ("XC", 90),
-    ("L", 50),
-    ("XL", 40),
-    ("X", 10),
-    ("IX", 9),
-    ("V", 5),
-    ("IV", 4),
-    ("I", 1),
-)
-
-
-def _roman(n: int) -> str:
-    out: list[str] = []
-    for sym, val in _ROMAN:
-        while n >= val:
-            out.append(sym)
-            n -= val
-    return "".join(out)
-
 
 def _plate_number(today: date) -> str:
     """Plate number derived from day-of-year — varies across the calendar."""
-    return _roman(((today.timetuple().tm_yday - 1) % 365) + 1)
+    return roman(((today.timetuple().tm_yday - 1) % 365) + 1)
 
 
 # ---------------------------------------------------------------------------
@@ -327,7 +303,7 @@ def _draw_masthead(
     draw.text((_PAD_X, _HEADER_TOP), plate_text, font=plate_label_font, fill=ink)
 
     # Right:  date in small caps — YEAR (Roman) · MONTH
-    year_roman = _roman(today.year)
+    year_roman = roman(today.year)
     month_text = today.strftime("%B").upper()
     dateline_text = f"{year_roman}  ·  {month_text}"
     db = draw.textbbox((0, 0), dateline_text, font=dateline_font)

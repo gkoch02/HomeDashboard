@@ -34,16 +34,6 @@ from src.render.theme import ComponentRegion, ThemeStyle
 _PAD = 14  # horizontal padding inside each band
 
 
-def _quote_for_panel(
-    today: date,
-    refresh: str = "daily",
-    now: datetime | None = None,
-    quotes_path: str | None = None,
-) -> dict:
-    """Pick this panel's quote under its own key prefix (see src.render.quotes)."""
-    return quote_for(today, refresh=refresh, now=now, prefix="tides-", path=quotes_path)
-
-
 # ---------------------------------------------------------------------------
 # Individual band drawing functions
 # ---------------------------------------------------------------------------
@@ -286,7 +276,7 @@ def _band_quote(
     fg, bg = style.fg, style.bg
     filled_rect(draw, (x0, y, x0 + w - 1, y + h - 1), fill=fg)
 
-    quote = _quote_for_panel(today, refresh=quote_refresh, now=now, quotes_path=quotes_path)
+    quote = quote_for(today, refresh=quote_refresh, now=now, prefix="tides-", path=quotes_path)
     q_text = f"\u201c{quote['text']}\u201d"
     author = quote.get("author", "")
 

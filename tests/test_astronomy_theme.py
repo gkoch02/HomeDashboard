@@ -13,11 +13,11 @@ from src.dummy_data import generate_dummy_data
 from src.render.canvas import render_dashboard
 from src.render.components.astronomy_panel import (
     _fmt_delta_seconds,
-    _fmt_duration,
     _fmt_time,
-    _next_phase_date,
     draw_astronomy,
 )
+from src.render.moon import next_phase_date
+from src.render.primitives import fmt_duration
 from src.render.theme import AVAILABLE_THEMES, load_theme
 from tests.inkutils import ink
 
@@ -73,8 +73,8 @@ class TestFormatHelpers:
     def test_fmt_duration_none(self):
         from datetime import timedelta
 
-        assert _fmt_duration(None) == "—"
-        assert _fmt_duration(timedelta(hours=13, minutes=38)) == "13h 38m"
+        assert fmt_duration(None) == "—"
+        assert fmt_duration(timedelta(hours=13, minutes=38)) == "13h 38m"
 
     def test_fmt_delta_seconds_positive(self):
         from datetime import timedelta
@@ -93,12 +93,12 @@ class TestFormatHelpers:
 
 class TestNextPhaseDate:
     def test_next_full_moon_within_30_days(self):
-        d = _next_phase_date(TODAY, 0.5)
+        d = next_phase_date(TODAY, 0.5)
         delta_days = (d - TODAY).days
         assert 0 <= delta_days <= 32
 
     def test_next_new_moon_within_30_days(self):
-        d = _next_phase_date(TODAY, 0.0)
+        d = next_phase_date(TODAY, 0.0)
         delta_days = (d - TODAY).days
         assert 0 <= delta_days <= 32
 
@@ -107,7 +107,7 @@ class TestNextPhaseDate:
 
         Any new-moon search that finds its answer must have crossed the wrap
         at least once — so calling this near a known new moon exercises the
-        else-branch in ``_next_phase_date``.  We verify the result is a valid
+        else-branch in ``next_phase_date``.  We verify the result is a valid
         phase-age near 0 or near the synodic month.
         """
         # Check a handful of dates spanning a full synodic cycle.  For each,
@@ -119,7 +119,7 @@ class TestNextPhaseDate:
         hits = 0
         for offset in range(0, 60, 5):
             start = TODAY + _dt.timedelta(days=offset)
-            result = _next_phase_date(start, 0.0)
+            result = next_phase_date(start, 0.0)
             age = moon_phase_age(result)
             # Accept ages near 0 or near the full synodic month (wrap).
             if age < 2.0 or age > 27.5:

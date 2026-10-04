@@ -5,8 +5,8 @@ from __future__ import annotations
 import pytest
 from PIL import Image
 
+from src.config_schema import QUANTIZATION_MODES
 from src.render.quantize import (
-    _VALID_MODES,
     INKY_SPECTRA6_DESATURATED_PALETTE,
     INKY_SPECTRA6_PALETTE,
     _redmean_sq,
@@ -42,12 +42,12 @@ def _gradient_L(w: int = 16, h: int = 1) -> Image.Image:
 
 
 class TestReturnContract:
-    @pytest.mark.parametrize("mode", _VALID_MODES)
+    @pytest.mark.parametrize("mode", QUANTIZATION_MODES)
     def test_returns_mode_1(self, mode):
         result = quantize_for_display(_solid_L(128), mode=mode)
         assert result.mode == "1"
 
-    @pytest.mark.parametrize("mode", _VALID_MODES)
+    @pytest.mark.parametrize("mode", QUANTIZATION_MODES)
     def test_preserves_dimensions(self, mode):
         img = _solid_L(128, w=100, h=60)
         result = quantize_for_display(img, mode=mode)

@@ -44,7 +44,7 @@ from src.astronomy import (
 from src.data.models import DashboardData
 from src.render.fonts import weather_icon
 from src.render.moon import moon_phase_glyph, moon_phase_name
-from src.render.primitives import text_height, text_width
+from src.render.primitives import coords_set, text_height, text_width
 from src.render.star_catalog import (
     CONSTELLATIONS,
     LABELED_STARS,
@@ -118,7 +118,7 @@ def _resolve_observation_time(
     are projected for tonight's solar midnight so the chart shows what the
     user will actually see tonight rather than an empty daytime sky.
     """
-    if latitude is None or longitude is None or (latitude, longitude) == (0.0, 0.0):
+    if not coords_set(latitude, longitude):
         return _utc(now)
 
     st = sun_times(today, latitude, longitude)
@@ -328,14 +328,6 @@ def _draw_constellation_label(
 # ---------------------------------------------------------------------------
 
 
-def _fmt_local_time(dt: datetime, tz: tzinfo | None) -> str:
-    if dt.tzinfo is None:
-        local = dt
-    else:
-        local = dt.astimezone(tz) if tz is not None else dt.astimezone()
-    return local.strftime("%-H:%M")
-
-
 def _draw_header(
     draw: ImageDraw.ImageDraw,
     region: ComponentRegion,
@@ -379,7 +371,7 @@ def _draw_footer(
     loc_parts: list[str] = []
     if weather is not None and weather.location_name:
         loc_parts.append(weather.location_name.upper())
-    if latitude is not None and longitude is not None and (latitude, longitude) != (0.0, 0.0):
+    if coords_set(latitude, longitude):
         ns = "N" if latitude >= 0 else "S"
         ew = "E" if longitude >= 0 else "W"
         loc_parts.append(f"{abs(latitude):.1f}°{ns}  {abs(longitude):.1f}°{ew}")
@@ -454,7 +446,7 @@ def draw_constellation_map(
     # Project every catalogue star to chart coordinates (skipping ones below
     # the horizon).
     moon_visible = False
-    if latitude is not None and longitude is not None and (latitude, longitude) != (0.0, 0.0):
+    if coords_set(latitude, longitude):
         lst = local_sidereal_time(obs_time, longitude)
         star_xy: dict[str, tuple[int, int]] = {}
         for star in STARS:

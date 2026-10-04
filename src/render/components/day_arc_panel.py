@@ -42,13 +42,14 @@ from PIL import Image, ImageDraw
 from src.astronomy import sun_times
 from src.data.models import Birthday, CalendarEvent, DashboardData, WeatherData
 from src.render.artkit import accent_red as _accent_red
+from src.render.artkit import fmt_temp, to_local_naive
 from src.render.artkit import grey as _grey
 from src.render.artkit import ink as _ink
-from src.render.artkit import to_local_naive
 from src.render.fonts import weather_icon
 from src.render.moon import moon_phase_age
 from src.render.moon_render import MoonTones, render_moon_disc
 from src.render.primitives import (
+    coords_set,
     draw_text_truncated,
     events_for_day,
     fmt_time,
@@ -359,7 +360,7 @@ def _resolve_day_bounds(
     ``(0.0, 0.0)`` counts as unset — the same convention the ``astronomy`` and
     ``light_cycle`` panels use.
     """
-    if latitude is not None and longitude is not None and (latitude, longitude) != (0.0, 0.0):
+    if coords_set(latitude, longitude):
         st = sun_times(today, latitude, longitude)
         if st.sunrise is not None and st.sunset is not None:
             return (
@@ -1074,10 +1075,6 @@ def _draw_agenda(
 # ---------------------------------------------------------------------------
 
 
-def _fmt_temp(value: float | None) -> str:
-    return "—" if value is None else f"{int(round(value))}°"
-
-
 def _next_birthdays(
     birthdays: list[Birthday], today: date, limit: int = 3
 ) -> list[tuple[str, int]]:
@@ -1126,13 +1123,13 @@ def _draw_rail(
     label_font = (style.font_section_label or style.font_bold)(13)
     cond_font = style.font_medium(15)
 
-    temp = _fmt_temp(weather.current_temp if weather else None)
+    temp = fmt_temp(weather.current_temp if weather else None)
     tw = text_width(draw, temp, numeral_font)
     draw.text((x0 + (w - tw) // 2, y0), temp, font=numeral_font, fill=ink)
     y = y0 + text_height(numeral_font) + 12
 
     if weather is not None and weather.feels_like is not None:
-        feels = f"feels {_fmt_temp(weather.feels_like)}"
+        feels = f"feels {fmt_temp(weather.feels_like)}"
         fw = text_width(draw, feels, small_font)
         draw.text((x0 + (w - fw) // 2, y), feels, font=small_font, fill=ink)
     y += text_height(small_font) + 14
@@ -1142,7 +1139,7 @@ def _draw_rail(
             draw, (x0, y), weather.current_description.upper(), cond_font, w, fill=ink
         )
         y += text_height(cond_font) + 6
-        hl = f"H {_fmt_temp(weather.high)}  ·  L {_fmt_temp(weather.low)}"
+        hl = f"H {fmt_temp(weather.high)}  ·  L {fmt_temp(weather.low)}"
         draw.text((x0, y), hl, font=cond_font, fill=ink)
         y += text_height(cond_font) + 14
     else:

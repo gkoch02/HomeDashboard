@@ -52,6 +52,7 @@ if TYPE_CHECKING:
 
     from src.data.models import DashboardData, WeatherData
 
+from src.render.primitives import coords_set
 from src.render.quotes import quote_for
 from src.render.theme import ComponentRegion, ThemeStyle
 
@@ -68,16 +69,6 @@ _HERO_R = 95
 _DATA_FONT_PT = 26
 _QUOTE_FONT_PT = 23
 _ATTR_FONT_PT = 32
-
-
-def _quote_for_panel(
-    today: date,
-    refresh: str = "daily",
-    now: datetime | None = None,
-    quotes_path: str | None = None,
-) -> dict:
-    """Pick this panel's quote under its own key prefix (see src.render.quotes)."""
-    return quote_for(today, refresh=refresh, now=now, prefix="moonphase-", path=quotes_path)
 
 
 # ---------------------------------------------------------------------------
@@ -118,13 +109,6 @@ def _moon_tones(style: ThemeStyle, mode: str, dark_canvas: bool) -> MoonTones:
     if dark_canvas:
         return MoonTones(lit=255, dark=0, edge=255)
     return MoonTones(lit=0, dark=255, edge=0)
-
-
-def _coords_set(latitude: float | None, longitude: float | None) -> bool:
-    """True when usable coordinates were supplied (exact 0,0 means unset)."""
-    if latitude is None or longitude is None:
-        return False
-    return not (latitude == 0.0 and longitude == 0.0)
 
 
 def _local(dt: datetime | None, tz: tzinfo | None) -> datetime | None:
@@ -294,7 +278,7 @@ def _draw_lunar_line(
     """Draw moonrise/moonset (when located) + moon age."""
     font = cormorant_regular(_DATA_FONT_PT)
     parts: list[str] = []
-    if _coords_set(latitude, longitude):
+    if coords_set(latitude, longitude):
         assert latitude is not None and longitude is not None
         times = moon_times(today, latitude, longitude, tz=tz)
         rise = _local(times.rise, tz)
@@ -370,7 +354,7 @@ def _draw_quote(
 
     *gap* is the vertical space between the quote body and its attribution.
     """
-    quote = _quote_for_panel(today, refresh=quote_refresh, quotes_path=quotes_path)
+    quote = quote_for(today, refresh=quote_refresh, prefix="moonphase-", path=quotes_path)
     text = f'"{quote["text"]}"'
     quote_font = cormorant_italic(_QUOTE_FONT_PT)
     lines_h = text_height(quote_font)
@@ -394,7 +378,7 @@ def _quote_body_height(
     today: date, max_w: int, quote_refresh: str, quotes_path: str | None = None
 ) -> int:
     """Measure the wrapped quote body height (no attribution) for layout."""
-    quote = _quote_for_panel(today, refresh=quote_refresh, quotes_path=quotes_path)
+    quote = quote_for(today, refresh=quote_refresh, prefix="moonphase-", path=quotes_path)
     quote_font = cormorant_italic(_QUOTE_FONT_PT)
     n_lines = len(wrap_lines(f'"{quote["text"]}"', quote_font, max_w)[:2])
     return n_lines * text_height(quote_font) + max(0, n_lines - 1) * 4

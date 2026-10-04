@@ -182,18 +182,12 @@ class TestPanelsShareOneLoader:
 
     def test_panels_keep_independent_selections(self, tmp_path):
         from src.render.components.info_panel import _quote_for_today
-        from src.render.components.moonphase_panel import (
-            _quote_for_panel as moon_quote,
-        )
-        from src.render.components.scorecard_panel import (
-            _quote_for_panel as score_quote,
-        )
-        from src.render.components.tides_panel import _quote_for_panel as tide_quote
+        from src.render.quotes import quote_for
 
         path = _store(tmp_path, [{"text": f"q{i}", "author": "a"} for i in range(80)])
-        picks = {
-            fn(TODAY, quotes_path=path)["text"]
-            for fn in (_quote_for_today, moon_quote, score_quote, tide_quote)
+        picks = {_quote_for_today(TODAY, quotes_path=path)["text"]} | {
+            quote_for(TODAY, prefix=prefix, path=path)["text"]
+            for prefix in ("moonphase-", "scorecard-", "tides-")
         }
         assert len(picks) > 1
 

@@ -20,7 +20,7 @@ Adding a new theme requires only two steps:
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Set
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Literal
 
@@ -466,108 +466,39 @@ def _ensure_themes_imported() -> None:
     import src.render.themes  # noqa: F401  side-effect imports populate registry
 
 
-def _theme_registry() -> dict[str, Callable[[], Theme]]:
-    _ensure_themes_imported()
-    from src.render.themes.registry import _REGISTRY
-
-    return _REGISTRY
-
-
-class _ThemeRegistryView(dict):
-    """Read-through proxy preserving the legacy ``_THEME_REGISTRY`` dict API.
-
-    Existing tests do ``set(_THEME_REGISTRY.keys())`` and similar; we keep a
-    dict-shaped view rather than break those callers. Values are now the
-    factory callables themselves; the legacy ``(module_path, attr)`` tuples
-    are no longer used by ``load_theme`` and were never read by tests.
-    """
-
-    def __getitem__(self, key):  # noqa: D401
-        return _theme_registry()[key]
-
-    def __iter__(self):
-        return iter(_theme_registry())
-
-    def __len__(self):
-        return len(_theme_registry())
-
-    def __contains__(self, key):
-        return key in _theme_registry()
-
-    def keys(self):
-        return _theme_registry().keys()
-
-    def values(self):
-        return _theme_registry().values()
-
-    def items(self):
-        return _theme_registry().items()
-
-    def get(self, key, default=None):
-        return _theme_registry().get(key, default)
-
-    # Mutating dict methods are explicit failures rather than silent operations
-    # on the empty parent ``dict``. New themes register themselves via
-    # ``src.render.themes.registry.register_theme``; no caller should be poking
-    # at this proxy directly.
-    def _readonly(self, *_args, **_kwargs):
-        raise TypeError(
-            "_THEME_REGISTRY is a read-through proxy; register themes via "
-            "src.render.themes.registry.register_theme(...)"
-        )
-
-    __setitem__ = _readonly
-    __delitem__ = _readonly
-    pop = _readonly
-    popitem = _readonly
-    setdefault = _readonly
-    update = _readonly
-    clear = _readonly
-
-
-_THEME_REGISTRY: _ThemeRegistryView = _ThemeRegistryView()
-
-
-class _AvailableThemesView:
-    """Read-through proxy for the legacy ``AVAILABLE_THEMES`` frozenset.
+class _AvailableThemesView(Set):
+    """Live, read-only set view of every accepted theme name.
 
     Module-import-time consumers (``src.cli`` builds argparse choices) need a
     live view of the registry, since theme modules register themselves only
-    after the package is imported.
+    after the package is imported — and importing it eagerly here would be
+    circular, as every theme module imports ``Theme`` from this module. The
+    ``Set`` ABC supplies the set operators callers use (``-``, ``|``, ``<=``,
+    ``==``) from the three primitives below.
     """
 
-    def _set(self) -> frozenset[str]:
+    @staticmethod
+    def _names() -> frozenset[str]:
         _ensure_themes_imported()
         from src.render.themes.registry import available_themes
 
         return available_themes()
 
+    @classmethod
+    def _from_iterable(cls, it):
+        return frozenset(it)
+
     def __iter__(self):
-        return iter(self._set())
+        return iter(self._names())
 
     def __contains__(self, item):
-        return item in self._set()
+        return item in self._names()
 
     def __len__(self):
-        return len(self._set())
-
-    def __sub__(self, other):
-        return self._set() - other
-
-    def __or__(self, other):
-        return self._set() | other
-
-    def __and__(self, other):
-        return self._set() & other
-
-    def __eq__(self, other):
-        return self._set() == other
-
-    def __hash__(self):
-        return hash(self._set())
+        return len(self._names())
 
     def __repr__(self):
-        return repr(self._set())
+        return repr(self._names())
 
 
 AVAILABLE_THEMES: _AvailableThemesView = _AvailableThemesView()

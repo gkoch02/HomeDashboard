@@ -36,6 +36,7 @@ from src.render.fonts import weather_icon as weather_icon_font
 from src.render.icons import draw_weather_icon
 from src.render.moon import moon_illumination, moon_phase_glyph, moon_phase_name, next_full_moon
 from src.render.primitives import (
+    alert_fill,
     content_time,
     deg_to_compass,
     draw_text_truncated,
@@ -58,10 +59,6 @@ ROW_H_FRACTION = 0.62
 # AQI at or above this is drawn in the alert accent (EPA "Unhealthy for
 # Sensitive Groups" begins at 101).
 AQI_ALERT_FROM = 101
-
-
-def _alert_fill(style: ThemeStyle):
-    return style.fg if style.accent_alert is None else style.accent_alert
 
 
 def _tint(style: ThemeStyle):
@@ -343,7 +340,7 @@ def _draw_band(
         for alert in alerts[:3]:
             if ay + bar_h > y0 + h - 8:
                 break
-            filled_rect(draw, (ax, ay, x0 + cell_w - PAD, ay + bar_h), fill=_alert_fill(style))
+            filled_rect(draw, (ax, ay, x0 + cell_w - PAD, ay + bar_h), fill=alert_fill(style))
             draw_text_truncated(
                 draw,
                 (ax + 8, ay + 5),
@@ -366,7 +363,7 @@ def _draw_band(
     else:
         aqi_font = style.font_bold(54)
         aqi = str(air.aqi)
-        aqi_fill = _alert_fill(style) if air.aqi >= AQI_ALERT_FROM else style.fg
+        aqi_fill = alert_fill(style) if air.aqi >= AQI_ALERT_FROM else style.fg
         ab = draw.textbbox((0, 0), aqi, font=aqi_font)
         draw.text((qx - ab[0], qy - ab[1]), aqi, font=aqi_font, fill=aqi_fill)
         aqi_w = ab[2] - ab[0]

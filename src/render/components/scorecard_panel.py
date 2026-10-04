@@ -38,16 +38,6 @@ _ROW3_H = 480 - _HEADER_H - _ROW1_H - _ROW2_H  # 180
 _PAD = 10
 
 
-def _quote_for_panel(
-    today: date,
-    refresh: str = "daily",
-    now: datetime | None = None,
-    quotes_path: str | None = None,
-) -> dict:
-    """Pick this panel's quote under its own key prefix (see src.render.quotes)."""
-    return quote_for(today, refresh=refresh, now=now, prefix="scorecard-", path=quotes_path)
-
-
 def _draw_tile(
     draw: ImageDraw.ImageDraw,
     x: int,
@@ -392,7 +382,7 @@ def draw_scorecard(
     )
 
     # Quote tile
-    quote = _quote_for_panel(today, refresh=quote_refresh, now=now, quotes_path=quotes_path)
+    quote = quote_for(today, refresh=quote_refresh, now=now, prefix="scorecard-", path=quotes_path)
     qx = x0 + moon_w + _PAD
     qy = row3_y + 14
     q_font = (style.font_regular)(13)

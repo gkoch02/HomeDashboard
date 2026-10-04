@@ -125,3 +125,24 @@ def next_new_moon(d: date) -> tuple[date, int]:
     delta = _days_until_age(d, 0.0)
     days = int(round(delta))
     return d + timedelta(days=days), days
+
+
+def next_phase_date(today: date, target_fraction: float) -> date:
+    """Return the date of the next occurrence of the given phase fraction.
+
+    The fraction is the synodic age over the synodic month: ``0.0`` finds the
+    next new moon, ``0.5`` the next full moon. Steps forward day by day (up to
+    45 days) for the crossing where the day before was short of the target and
+    the day itself is at or past it, handling the wrap at the top of the cycle.
+    """
+    target = target_fraction % 1.0
+    for i in range(0, 45):
+        d = today + timedelta(days=i)
+        prev_frac = moon_phase_age(d - timedelta(days=1)) / _SYNODIC_MONTH
+        curr_frac = moon_phase_age(d) / _SYNODIC_MONTH
+        if prev_frac <= curr_frac:
+            if prev_frac < target <= curr_frac:
+                return d
+        elif target > prev_frac or target <= curr_frac:
+            return d
+    return today + timedelta(days=29)

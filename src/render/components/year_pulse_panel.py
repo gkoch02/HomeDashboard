@@ -23,7 +23,6 @@ from src.render.theme import ComponentRegion, ThemeStyle
 
 PAD = 14
 BAR_H = 16  # height of the year progress bar
-BAR_RADIUS = 3  # corner rounding for the progress bar outline
 MAX_COUNTDOWNS = 5  # max upcoming items to display
 
 

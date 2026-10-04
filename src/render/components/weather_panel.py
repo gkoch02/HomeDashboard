@@ -10,7 +10,7 @@ from src.render.fonts import weather_icon as weather_icon_font
 from src.render.icons import draw_weather_icon
 from src.render.moon import moon_phase_glyph
 from src.render.primitives import (
-    Fill,
+    aqi_accent,
     deg_to_compass,
     draw_staleness_glyph,
     draw_text_truncated,
@@ -24,14 +24,6 @@ from src.render.primitives import (
     fmt_time as _fmt_time,
 )
 from src.render.theme import ComponentRegion, ThemeStyle
-
-
-def _aqi_accent(style: ThemeStyle, aqi: int) -> Fill:
-    if aqi <= 50:
-        return style.accent_good if style.accent_good is not None else style.fg
-    if aqi <= 150:
-        return style.accent_warn if style.accent_warn is not None else style.fg
-    return style.accent_alert if style.accent_alert is not None else style.fg
 
 
 def draw_weather(
@@ -335,7 +327,7 @@ def _draw_aqi_column(
     style: ThemeStyle,
 ) -> None:
     """Draw a compact AQI summary filling one forecast column."""
-    accent = _aqi_accent(style, air_quality.aqi)
+    accent = aqi_accent(style, air_quality.aqi)
     icon_font = weather_icon_font(14)
     val_font = style.font_semibold(11)
     lbl_font = style.font_regular(10)

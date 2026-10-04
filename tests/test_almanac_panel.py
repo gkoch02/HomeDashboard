@@ -13,14 +13,13 @@ from src.dummy_data import generate_dummy_data
 from src.render.canvas import render_dashboard
 from src.render.components.almanac_panel import (
     _fmt_clock,
-    _fmt_duration,
     _fmt_signed_minutes,
-    _next_phase_date,
-    _roman,
     _season,
     _upcoming_calendar_summary,
     draw_almanac,
 )
+from src.render.moon import next_phase_date
+from src.render.primitives import fmt_duration, roman
 from src.render.quantize import flatten_pixels
 from src.render.theme import AVAILABLE_THEMES, ComponentRegion, ThemeStyle, load_theme
 
@@ -87,18 +86,18 @@ class TestAlmanacRegistration:
 
 class TestRoman:
     def test_basic(self):
-        assert _roman(1) == "I"
-        assert _roman(4) == "IV"
-        assert _roman(9) == "IX"
-        assert _roman(40) == "XL"
-        assert _roman(90) == "XC"
-        assert _roman(400) == "CD"
-        assert _roman(900) == "CM"
-        assert _roman(2026) == "MMXXVI"
+        assert roman(1) == "I"
+        assert roman(4) == "IV"
+        assert roman(9) == "IX"
+        assert roman(40) == "XL"
+        assert roman(90) == "XC"
+        assert roman(400) == "CD"
+        assert roman(900) == "CM"
+        assert roman(2026) == "MMXXVI"
 
     def test_zero_or_negative_returns_em_dash(self):
-        assert _roman(0) == "—"
-        assert _roman(-5) == "—"
+        assert roman(0) == "—"
+        assert roman(-5) == "—"
 
 
 class TestSeason:
@@ -135,10 +134,10 @@ class TestFmtClock:
 
 class TestFmtDuration:
     def test_basic(self):
-        assert _fmt_duration(timedelta(hours=14, minutes=3)) == "14h 03m"
+        assert fmt_duration(timedelta(hours=14, minutes=3)) == "14h 03m"
 
     def test_none(self):
-        assert _fmt_duration(None) == "—"
+        assert fmt_duration(None) == "—"
 
 
 class TestFmtSignedMinutes:
@@ -160,11 +159,11 @@ class TestFmtSignedMinutes:
 
 class TestNextPhaseDate:
     def test_full_moon_within_30_days(self):
-        d = _next_phase_date(TODAY, 0.5)
+        d = next_phase_date(TODAY, 0.5)
         assert 0 <= (d - TODAY).days <= 32
 
     def test_new_moon_within_30_days(self):
-        d = _next_phase_date(TODAY, 0.0)
+        d = next_phase_date(TODAY, 0.0)
         assert 0 <= (d - TODAY).days <= 32
 
 

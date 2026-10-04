@@ -10,6 +10,7 @@ from PIL import Image
 from src.config import DisplayConfig
 from src.data.models import CalendarEvent, DashboardData
 from src.dummy_data import generate_dummy_data
+from src.render.artkit import fmt_temp
 from src.render.canvas import render_dashboard
 from src.render.components.halftone_agenda_panel import (
     _DENSITY_TIERS,
@@ -28,7 +29,6 @@ from src.render.components.halftone_agenda_panel import (
     TEMP_PT,
     _clock,
     _draw_time_cell,
-    _fmt_temp,
     _location_text,
     _sun_times,
     agenda_metrics,
@@ -185,10 +185,10 @@ class TestGeometry:
 
 class TestHelpers:
     def test_fmt_temp_rounds(self):
-        assert _fmt_temp(41.6) == "42°"
+        assert fmt_temp(41.6) == "42°"
 
     def test_fmt_temp_none(self):
-        assert _fmt_temp(None) == "—"
+        assert fmt_temp(None) == "—"
 
     def test_clock_strips_leading_zero(self):
         assert _clock(datetime(2026, 4, 6, 6, 24)) == "6:24 AM"

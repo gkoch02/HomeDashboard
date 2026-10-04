@@ -152,8 +152,8 @@ src/
     │                          #   and delegates resize+finalize to display.backend
     ├── theme.py               # Theme system (ComponentRegion, ThemeLayout, ThemeStyle);
     │                          #   exports INKY_BLACK/WHITE/YELLOW/RED/BLUE/GREEN palette indices;
-    │                          #   _THEME_REGISTRY and AVAILABLE_THEMES are read-through proxies
-    │                          #   over src.render.themes.registry
+    │                          #   AVAILABLE_THEMES is a live set view over
+    │                          #   src.render.themes.registry
     ├── quantize.py            # quantize_for_display() for Waveshare 1-bit output +
     │                          #   quantize_to_palette() for Inky palette mapping
     ├── quotes.py              # Shared daily-quote store: one loader + the stable
@@ -279,7 +279,7 @@ requirements-pi.txt            # Raspberry Pi-specific deps (gpiozero, lgpio, in
 Three internal plugin registries replace the v4 hard-coded dispatch sites. Adding a new source/theme/component is a single new file plus a registration call:
 
 - **Fetcher registry** (`src/fetchers/registry.py`) — `Fetcher(name, fetch, serialize, deserialize, ttl_minutes, interval_minutes, enabled, save_metadata, cache_metadata_valid, log_success)`. `DataPipeline.fetch()` iterates `all_fetchers()`; `cache.py` delegates ser/deser through the same registry. The `events` fetcher's `cache_metadata_valid` enforces the events-window cache invalidation rule.
-- **Theme registry** (`src/render/themes/registry.py`) — `register_theme(name, factory, *, inky_palette=(primary, secondary))`. The Inky Spectra-6 colour story for each theme lives next to its registration, not in a central dict. The legacy `_THEME_REGISTRY` and `AVAILABLE_THEMES` exports on `src.render.theme` are read-through proxies for backwards compatibility.
+- **Theme registry** (`src/render/themes/registry.py`) — `register_theme(name, factory, *, inky_palette=(primary, secondary))`. The Inky Spectra-6 colour story for each theme lives next to its registration, not in a central dict. `AVAILABLE_THEMES` on `src.render.theme` is a live set view over the registry for the CLI, validation and web callers.
 - **Component registry** (`src/render/components/registry.py`) — `RenderContext` + `@register_component(name)`. Adapters take a `RenderContext` and pull what they need from it. The built-in adapters live in `src/render/components/_builtins.py`; new components can register directly inside their own module.
 
 Each registry's package `__init__.py` imports every built-in module so consumers see a fully-populated registry by the time they read it. Re-registration of a name is a silent no-op — module reloads in tests don't raise.

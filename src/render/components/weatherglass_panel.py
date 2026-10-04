@@ -520,43 +520,6 @@ def _draw_dial_rim(
     )
 
 
-def _rotate_text_paste(
-    image: Image.Image,
-    text: str,
-    font,
-    fill,
-    angle_deg: float,
-    centre: tuple[int, int],
-    radial_offset: int,
-) -> None:
-    """Render text on a transparent strip, rotate, and paste at radius=radial_offset.
-
-    The text reads outward from the rim — the angle is the direction the text
-    points (0° = right, 90° = down, etc).
-    """
-    bbox = font.getbbox(text)
-    tw = bbox[2] - bbox[0]
-    th = bbox[3] - bbox[1]
-    pad = 4 * SS
-    # Render to an L-mode strip and treat any non-zero pixel as the fill region.
-    strip = Image.new("L", (tw + 2 * pad, th + 2 * pad), 0)
-    sd = ImageDraw.Draw(strip)
-    sd.text((pad - bbox[0], pad - bbox[1]), text, font=font, fill=255)
-    rotated = strip.rotate(-angle_deg, resample=Image.Resampling.BICUBIC, expand=True)
-    rw, rh = rotated.size
-    cx, cy = centre
-    a = math.radians(angle_deg)
-    px = cx + math.cos(a) * radial_offset - rw // 2
-    py = cy + math.sin(a) * radial_offset - rh // 2
-    # Build a mask and paste the fill color through it.
-    if image.mode == "RGB":
-        coloured = Image.new("RGB", rotated.size, fill if isinstance(fill, tuple) else (0, 0, 0))
-        image.paste(coloured, (int(px), int(py)), rotated)
-    else:
-        coloured = Image.new("L", rotated.size, fill if isinstance(fill, int) else 0)
-        image.paste(coloured, (int(px), int(py)), rotated)
-
-
 # ---------------------------------------------------------------------------
 # Thermometer
 # ---------------------------------------------------------------------------

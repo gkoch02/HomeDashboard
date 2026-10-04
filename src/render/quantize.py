@@ -27,7 +27,7 @@ from typing import cast
 
 from PIL import Image
 
-_VALID_MODES = ("threshold", "floyd_steinberg", "ordered")
+from src.config_schema import QUANTIZATION_MODES
 
 
 def flatten_pixels(image: Image.Image) -> list[int] | list[tuple[int, int, int]]:
@@ -166,7 +166,9 @@ def quantize_for_display(image: Image.Image, mode: str = "threshold") -> Image.I
     if mode == "ordered":
         return _ordered_bayer(image)
 
-    raise ValueError(f"Unknown quantization mode {mode!r}. Valid modes: {', '.join(_VALID_MODES)}")
+    raise ValueError(
+        f"Unknown quantization mode {mode!r}. Valid modes: {', '.join(QUANTIZATION_MODES)}"
+    )
 
 
 def _ordered_bayer(image: Image.Image) -> Image.Image:

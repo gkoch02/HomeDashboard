@@ -42,7 +42,8 @@ import pytest
 from src.config import DisplayConfig
 from src.dummy_data import generate_dummy_data
 from src.render.canvas import render_dashboard
-from src.render.theme import _THEME_REGISTRY, load_theme
+from src.render.theme import load_theme
+from src.render.themes.registry import all_theme_names
 
 # A Monday morning — matches the pin in test_render_snapshots.py so both suites
 # exercise the same dummy-data shape.
@@ -58,7 +59,7 @@ _MESSAGE_TEXT = "Snapshot test message."
 # document them here so future maintainers see them explicitly.
 _EXTERNAL_ASSET_THEMES: frozenset[str] = frozenset({"photo"})
 
-THEME_NAMES = sorted(set(_THEME_REGISTRY.keys()) | {"default"})
+THEME_NAMES = sorted(set(all_theme_names()) | {"default"})
 
 _CURRENT_PILLOW_VERSION = PIL.__version__
 
@@ -147,7 +148,7 @@ def test_theme_pixel_hash(theme_name: str) -> None:
 
 
 def test_all_registered_themes_are_covered() -> None:
-    """Guard: every theme in _THEME_REGISTRY must have a baseline entry.
+    """Guard: every registered theme must have a baseline entry.
 
     This catches the "added a theme but forgot to regenerate baselines" case.
     """
@@ -163,5 +164,5 @@ def test_all_registered_themes_are_covered() -> None:
 
 def test_external_asset_themes_are_documented() -> None:
     """Guard: themes that depend on external files must still be in the registry."""
-    unknown = _EXTERNAL_ASSET_THEMES - set(_THEME_REGISTRY.keys())
+    unknown = _EXTERNAL_ASSET_THEMES - set(all_theme_names())
     assert not unknown, f"Unknown themes in _EXTERNAL_ASSET_THEMES: {unknown}"

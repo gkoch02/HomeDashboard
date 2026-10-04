@@ -49,15 +49,18 @@ from src.render.artkit import season
 from src.render.components.info_panel import _quote_for_today
 from src.render.moon import (
     moon_illumination,
-    moon_phase_age,
     moon_phase_glyph,
     moon_phase_name,
+    next_phase_date,
 )
 from src.render.primitives import (
+    coords_set,
     draw_text_truncated,
     events_for_day,
+    fmt_duration,
     hline,
     next_birthday,
+    roman,
     text_height,
     text_width,
     vline,
@@ -95,8 +98,6 @@ _FOOTER_RULE_Y = 392
 _QUOTE_Y = 408
 _FOOTER_ORNAMENT_Y = 466
 
-_SYNODIC = 29.53059
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -126,15 +127,6 @@ def _fmt_clock(dt: datetime | None, tz: tzinfo | None, suffix: str = "") -> str:
     return f"{s} {suffix}".strip()
 
 
-def _fmt_duration(td: timedelta | None) -> str:
-    if td is None:
-        return "—"
-    total = int(td.total_seconds())
-    hours, rem = divmod(abs(total), 3600)
-    minutes = rem // 60
-    return f"{hours}h {minutes:02d}m"
-
-
 def _fmt_signed_minutes(td: timedelta | None) -> str:
     """Format a signed delta as e.g. '+2m 28s' / '-1m 04s' / '0s'."""
     if td is None:
@@ -153,46 +145,6 @@ def _fmt_signed_minutes(td: timedelta | None) -> str:
 def _season(today: date) -> str:
     """Return the capitalized season name for *today* (Northern hemisphere)."""
     return season(today).capitalize()
-
-
-def _next_phase_date(today: date, target_fraction: float) -> date:
-    """Walk forward day by day until the synodic fraction crosses *target*.
-
-    Mirrors the helper in astronomy_panel.  ``target_fraction == 0`` finds
-    the next new moon; ``0.5`` finds the next full moon.
-    """
-    for i in range(0, 45):
-        d = today + timedelta(days=i)
-        prev_age = moon_phase_age(d - timedelta(days=1))
-        curr_age = moon_phase_age(d)
-        prev_frac = prev_age / _SYNODIC
-        curr_frac = curr_age / _SYNODIC
-        target = target_fraction % 1.0
-        if prev_frac <= curr_frac:
-            if prev_frac < target <= curr_frac:
-                return d
-        else:
-            if target > prev_frac or target <= curr_frac:
-                return d
-    return today + timedelta(days=29)
-
-
-def _roman(n: int) -> str:
-    """Tiny Roman-numeral converter used for the volume number on the masthead."""
-    table = [
-        (1000, "M"), (900, "CM"), (500, "D"), (400, "CD"),
-        (100, "C"), (90, "XC"), (50, "L"), (40, "XL"),
-        (10, "X"), (9, "IX"), (5, "V"), (4, "IV"),
-        (1, "I"),
-    ]  # fmt: skip
-    if n <= 0:
-        return "—"
-    out: list[str] = []
-    for value, sym in table:
-        while n >= value:
-            out.append(sym)
-            n -= value
-    return "".join(out)
 
 
 def _upcoming_calendar_summary(data: DashboardData, today: date, max_lines: int) -> list[str]:
@@ -337,7 +289,7 @@ def _draw_masthead(
 
     # Kicker line: VOL. <roman> · NO. <day-of-year> · WEEKDAY
     kicker_font = (style.font_section_label or style.font_bold)(13)
-    vol = _roman(today.year - 1799)  # arbitrary but stable
+    vol = roman(today.year - 1799)  # arbitrary but stable
     day_of_year = today.timetuple().tm_yday
     kicker = f"VOL. {vol}   NO. {day_of_year}   ·   {today.strftime('%A').upper()}"
     kw = text_width(draw, kicker, kicker_font)
@@ -447,7 +399,7 @@ def _draw_heavens(
     sunrise = sunset = None
     day_len: timedelta | None = None
     delta: timedelta | None = None
-    if latitude is not None and longitude is not None and (latitude, longitude) != (0.0, 0.0):
+    if coords_set(latitude, longitude):
         st = sun_times(today, latitude, longitude)
         sunrise = st.sunrise
         sunset = st.sunset
@@ -465,9 +417,9 @@ def _draw_heavens(
     # Day length + today's lengthening combined into one editorial line so
     # the Heavens column fits comfortably in the top body row.
     if delta is None:
-        day_value = _fmt_duration(day_len)
+        day_value = fmt_duration(day_len)
     else:
-        day_value = f"{_fmt_duration(day_len)}   ({_fmt_signed_minutes(delta)})"
+        day_value = f"{fmt_duration(day_len)}   ({_fmt_signed_minutes(delta)})"
     y = _draw_kv_row(draw, x, y, "Day length", day_value, key_w, style)
 
     # Moon row: glyph + name + illumination — kept as one editorial line.
@@ -492,7 +444,7 @@ def _draw_heavens(
     )
     y = moon_y + line_h + 4
 
-    full = _next_phase_date(today + timedelta(days=1), 0.5)
+    full = next_phase_date(today + timedelta(days=1), 0.5)
     y = _draw_kv_row(draw, x, y, "Next Full", full.strftime("%b %-d"), key_w, style)
 
 
@@ -602,7 +554,7 @@ def _draw_garden(
     draw.text((x, y), season_line, font=bold_font, fill=style.fg)
     y += text_height(bold_font) + 4
 
-    if latitude is not None and longitude is not None and (latitude, longitude) != (0.0, 0.0):
+    if coords_set(latitude, longitude):
         delta = day_length_delta(today, latitude, longitude)
         if delta is not None:
             seconds = int(delta.total_seconds())

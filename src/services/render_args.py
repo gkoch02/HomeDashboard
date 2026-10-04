@@ -17,6 +17,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from src.render.primitives import coords_set
+
 
 def coords_or_none(latitude: float, longitude: float) -> tuple[float | None, float | None]:
     """Return the pair, or ``(None, None)`` for the "unset" sentinel.
@@ -25,7 +27,7 @@ def coords_or_none(latitude: float, longitude: float) -> tuple[float | None, flo
     ``validate_config()`` warns about. Any other coordinate (the equator or the
     prime meridian alone included) is passed through so twilight math can run.
     """
-    if latitude == 0.0 and longitude == 0.0:
+    if not coords_set(latitude, longitude):
         return None, None
     return latitude, longitude
 

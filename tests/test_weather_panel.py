@@ -17,7 +17,7 @@ still failing if the behaviour they name is deleted.
 Verification (the step that makes the rewrite worth anything): with
 ``draw_weather`` stubbed to a no-op, 36 of the 47 tests here fail. The 11
 that still pass are the nine pure-helper tests for ``_fmt_time`` and
-``_aqi_accent``, which never touch a canvas, plus two *negative* tests
+``aqi_accent``, which never touch a canvas, plus two *negative* tests
 (``test_wind_deg_without_wind_speed_no_crash`` and
 ``test_aqi_column_suppressed_when_alerts_present``) which assert something is
 NOT drawn and so cannot distinguish a no-op by construction. Both were
@@ -39,11 +39,11 @@ from src.data.models import (
 )
 from src.render import layout as L
 from src.render.components.weather_panel import (
-    _aqi_accent,
     _draw_aqi_column,
     _fmt_time,
     draw_weather,
 )
+from src.render.primitives import aqi_accent
 from src.render.quantize import flatten_pixels
 from src.render.theme import ComponentRegion, ThemeStyle
 
@@ -679,29 +679,29 @@ class TestAQIForecastColumn:
 class TestAQIAccent:
     def test_good_uses_accent_good(self):
         style = ThemeStyle(accent_good=1, fg=0)
-        assert _aqi_accent(style, 20) == 1
+        assert aqi_accent(style, 20) == 1
 
     def test_good_falls_back_to_fg_when_accent_unset(self):
         style = ThemeStyle(fg=7)
-        assert _aqi_accent(style, 20) == 7
+        assert aqi_accent(style, 20) == 7
 
     def test_moderate_uses_accent_warn(self):
         style = ThemeStyle(accent_warn=2, fg=0)
         # AQI 51–150 range
-        assert _aqi_accent(style, 100) == 2
-        assert _aqi_accent(style, 150) == 2  # upper boundary inclusive
+        assert aqi_accent(style, 100) == 2
+        assert aqi_accent(style, 150) == 2  # upper boundary inclusive
 
     def test_unhealthy_uses_accent_alert(self):
         style = ThemeStyle(accent_alert=3, fg=0)
-        assert _aqi_accent(style, 200) == 3
-        assert _aqi_accent(style, 500) == 3
+        assert aqi_accent(style, 200) == 3
+        assert aqi_accent(style, 500) == 3
 
     def test_boundary_51_is_warn_not_good(self):
         style = ThemeStyle(accent_good=1, accent_warn=2, accent_alert=3, fg=0)
-        assert _aqi_accent(style, 50) == 1  # still good
-        assert _aqi_accent(style, 51) == 2  # transition
+        assert aqi_accent(style, 50) == 1  # still good
+        assert aqi_accent(style, 51) == 2  # transition
 
     def test_boundary_151_is_alert(self):
         style = ThemeStyle(accent_good=1, accent_warn=2, accent_alert=3, fg=0)
-        assert _aqi_accent(style, 150) == 2
-        assert _aqi_accent(style, 151) == 3
+        assert aqi_accent(style, 150) == 2
+        assert aqi_accent(style, 151) == 3

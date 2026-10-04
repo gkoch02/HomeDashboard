@@ -59,8 +59,8 @@ from PIL import Image, ImageDraw, ImageFont
 
 from src.data.models import CalendarEvent, DashboardData, WeatherData
 from src.render.artkit import accent_red as _accent_red
+from src.render.artkit import fmt_temp, to_local_naive
 from src.render.artkit import ink as _ink
-from src.render.artkit import to_local_naive
 
 # Calendar semantics are shared with ``day_arc`` rather than re-derived: both
 # themes classify the same events against the same clock, and a second copy of
@@ -305,10 +305,6 @@ def draw_halftone_agenda(
 # ---------------------------------------------------------------------------
 
 
-def _fmt_temp(value: float | None) -> str:
-    return "—" if value is None else f"{int(round(value))}°"
-
-
 def _clock(dt: datetime) -> str:
     """Full am/pm clock string, e.g. ``6:24 AM``.
 
@@ -376,7 +372,7 @@ def _draw_weather_band(
 
     # --- Temperature numeral, centred in its fixed-width column.
     temp_font = (style.font_title or style.font_bold)(TEMP_PT)
-    temp_text = _fmt_temp(weather.current_temp if weather else None)
+    temp_text = fmt_temp(weather.current_temp if weather else None)
     tb = draw.textbbox((0, 0), temp_text, font=temp_font)
     temp_w = tb[2] - tb[0]
     zone_top = y0 + _TEMP_ZONE_Y
@@ -412,7 +408,7 @@ def _draw_weather_band(
                 wrapped = [wrapped[0], " ".join(wrapped[1:])]
             for line in wrapped:
                 lines.append((line, cond_font))
-        lines.append((f"H {_fmt_temp(weather.high)}  ·  L {_fmt_temp(weather.low)}", hl_font))
+        lines.append((f"H {fmt_temp(weather.high)}  ·  L {fmt_temp(weather.low)}", hl_font))
     else:
         lines.append(("AWAITING", cond_font))
         lines.append(("WEATHER DATA", cond_font))
@@ -460,7 +456,7 @@ def _draw_weather_band(
 
     if weather is not None and weather.feels_like is not None:
         feels_font = style.font_regular(15)
-        feels_text = f"FEELS {_fmt_temp(weather.feels_like)}"
+        feels_text = f"FEELS {fmt_temp(weather.feels_like)}"
         fb = draw.textbbox((0, 0), feels_text, font=feels_font)
         draw.text(
             (right - (fb[2] - fb[0]) - fb[0], date_mid - (fb[3] - fb[1]) // 2 - fb[1]),

@@ -36,6 +36,7 @@ from urllib.parse import quote
 
 import requests  # type: ignore[import-untyped]
 
+from src.config_schema import DEFAULT_ONE_CALL_VERSION, ONE_CALL_VERSIONS
 from src.data.models import WeatherAlert
 
 logger = logging.getLogger(__name__)
@@ -51,9 +52,9 @@ _TIMEOUT = 10  # seconds
 # there is nothing to gain from resolving a fourth.
 _V4_MAX_ALERT_DETAILS = 3
 
-# Fallback for an unrecognised version string.  The accepted set lives in
-# src.config_schema.ONE_CALL_VERSIONS, alongside the rest of the enum metadata.
-DEFAULT_VERSION = "3.0"
+# Fallback for an unrecognised version string; the accepted set is the same
+# enum config validation and the web editor use.
+DEFAULT_VERSION = DEFAULT_ONE_CALL_VERSION
 
 
 def fetch_alerts_and_uv(
@@ -70,6 +71,8 @@ def fetch_alerts_and_uv(
 
     May raise; the caller is responsible for degrading to ``([], None)``.
     """
+    if version not in ONE_CALL_VERSIONS:
+        version = DEFAULT_VERSION
     if version == "off":
         return [], None
     if version == "4.0":

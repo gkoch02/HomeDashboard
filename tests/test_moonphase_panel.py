@@ -29,7 +29,7 @@ does across the cycle. That is the panel's whole job.
 
 Verification: with ``draw_moonphase`` stubbed to a no-op, 28 of the 63
 tests fail. The survivors are pure helpers (``_ordinal_suffix``,
-``_quote_for_panel``, ``_luminance``, ``_coords_set``), theme-factory
+``quote_for(prefix="moonphase-")``, ``_luminance``, ``coords_set``), theme-factory
 cases, and tests that drive ``moon_render`` directly — none of which go
 through this entry point — plus ``test_returns_none``, which was checked
 by making the component return a value.
@@ -46,10 +46,10 @@ from PIL import Image, ImageDraw
 from src.data.models import DashboardData, WeatherData
 from src.render.components.moonphase_panel import (
     _ordinal_suffix,
-    _quote_for_panel,
     draw_moonphase,
 )
 from src.render.quantize import flatten_pixels
+from src.render.quotes import quote_for
 from src.render.theme import ComponentRegion, ThemeStyle, load_theme
 from tests.inkutils import marks
 
@@ -120,29 +120,30 @@ class TestOrdinalSuffix:
 
 
 # ---------------------------------------------------------------------------
-# _quote_for_panel — refresh modes
+# quote_for(prefix="moonphase-") — refresh modes
 # ---------------------------------------------------------------------------
 
 
 class TestQuoteForPanel:
     def test_daily_refresh_is_deterministic(self):
-        q1 = _quote_for_panel(TODAY, refresh="daily")
-        q2 = _quote_for_panel(TODAY, refresh="daily")
+        q1 = quote_for(TODAY, refresh="daily", prefix="moonphase-")
+        q2 = quote_for(TODAY, refresh="daily", prefix="moonphase-")
         assert q1 == q2
 
     def test_different_days_may_differ(self):
         """Two different dates should generally produce different quotes.
         This is probabilistic but with 5+ quotes it's extremely reliable."""
         quotes = {
-            json.dumps(_quote_for_panel(date(2024, 3, d), refresh="daily")) for d in range(1, 20)
+            json.dumps(quote_for(date(2024, 3, d), refresh="daily", prefix="moonphase-"))
+            for d in range(1, 20)
         }
         assert len(quotes) > 1
 
     def test_hourly_refresh_uses_hour(self):
         now_am = datetime(2024, 3, 15, 9, 0)
         now_pm = datetime(2024, 3, 15, 14, 0)
-        q_am = _quote_for_panel(TODAY, refresh="hourly", now=now_am)
-        q_pm = _quote_for_panel(TODAY, refresh="hourly", now=now_pm)
+        q_am = quote_for(TODAY, refresh="hourly", now=now_am, prefix="moonphase-")
+        q_pm = quote_for(TODAY, refresh="hourly", now=now_pm, prefix="moonphase-")
         # Same date but different hours — they may differ (not guaranteed, but
         # test that the call succeeds and returns a dict with expected keys)
         assert "text" in q_am
@@ -151,13 +152,13 @@ class TestQuoteForPanel:
     def test_twice_daily_am_pm_differ(self):
         now_am = datetime(2024, 3, 15, 8, 0)
         now_pm = datetime(2024, 3, 15, 13, 0)
-        q_am = _quote_for_panel(TODAY, refresh="twice_daily", now=now_am)
-        q_pm = _quote_for_panel(TODAY, refresh="twice_daily", now=now_pm)
+        q_am = quote_for(TODAY, refresh="twice_daily", now=now_am, prefix="moonphase-")
+        q_pm = quote_for(TODAY, refresh="twice_daily", now=now_pm, prefix="moonphase-")
         assert "text" in q_am
         assert "text" in q_pm
 
     def test_returns_dict_with_text_and_author(self):
-        q = _quote_for_panel(TODAY)
+        q = quote_for(TODAY, prefix="moonphase-")
         assert "text" in q
         assert "author" in q
 
@@ -166,7 +167,7 @@ class TestQuoteForPanel:
             "src.render.quotes.DEFAULT_QUOTES_PATH",
             Path("/nonexistent/path/quotes.json"),
         ):
-            q = _quote_for_panel(TODAY)
+            q = quote_for(TODAY, prefix="moonphase-")
         assert "text" in q
         assert "author" in q
 
@@ -174,7 +175,7 @@ class TestQuoteForPanel:
         corrupt_file = tmp_path / "quotes.json"
         corrupt_file.write_text("{ this is not valid json }")
         with patch("src.render.quotes.DEFAULT_QUOTES_PATH", corrupt_file):
-            q = _quote_for_panel(TODAY)
+            q = quote_for(TODAY, prefix="moonphase-")
         assert "text" in q
 
     def test_mp_key_prefix_differs_from_info_panel(self):
@@ -582,12 +583,12 @@ class TestMoonphaseHelpers:
         assert _luminance((0, 0, 0)) == 0.0
 
     def test_coords_set(self):
-        from src.render.components.moonphase_panel import _coords_set
+        from src.render.primitives import coords_set
 
-        assert _coords_set(37.0, -122.0) is True
-        assert _coords_set(0.0, 0.0) is False
-        assert _coords_set(None, -122.0) is False
-        assert _coords_set(37.0, None) is False
+        assert coords_set(37.0, -122.0) is True
+        assert coords_set(0.0, 0.0) is False
+        assert coords_set(None, -122.0) is False
+        assert coords_set(37.0, None) is False
 
     def test_moon_tones_modes(self):
         from src.render.components.moonphase_panel import _moon_tones

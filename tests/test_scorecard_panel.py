@@ -1,6 +1,6 @@
 """Tests for src/render/components/scorecard_panel.py
 
-Covers: _quote_for_panel (deterministic selection per key prefix and refresh
+Covers: quote_for(prefix="scorecard-") (deterministic selection per key prefix and refresh
 cadence), _draw_tile (smoke — no crash, truncation path), draw_scorecard (full
 render under various data conditions including missing weather, AQI, host, and
 birthdays; before/after sunrise; tile content correctness).
@@ -21,9 +21,9 @@ from src.data.models import (
 from src.dummy_data import generate_dummy_data
 from src.render.components.scorecard_panel import (
     _draw_tile,
-    _quote_for_panel,
     draw_scorecard,
 )
+from src.render.quotes import quote_for
 from src.render.theme import ComponentRegion, ThemeStyle
 
 FIXED_NOW = datetime(2026, 4, 6, 10, 30)
@@ -58,24 +58,24 @@ def _minimal_weather(**kwargs) -> WeatherData:
 
 
 # ---------------------------------------------------------------------------
-# _quote_for_panel
+# quote_for(prefix="scorecard-")
 # ---------------------------------------------------------------------------
 
 
 class TestQuoteForPanel:
     def test_returns_dict_with_text(self):
-        q = _quote_for_panel(FIXED_TODAY)
+        q = quote_for(FIXED_TODAY, prefix="scorecard-")
         assert "text" in q
         assert len(q["text"]) > 0
 
     def test_daily_is_deterministic(self):
-        q1 = _quote_for_panel(FIXED_TODAY)
-        q2 = _quote_for_panel(FIXED_TODAY)
+        q1 = quote_for(FIXED_TODAY, prefix="scorecard-")
+        q2 = quote_for(FIXED_TODAY, prefix="scorecard-")
         assert q1["text"] == q2["text"]
 
     def test_different_days_may_differ(self):
-        q1 = _quote_for_panel(date(2026, 1, 1))
-        q2 = _quote_for_panel(date(2026, 1, 2))
+        q1 = quote_for(date(2026, 1, 1), prefix="scorecard-")
+        q2 = quote_for(date(2026, 1, 2), prefix="scorecard-")
         # Not guaranteed but the hash should differ for adjacent dates
         # (just verify both return valid dicts)
         assert "text" in q1 and "text" in q2
@@ -83,30 +83,30 @@ class TestQuoteForPanel:
     def test_hourly_refresh_varies_with_hour(self):
         morning = datetime(2026, 4, 6, 8, 0)
         evening = datetime(2026, 4, 6, 20, 0)
-        q_am = _quote_for_panel(FIXED_TODAY, refresh="hourly", now=morning)
-        q_pm = _quote_for_panel(FIXED_TODAY, refresh="hourly", now=evening)
+        q_am = quote_for(FIXED_TODAY, refresh="hourly", now=morning, prefix="scorecard-")
+        q_pm = quote_for(FIXED_TODAY, refresh="hourly", now=evening, prefix="scorecard-")
         # Both should be valid
         assert "text" in q_am and "text" in q_pm
 
     def test_twice_daily_am_pm_differ(self):
         am = datetime(2026, 4, 6, 9, 0)
         pm = datetime(2026, 4, 6, 14, 0)
-        q_am = _quote_for_panel(FIXED_TODAY, refresh="twice_daily", now=am)
-        q_pm = _quote_for_panel(FIXED_TODAY, refresh="twice_daily", now=pm)
+        q_am = quote_for(FIXED_TODAY, refresh="twice_daily", now=am, prefix="scorecard-")
+        q_pm = quote_for(FIXED_TODAY, refresh="twice_daily", now=pm, prefix="scorecard-")
         # Both valid; keys differ so may (likely) differ
         assert "text" in q_am and "text" in q_pm
 
     def test_scorecard_prefix_differs_from_other_panels(self):
         # Scorecard uses "scorecard-" prefix — should pick differently than
         # a panel using a different prefix on the same date
-        q_scorecard = _quote_for_panel(FIXED_TODAY)
+        q_scorecard = quote_for(FIXED_TODAY, prefix="scorecard-")
         assert "text" in q_scorecard
 
     def test_fallback_quotes_used_when_no_file(self, monkeypatch, tmp_path):
         from src.render.quotes import DEFAULT_QUOTES
 
         monkeypatch.setattr("src.render.quotes.DEFAULT_QUOTES_PATH", tmp_path / "nonexistent.json")
-        q = _quote_for_panel(FIXED_TODAY)
+        q = quote_for(FIXED_TODAY, prefix="scorecard-")
         assert q in DEFAULT_QUOTES
 
 

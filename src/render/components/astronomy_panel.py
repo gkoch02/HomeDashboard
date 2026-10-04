@@ -34,12 +34,13 @@ from src.astronomy import (
 from src.data.models import DashboardData
 from src.render.moon import (
     moon_illumination,
-    moon_phase_age,
     moon_phase_glyph,
     moon_phase_name,
+    next_phase_date,
 )
 from src.render.primitives import (
     filled_rect,
+    fmt_duration,
     hline,
     text_height,
     text_width,
@@ -50,8 +51,6 @@ from src.render.theme import ComponentRegion, ThemeStyle
 _HEADER_H = 44
 _ROW_H = 170
 _PAD = 16
-
-_SYNODIC = 29.53059
 
 
 def _fmt_time(dt: datetime | None, tz: tzinfo | None) -> str:
@@ -65,15 +64,6 @@ def _fmt_time(dt: datetime | None, tz: tzinfo | None) -> str:
     return s
 
 
-def _fmt_duration(td: timedelta | None) -> str:
-    if td is None:
-        return "—"
-    total = int(td.total_seconds())
-    hours, rem = divmod(abs(total), 3600)
-    minutes = rem // 60
-    return f"{hours}h {minutes:02d}m"
-
-
 def _fmt_delta_seconds(td: timedelta | None) -> str:
     """Format a signed delta like '+2m 28s' or '-0m 53s'."""
     if td is None:
@@ -83,32 +73,6 @@ def _fmt_delta_seconds(td: timedelta | None) -> str:
     total = abs(total)
     minutes, seconds = divmod(total, 60)
     return f"{sign}{minutes}m {seconds:02d}s today"
-
-
-def _next_phase_date(today: date, target_fraction: float) -> date:
-    """Return the date of the next occurrence of the given phase fraction.
-
-    fraction 0.0 = new moon, 0.5 = full moon.  We use the synodic month
-    progression and step forward day-by-day up to 40 days.
-    """
-    for i in range(0, 45):
-        d = today + timedelta(days=i)
-        age = moon_phase_age(d)
-        # The "fraction" is age / SYNODIC.  We look for a crossing where the
-        # day before was before the target and today is at or after.
-        prev_age = moon_phase_age(d - timedelta(days=1))
-        prev_frac = prev_age / _SYNODIC
-        curr_frac = age / _SYNODIC
-        target = target_fraction % 1.0
-        # Handle wrap at the top of the synodic cycle.
-        if prev_frac <= curr_frac:
-            if prev_frac < target <= curr_frac:
-                return d
-        else:
-            # Wrap case
-            if target > prev_frac or target <= curr_frac:
-                return d
-    return today + timedelta(days=29)
 
 
 def _draw_quadrant_label(
@@ -230,7 +194,7 @@ def draw_astronomy(
     sy = _draw_key_value_row(draw, sx, sy, "Sunrise", _fmt_time(sunrise, tz), style)
     sy = _draw_key_value_row(draw, sx, sy, "Solar noon", _fmt_time(solar_noon, tz), style)
     sy = _draw_key_value_row(draw, sx, sy, "Sunset", _fmt_time(sunset, tz), style)
-    sy = _draw_key_value_row(draw, sx, sy, "Day length", _fmt_duration(d_len), style)
+    sy = _draw_key_value_row(draw, sx, sy, "Day length", fmt_duration(d_len), style)
     if delta is not None:
         delta_str = _fmt_delta_seconds(delta)
         small_font = style.font_regular(11)
@@ -260,8 +224,8 @@ def draw_astronomy(
 
     my = _draw_key_value_row(draw, mx, my, "Phase", moon_phase_name(today), style)
     my = _draw_key_value_row(draw, mx, my, "Illum.", f"{moon_illumination(today):.0f}%", style)
-    next_full = _next_phase_date(today, 0.5)
-    next_new = _next_phase_date(today, 0.0)
+    next_full = next_phase_date(today, 0.5)
+    next_new = next_phase_date(today, 0.0)
     my = _draw_key_value_row(draw, mx, my, "Next full", next_full.strftime("%b %-d"), style)
     my = _draw_key_value_row(draw, mx, my, "Next new", next_new.strftime("%b %-d"), style)
 
@@ -330,7 +294,7 @@ def draw_astronomy(
         detail = (
             f"{_fmt_time(astro, tz)} tonight  →  "
             f"{_fmt_time(astro_dawn_tomorrow, tz)} tomorrow   "
-            f"({_fmt_duration(window_len)})"
+            f"({fmt_duration(window_len)})"
         )
     else:
         detail = "Coordinates needed to compute dark-sky window"

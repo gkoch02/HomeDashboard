@@ -66,7 +66,6 @@ from src.render.theme import ComponentRegion, ThemeStyle
 SS = 2  # supersample factor — must match the theme's canvas multiplier.
 
 SCENE_W = 480 * SS
-BACK_X = SCENE_W
 BACK_PAD_X = 20 * SS
 BACK_PAD_Y = 18 * SS
 
@@ -206,13 +205,9 @@ def _draw_scene(
     # 6–7. Water surface + sun/moon reflection on it.
     _draw_water(image, rect, horizon_y, kind)
     if kind in ("clear", "partly") and not is_night:
-        _draw_water_reflection(
-            image, rect, horizon_y, source_cx=source_cx, source_cy=sun_cy, today=today
-        )
+        _draw_water_reflection(image, rect, horizon_y, source_cx=source_cx, today=today)
     elif kind in ("clear", "partly") and is_night:
-        _draw_water_reflection(
-            image, rect, horizon_y, source_cx=source_cx, source_cy=moon_cy, today=today
-        )
+        _draw_water_reflection(image, rect, horizon_y, source_cx=source_cx, today=today)
 
     # 8. Clouds — in front of distant peaks, in front of the sun.
     if kind == "partly" or kind == "overcast":
@@ -419,7 +414,6 @@ def _draw_water_reflection(
     horizon_y: int,
     *,
     source_cx: int,
-    source_cy: int,
     today: date,
 ) -> None:
     """Broken vertical shimmer trail directly below a sun or moon source.

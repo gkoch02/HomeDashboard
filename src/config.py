@@ -9,6 +9,8 @@ from typing import Any
 
 import yaml  # type: ignore[import-untyped]
 
+from src.config_schema import DEFAULT_ONE_CALL_VERSION
+
 logger = logging.getLogger(__name__)
 
 
@@ -468,10 +470,10 @@ def _normalise_one_call_version(value: object) -> str:
     dispatcher falls back to the default.
     """
     if value is None:
-        return "3.0"
+        return DEFAULT_ONE_CALL_VERSION
     text = str(value).strip()
     if not text:
-        return "3.0"
+        return DEFAULT_ONE_CALL_VERSION
     return {"3": "3.0", "4": "4.0", "False": "off"}.get(text, text)
 
 
@@ -489,8 +491,7 @@ def load_config(path: str = "config/config.yaml") -> Config:
         raw = yaml.safe_load(f) or {}
 
     # v5: upgrade older config shapes in-memory before parsing into dataclasses.
-    # This is non-destructive — the on-disk file is only rewritten by the
-    # explicit ``write_pre_migration_backup`` path used by the bootstrap.
+    # This is non-destructive — the on-disk file is never rewritten here.
     from src.config_migrations import migrate_in_memory, needs_migration
 
     if needs_migration(raw):

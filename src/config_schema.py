@@ -48,12 +48,19 @@ class SectionSpec:
     fields: tuple[FieldSpec, ...]
 
 
-# Accepted values for weather.one_call_version.  Canonical here rather than in
-# the fetcher so config validation and the web editor cannot drift apart from
-# each other or from the dispatcher.
+# Accepted values for weather.one_call_version, and the one an unreadable or
+# unrecognised value falls back to.  Canonical here rather than in the fetcher
+# (``src.fetchers.weather_onecall`` imports these) because this module has no
+# dependencies: ``src.config`` needs the default while parsing, and importing a
+# fetcher there would pull the fetcher package — which imports ``src.config`` —
+# into a circle.
 ONE_CALL_VERSIONS = ("3.0", "4.0", "off")
+DEFAULT_ONE_CALL_VERSION = "3.0"
 
 # Canvas → 1-bit conversion modes accepted by ``display.quantization_mode``.
+# ``src.render.quantize`` dispatches on these; the tuple lives here rather than
+# there because that module imports PIL and this one must stay importable
+# without it.
 QUANTIZATION_MODES = ("threshold", "floyd_steinberg", "ordered")
 
 
@@ -615,14 +622,6 @@ def editable_field_paths() -> dict[str, tuple[str, ...]]:
 def secret_field_paths() -> set[str]:
     """Set of dotted paths that must never be sent to the client as plaintext."""
     return {spec.path for spec in all_field_specs() if spec.secret}
-
-
-@dataclass(frozen=True)
-class SchemaJSON:
-    """JSON-friendly view of one section + field for the web UI."""
-
-    sections: list[dict]
-    schema_version: int = CURRENT_SCHEMA_VERSION
 
 
 def to_json(values: dict[str, Any] | None = None) -> dict:
