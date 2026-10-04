@@ -247,7 +247,7 @@ art themes, in the panel's module docstring. Keep new entries to that shape.
 
 ### Repo hygiene
 
-- Four guards hold the code to the shape above; fix the code, not the guard. The test suite runs `tools/check_test_assertions.py`, which fails a `test_*` that asserts nothing (a deliberate smoke test marks its `def` line `# allow-no-assert`). `make lint` runs `tools/check_dead_code.py`: vulture over `src/` with scripts, never tests, as callers; `TEST_ONLY_BASELINE` there may only shrink. Ruff `PGH003` and `RUF100` require a `type: ignore` to name its code and drop stale `noqa`. `make docs-check` holds this file to its word budget.
+- Four guards hold the code to the shape above; fix the code, not the guard. The test suite runs `tools/check_test_assertions.py`, which fails a `test_*` that asserts nothing (a deliberate smoke test marks its `def` line `# allow-no-assert`). `make lint` runs `tools/check_dead_code.py`: vulture over `src/` with scripts, never tests, as callers. Ruff `PGH003` and `RUF100` require a `type: ignore` to name its code and drop stale `noqa`. `make docs-check` holds this file to its word budget.
 
 ### Version and release
 
@@ -261,7 +261,7 @@ art themes, in the panel's module docstring. Keep new entries to that shape.
 - State paths: sync tokens `state/calendar_sync_state.json` (delete to force a full resync); random theme `state/random_theme_state.json` and `state/random_theme_hourly_state.json` (delete to force a new pick); morning refresh marker `state/morning_refresh_state.json`; refresh throttle `state/refresh_throttle_state.json` (v4's `inky_refresh_state.json` is migrated on first read); One Call health `state/one_call_health.json`; weatherglass pressure history `state/weatherglass_pressure_history.json`. State files auto-migrate from `output/` to `state/` on first run.
 - `output/last_success.txt` is written on every successful run and `output/last_error.txt` on every failed one; the error marker is deliberately not cleared on success. The web UI compares the two timestamps.
 - `state/web_events.jsonl` is append-only, self-trims to the newest 500 records once past 256 KB, and is written by both processes: thread lock plus sidecar flock, `mkstemp` temp file for the trim.
-- Inside `DataPipeline.fetch()` the cache file is read once via `load_cache_blob()`; use `load_cached_source_from_blob()`, never `load_cached_source()`, there. A regression test asserts the file is opened at most once per fetch. Decoding dispatches on `schema_version` (`_decode_v2_block` / `_decode_v1_legacy`); v1 files keep working.
+- Inside `DataPipeline.fetch()` the cache file is read once via `load_cache_blob()`; decode each source from that blob with `load_cached_source_from_blob()`. A regression test asserts the file is opened at most once per fetch. Decoding dispatches on `schema_version` (`_decode_v2_block` / `_decode_v1_legacy`); v1 files keep working.
 
 ### Run policy
 

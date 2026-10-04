@@ -7,8 +7,11 @@ break the orchestration layer in ``DataPipeline`` or the cache codecs.
 
 from __future__ import annotations
 
+from unittest.mock import patch
+
 import pytest
 
+from src.fetchers import registry
 from src.fetchers.registry import (
     FetchContext,
     Fetcher,
@@ -16,7 +19,6 @@ from src.fetchers.registry import (
     get_fetcher,
     register_fetcher,
     registered_names,
-    unregister_fetcher,
 )
 
 
@@ -78,27 +80,25 @@ class TestBuiltinRegistry:
 
 
 class TestRegistryMutation:
+    @pytest.fixture(autouse=True)
+    def _restore_registry(self):
+        with patch.dict(registry._REGISTRY):
+            yield
+
     def test_register_then_lookup(self):
         f = _dummy_fetcher("__test_register__")
-        try:
-            register_fetcher(f)
-            assert get_fetcher("__test_register__") is f
-        finally:
-            unregister_fetcher("__test_register__")
+        register_fetcher(f)
+        assert get_fetcher("__test_register__") is f
 
     def test_duplicate_registration_is_silent_no_op(self):
         f1 = _dummy_fetcher("__test_dupe__")
         f2 = _dummy_fetcher("__test_dupe__")
-        try:
-            register_fetcher(f1)
-            # Second call must not raise; the first registration wins.
-            assert register_fetcher(f2) is f1
-            assert get_fetcher("__test_dupe__") is f1
-        finally:
-            unregister_fetcher("__test_dupe__")
+        register_fetcher(f1)
+        # Second call must not raise; the first registration wins.
+        assert register_fetcher(f2) is f1
+        assert get_fetcher("__test_dupe__") is f1
 
-    def test_unregister_unknown_is_noop(self):
-        unregister_fetcher("__never_registered__")
+    def test_unknown_name_returns_none(self):
         assert get_fetcher("__never_registered__") is None
 
 

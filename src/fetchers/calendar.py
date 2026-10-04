@@ -55,13 +55,6 @@ _DATE_SHORT_RE = re.compile(r"^\d{2}-\d{2}$")
 _people_service_cache: dict[str, Any] = {}
 
 
-def _clear_people_service_cache() -> None:
-    _people_service_cache.clear()
-
-
-# Preserve the original clear_service_caches behaviour (clears both caches)
-
-
 def clear_service_caches() -> None:
     """Clear cached API service objects (useful for testing)."""
     _google_clear_service_caches()

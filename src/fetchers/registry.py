@@ -118,17 +118,12 @@ def register_fetcher(fetcher: Fetcher) -> Fetcher:
     """Register *fetcher*; later registrations with the same name are a no-op.
 
     Re-registration is silently ignored so module reloads in tests don't
-    raise. Use :func:`unregister_fetcher` first to genuinely replace.
+    raise.
     """
     if fetcher.name in _REGISTRY:
         return _REGISTRY[fetcher.name]
     _REGISTRY[fetcher.name] = fetcher
     return fetcher
-
-
-def unregister_fetcher(name: str) -> None:
-    """Remove *name* from the registry. Used by tests."""
-    _REGISTRY.pop(name, None)
 
 
 def get_fetcher(name: str) -> Fetcher | None:

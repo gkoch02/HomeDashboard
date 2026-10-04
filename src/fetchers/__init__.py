@@ -2,7 +2,7 @@
 
 Importing this package triggers registration of every built-in fetcher into
 ``src.fetchers.registry`` as a side effect. Code that only uses
-``save_source`` / ``load_cached_source`` from ``src.fetchers.cache`` will
+``save_source`` / ``load_cache_blob`` from ``src.fetchers.cache`` will
 still see a fully-populated registry because importing the submodule runs
 this ``__init__`` first.
 """
