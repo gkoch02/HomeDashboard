@@ -117,6 +117,11 @@ class TestClaudeMdBudget:
         errors = check_docs.check_claude_md_budget(_claude_md(bullet * count))
         assert any("Gotchas:" in e for e in errors), errors
 
+    def test_prose_outside_bullets_counts_toward_the_section(self):
+        prose = "word " * (check_docs.GOTCHAS_MAX_WORDS + 1)
+        errors = check_docs.check_claude_md_budget(_claude_md(prose + "\n\n- short\n"))
+        assert any("Gotchas:" in e for e in errors), errors
+
     def test_flags_the_file_total(self):
         text = _claude_md("- short\n", padding=check_docs.CLAUDE_MD_MAX_WORDS + 1)
         errors = check_docs.check_claude_md_budget(text)

@@ -444,13 +444,18 @@ GOTCHAS_MAX_WORDS = 3500
 GOTCHA_BULLET_MAX_WORDS = 100
 
 
-def gotcha_bullets(text: str) -> list[str]:
-    """Each bullet (nested ones included) of the ``## Gotchas`` section."""
+def gotchas_section(text: str) -> str:
+    """The ``## Gotchas`` section, from its heading to the next ``## `` heading."""
     start = text.find("\n## Gotchas")
     if start < 0:
-        return []
+        return ""
     end = text.find("\n## ", start + 1)
-    section = text[start : end if end >= 0 else len(text)]
+    return text[start : end if end >= 0 else len(text)]
+
+
+def gotcha_bullets(text: str) -> list[str]:
+    """Each bullet (nested ones included) of the ``## Gotchas`` section."""
+    section = gotchas_section(text)
     bullets: list[str] = []
     open_bullet = False
     for line in section.splitlines():
@@ -482,7 +487,8 @@ def check_claude_md_budget(text: str | None = None) -> list[str]:
     bullets = gotcha_bullets(text)
     if not bullets:
         errors.append("CLAUDE.md: no `## Gotchas` bullets found; the budget cannot be checked")
-    total = sum(len(b.split()) for b in bullets)
+    # The whole section counts, not just its bullets: prose between them grows too.
+    total = len(gotchas_section(text).split())
     if total > GOTCHAS_MAX_WORDS:
         errors.append(f"CLAUDE.md Gotchas: {total} words, budget is {GOTCHAS_MAX_WORDS}")
     for bullet in bullets:
