@@ -141,6 +141,10 @@ class TestThemeEntryBudget:
         errors = check_docs.check_theme_entry_budget(f"#### long\n\n{body}\n")
         assert errors and "'long'" in errors[0]
 
+    def test_tab_separated_heading_is_measured(self):
+        body = "word " * (check_docs.THEME_ENTRY_MAX_WORDS + 1)
+        assert check_docs.check_theme_entry_budget(f"####\tlong\n\n{body}\n")
+
     def test_entry_ends_at_next_heading_and_skips_images(self):
         half = "word " * (check_docs.THEME_ENTRY_MAX_WORDS // 2 + 1)
         image = "[![T](" + "x " * check_docs.THEME_ENTRY_MAX_WORDS + ")](t.png)"

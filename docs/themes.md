@@ -486,7 +486,7 @@ Procedurally-drawn dithered postcard composed in two parts. The left two-thirds 
 
 Victorian botanical plate. A blackletter masthead with the plate number and date sits over a Latin specimen name keyed to the season, with a suffix for rain, storm, snow, fog or frost. The hero is a procedurally drawn branch whose leaves follow the season (bare in winter, buds in spring, full in summer, fallen in autumn) with weather overlays. Four leader-line callouts pin today's first event, the moon's phase, sunrise and sunset, and the current weather to the specimen. A footer carries the daily quote.
 
-Needs weather and calendar; the same day always draws the same specimen. Floyd-Steinberg dithered. On Inky the rules, callout lines and author small caps are red.
+Needs weather and calendar; the same day and weather always draw the same specimen. Floyd-Steinberg dithered. On Inky the rules, callout lines and author small caps are red.
 
 [![Naturalist theme](../assets/previews/theme_naturalist.png)](../assets/previews/theme_naturalist.png)
 

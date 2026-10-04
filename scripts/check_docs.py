@@ -509,7 +509,7 @@ THEME_ENTRY_MAX_WORDS = 200
 def theme_entries(text: str) -> dict[str, str]:
     """Each ``#### <theme>`` entry's prose, up to the next heading or rule, images dropped."""
     entries: dict[str, str] = {}
-    for chunk in re.split(r"^#### ", text, flags=re.MULTILINE)[1:]:
+    for chunk in re.split(r"^####\s+", text, flags=re.MULTILINE)[1:]:
         name, _, body = chunk.partition("\n")
         body = re.split(r"^(?:#{1,3} |---)", body, flags=re.MULTILINE)[0]
         body = re.sub(r"^\[?!\[.*$", "", body, flags=re.MULTILINE)
