@@ -9,14 +9,15 @@ Guards the public shape of:
 
 from __future__ import annotations
 
+from unittest.mock import patch
+
 import pytest
 
+from src.render.components import registry as component_registry
 from src.render.components.registry import (
     RenderContext,
-    all_component_names,
     get_component,
     register_component,
-    unregister_component,
 )
 from src.render.theme import (
     AVAILABLE_THEMES,
@@ -31,6 +32,7 @@ from src.render.theme import (
     ThemeStyle,
     load_theme,
 )
+from src.render.themes import registry as theme_registry
 from src.render.themes.registry import (
     PSEUDO_THEME_NAMES,
     all_theme_names,
@@ -38,7 +40,6 @@ from src.render.themes.registry import (
     get_inky_palette,
     get_theme_factory,
     register_theme,
-    unregister_theme,
 )
 
 # ---------------------------------------------------------------------------
@@ -105,27 +106,31 @@ class TestInkyPaletteRegistry:
         assert get_inky_palette("air_quality") == (INKY_BLUE, INKY_GREEN)
 
 
+@pytest.fixture()
+def restore_theme_registry():
+    with (
+        patch.dict(theme_registry._REGISTRY),
+        patch.dict(theme_registry._INKY_PALETTES),
+    ):
+        yield
+
+
+@pytest.mark.usefixtures("restore_theme_registry")
 class TestThemeRegistryMutation:
     def test_register_then_lookup(self):
-        try:
-            register_theme(
-                "__test_theme__",
-                lambda: Theme(name="__test_theme__", style=ThemeStyle(), layout=ThemeLayout()),
-                inky_palette=(INKY_BLUE, INKY_RED),
-            )
-            assert get_theme_factory("__test_theme__") is not None
-            assert get_inky_palette("__test_theme__") == (INKY_BLUE, INKY_RED)
-        finally:
-            unregister_theme("__test_theme__")
+        register_theme(
+            "__test_theme__",
+            lambda: Theme(name="__test_theme__", style=ThemeStyle(), layout=ThemeLayout()),
+            inky_palette=(INKY_BLUE, INKY_RED),
+        )
+        assert get_theme_factory("__test_theme__") is not None
+        assert get_inky_palette("__test_theme__") == (INKY_BLUE, INKY_RED)
 
     def test_duplicate_registration_silent(self):
-        try:
-            f1 = lambda: None  # noqa: E731
-            f2 = lambda: None  # noqa: E731
-            register_theme("__test_dupe__", f1)
-            assert register_theme("__test_dupe__", f2) is f1
-        finally:
-            unregister_theme("__test_dupe__")
+        f1 = lambda: None  # noqa: E731
+        f2 = lambda: None  # noqa: E731
+        register_theme("__test_dupe__", f1)
+        assert register_theme("__test_dupe__", f2) is f1
 
 
 # ---------------------------------------------------------------------------
@@ -135,7 +140,7 @@ class TestThemeRegistryMutation:
 
 class TestComponentRegistry:
     def test_builtin_components_registered(self):
-        names = set(all_component_names())
+        names = set(component_registry._REGISTRY)
         assert {"header", "week_view", "weather", "birthdays", "info"} <= names
         assert {"qotd", "fuzzyclock", "diags", "moonphase_full", "monthly"} <= names
 
@@ -147,28 +152,28 @@ class TestComponentRegistry:
         assert get_component("__never_registered__") is None
 
 
+@pytest.fixture()
+def restore_component_registry():
+    with patch.dict(component_registry._REGISTRY):
+        yield
+
+
+@pytest.mark.usefixtures("restore_component_registry")
 class TestComponentRegistryMutation:
     def test_register_then_lookup(self):
         @register_component("__test_component__")
         def _adapter(ctx: RenderContext) -> None:
             pass
 
-        try:
-            assert get_component("__test_component__") is _adapter
-        finally:
-            unregister_component("__test_component__")
+        assert get_component("__test_component__") is _adapter
 
     def test_duplicate_registration_silent(self):
         @register_component("__test_component_dupe__")
         def _first(ctx: RenderContext) -> None:
             pass
 
-        try:
+        @register_component("__test_component_dupe__")
+        def _second(ctx: RenderContext) -> None:  # pragma: no cover - replaced
+            pass
 
-            @register_component("__test_component_dupe__")
-            def _second(ctx: RenderContext) -> None:  # pragma: no cover - replaced
-                pass
-
-            assert get_component("__test_component_dupe__") is _first
-        finally:
-            unregister_component("__test_component_dupe__")
+        assert get_component("__test_component_dupe__") is _first

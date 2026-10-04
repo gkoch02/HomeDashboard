@@ -48,8 +48,7 @@ def register_theme(
 ) -> ThemeFactory:
     """Register *factory* under *name*. Duplicate registrations are a no-op.
 
-    Re-registration is silent so module reloads in tests don't raise. Use
-    :func:`unregister_theme` first to genuinely replace.
+    Re-registration is silent so module reloads in tests don't raise.
     """
     if name in _REGISTRY:
         return _REGISTRY[name]
@@ -57,12 +56,6 @@ def register_theme(
     if inky_palette is not None:
         _INKY_PALETTES[name] = inky_palette
     return factory
-
-
-def unregister_theme(name: str) -> None:
-    """Remove *name* from the registry. Used by tests."""
-    _REGISTRY.pop(name, None)
-    _INKY_PALETTES.pop(name, None)
 
 
 def get_theme_factory(name: str) -> ThemeFactory | None:

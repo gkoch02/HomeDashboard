@@ -134,35 +134,23 @@ class TestDeadCodeGuard:
     def setup_method(self):
         pytest.importorskip("vulture")
 
-    def _tree(self, tmp_path: Path, src: str, tests: str = "", baseline=()):
+    def _tree(self, tmp_path: Path, src: str, tests: str = ""):
         (tmp_path / "src").mkdir()
         (tmp_path / "src" / "mod.py").write_text(src)
         (tmp_path / "tests").mkdir()
         (tmp_path / "tests" / "test_mod.py").write_text(tests)
-        return dead_code.find_dead_code(tmp_path, baseline=list(baseline))
+        return dead_code.find_dead_code(tmp_path)
 
     def test_flags_an_unused_function(self, tmp_path):
-        found, _ = self._tree(
-            tmp_path, "def used():\n    pass\n\ndef dead():\n    pass\n\nused()\n"
-        )
+        found = self._tree(tmp_path, "def used():\n    pass\n\ndef dead():\n    pass\n\nused()\n")
         assert len(found) == 1 and "'dead'" in found[0], found
 
     def test_a_call_from_tests_does_not_count(self, tmp_path):
         tests = "from src.mod import helper\n\ndef test_it():\n    assert helper()\n"
-        found, _ = self._tree(tmp_path, "def helper():\n    return 1\n", tests)
+        found = self._tree(tmp_path, "def helper():\n    return 1\n", tests)
         assert len(found) == 1 and "'helper'" in found[0], found
-
-    def test_the_baseline_admits_known_names_only(self, tmp_path):
-        src = "def legacy():\n    pass\n\ndef fresh():\n    pass\n"
-        found, stale = self._tree(tmp_path, src, baseline=["legacy"])
-        assert len(found) == 1 and "'fresh'" in found[0], found
-        assert stale == []
-
-    def test_a_baseline_entry_that_is_used_again_is_stale(self, tmp_path):
-        found, stale = self._tree(tmp_path, "def back():\n    pass\n\nback()\n", baseline=["back"])
-        assert (found, stale) == ([], ["back"])
 
     def test_decorator_registered_code_is_not_dead(self, tmp_path):
         src = "@register_component('x')\ndef _adapter(ctx):\n    print(ctx)\n"
-        found, _ = self._tree(tmp_path, src)
+        found = self._tree(tmp_path, src)
         assert found == []
