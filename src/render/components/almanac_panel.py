@@ -54,7 +54,6 @@ from src.render.moon import (
     next_phase_date,
 )
 from src.render.primitives import (
-    coords_set,
     draw_text_truncated,
     events_for_day,
     fmt_duration,
@@ -63,6 +62,7 @@ from src.render.primitives import (
     roman,
     text_height,
     text_width,
+    usable_coords,
     vline,
     wrap_lines,
 )
@@ -388,12 +388,13 @@ def _draw_heavens(
     sunrise = sunset = None
     day_len: timedelta | None = None
     delta: timedelta | None = None
-    if coords_set(latitude, longitude):
-        st = sun_times(today, latitude, longitude)
+    coords = usable_coords(latitude, longitude)
+    if coords is not None:
+        st = sun_times(today, *coords)
         sunrise = st.sunrise
         sunset = st.sunset
         day_len = day_length(st)
-        delta = day_length_delta(today, latitude, longitude)
+        delta = day_length_delta(today, *coords)
     elif weather is not None:
         sunrise = weather.sunrise
         sunset = weather.sunset
@@ -543,8 +544,9 @@ def _draw_garden(
     draw.text((x, y), season_line, font=bold_font, fill=style.fg)
     y += text_height(bold_font) + 4
 
-    if coords_set(latitude, longitude):
-        delta = day_length_delta(today, latitude, longitude)
+    coords = usable_coords(latitude, longitude)
+    if coords is not None:
+        delta = day_length_delta(today, *coords)
         if delta is not None:
             seconds = int(delta.total_seconds())
             if seconds == 0:

@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from src.render.primitives import coords_set
+from src.render.primitives import usable_coords
 
 
 def coords_or_none(latitude: float, longitude: float) -> tuple[float | None, float | None]:
@@ -22,9 +22,10 @@ def coords_or_none(latitude: float, longitude: float) -> tuple[float | None, flo
     ``validate_config()`` warns about. Any other coordinate (the equator or the
     prime meridian alone included) is passed through so twilight math can run.
     """
-    if not coords_set(latitude, longitude):
+    coords = usable_coords(latitude, longitude)
+    if coords is None:
         return None, None
-    return latitude, longitude
+    return coords
 
 
 def build_render_kwargs(

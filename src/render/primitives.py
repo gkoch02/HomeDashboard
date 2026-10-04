@@ -440,13 +440,15 @@ def roman(n: int) -> str:
     return "".join(out)
 
 
-def coords_set(latitude: float | None, longitude: float | None) -> bool:
-    """True when usable coordinates were supplied.
+def usable_coords(latitude: float | None, longitude: float | None) -> tuple[float, float] | None:
+    """The pair as floats, or ``None`` when no usable coordinates were supplied.
 
     Exactly ``(0.0, 0.0)`` means "not configured" — the convention
     ``validate_config()`` warns about. Any other coordinate (the equator or the
     prime meridian alone included) counts, so twilight math can run.
     """
     if latitude is None or longitude is None:
-        return False
-    return not (latitude == 0.0 and longitude == 0.0)
+        return None
+    if latitude == 0.0 and longitude == 0.0:
+        return None
+    return float(latitude), float(longitude)

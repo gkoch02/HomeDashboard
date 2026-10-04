@@ -56,12 +56,12 @@ from src.render.artkit import to_local_naive
 from src.render.moon import is_waxing, moon_illumination, moon_phase_age
 from src.render.primitives import (
     content_time,
-    coords_set,
     deg_to_compass,
     draw_text_truncated,
     fmt_time,
     next_birthday,
     text_width,
+    usable_coords,
     wind_unit,
 )
 from src.render.quantize import INKY_SPECTRA6_PALETTE
@@ -271,9 +271,12 @@ def sun_zone(tz: tzinfo | None, latitude: float | None, longitude: float | None)
     night five hours late; the whole-hour zone nearest the longitude keeps the
     sun where the clock on the plate says it is.
     """
-    if tz is not None or not coords_set(latitude, longitude):
+    if tz is not None:
         return tz
-    return timezone(timedelta(hours=round(float(longitude) / 15.0)))  # type: ignore[arg-type]
+    coords = usable_coords(latitude, longitude)
+    if coords is None:
+        return None
+    return timezone(timedelta(hours=round(coords[1] / 15.0)))
 
 
 def _clock_hours(dt: datetime | None, tz: tzinfo | None) -> float | None:
@@ -297,8 +300,9 @@ def altitude_fn(
     and a linear fall at night — enough to put the twilights in the right
     place, which is all the sky needs.
     """
-    if coords_set(latitude, longitude):
-        lat, lon = float(latitude), float(longitude)  # type: ignore[arg-type]
+    coords = usable_coords(latitude, longitude)
+    if coords is not None:
+        lat, lon = coords
         return lambda t: solar_altitude(_aware(t, tz), lat, lon)
 
     rise = _clock_hours(weather.sunrise, tz) if weather else None
@@ -331,11 +335,12 @@ def solar_noons(
 ) -> list[tuple[datetime, float]]:
     """``(local noon, peak altitude)`` for each solar noon inside the window."""
     out: list[tuple[datetime, float]] = []
+    coords = usable_coords(latitude, longitude)
     day = axis.start.date()
     while day <= axis.end.date():
         noon: datetime | None = None
-        if coords_set(latitude, longitude):
-            st = sun_times(day, float(latitude), float(longitude))  # type: ignore[arg-type]
+        if coords is not None:
+            st = sun_times(day, *coords)
             if st.solar_noon is not None:
                 noon = to_local_naive(st.solar_noon, tz)
         else:

@@ -52,7 +52,7 @@ if TYPE_CHECKING:
 
     from src.data.models import DashboardData, WeatherData
 
-from src.render.primitives import coords_set
+from src.render.primitives import usable_coords
 from src.render.quotes import quote_for
 from src.render.theme import ComponentRegion, ThemeStyle
 
@@ -271,9 +271,9 @@ def _draw_lunar_line(
     """Draw moonrise/moonset (when located) + moon age."""
     font = cormorant_regular(_DATA_FONT_PT)
     parts: list[str] = []
-    if coords_set(latitude, longitude):
-        assert latitude is not None and longitude is not None
-        times = moon_times(today, latitude, longitude, tz=tz)
+    coords = usable_coords(latitude, longitude)
+    if coords is not None:
+        times = moon_times(today, *coords, tz=tz)
         rise = _local(times.rise, tz)
         mset = _local(times.set, tz)
         if rise is not None:

@@ -31,10 +31,10 @@ from src.render.fonts import weather_icon
 from src.render.icons import FALLBACK_ICON, OWM_ICON_MAP
 from src.render.moon import moon_phase_glyph
 from src.render.primitives import (
-    coords_set,
     events_for_day,
     text_height,
     text_width,
+    usable_coords,
 )
 from src.render.theme import ComponentRegion, ThemeStyle
 
@@ -118,8 +118,9 @@ def _resolve_sun_times(
     OWM-reported sunrise/sunset and emits a single-density night band
     covering the dark hours.
     """
-    if coords_set(latitude, longitude):
-        st = sun_times(today, latitude, longitude)
+    coords = usable_coords(latitude, longitude)
+    if coords is not None:
+        st = sun_times(today, *coords)
         events = [
             ("astro_dawn", _hours_of_day(st.astronomical_dawn, today, tz)),
             ("naut_dawn", _hours_of_day(st.nautical_dawn, today, tz)),

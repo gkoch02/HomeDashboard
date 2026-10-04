@@ -44,7 +44,7 @@ from src.astronomy import (
 from src.data.models import DashboardData
 from src.render.fonts import weather_icon
 from src.render.moon import moon_phase_glyph, moon_phase_name
-from src.render.primitives import coords_set, text_height, text_width
+from src.render.primitives import text_height, text_width, usable_coords
 from src.render.star_catalog import (
     CONSTELLATIONS,
     LABELED_STARS,
@@ -112,10 +112,11 @@ def _resolve_observation_time(
     are projected for tonight's solar midnight so the chart shows what the
     user will actually see tonight rather than an empty daytime sky.
     """
-    if not coords_set(latitude, longitude):
+    coords = usable_coords(latitude, longitude)
+    if coords is None:
         return _utc(now)
 
-    st = sun_times(today, latitude, longitude)
+    st = sun_times(today, *coords)
     now_utc = _utc(now)
     sunrise = st.sunrise
     sunset = st.sunset
@@ -358,10 +359,12 @@ def _draw_footer(
     loc_parts: list[str] = []
     if weather is not None and weather.location_name:
         loc_parts.append(weather.location_name.upper())
-    if coords_set(latitude, longitude):
-        ns = "N" if latitude >= 0 else "S"
-        ew = "E" if longitude >= 0 else "W"
-        loc_parts.append(f"{abs(latitude):.1f}°{ns}  {abs(longitude):.1f}°{ew}")
+    coords = usable_coords(latitude, longitude)
+    if coords is not None:
+        lat, lon = coords
+        ns = "N" if lat >= 0 else "S"
+        ew = "E" if lon >= 0 else "W"
+        loc_parts.append(f"{abs(lat):.1f}°{ns}  {abs(lon):.1f}°{ew}")
     loc = "  ·  ".join(loc_parts) if loc_parts else "OBSERVER UNSET"
     draw.text((region.x + _PAD_X, fy), loc, font=bold_font, fill=fg)
 
@@ -427,11 +430,13 @@ def draw_constellation_map(
     # Project every catalogue star to chart coordinates (skipping ones below
     # the horizon).
     moon_visible = False
-    if coords_set(latitude, longitude):
-        lst = local_sidereal_time(obs_time, longitude)
+    coords = usable_coords(latitude, longitude)
+    if coords is not None:
+        lat, lon = coords
+        lst = local_sidereal_time(obs_time, lon)
         star_xy: dict[str, tuple[int, int]] = {}
         for star in STARS:
-            alt, az = equatorial_to_horizontal(star.ra, star.dec, lst, latitude)
+            alt, az = equatorial_to_horizontal(star.ra, star.dec, lst, lat)
             xy = _alt_az_to_chart_xy(alt, az, _DISC_RADIUS)
             if xy is not None:
                 star_xy[star.name] = xy
@@ -461,7 +466,7 @@ def draw_constellation_map(
 
         # Moon — record visibility so the footer can flag a below-horizon moon
         # rather than print a phase line that doesn't match the disc.
-        moon_visible = _draw_moon(draw, today, obs_time, latitude, longitude, style, fg, bg)
+        moon_visible = _draw_moon(draw, today, obs_time, lat, lon, style, fg, bg)
     else:
         # No coordinates → render an explanatory message inside the disc.
         msg_font = style.font_medium(13)

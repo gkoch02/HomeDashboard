@@ -49,13 +49,13 @@ from src.render.fonts import weather_icon
 from src.render.moon import moon_phase_age
 from src.render.moon_render import MoonTones, render_moon_disc
 from src.render.primitives import (
-    coords_set,
     draw_text_truncated,
     events_for_day,
     fmt_time,
     location_line,
     text_height,
     text_width,
+    usable_coords,
 )
 from src.render.skyart import (
     accent_yellow as _accent_yellow,
@@ -355,8 +355,9 @@ def _resolve_day_bounds(
     ``(0.0, 0.0)`` counts as unset — the same convention the ``astronomy`` and
     ``light_cycle`` panels use.
     """
-    if coords_set(latitude, longitude):
-        st = sun_times(today, latitude, longitude)
+    coords = usable_coords(latitude, longitude)
+    if coords is not None:
+        st = sun_times(today, *coords)
         if st.sunrise is not None and st.sunset is not None:
             return (
                 to_local_naive(st.civil_dawn, tz) if st.civil_dawn else None,

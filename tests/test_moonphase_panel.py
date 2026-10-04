@@ -549,13 +549,13 @@ class TestMoonphaseHelpers:
         assert _luminance((255, 255, 255)) == 1.0
         assert _luminance((0, 0, 0)) == 0.0
 
-    def test_coords_set(self):
-        from src.render.primitives import coords_set
+    def test_usable_coords(self):
+        from src.render.primitives import usable_coords
 
-        assert coords_set(37.0, -122.0) is True
-        assert coords_set(0.0, 0.0) is False
-        assert coords_set(None, -122.0) is False
-        assert coords_set(37.0, None) is False
+        assert usable_coords(37.0, -122.0) == (37.0, -122.0)
+        assert usable_coords(0.0, 0.0) is None
+        assert usable_coords(None, -122.0) is None
+        assert usable_coords(37.0, None) is None
 
     def test_moon_tones_modes(self):
         from src.render.components.moonphase_panel import _moon_tones
