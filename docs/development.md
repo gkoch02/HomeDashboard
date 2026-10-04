@@ -28,13 +28,20 @@ Use this page for local workflow, dev commands, and repo orientation. For archit
 
 ## Core Commands
 
+After `make setup`, install the development tools before running checks:
+
+```bash
+venv/bin/pip install -e ".[dev]"
+```
+
+
 | Command | What it does |
 |---|---|
 | `make setup` | create venv, install deps, create config from template |
 | `make dry` | render `output/latest.png` with dummy data |
 | `make previews` | generate the monochrome Waveshare theme preview PNGs |
 | `make previews-inky` | generate the Inky Spectra 6 theme preview PNGs |
-| `make test` | run the full pytest suite |
+| `make test` | run the full pytest suite (install `.[dev]` first) |
 | `make coverage` | run pytest with coverage; prints missing lines and writes `htmlcov/index.html` |
 | `UPDATE_SNAPSHOTS=1 pytest tests/test_theme_pixel_snapshots.py` | regenerate theme pixel-hash baselines after an intentional theme change (commit the updated `tests/snapshots/theme_pixel_hashes.json`) |
 | `make lint` | run `ruff check src/ tests/ scripts/ tools/` |

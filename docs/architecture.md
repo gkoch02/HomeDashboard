@@ -218,3 +218,12 @@ fetch request for source X
 ## Adding New Features
 
 See [Development → Adding a fetcher / theme / component](development.md#adding-a-fetcher--theme--component) for step-by-step recipes built on the v5 registries, and [CONTRIBUTING.md](../CONTRIBUTING.md) for the full project contribution guide.
+
+## Distribution assets
+
+Checkout installs use the root `fonts/`, `config/quotes.json`, and
+`assets/moon_full.png`. The setuptools build copies these into `src/_assets/`
+inside the wheel; `src._assets.asset_root()` selects that installed copy when
+present. `MANIFEST.in` includes the sources so wheels built from an sdist carry
+the same assets, plus the web templates and static files. CI renders from `/tmp`
+after `pip install .`, where checkout assets cannot mask a broken distribution.

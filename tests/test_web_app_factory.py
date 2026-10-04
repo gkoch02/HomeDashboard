@@ -31,14 +31,20 @@ def test_load_web_config_returns_empty_when_path_empty_string():
     assert _load_web_config("") == {}
 
 
-def test_load_web_config_warns_on_unparseable_yaml(tmp_path, caplog):
-    """A malformed YAML file is logged and an empty dict is returned (line 42-44)."""
+@pytest.mark.parametrize("contents", ["auth: [broken", "[]", "auth: null", "auth: {username: 7}"])
+def test_create_app_rejects_broken_web_config(tmp_path, contents):
     bad = tmp_path / "web.yaml"
-    bad.write_text("not: valid: : yaml: : :")
-    with caplog.at_level(logging.WARNING):
-        result = _load_web_config(str(bad))
-    assert result == {}
-    assert any("Could not load web config" in rec.message for rec in caplog.records)
+    bad.write_text(contents)
+    with pytest.raises(ValueError):
+        create_app(web_config_path=str(bad))
+
+
+def test_create_app_rejects_unreadable_web_config(tmp_path):
+    bad = tmp_path / "web.yaml"
+    bad.write_text("auth: {}")
+    with patch("builtins.open", side_effect=PermissionError("permission denied")):
+        with pytest.raises(ValueError, match="Could not load web config"):
+            create_app(web_config_path=str(bad))
 
 
 def test_load_web_config_returns_empty_dict_for_empty_file(tmp_path):

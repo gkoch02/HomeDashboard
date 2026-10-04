@@ -105,8 +105,6 @@ def _to_local(dt: datetime | None, tz: tzinfo | None) -> datetime | None:
         return dt
     if tz is not None:
         dt = dt.astimezone(tz)
-    else:
-        dt = dt.astimezone()
     return dt.replace(tzinfo=None)
 
 

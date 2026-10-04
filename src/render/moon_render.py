@@ -27,13 +27,14 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 from functools import lru_cache
-from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageOps
 
+from src._assets import asset_root
+
 # Bundled real-moon photograph, occluded per phase when ``use_photo`` is set.
 # Absent in a bare checkout, so the photo theme falls back to the procedural disc.
-_MOON_PHOTO_PATH = Path(__file__).resolve().parent.parent.parent / "assets" / "moon_full.png"
+_MOON_PHOTO_PATH = asset_root() / "assets" / "moon_full.png"
 
 # Brightness the earthshine (unlit-side) texture is faded toward the background.
 _EARTHSHINE_FACTOR = 0.16

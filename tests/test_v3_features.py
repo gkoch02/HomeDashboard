@@ -146,9 +146,11 @@ class TestParallelFetchers:
 
         with tempfile.TemporaryDirectory() as tmpdir:
             with (
-                patch("src.data_pipeline.fetch_events", return_value=[]) as mock_cal,
-                patch("src.data_pipeline.fetch_weather", return_value=_make_weather()) as mock_wx,
-                patch("src.data_pipeline.fetch_birthdays", return_value=[]) as mock_bd,
+                patch("src.fetchers.calendar.fetch_events", return_value=[]) as mock_cal,
+                patch(
+                    "src.fetchers.weather.fetch_weather", return_value=_make_weather()
+                ) as mock_wx,
+                patch("src.fetchers.calendar.fetch_birthdays", return_value=[]) as mock_bd,
             ):
                 data = DataPipeline(Config(), cache_dir=tmpdir).fetch()
 
@@ -176,9 +178,9 @@ class TestParallelFetchers:
             )
 
             with (
-                patch("src.data_pipeline.fetch_events", return_value=[]),
-                patch("src.data_pipeline.fetch_weather", side_effect=RuntimeError("down")),
-                patch("src.data_pipeline.fetch_birthdays", return_value=[]),
+                patch("src.fetchers.calendar.fetch_events", return_value=[]),
+                patch("src.fetchers.weather.fetch_weather", side_effect=RuntimeError("down")),
+                patch("src.fetchers.calendar.fetch_birthdays", return_value=[]),
             ):
                 data = DataPipeline(Config(), cache_dir=tmpdir).fetch()
 

@@ -438,9 +438,9 @@ class TestPerSourceCache:
             )
 
             with (
-                patch("src.data_pipeline.fetch_events", return_value=[]),
-                patch("src.data_pipeline.fetch_weather", side_effect=RuntimeError("down")),
-                patch("src.data_pipeline.fetch_birthdays", return_value=[]),
+                patch("src.fetchers.calendar.fetch_events", return_value=[]),
+                patch("src.fetchers.weather.fetch_weather", side_effect=RuntimeError("down")),
+                patch("src.fetchers.calendar.fetch_birthdays", return_value=[]),
             ):
                 data = DataPipeline(Config(), cache_dir=tmpdir).fetch()
 

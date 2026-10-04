@@ -41,9 +41,9 @@ def _make_events():
 
 class TestStaleCacheBreakerOpen:
     @patch("src.data_pipeline.fetch_host_data", return_value=None)
-    @patch("src.data_pipeline.fetch_weather", return_value=None)
-    @patch("src.data_pipeline.fetch_events", return_value=[])
-    @patch("src.data_pipeline.fetch_birthdays", return_value=[])
+    @patch("src.fetchers.weather.fetch_weather", return_value=None)
+    @patch("src.fetchers.calendar.fetch_events", return_value=[])
+    @patch("src.fetchers.calendar.fetch_birthdays", return_value=[])
     def test_breaker_open_uses_stale_cache(
         self, mock_bdays, mock_events, mock_weather, mock_host, tmp_path
     ):
@@ -69,9 +69,9 @@ class TestStaleCacheBreakerOpen:
         assert "weather" in data.stale_sources
 
     @patch("src.data_pipeline.fetch_host_data", return_value=None)
-    @patch("src.data_pipeline.fetch_weather", return_value=None)
-    @patch("src.data_pipeline.fetch_events", return_value=[])
-    @patch("src.data_pipeline.fetch_birthdays", return_value=[])
+    @patch("src.fetchers.weather.fetch_weather", return_value=None)
+    @patch("src.fetchers.calendar.fetch_events", return_value=[])
+    @patch("src.fetchers.calendar.fetch_birthdays", return_value=[])
     def test_breaker_open_no_cache_returns_none(
         self, mock_bdays, mock_events, mock_weather, mock_host, tmp_path
     ):
@@ -95,9 +95,9 @@ class TestStaleCacheBreakerOpen:
 
 class TestBreakerHalfOpen:
     @patch("src.data_pipeline.fetch_host_data", return_value=None)
-    @patch("src.data_pipeline.fetch_weather")
-    @patch("src.data_pipeline.fetch_events", return_value=[])
-    @patch("src.data_pipeline.fetch_birthdays", return_value=[])
+    @patch("src.fetchers.weather.fetch_weather")
+    @patch("src.fetchers.calendar.fetch_events", return_value=[])
+    @patch("src.fetchers.calendar.fetch_birthdays", return_value=[])
     def test_half_open_success_resets_breaker(
         self, mock_bdays, mock_events, mock_weather, mock_host, tmp_path
     ):
@@ -117,9 +117,9 @@ class TestBreakerHalfOpen:
         assert data.source_staleness.get("weather") == StalenessLevel.FRESH
 
     @patch("src.data_pipeline.fetch_host_data", return_value=None)
-    @patch("src.data_pipeline.fetch_weather")
-    @patch("src.data_pipeline.fetch_events", return_value=[])
-    @patch("src.data_pipeline.fetch_birthdays", return_value=[])
+    @patch("src.fetchers.weather.fetch_weather")
+    @patch("src.fetchers.calendar.fetch_events", return_value=[])
+    @patch("src.fetchers.calendar.fetch_birthdays", return_value=[])
     def test_fetch_failure_with_cache_fallback(
         self, mock_bdays, mock_events, mock_weather, mock_host, tmp_path
     ):
@@ -147,9 +147,9 @@ class TestBreakerHalfOpen:
 
 class TestExpiredCache:
     @patch("src.data_pipeline.fetch_host_data", return_value=None)
-    @patch("src.data_pipeline.fetch_weather", return_value=None)
-    @patch("src.data_pipeline.fetch_events", return_value=[])
-    @patch("src.data_pipeline.fetch_birthdays", return_value=[])
+    @patch("src.fetchers.weather.fetch_weather", return_value=None)
+    @patch("src.fetchers.calendar.fetch_events", return_value=[])
+    @patch("src.fetchers.calendar.fetch_birthdays", return_value=[])
     def test_expired_cache_discarded_on_breaker_open(
         self, mock_bdays, mock_events, mock_weather, mock_host, tmp_path
     ):

@@ -70,9 +70,9 @@ class TestFetchLiveData:
 
         with tempfile.TemporaryDirectory() as tmpdir:
             with (
-                patch("src.data_pipeline.fetch_events", return_value=mock_events),
-                patch("src.data_pipeline.fetch_weather", return_value=mock_weather),
-                patch("src.data_pipeline.fetch_birthdays", return_value=mock_birthdays),
+                patch("src.fetchers.calendar.fetch_events", return_value=mock_events),
+                patch("src.fetchers.weather.fetch_weather", return_value=mock_weather),
+                patch("src.fetchers.calendar.fetch_birthdays", return_value=mock_birthdays),
             ):
                 data = fetch_live_data(cfg, tmpdir)
 
@@ -85,9 +85,9 @@ class TestFetchLiveData:
         with tempfile.TemporaryDirectory() as tmpdir:
             _make_cached(tmpdir)
             with (
-                patch("src.data_pipeline.fetch_events", return_value=[]),
-                patch("src.data_pipeline.fetch_weather", side_effect=RuntimeError("API down")),
-                patch("src.data_pipeline.fetch_birthdays", return_value=[]),
+                patch("src.fetchers.calendar.fetch_events", return_value=[]),
+                patch("src.fetchers.weather.fetch_weather", side_effect=RuntimeError("API down")),
+                patch("src.fetchers.calendar.fetch_birthdays", return_value=[]),
             ):
                 data = fetch_live_data(cfg, tmpdir)
 
@@ -108,9 +108,9 @@ class TestFetchLiveData:
                 humidity=60,
             )
             with (
-                patch("src.data_pipeline.fetch_events", side_effect=Exception("Auth failed")),
-                patch("src.data_pipeline.fetch_weather", return_value=mock_weather),
-                patch("src.data_pipeline.fetch_birthdays", return_value=[]),
+                patch("src.fetchers.calendar.fetch_events", side_effect=Exception("Auth failed")),
+                patch("src.fetchers.weather.fetch_weather", return_value=mock_weather),
+                patch("src.fetchers.calendar.fetch_birthdays", return_value=[]),
             ):
                 data = fetch_live_data(cfg, tmpdir)
 
@@ -121,9 +121,9 @@ class TestFetchLiveData:
         cfg = Config()
         with tempfile.TemporaryDirectory() as tmpdir:
             with (
-                patch("src.data_pipeline.fetch_events", side_effect=Exception("down")),
-                patch("src.data_pipeline.fetch_weather", side_effect=Exception("down")),
-                patch("src.data_pipeline.fetch_birthdays", side_effect=Exception("down")),
+                patch("src.fetchers.calendar.fetch_events", side_effect=Exception("down")),
+                patch("src.fetchers.weather.fetch_weather", side_effect=Exception("down")),
+                patch("src.fetchers.calendar.fetch_birthdays", side_effect=Exception("down")),
             ):
                 data = fetch_live_data(cfg, tmpdir)
 
@@ -145,9 +145,9 @@ class TestFetchLiveData:
         )
         with tempfile.TemporaryDirectory() as tmpdir:
             with (
-                patch("src.data_pipeline.fetch_events", return_value=[]),
-                patch("src.data_pipeline.fetch_weather", return_value=mock_weather),
-                patch("src.data_pipeline.fetch_birthdays", return_value=[]),
+                patch("src.fetchers.calendar.fetch_events", return_value=[]),
+                patch("src.fetchers.weather.fetch_weather", return_value=mock_weather),
+                patch("src.fetchers.calendar.fetch_birthdays", return_value=[]),
             ):
                 fetch_live_data(cfg, tmpdir)
             assert os.path.exists(os.path.join(tmpdir, "dashboard_cache.json"))
@@ -171,9 +171,9 @@ class TestFetchIntervals:
         with tempfile.TemporaryDirectory() as tmpdir:
             save_source("weather", _make_weather(), recent_ts, tmpdir)
             with (
-                patch("src.data_pipeline.fetch_events", return_value=[]),
-                patch("src.data_pipeline.fetch_weather") as mock_weather,
-                patch("src.data_pipeline.fetch_birthdays", return_value=[]),
+                patch("src.fetchers.calendar.fetch_events", return_value=[]),
+                patch("src.fetchers.weather.fetch_weather") as mock_weather,
+                patch("src.fetchers.calendar.fetch_birthdays", return_value=[]),
             ):
                 fetch_live_data(cfg, tmpdir)
             mock_weather.assert_not_called()
@@ -185,9 +185,9 @@ class TestFetchIntervals:
         with tempfile.TemporaryDirectory() as tmpdir:
             save_source("weather", mock_w, old_ts, tmpdir)
             with (
-                patch("src.data_pipeline.fetch_events", return_value=[]),
-                patch("src.data_pipeline.fetch_weather", return_value=mock_w) as mock_weather,
-                patch("src.data_pipeline.fetch_birthdays", return_value=[]),
+                patch("src.fetchers.calendar.fetch_events", return_value=[]),
+                patch("src.fetchers.weather.fetch_weather", return_value=mock_w) as mock_weather,
+                patch("src.fetchers.calendar.fetch_birthdays", return_value=[]),
             ):
                 fetch_live_data(cfg, tmpdir)
             mock_weather.assert_called_once()
@@ -199,9 +199,9 @@ class TestFetchIntervals:
         with tempfile.TemporaryDirectory() as tmpdir:
             save_source("weather", mock_w, recent_ts, tmpdir)
             with (
-                patch("src.data_pipeline.fetch_events", return_value=[]),
-                patch("src.data_pipeline.fetch_weather", return_value=mock_w) as mock_weather,
-                patch("src.data_pipeline.fetch_birthdays", return_value=[]),
+                patch("src.fetchers.calendar.fetch_events", return_value=[]),
+                patch("src.fetchers.weather.fetch_weather", return_value=mock_w) as mock_weather,
+                patch("src.fetchers.calendar.fetch_birthdays", return_value=[]),
             ):
                 fetch_live_data(cfg, tmpdir, force_refresh=True)
             mock_weather.assert_called_once()
@@ -212,9 +212,9 @@ class TestFetchIntervals:
         with tempfile.TemporaryDirectory() as tmpdir:
             save_source("weather", _make_weather(), recent_ts, tmpdir)
             with (
-                patch("src.data_pipeline.fetch_events", return_value=[]),
-                patch("src.data_pipeline.fetch_weather"),
-                patch("src.data_pipeline.fetch_birthdays", return_value=[]),
+                patch("src.fetchers.calendar.fetch_events", return_value=[]),
+                patch("src.fetchers.weather.fetch_weather"),
+                patch("src.fetchers.calendar.fetch_birthdays", return_value=[]),
             ):
                 data = fetch_live_data(cfg, tmpdir)
             assert data.source_staleness.get("weather") == StalenessLevel.FRESH
@@ -231,9 +231,9 @@ class TestFetchIntervals:
                 metadata={"window_start": None, "window_days": 7},
             )
             with (
-                patch("src.data_pipeline.fetch_events") as mock_events,
-                patch("src.data_pipeline.fetch_weather", return_value=_make_weather()),
-                patch("src.data_pipeline.fetch_birthdays", return_value=[]),
+                patch("src.fetchers.calendar.fetch_events") as mock_events,
+                patch("src.fetchers.weather.fetch_weather", return_value=_make_weather()),
+                patch("src.fetchers.calendar.fetch_birthdays", return_value=[]),
             ):
                 fetch_live_data(cfg, tmpdir)
             mock_events.assert_not_called()
@@ -244,9 +244,9 @@ class TestFetchIntervals:
         with tempfile.TemporaryDirectory() as tmpdir:
             save_source("birthdays", [], recent_ts, tmpdir)
             with (
-                patch("src.data_pipeline.fetch_events", return_value=[]),
-                patch("src.data_pipeline.fetch_weather", return_value=_make_weather()),
-                patch("src.data_pipeline.fetch_birthdays") as mock_bdays,
+                patch("src.fetchers.calendar.fetch_events", return_value=[]),
+                patch("src.fetchers.weather.fetch_weather", return_value=_make_weather()),
+                patch("src.fetchers.calendar.fetch_birthdays") as mock_bdays,
             ):
                 fetch_live_data(cfg, tmpdir)
             mock_bdays.assert_not_called()
@@ -259,9 +259,9 @@ class TestExpiredCache:
         with tempfile.TemporaryDirectory() as tmpdir:
             save_source("weather", _make_weather(), very_old, tmpdir)
             with (
-                patch("src.data_pipeline.fetch_events", return_value=[]),
-                patch("src.data_pipeline.fetch_weather", side_effect=RuntimeError("down")),
-                patch("src.data_pipeline.fetch_birthdays", return_value=[]),
+                patch("src.fetchers.calendar.fetch_events", return_value=[]),
+                patch("src.fetchers.weather.fetch_weather", side_effect=RuntimeError("down")),
+                patch("src.fetchers.calendar.fetch_birthdays", return_value=[]),
             ):
                 data = fetch_live_data(cfg, tmpdir)
         assert data.weather is None
@@ -272,9 +272,9 @@ class TestExpiredCache:
         with tempfile.TemporaryDirectory() as tmpdir:
             save_source("events", [], very_old, tmpdir)
             with (
-                patch("src.data_pipeline.fetch_events", side_effect=Exception("down")),
-                patch("src.data_pipeline.fetch_weather", return_value=_make_weather()),
-                patch("src.data_pipeline.fetch_birthdays", return_value=[]),
+                patch("src.fetchers.calendar.fetch_events", side_effect=Exception("down")),
+                patch("src.fetchers.weather.fetch_weather", return_value=_make_weather()),
+                patch("src.fetchers.calendar.fetch_birthdays", return_value=[]),
             ):
                 data = fetch_live_data(cfg, tmpdir)
         assert data.events == []
@@ -294,9 +294,9 @@ class TestCircuitBreakerOpenPath:
                 breaker.record_failure("weather")
 
             with (
-                patch("src.data_pipeline.fetch_events", return_value=[]),
-                patch("src.data_pipeline.fetch_weather") as mock_weather,
-                patch("src.data_pipeline.fetch_birthdays", return_value=[]),
+                patch("src.fetchers.calendar.fetch_events", return_value=[]),
+                patch("src.fetchers.weather.fetch_weather") as mock_weather,
+                patch("src.fetchers.calendar.fetch_birthdays", return_value=[]),
             ):
                 data = fetch_live_data(cfg, tmpdir)
 
@@ -318,11 +318,11 @@ class TestCircuitBreakerOpenPath:
                     breaker.record_failure(source)
 
             with (
-                patch("src.data_pipeline.fetch_events", return_value=[]) as mock_events,
+                patch("src.fetchers.calendar.fetch_events", return_value=[]) as mock_events,
                 patch(
-                    "src.data_pipeline.fetch_weather", return_value=_make_weather()
+                    "src.fetchers.weather.fetch_weather", return_value=_make_weather()
                 ) as mock_weather,
-                patch("src.data_pipeline.fetch_birthdays", return_value=[]) as mock_bdays,
+                patch("src.fetchers.calendar.fetch_birthdays", return_value=[]) as mock_bdays,
             ):
                 fetch_live_data(cfg, tmpdir, ignore_breakers=True)
 
@@ -353,10 +353,11 @@ class TestBirthdayCacheFallback:
                 humidity=60,
             )
             with (
-                patch("src.data_pipeline.fetch_events", return_value=[]),
-                patch("src.data_pipeline.fetch_weather", return_value=mock_weather),
+                patch("src.fetchers.calendar.fetch_events", return_value=[]),
+                patch("src.fetchers.weather.fetch_weather", return_value=mock_weather),
                 patch(
-                    "src.data_pipeline.fetch_birthdays", side_effect=Exception("contacts API down")
+                    "src.fetchers.calendar.fetch_birthdays",
+                    side_effect=Exception("contacts API down"),
                 ),
             ):
                 data = fetch_live_data(cfg, tmpdir)

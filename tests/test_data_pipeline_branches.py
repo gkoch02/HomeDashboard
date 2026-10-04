@@ -252,11 +252,7 @@ class TestLaunchFetchesEarlyReturn:
         _launch_fetches submits nothing and returns all-None futures."""
         pipeline = _make_pipeline(tmp_path)
         futures = pipeline._launch_fetches(
-            events_skip=True,
-            weather_skip=True,
-            birthdays_skip=True,
-            purpleair_enabled=False,
-            aq_skip=True,
+            {"events": True, "weather": True, "birthdays": True, "air_quality": True}
         )
         assert all(v is None for v in futures.values())
 
@@ -274,11 +270,7 @@ class TestLaunchFetchesPurpleair:
 
         with patch("src.data_pipeline.retry_fetch", return_value=aq):
             futures = pipeline._launch_fetches(
-                events_skip=True,
-                weather_skip=True,
-                birthdays_skip=True,
-                purpleair_enabled=True,
-                aq_skip=False,
+                {"events": True, "weather": True, "birthdays": True, "air_quality": False}
             )
         assert futures["air_quality"] is not None
         assert futures["air_quality"].result() is aq
@@ -302,11 +294,7 @@ class TestLaunchFetchesPluginSources:
         try:
             pipeline = _make_pipeline(tmp_path)
             futures = pipeline._launch_fetches(
-                events_skip=True,
-                weather_skip=True,
-                birthdays_skip=True,
-                purpleair_enabled=False,
-                aq_skip=True,
+                {"events": True, "weather": True, "birthdays": True, "air_quality": True}
             )
         finally:
             unregister_fetcher(source_name)
@@ -367,10 +355,10 @@ class TestFetchWithPurpleair:
         aq = AirQualityData(aqi=42, category="Good", pm25=8.0)
 
         with (
-            patch("src.data_pipeline.fetch_events", return_value=[]),
-            patch("src.data_pipeline.fetch_weather", return_value=_make_weather()),
-            patch("src.data_pipeline.fetch_birthdays", return_value=[]),
-            patch("src.data_pipeline.fetch_air_quality", return_value=aq),
+            patch("src.fetchers.calendar.fetch_events", return_value=[]),
+            patch("src.fetchers.weather.fetch_weather", return_value=_make_weather()),
+            patch("src.fetchers.calendar.fetch_birthdays", return_value=[]),
+            patch("src.fetchers.purpleair.fetch_air_quality", return_value=aq),
             patch("src.data_pipeline.fetch_host_data", return_value=None),
             patch("src.data_pipeline.save_source"),
         ):
@@ -396,9 +384,9 @@ class TestFetchWithPurpleair:
 
         with (
             patch.object(pipeline, "_should_skip", side_effect=skip_side_effect),
-            patch("src.data_pipeline.fetch_events", return_value=[]),
-            patch("src.data_pipeline.fetch_weather", return_value=_make_weather()),
-            patch("src.data_pipeline.fetch_birthdays", return_value=[]),
+            patch("src.fetchers.calendar.fetch_events", return_value=[]),
+            patch("src.fetchers.weather.fetch_weather", return_value=_make_weather()),
+            patch("src.fetchers.calendar.fetch_birthdays", return_value=[]),
             patch("src.data_pipeline.fetch_host_data", return_value=None),
             patch("src.data_pipeline.save_source"),
         ):
@@ -605,7 +593,8 @@ class TestMergeAirQualityWithWeatherFallback:
 
 # ---------------------------------------------------------------------------
 # Regression (#209): registry-added fetchers must honour phase-1 skip
-# decisions — the legacy five-param _launch_fetches signature only carries
+# decisions — every registry source must honor its cache and breaker state.
+# The former five-param signature only carried
 # the built-in sources, and defaulting everything else to "never skip"
 # bypassed their interval, cache, and breaker entirely.
 # ---------------------------------------------------------------------------

@@ -11,7 +11,7 @@ from __future__ import annotations
 import argparse
 import logging
 
-from src.web.app import create_app
+from src.web.app import _load_web_config, create_app
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -39,7 +39,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--host",
         default=None,
         metavar="HOST",
-        help="Bind address (default: 0.0.0.0)",
+        help="Bind address (default: 127.0.0.1)",
     )
     return p
 
@@ -52,21 +52,15 @@ def main() -> None:
 
     args = build_parser().parse_args()
 
-    # Determine port/host from web.yaml then CLI override.
-    from pathlib import Path
-
-    import yaml  # type: ignore[import-untyped]
-
-    web_cfg: dict = {}
-    if Path(args.config).exists():
-        try:
-            with open(args.config) as f:
-                web_cfg = yaml.safe_load(f) or {}
-        except Exception as exc:
-            logging.warning("Could not read %s: %s — using defaults.", args.config, exc)
+    # Use the factory's reader so broken auth configuration cannot become defaults.
+    try:
+        web_cfg = _load_web_config(args.config)
+    except ValueError as exc:
+        logging.error("%s", exc)
+        raise SystemExit(1) from exc
 
     port = args.port or web_cfg.get("port", 8080)
-    host = args.host or web_cfg.get("host", "0.0.0.0")
+    host = args.host or web_cfg.get("host", "127.0.0.1")
 
     app = create_app(
         web_config_path=args.config,

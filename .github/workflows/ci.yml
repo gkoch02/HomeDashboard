@@ -24,8 +24,8 @@ jobs:
           python-version: "3.11"
           cache: "pip"
       - run: pip install -e ".[dev]"
-      - run: ruff check src/ tests/ scripts/ tools/
-      - run: ruff format --check src/ tests/ scripts/ tools/
+      - run: ruff check src/ tests/ scripts/ tools/ setup.py
+      - run: ruff format --check src/ tests/ scripts/ tools/ setup.py
       # Dead code in src/ (vulture); exclusions live in the script itself.
       - run: python tools/check_dead_code.py
       # Validates markdown links and the canonical theme inventories in
@@ -89,6 +89,19 @@ jobs:
           import src.app, src.main, src.config, src.data_pipeline
           import src.render.canvas, src.display.driver, src.fetchers.calendar
           from src._version import __version__
+          from datetime import datetime
+          from src.config import DisplayConfig
+          from src.dummy_data import generate_dummy_data
+          from src.render.canvas import render_dashboard
+          from src.render.fonts import FONT_DIR
+          from src.render.quotes import DEFAULT_QUOTES_PATH
+          assert FONT_DIR.is_dir() and DEFAULT_QUOTES_PATH.is_file()
+          image = render_dashboard(
+              generate_dummy_data(now=datetime(2026, 4, 6, 10, 30)), DisplayConfig()
+          )
+          image.save("/tmp/home-dashboard-installed.png")
+          assert image.size == (800, 480)
+          assert image.getextrema()[0] < image.getextrema()[1]
           print("installed home-dashboard", __version__)
           PY
       - run: python -m pytest tests/ --ignore-glob='tests/test_web_*.py' --tb=short --no-cov

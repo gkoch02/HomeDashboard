@@ -61,7 +61,7 @@ def _patch_create_app(fake_app):
 
 
 def test_main_uses_defaults_when_config_missing(tmp_path, fake_app):
-    """Missing web.yaml is handled gracefully — defaults to port 8080, host 0.0.0.0."""
+    """Missing web.yaml is handled gracefully — defaults to port 8080, host 127.0.0.1."""
     fake_serve = MagicMock()
     with (
         _patch_create_app(fake_app),
@@ -72,7 +72,7 @@ def test_main_uses_defaults_when_config_missing(tmp_path, fake_app):
 
     fake_serve.assert_called_once()
     kwargs = fake_serve.call_args.kwargs
-    assert kwargs["host"] == "0.0.0.0"
+    assert kwargs["host"] == "127.0.0.1"
     assert kwargs["port"] == 8080
 
 
@@ -118,20 +118,20 @@ def test_main_cli_host_overrides_config(tmp_path, fake_app):
     assert fake_serve.call_args.kwargs["host"] == "192.168.1.5"
 
 
-def test_main_warns_on_unreadable_config(tmp_path, fake_app, caplog):
+def test_main_does_not_serve_when_web_config_is_broken(tmp_path, fake_app):
     cfg = tmp_path / "web.yaml"
-    cfg.write_text("not: valid: yaml: : :")
+    cfg.write_text("auth: [broken")
     fake_serve = MagicMock()
     with (
         _patch_create_app(fake_app),
         patch("sys.argv", ["src.web", "--config", str(cfg)]),
         patch.dict("sys.modules", {"waitress": MagicMock(serve=fake_serve)}),
-        caplog.at_level(logging.WARNING),
+        pytest.raises(SystemExit) as exc,
     ):
         main()
-    assert any("Could not read" in rec.message for rec in caplog.records)
-    # Falls back to defaults.
-    assert fake_serve.call_args.kwargs["port"] == 8080
+    assert exc.value.code == 1
+    fake_serve.assert_not_called()
+    fake_app.run.assert_not_called()
 
 
 def test_main_falls_back_to_flask_when_waitress_missing(tmp_path, fake_app, caplog):

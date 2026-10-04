@@ -1,9 +1,9 @@
-"""AST-based check for test functions that cannot fail.
+"""AST-based hygiene check for test functions without explicit checks.
 
 Flags every ``test_*`` function under ``tests/`` whose body contains no
 ``assert`` statement, no ``pytest.raises`` / ``pytest.warns`` block, no
-``pytest.fail`` call, and no ``.assert_*`` call on a mock. Such a test passes
-for any implementation, including a deleted one.
+``pytest.fail`` call, and no ``.assert_*`` call on a mock. This catches missing explicit checks, not ineffective assertions.
+A smoke test can still fail when the code it calls raises an exception.
 
 A test that really is a "does not raise" smoke test says so with
 ``# allow-no-assert`` on its ``def`` line, so the choice is visible in review.
@@ -100,11 +100,11 @@ def main() -> int:
     for path in sorted(tests_root.rglob("test_*.py")):
         for line, name in check_file(path):
             rel = path.relative_to(repo_root).as_posix()
-            print(f"{rel}:{line}: NO_ASSERT {name} checks nothing")
+            print(f"{rel}:{line}: NO_ASSERT {name} has no explicit check")
             failures += 1
     if failures:
         print(
-            f"\nFound {failures} test(s) that cannot fail.\n"
+            f"\nFound {failures} test(s) without explicit checks.\n"
             "Assert on the behaviour the test is named for, or mark a deliberate\n"
             "smoke test with `# allow-no-assert` on its def line.",
             file=sys.stderr,

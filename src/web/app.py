@@ -34,15 +34,26 @@ logger = logging.getLogger(__name__)
 
 
 def _load_web_config(path: str | None) -> dict:
-    """Load web.yaml; return an empty dict if absent or unreadable."""
+    """Load web.yaml; reject unreadable files instead of disabling auth."""
     if not path or not Path(path).exists():
         return {}
     try:
         with open(path) as f:
-            return yaml.safe_load(f) or {}
-    except Exception as exc:
-        logger.warning("Could not load web config %s: %s", path, exc)
+            raw = yaml.safe_load(f)
+    except (OSError, yaml.YAMLError) as exc:
+        raise ValueError(f"Could not load web config {path}: {exc}") from exc
+    if raw is None:
         return {}
+    if not isinstance(raw, dict):
+        raise ValueError("Web config must be a YAML mapping")
+    auth = raw.get("auth", {})
+    if not isinstance(auth, dict):
+        raise ValueError("Web config auth must be a YAML mapping")
+    for key in ("username", "password_hash"):
+        value = auth.get(key)
+        if value is not None and not isinstance(value, str):
+            raise ValueError(f"Web config auth.{key} must be a string")
+    return raw
 
 
 # The value config/web.example.yaml ships; accepting it verbatim signs every
