@@ -72,6 +72,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- Removed the `_THEME_REGISTRY` proxy from `render/theme.py`
+  (`AVAILABLE_THEMES` is now a small set view over the theme registry), twenty
+  unread constants from `render/layout.py`, eleven unused skyart aliases from
+  `halftone_panel`, and a handful of zero-caller helpers.
+- Shared helpers now have one home: `artkit.fmt_temp`, `primitives.fmt_duration`
+  / `aqi_accent` / `alert_fill` / `roman` / `coords_set`, `moon.next_phase_date`,
+  and `quotes.quote_for(prefix=...)`. The two random-theme pickers share one
+  body; `state_reader` reads state through `_io.read_json`; the quantization
+  and One Call enums are defined once in `config_schema`. Rendering is
+  byte-identical (pixel snapshots unchanged).
+- `CLAUDE.md` Gotchas cut from 14,000 words to one rule per bullet; source
+  comments state the invariant rather than the history of how it was found.
+
 - **`wide_horizon` stacks multi-day all-day events above single days.** Chips
   were packed left to right, so a one-day item starting on or before a trip
   took the top row and pushed the trip under it. Spans are now seated first,
