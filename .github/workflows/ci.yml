@@ -26,6 +26,8 @@ jobs:
       - run: pip install -e ".[dev]"
       - run: ruff check src/ tests/ scripts/ tools/
       - run: ruff format --check src/ tests/ scripts/ tools/
+      # Dead code in src/ (vulture); exclusions live in the script itself.
+      - run: python tools/check_dead_code.py
       # Validates markdown links and the canonical theme inventories in
       # docs/themes.md, docs/inky-previews.md and docs/previews.md. CONTRIBUTING
       # asks contributors to run this, but nothing enforced it — which is how

@@ -402,10 +402,10 @@ def _moon_geocentric(dt: datetime) -> tuple[float, float, float]:
 
     xh = r * (
         math.cos(n_rad) * math.cos(vw_rad) - math.sin(n_rad) * math.sin(vw_rad) * math.cos(incl_rad)
-    )  # noqa: E501
+    )
     yh = r * (
         math.sin(n_rad) * math.cos(vw_rad) + math.cos(n_rad) * math.sin(vw_rad) * math.cos(incl_rad)
-    )  # noqa: E501
+    )
     zh = r * math.sin(vw_rad) * math.sin(incl_rad)
 
     # Ecliptic → equatorial (mean obliquity of the ecliptic)

@@ -104,7 +104,7 @@ def _draw_photo_background(
                 style.bg,
             )
             image.paste(dithered)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         logger.warning("photo theme: failed to load image %s: %s", path, exc)
 
 

@@ -8,6 +8,7 @@ handles corrupt lines, returns empty on read error).
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 
 from src.web.event_store import append_event, read_recent_events
@@ -51,7 +52,7 @@ class TestAppendEvent:
         payload = json.loads((tmp_path / _EVENT_FILE).read_text().strip())
         assert payload["details"] == {}
 
-    def test_swallows_write_error(self, tmp_path, monkeypatch):
+    def test_swallows_write_error(self, tmp_path, monkeypatch, caplog):
         # Patch open() inside the try/except so the write itself fails
         import builtins
 
@@ -63,8 +64,10 @@ class TestAppendEvent:
             return real_open(path, *args, **kwargs)
 
         monkeypatch.setattr(builtins, "open", bad_open)
-        # Should not raise — error is swallowed inside append_event
-        append_event(str(tmp_path), "kind", "msg")
+        with caplog.at_level(logging.DEBUG, logger="src.web.event_store"):
+            append_event(str(tmp_path), "kind", "msg")
+        assert "Could not append web event" in caplog.text
+        assert not (tmp_path / _EVENT_FILE).exists()
 
     def test_timestamp_is_utc_iso(self, tmp_path):
         append_event(str(tmp_path), "kind", "msg")

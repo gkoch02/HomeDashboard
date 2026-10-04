@@ -40,7 +40,7 @@ make web-enable     # Install and start web UI systemd service (run ON Pi)
 make web-status     # Web service status + recent log tail (run ON Pi)
 make web-logs       # Tail output/dashboard-web.log (run ON Pi)
 make banner         # Regenerate the eInk-faithful README logo → assets/banner.png
-make lint           # ruff check src/ tests/ scripts/ tools/
+make lint           # ruff check src/ tests/ scripts/ tools/ + dead-code scan of src/
 make fmt            # ruff format src/ tests/ scripts/ tools/
 ruff check src/ tests/ scripts/ tools/         # Lint (direct invocation)
 ruff format src/ tests/ scripts/ tools/        # Format (direct invocation)
@@ -327,6 +327,7 @@ The cooldown is `display.min_refresh_interval_seconds` (config), defaulting to 6
 - **Dataclass-first**: pure data models with no I/O in `src/data/models.py`
 - **Config mirrors YAML**: the dataclass hierarchy in `config.py` matches the YAML structure; every field is optional with a default. **`load_config()` never raises on a value it cannot read** (nothing above it catches): numeric fields go through `_read_number()`, lists through `_read_list()`, and an unreadable value keeps the default and is appended to `cfg.unreadable` (an instance attribute, not a dataclass field, so the schema and `check_docs` don't see it), which `validate_config()` reports as a `ConfigError`. The web editor's `_load_raw_yaml()` has the opposite contract and raises `ConfigReadError`, because a save that starts from an empty mapping would replace the file with only the form's keys; a missing file is still `{}`
 - **Max line length**: 100 characters
+- **Comments**: a comment states the rule and, when it is not obvious, one clause of why. How it was found goes in the commit message; no issue numbers in code
 - **Testing**: heavy use of `unittest.mock.patch`; fixtures for temp dirs and dummy data; every public render function has dedicated smoke tests plus logic unit tests. Coverage gate is `fail_under = 94` in `pyproject.toml` (`[tool.coverage.report]`). Run `make coverage` to print missing lines and write an HTML report to `htmlcov/`. `src/_version.py` and `src/main.py` are omitted from coverage
 - **Render-test assertions**: measure ink, never `Image.getbbox()`, which returns the full canvas on a white `"1"` plate whether or not anything was drawn. Use `tests/inkutils.py`: `marks()` (pixels differing from the background, works on every canvas polarity), `ink()`, `ink_bbox()`, `ink_x_extent()`, `text_line_heights()`, `ink_clusters()`. Two traps: the header, weather, environment and quote bands are inverted, so more content means less ink; and a white-on-black panel (`constellation_map`, `moonphase`) must be rendered with its own theme style. Prefer differential assertions (with and without the feature, compare the band it owns) over hardcoded pixel counts
 - **Verify a render test by deleting what it names**: write the assertion, delete the behaviour it is named for, and confirm it goes red before trusting it. A test that asserts something is *not* drawn cannot detect a no-op; check those by breaking the suppression instead
@@ -387,7 +388,7 @@ The cooldown is `display.min_refresh_interval_seconds` (config), defaulting to 6
 | `SpaceGrotesk-Medium.ttf` | `sg_medium` | `air_quality`, `message` |
 | `SpaceGrotesk-Bold.ttf` | `sg_bold` | `air_quality`, `message` |
 | `Antonio-Variable.ttf` (OFL, variable) | `antonio_semibold`, `antonio_bold` | `sunrise`, `tides` — title + section labels (condensed display); `halftone_agenda_wide` — agenda time cells and duration column |
-| `Astloch-Regular.ttf` / `Astloch-Bold.ttf` (OFL) | `astloch`, `astloch_bold` | `almanac` — blackletter masthead + dateline character font |
+| `Astloch-Bold.ttf` (OFL; `Astloch-Regular.ttf` is bundled but unused) | `astloch_bold` | `almanac` — blackletter masthead + dateline character font |
 | `Audiowide-Regular.ttf` (OFL) | `audiowide` | `constellation_map` — cardinal letters, star + constellation labels |
 | `Righteous-Regular.ttf` (OFL) | `righteous` | `light_cycle` — hero day-of-month numeral; `halftone` — every typeset element; `day_arc` — chrome (dateline, numeral, labels) |
 | `Rye-Regular.ttf` (OFL) | `rye` | `weatherglass` — Western-saloon instrument-deck masthead |
@@ -447,6 +448,10 @@ default to `None` and fall back gracefully so adding a new field never breaks ex
 Each bullet is a rule, where it lives, and the test that enforces it where one exists. The
 reasoning behind a rule lives in the commit that introduced it (`git log -S <name>`) and, for the
 art themes, in the panel's module docstring. Keep new entries to that shape.
+
+### Repo hygiene
+
+- Four guards hold the code to the shape above; fix the code, not the guard. `tools/check_test_assertions.py` fails a `test_*` that asserts nothing (a deliberate smoke test marks its `def` line `# allow-no-assert`). `tools/check_dead_code.py` runs vulture over `src/`, counting tests and scripts as callers; exclusions are patterns in the script, never single names. Ruff `PGH003` and `RUF100` require a `type: ignore` to name its code and drop stale `noqa`. `check_docs` holds this file to its word budget.
 
 ### Version and release
 
@@ -535,7 +540,8 @@ art themes, in the panel's module docstring. Keep new entries to that shape.
 
 ### Weather and air quality
 
-- One Call is the only paid part: alerts and UV only, via `src/fetchers/weather_onecall.py`, selected by `weather.one_call_version` (`"3.0"` default, `"4.0"`, `"off"`; the parser folds YAML's float, int and bool readings back onto those strings). An account holds one subscription, so the wrong version returns 401 and cannot be auto-detected. `one_call_health.py` classifies 401/403 as permanent (warn once, status-page row) and everything else as transient (DEBUG), reading `exc.response.status_code` only. An unwritable state dir degrades to classify-and-log, and the status page reconciles the persisted record against the configured version so switching to `off` or between 3.0 and 4.0 clears the banner at once. The v4 shape wraps the record in `data[]` and lists alert IDs that cost up to `_V4_MAX_ALERT_DETAILS` (3) extra requests.
+- One Call is the only paid part: alerts and UV only, via `src/fetchers/weather_onecall.py`, selected by `weather.one_call_version` (`"3.0"` default, `"4.0"`, `"off"`; the parser folds YAML's float, int and bool readings back onto those strings). An account holds one subscription, so the wrong version returns 401 and cannot be auto-detected. The v4 shape wraps the record in `data[]` and lists alert IDs that cost up to `_V4_MAX_ALERT_DETAILS` (3) extra requests.
+- `one_call_health.py` classifies 401/403 as permanent (warn once, status-page row) and everything else as transient (DEBUG), reading `exc.response.status_code` only. An unwritable state dir degrades to classify-and-log, and the status page reconciles the persisted record against the configured version, so switching to `off` or between 3.0 and 4.0 clears the banner at once.
 - Forecast parsing skips malformed OWM slots. `WeatherData.location_name` comes from `current["name"]`.
 - PurpleAir is on only when both `api_key` and `sensor_id` are set; `config.example.yaml` ships it commented out and `tests/test_config_validation.py` pins that. `_pm25_to_aqi()` uses the May 2024 EPA breakpoints on the 60-minute PM2.5 average. Ambient readings get PurpleAir's housing correction (−8 °F, +4 % RH) and are converted to `weather.units` with the suffix in `temperature_unit`; `fallback_fields` records which came from OWM, and the `air_quality` and `diags` panels suppress those.
 - `HostData` is stdlib plus `/proc`, fetched synchronously after the pool; `None` fields are omitted.

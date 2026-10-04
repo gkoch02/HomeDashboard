@@ -38,6 +38,7 @@ dev = [
     # output changes between minors, so a floor let the hook and CI disagree.
     "ruff==0.15.8",
     "mypy>=1.0",
+    "vulture>=2.11",
     "flask>=3.0",
     "waitress>=3.0",
 ]
@@ -96,7 +97,9 @@ line-length = 100
 target-version = "py310"
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "I", "UP"]
+# PGH003: a `type: ignore` must name its error code, so a suppression says
+# what it hides. RUF100: a `noqa` that no longer suppresses anything goes.
+select = ["E", "F", "W", "I", "UP", "PGH003", "RUF100"]
 ignore = [
     "E501",  # line length handled by formatter
 ]

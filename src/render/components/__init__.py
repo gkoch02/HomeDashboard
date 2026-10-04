@@ -10,4 +10,4 @@ the time :func:`render_dashboard` runs.
 from __future__ import annotations
 
 # Side-effect import populates the component registry.
-from src.render.components import _builtins as _builtins  # noqa: F401
+from src.render.components import _builtins as _builtins
