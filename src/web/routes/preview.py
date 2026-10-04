@@ -97,7 +97,7 @@ def render_preview():
             data,
             cfg.display,
             # Same assembly the renderer uses, so the preview cannot show
-            # something the real render will never produce (#240).
+            # something the real render will never produce.
             # ``state_dir=None`` must stay the preview's value: a preview must
             # not persist the weatherglass pressure history.
             **build_render_kwargs(cfg, theme, theme_name, state_dir=None),

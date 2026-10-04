@@ -1,12 +1,8 @@
 """Canonical data-source names for the web layer.
 
-The v5 fetcher registry made sources pluggable, but the web UI used to name
-them in three hardcoded lists (breaker/cache actions, cache-age reads, and the
-status payload). A fetcher added per the documented recipe then rendered and
-cached correctly while staying invisible in the UI and unresettable from it.
-
-Everything here derives from the registry instead, so registering a fetcher is
-still the only step required.
+Everything here derives from the fetcher registry, so registering a fetcher is
+the only step required for it to appear in the status payload and be
+resettable from the breaker/cache actions.
 """
 
 from __future__ import annotations

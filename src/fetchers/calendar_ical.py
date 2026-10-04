@@ -49,14 +49,11 @@ def fetch_from_ical(
         CalendarFetchError: as soon as *any* feed cannot be fetched or parsed.
             The return value is the caller's complete calendar — it gets
             cached, marked fresh, and counted as a breaker success — so a feed
-            that failed cannot simply be omitted from it. Returning the feeds
-            that did work overwrote the cache with a calendar missing
-            everything from the one that didn't, silently and with no
-            staleness indicator (#234). Failing instead lets the pipeline fall
-            back to the last complete calendar and flag it as stale. Raising
-            at the first failure rather than after trying every feed keeps the
-            call bounded by one request timeout — the other feeds' results
-            would be discarded anyway.
+            that failed cannot simply be omitted from it; failing lets the
+            pipeline fall back to the last complete calendar and flag it
+            stale. Raising at the first failure keeps the call bounded by one
+            request timeout — the other feeds' results would be discarded
+            anyway.
         RuntimeError: if the ``icalendar`` package is not installed.
     """
     try:
@@ -73,23 +70,17 @@ def fetch_from_ical(
 
     all_events: list[CalendarEvent] = []
     for url in urls:
-        # Stop at the first failure rather than collecting them all. Any
-        # failure discards the whole result, so every request after one is
-        # wall-clock spent on data that will be thrown away — and at
-        # _REQUEST_TIMEOUT_SECONDS each, with retry_fetch running the sequence
-        # twice, three dead feeds took ~180s against the pipeline's 120s
-        # per-source ceiling. The pipeline releases the render at 120s but
-        # cannot kill the worker thread, so the renderer process stayed alive
-        # until the walk finished, holding the systemd unit active — the exact
-        # hang #235 fixes for CalDAV. One feed's timeout, retried once, is the
-        # whole bound now.
+        # Stop at the first failure: any failure discards the whole result,
+        # and the pipeline's 120 s per-source ceiling releases the render but
+        # cannot kill this thread, so one feed's timeout (retried once) must
+        # be the whole bound.
         try:
             request_counter.count_request()
             resp = requests.get(url, timeout=_REQUEST_TIMEOUT_SECONDS)
             resp.raise_for_status()
         except Exception as exc:
             logger.warning("Failed to fetch ICS feed %s: %s", url, exc)
-            # Chained so retry_fetch can read the feed's HTTP status (#295).
+            # Chained so retry_fetch can read the feed's HTTP status.
             raise CalendarFetchError(
                 f"ICS feed {_url_hostname(url)} could not be read: {exc}"
             ) from exc
@@ -120,7 +111,7 @@ def _feed_body(resp) -> bytes | str:
     RFC 5545 mandates UTF-8, but ``resp.text`` decodes with whatever requests
     infers, and for ``text/calendar`` with no ``charset`` parameter (common
     for iCloud/Nextcloud/Google exports behind CDNs) that is ISO-8859-1 per
-    RFC 2616 — so "Café" reached the panel as "CafÃ©" (#274). The raw bytes
+    RFC 2616, which mangles every non-ASCII character. The raw bytes
     let ``icalendar`` decode UTF-8 itself; ``resp.text`` is used only when the
     server names a charset. A response whose ``content`` is not bytes (a test
     double that sets only ``.text``) falls back to the text.
@@ -136,11 +127,10 @@ def _in_window(event: CalendarEvent, time_min, time_max, tz: tzinfo | None) -> b
     """True if *event* overlaps the half-open window ``[time_min, time_max)``.
 
     Both all-day and timed events use overlap semantics — an event is in the
-    window if it starts before the window ends and ends after it starts.
-    Timed events used to be filtered on ``start`` alone, so a timed conference
-    running Sunday 09:00 → Tuesday 17:00 vanished from a Monday-anchored week
-    while Google's full sync (whose ``timeMin`` bounds the *end*) and CalDAV's
-    server search both kept it (#275).
+    window if it starts before the window ends and ends after it starts — so a
+    timed conference running Sunday 09:00 → Tuesday 17:00 stays in a
+    Monday-anchored week, as it does under Google's full sync (whose
+    ``timeMin`` bounds the *end*) and CalDAV's server search.
     """
     if event.is_all_day:
         s = event.start.date() if isinstance(event.start, datetime) else event.start
@@ -170,10 +160,9 @@ def _drop_unusable_vevents(cal, url: str) -> None:
 
     ``recurring_ical_events`` raises ``KeyError('DTSTART')`` on such a
     component and takes the whole feed down with it — one malformed VEVENT
-    would disable recurrence expansion for every series in the calendar,
-    reinstating the exact bug #212 fixed. ``_parse_ical_event`` already skips
-    these (they carry no usable time), so dropping them here costs nothing and
-    keeps one bad component from becoming a feed-wide outage.
+    would disable recurrence expansion for every series in the calendar.
+    ``_parse_ical_event`` already skips these (they carry no usable time), so
+    dropping them here costs nothing.
 
     Mutates in place: *cal* is parsed fresh per fetch and is not shared.
     Non-VEVENT subcomponents (notably VTIMEZONE) are preserved — the expander
@@ -191,7 +180,7 @@ def _drop_unusable_vevents(cal, url: str) -> None:
 
 
 def _raw_vevents(cal) -> list:
-    """The pre-#212 behaviour: one component per series, no expansion."""
+    """The unexpanded walk: one component per series, no expansion."""
     return [c for c in cal.walk() if c.name == "VEVENT"]
 
 
@@ -238,11 +227,8 @@ def _cap_runaway_series(events: list[CalendarEvent], url: str) -> list[CalendarE
     real ones that happen to sort after it.
 
     It runs on the parsed events *after* the window filter, not on the padded
-    expansion. The expansion span starts a day before the window, so capping
-    there kept up to a day of pre-window occurrences and let the filter throw
-    most of them away — "keeping the first 500" was logged while 80 reached
-    the caller on a western-zone host (#271). Counting only in-window events
-    makes the number in the log the number the caller gets.
+    expansion (which starts a day before the window), so the number in the
+    log is the number the caller gets.
     """
     seen: dict[str, int] = {}
     over: set[str] = set()
@@ -271,9 +257,8 @@ def _expand_components(cal, time_min, time_max, url: str) -> list:
     """Yield VEVENT components with recurrence rules expanded to occurrences.
 
     A raw ``cal.walk()`` sees one VEVENT per recurring series, carrying only
-    the series' original DTSTART — so a weekly standup exported from
-    Google/Outlook appeared in the week of its first occurrence and never
-    again (issue #212). ``recurring_ical_events`` expands RRULE / RDATE /
+    the series' original DTSTART — a weekly standup would appear in the week
+    of its first occurrence and never again. ``recurring_ical_events`` expands RRULE / RDATE /
     EXDATE / RECURRENCE-ID into one component per occurrence inside the
     window, matching the CalDAV backend's ``server_expand=True`` behaviour so
     both backends agree on the same calendar. Occurrences still flow through
@@ -283,13 +268,13 @@ def _expand_components(cal, time_min, time_max, url: str) -> list:
     The expansion span is padded a day either side of the fetch window.
     ``between()`` resolves a *floating* DTSTART (no TZID, no ``Z``) against
     UTC, while the caller's filter resolves it against the configured zone —
-    so in a western zone an unpadded span cut short events in the first
-    ``|utcoffset|`` hours of day one, which the raw walk used to keep. The pad
-    covers any offset; the caller's filter still decides what is in window.
+    so in a western zone an unpadded span would cut short events in the first
+    ``|utcoffset|`` hours of day one. The pad covers any offset; the caller's
+    filter still decides what is in window.
 
     Falls back to the raw walk with a warning if the library is unavailable
-    (an old deployment whose requirements weren't refreshed) — recurring
-    events degrade to the old behaviour rather than dropping the feed.
+    (a deployment whose requirements weren't refreshed) — recurring events
+    then appear in their first week only, rather than dropping the feed.
     """
     try:
         import recurring_ical_events  # type: ignore[import-untyped]

@@ -80,9 +80,7 @@ def fetch_alerts_and_uv(
     return _fetch_v3(session, params)
 
 
-# ---------------------------------------------------------------------------
 # One Call 3.0 — single all-in-one request
-# ---------------------------------------------------------------------------
 
 
 def _fetch_v3(
@@ -111,7 +109,6 @@ def _fetch_v3(
     return alerts, uv_index
 
 
-# ---------------------------------------------------------------------------
 # One Call 4.0 — modular endpoints
 #
 # These parsers are pure (dict in, value out) and hold all of this module's
@@ -120,7 +117,6 @@ def _fetch_v3(
 # deliberately do not guess at unrecognised shapes: a genuinely wrong payload
 # raises, and the caller's degradation boundary turns that into ([], None) —
 # the same result a key without the subscription already gets.
-# ---------------------------------------------------------------------------
 
 
 def _v4_first_record(payload: dict) -> dict | None:

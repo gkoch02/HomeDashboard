@@ -76,9 +76,7 @@ from src.render.theme import ComponentRegion, ThemeStyle
 _SUNRISE_GLYPH = ""  # wi-sunrise
 _SUNSET_GLYPH = ""  # wi-sunset
 
-# ---------------------------------------------------------------------------
 # Region geometry
-# ---------------------------------------------------------------------------
 
 SKY_H = 160  # dithered sky + disc + weather art
 AXIS_Y = SKY_H  # solid horizon hairline sits on this row
@@ -98,11 +96,10 @@ RAIL_W = 212
 # ink. Marks drawn onto the sky itself would vanish into the night gradient at
 # one end of the day and wash out against the midday band at the other.
 #
-# Every element gets an *exclusive* row band, all offsets relative to AXIS_Y.
-# They used to share rows, which made collisions a matter of luck: an event
-# starting on the hour puts its pip at exactly the x its hour label is centred
-# on, so the two could only ever land on top of each other. Keep these bands
-# disjoint — ``TestAxisStripBands`` fails the build if they stop being so.
+# Every element gets an *exclusive* row band, all offsets relative to AXIS_Y:
+# an event starting on the hour puts its pip at exactly the x its hour label
+# is centred on, so shared rows collide. Keep these bands disjoint —
+# ``TestAxisStripBands`` fails the build if they stop being so.
 #
 #   y+0            baseline hairline
 #   y+2  … y+4     daylight bar
@@ -168,9 +165,7 @@ _STAR_SALT = 0xDA7
 _FOG_SALT = 0xF0A
 
 
-# ---------------------------------------------------------------------------
 # Time axis
-# ---------------------------------------------------------------------------
 
 
 @dataclass(frozen=True)
@@ -376,9 +371,7 @@ def _resolve_day_bounds(
     return (None, None, None, None)
 
 
-# ---------------------------------------------------------------------------
 # Sky
-# ---------------------------------------------------------------------------
 
 
 def _sky_marks(axis: TimeAxis) -> tuple[int, int, int, int, int]:
@@ -500,9 +493,7 @@ def _draw_margin_stars(
                 draw.rectangle((x, y, x + 1, y + 1), fill=fill)
 
 
-# ---------------------------------------------------------------------------
 # Ribbon artwork
-# ---------------------------------------------------------------------------
 
 
 def _disc_centre(axis: TimeAxis, now: datetime, y0: int) -> tuple[int, int]:
@@ -639,9 +630,7 @@ def _draw_ribbon_art(
         _draw_ribbon_fog(image, rect, today)
 
 
-# ---------------------------------------------------------------------------
 # Event state
-# ---------------------------------------------------------------------------
 
 
 def _strip_tz(dt: datetime) -> datetime:
@@ -732,9 +721,7 @@ def agenda_day(
     return (today + timedelta(days=1), True)
 
 
-# ---------------------------------------------------------------------------
 # Axis strip
-# ---------------------------------------------------------------------------
 
 
 def _pip_points(cx: int, cy: int, half: int) -> list[tuple[int, int]]:
@@ -858,9 +845,7 @@ def _draw_axis_strip(
     )
 
 
-# ---------------------------------------------------------------------------
 # Agenda
-# ---------------------------------------------------------------------------
 
 # (max_rows, row_h, time_w, time_pt, title_pt, show_location)
 _DENSITY_TIERS: tuple[tuple[int, int, int, int, int, bool], ...] = (
@@ -1060,8 +1045,8 @@ def _draw_agenda(
         def _render(d: ImageDraw.ImageDraw, t: str = text) -> None:
             d.text((0, 2), t, font=more_font, fill=0)
 
-        # Screened like a past row so it reads as secondary, but at the same
-        # threshold — the lighter cut used previously was too faint to read.
+        # Screened like a past row so it reads as secondary, at the same
+        # threshold — a lighter cut is too faint to read.
         screened_paste(
             image,
             (x0 + time_w + 14, y + 2, 200, text_height(more_font) + 10),
@@ -1070,9 +1055,7 @@ def _draw_agenda(
         )
 
 
-# ---------------------------------------------------------------------------
 # Supporting rail
-# ---------------------------------------------------------------------------
 
 
 def _next_birthdays(
@@ -1169,9 +1152,7 @@ def _draw_rail(
         y += text_height(small_font) + 8
 
 
-# ---------------------------------------------------------------------------
 # Footer
-# ---------------------------------------------------------------------------
 
 
 def _draw_footer(
@@ -1207,11 +1188,6 @@ def _draw_footer(
     stamp = f"updated {fmt_time(now)}"
     sw = text_width(draw, stamp, font)
     draw.text((x0 + w - sw, baseline), stamp, font=font, fill=ink)
-
-
-# ---------------------------------------------------------------------------
-# Public entry point
-# ---------------------------------------------------------------------------
 
 
 def art_rect(region: ComponentRegion) -> tuple[int, int, int, int]:

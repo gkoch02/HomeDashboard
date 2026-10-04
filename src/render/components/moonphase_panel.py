@@ -71,9 +71,7 @@ _QUOTE_FONT_PT = 23
 _ATTR_FONT_PT = 32
 
 
-# ---------------------------------------------------------------------------
 # Tone + geometry helpers
-# ---------------------------------------------------------------------------
 
 
 def _luminance(value: int | tuple[int, int, int]) -> float:
@@ -125,11 +123,6 @@ def _ordinal_suffix(n: int) -> str:
     if 11 <= n % 100 <= 13:
         return "th"
     return {1: "st", 2: "nd", 3: "rd"}.get(n % 10, "th")
-
-
-# ---------------------------------------------------------------------------
-# Drawing helpers
-# ---------------------------------------------------------------------------
 
 
 def _draw_centered(
@@ -382,11 +375,6 @@ def _quote_body_height(
     quote_font = cormorant_italic(_QUOTE_FONT_PT)
     n_lines = len(wrap_lines(f'"{quote["text"]}"', quote_font, max_w)[:2])
     return n_lines * text_height(quote_font) + max(0, n_lines - 1) * 4
-
-
-# ---------------------------------------------------------------------------
-# Main draw function
-# ---------------------------------------------------------------------------
 
 
 def draw_moonphase(

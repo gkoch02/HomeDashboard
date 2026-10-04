@@ -34,9 +34,7 @@ from src.render.theme import ComponentRegion, ThemeStyle
 _PAD = 14  # horizontal padding inside each band
 
 
-# ---------------------------------------------------------------------------
 # Individual band drawing functions
-# ---------------------------------------------------------------------------
 
 
 def _band_header(
@@ -134,7 +132,6 @@ def _band_weather(
     cy = y + (h - 20) // 2
     fx = x0 + _PAD
 
-    # Weather icon
     glyph = OWM_ICON_MAP.get(weather.current_icon, FALLBACK_ICON)
     wi_font = weather_icon(20)
     draw.text((fx, cy - 2), glyph, font=wi_font, fill=bg)
@@ -215,7 +212,6 @@ def _band_environment(
         if weather.sunset:
             parts.append(f"\u2193{fmt_time(weather.sunset)}")
 
-    # Moon phase
     moon_glyph = moon_phase_glyph(today)
     illum = moon_illumination(today)
     text = "    ".join(parts)
@@ -334,10 +330,6 @@ def _band_host(
     draw_text_truncated(draw, (x0 + _PAD, cy), text, font, w - _PAD * 2, fill=fg)
 
 
-# ---------------------------------------------------------------------------
-# Main draw function
-# ---------------------------------------------------------------------------
-
 # Band definitions: (draw_fn, needs_data, default_height, inverted)
 # Bands with no data are dynamically skipped.
 
@@ -363,13 +355,13 @@ def draw_tides(
 
     # Define bands: (id, draw_callable, default_height, has_data)
     bands: list[tuple[str, int, bool]] = [
-        ("header", 42, True),  # always present
-        ("events", 54, True),  # always present (shows "no events" if empty)
+        ("header", 42, True),
+        ("events", 54, True),
         ("weather", 40, data.weather is not None),
         ("forecast", 50, data.weather is not None and bool(data.weather.forecast)),
         ("environment", 38, True),  # moon always available; AQI optional
-        ("birthdays", 36, True),  # always present (shows "no upcoming" if empty)
-        ("quote", 86, True),  # always present
+        ("birthdays", 36, True),
+        ("quote", 86, True),
         ("host", 34, data.host_data is not None),
     ]
 
@@ -396,7 +388,6 @@ def draw_tides(
         else:
             active_bands = adjusted
 
-    # Draw bands sequentially
     band_drawers = {
         "header": lambda y, bh: _band_header(draw, x0, y, w, bh, now, style),
         "events": lambda y, bh: _band_events(draw, x0, y, w, bh, data, today, style),

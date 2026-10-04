@@ -275,8 +275,8 @@ def save_source(
     # ``_cache_lock`` serialises the concurrent fetch threads inside this
     # process; the file lock covers the web service, which clears entries from
     # a separate process. This is a read-modify-write, so the lock has to span
-    # both halves — an unlocked one resurrected a source the renderer had just
-    # refreshed, or dropped one it had just saved (#242).
+    # both halves — unlocked, a source the renderer had just refreshed could be
+    # resurrected, or one it had just saved dropped.
     with _cache_lock:
         try:
             locked_update_json(path, _merge, indent=2)
@@ -295,9 +295,7 @@ def save_cache(data: DashboardData, cache_dir: str) -> None:
         logger.warning("Cache write failed: %s", exc)
 
 
-# ---------------------------------------------------------------------------
 # Serialisation helpers
-# ---------------------------------------------------------------------------
 
 
 def _serialise(data: DashboardData) -> dict:
@@ -514,6 +512,6 @@ def _deser_air_quality(d: dict) -> AirQualityData:
         temperature=d.get("temperature"),
         humidity=d.get("humidity"),
         pressure=d.get("pressure"),
-        # Entries written before #297 carry the raw sensor reading, in °F.
+        # Older entries carry the raw sensor reading, in °F.
         temperature_unit=d.get("temperature_unit") or "°F",
     )

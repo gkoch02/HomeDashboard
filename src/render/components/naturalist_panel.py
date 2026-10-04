@@ -21,20 +21,16 @@ Layout (800×480):
   │                                                — A. EINSTEIN       │
   └────────────────────────────────────────────────────────────────────┘
 
-The hero is a single specimen branch whose **leaf canopy, posture, and
-surface treatment** vary deterministically with the season and the
-current weather icon (bare in winter, lush in summer, frost-stippled
-when cold and clear, raindrops behind the foliage in rain, etc).
+The hero is a single specimen branch whose leaf canopy, posture and surface
+treatment vary deterministically with the season and the current weather
+icon (bare in winter, lush in summer, frost-stippled when cold and clear,
+raindrops behind the foliage in rain). Leader-line callouts pin today's data
+to anatomical features on the specimen, as a botanical engraver would.
 
-Leader-line callouts pin today's most important data points to specific
-anatomical features on the specimen, the way a botanical engraver would
-label a leaf, a node, or a flower bud.
-
-Everything is drawn from PIL primitives — no external assets.  The
-canvas is L-mode and the theme requests Floyd-Steinberg quantization,
-so the leaf gradients and bark shading become engraving-style halftone
-on Waveshare; Inky picks up the red plate accents while the specimen
-itself stays inky black.
+Everything is drawn from PIL primitives — no external assets. The canvas is
+L-mode with Floyd-Steinberg quantization, so leaf gradients and bark shading
+become engraving-style halftone on Waveshare; Inky picks up the red accents
+while the specimen stays inky black.
 """
 
 from __future__ import annotations
@@ -62,7 +58,6 @@ from src.render.primitives import (
 )
 from src.render.theme import ComponentRegion, ThemeStyle
 
-# ---------------------------------------------------------------------------
 # Page layout
 #
 # Every absolute pixel size is multiplied by ``SS`` because the theme renders
@@ -70,7 +65,6 @@ from src.render.theme import ComponentRegion, ThemeStyle
 # LANCZOS-downsamples to the panel's native 800×480.  That gives us free
 # anti-aliasing on every engraved branch, every leaf outline, and every
 # typeset glyph before the final Floyd-Steinberg quantize.
-# ---------------------------------------------------------------------------
 
 SS = 2  # supersample factor — must match the theme's canvas multiplier.
 
@@ -96,16 +90,12 @@ _CALLOUT_X0 = 470 * SS
 _CALLOUT_W = 800 * SS - _PAD_X - _CALLOUT_X0
 
 
-# ---------------------------------------------------------------------------
 # Mode-aware colour helpers
-# ---------------------------------------------------------------------------
 
 
-# ---------------------------------------------------------------------------
 # Deterministic RNG seed — Python ``str.__hash__`` is randomized per process,
 # so we need a stable hash to keep the specimen reproducible across runs and
 # across the snapshot-tests CI job.
-# ---------------------------------------------------------------------------
 
 
 _SEASON_SEED = {"winter": 1, "spring": 2, "summer": 3, "autumn": 4}
@@ -126,9 +116,7 @@ def _stable_seed(season: str, modifier: str, today: date) -> int:
     return (s * 1000003 + m * 977 + today.toordinal()) & 0x7FFFFFFF
 
 
-# ---------------------------------------------------------------------------
 # Season + weather classification
-# ---------------------------------------------------------------------------
 
 
 # Freezing-point threshold per OWM unit system.  ``WeatherData.current_temp``
@@ -179,9 +167,7 @@ def _weather_modifier(icon: str | None, temp: float | None, units: str | None = 
     return "neutral"
 
 
-# ---------------------------------------------------------------------------
 # Specimen Latin label by season — kept short, evocative, deterministic.
-# ---------------------------------------------------------------------------
 
 
 def _latin_name(season: str, modifier: str) -> str:
@@ -201,19 +187,12 @@ def _latin_name(season: str, modifier: str) -> str:
     return by_season.get(season, "QUERCUS  DIURNALIS") + suffix
 
 
-# ---------------------------------------------------------------------------
 # Plate number (deterministic from today; rolls slowly through the year).
-# ---------------------------------------------------------------------------
 
 
 def _plate_number(today: date) -> str:
     """Plate number derived from day-of-year — varies across the calendar."""
     return roman(((today.timetuple().tm_yday - 1) % 365) + 1)
-
-
-# ---------------------------------------------------------------------------
-# Public entry point
-# ---------------------------------------------------------------------------
 
 
 def draw_naturalist(
@@ -274,9 +253,7 @@ def draw_naturalist(
     _draw_border_ornaments(draw, mode=mode, red=red)
 
 
-# ---------------------------------------------------------------------------
 # Masthead — blackletter plate header
-# ---------------------------------------------------------------------------
 
 
 def _draw_masthead(
@@ -353,9 +330,7 @@ def _draw_masthead(
     draw.text((dx, _SUBTITLE_Y + 32 * SS), day_label, font=day_font, fill=ink)
 
 
-# ---------------------------------------------------------------------------
 # Specimen — the procedural branch
-# ---------------------------------------------------------------------------
 
 # Anatomical feature points on the specimen — leader lines from the right-
 # column callouts end at these (x, y) anchors.  Tuned to land on the upper
@@ -996,9 +971,7 @@ def _stipple_fog(image: Image.Image, rng: random.Random) -> None:
     image.paste(overlay, (_SPEC_X0, _SPEC_Y0))
 
 
-# ---------------------------------------------------------------------------
 # Callouts — leader lines + labels pointing at the specimen features
-# ---------------------------------------------------------------------------
 
 
 def _fmt_time(dt: datetime) -> str:
@@ -1131,9 +1104,7 @@ def _draw_callouts(
         )
 
 
-# ---------------------------------------------------------------------------
 # Footer — quote + author beneath a triple rule
-# ---------------------------------------------------------------------------
 
 
 def _draw_footer(
@@ -1193,9 +1164,7 @@ def _draw_footer(
     draw.text((ax, ay), author_text, font=author_font, fill=red)
 
 
-# ---------------------------------------------------------------------------
 # Border ornaments — small corner glyphs framing the plate
-# ---------------------------------------------------------------------------
 
 
 def _draw_border_ornaments(draw: ImageDraw.ImageDraw, *, mode: str, red) -> None:

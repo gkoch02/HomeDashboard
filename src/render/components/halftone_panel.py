@@ -28,12 +28,9 @@ from src.render.primitives import content_time, draw_text_truncated
 from src.render.quantize import _BAYER_4X4
 
 # The procedural illustration vocabulary lives in ``src.render.skyart`` so the
-# ``day_arc`` theme can share it. Imported under the private aliases this
-# module has always used, so the drawing code below reads unchanged.
-#
-# ``_moon_disc`` / ``_radial_gradient_disc`` are no longer called here but
-# stay re-exported: they were part of this module's surface before the move
-# and existing tests import them from it.
+# ``day_arc`` theme can share it; it is imported under private aliases here.
+# ``_moon_disc`` / ``_radial_gradient_disc`` are not called here but stay
+# re-exported: existing tests import them from this module.
 from src.render.skyart import draw_bayer_rule as _draw_bayer_rule
 from src.render.skyart import draw_weather_scene as _draw_weather_scene
 from src.render.skyart import illustration_kind as _illustration_kind  # noqa: F401
@@ -47,9 +44,7 @@ from src.render.theme import ComponentRegion, ThemeStyle
 _SUNRISE_GLYPH = "\uf051"  # wi-sunrise
 _SUNSET_GLYPH = "\uf052"  # wi-sunset
 
-# ---------------------------------------------------------------------------
 # Region geometry
-# ---------------------------------------------------------------------------
 
 HERO_H = 296
 RULE_H = 6
@@ -64,11 +59,6 @@ TEMP_COL_W = 280
 # The row math above subtracts this from the band height so the existing
 # zones (NOW / TODAY / NEXT) never overlap the footer.
 FOOTER_H = 22
-
-
-# ---------------------------------------------------------------------------
-# Public entry point
-# ---------------------------------------------------------------------------
 
 
 def art_rect(region: ComponentRegion) -> tuple[int, int, int, int]:
@@ -121,9 +111,7 @@ def draw_halftone(
     )
 
 
-# ---------------------------------------------------------------------------
 # Illustration dispatch
-# ---------------------------------------------------------------------------
 
 
 def _draw_illustration(
@@ -144,9 +132,7 @@ def _draw_illustration(
     _draw_weather_scene(image, hero_rect, icon, today)
 
 
-# ---------------------------------------------------------------------------
 # Margin band — typeset weather info + next event + daily quote
-# ---------------------------------------------------------------------------
 
 
 def _format_event_time(dt: datetime) -> str:

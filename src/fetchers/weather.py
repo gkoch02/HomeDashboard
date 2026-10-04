@@ -100,10 +100,9 @@ def _clamp_extreme(pick, today_value: float | None, main: dict) -> float:
     """Today's high (``pick=max``) or low (``pick=min``), never contradicted by now.
 
     The forecast grid only holds the *remaining* 3-hour slots, so in the
-    evening today's high was the max of one slot and the panel showed
-    "85° now, H:78" (#276). The current reading and the current period's
-    ``temp_max`` / ``temp_min`` are folded in so the day's extreme can only
-    move outward as the day goes on.
+    evening today's high would be the max of one slot ("85° now, H:78"). The
+    current reading and the current period's ``temp_max`` / ``temp_min`` are
+    folded in so the day's extreme can only move outward as the day goes on.
     """
     key = "temp_max" if pick is max else "temp_min"
     candidates = [v for v in (today_value, main.get("temp"), main.get(key)) if v is not None]
@@ -255,9 +254,7 @@ def _pick_midday(slots: list[dict], tz: tzinfo | None = None) -> dict | None:
     return None
 
 
-# ---------------------------------------------------------------------------
 # Registry adapter
-# ---------------------------------------------------------------------------
 
 
 def _weather_fetch(ctx) -> WeatherData:

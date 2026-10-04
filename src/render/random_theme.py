@@ -190,9 +190,8 @@ def pick_random_theme(
         today: Override for the current date (useful in tests).
         persist: When False, *report* the stored pick without making one —
             no draw, no write. Returns ``""`` when today's bucket has no
-            valid stored pick yet. This exists for read-only callers like the
-            status page, whose 30-second poll otherwise won the race to pick
-            the day's theme at almost every rollover (#238).
+            valid stored pick yet. For read-only callers like the status
+            page, whose poll must not be what picks the day's theme.
 
     Returns:
         A concrete theme name (never ``"random"`` or ``"random_daily"``), or
@@ -237,7 +236,7 @@ def pick_random_theme_hourly(
         now: Override for the current datetime (useful in tests).
         persist: When False, *report* the stored pick without making one —
             no draw, no write. Returns ``""`` when this hour's bucket has no
-            valid stored pick yet (#238).
+            valid stored pick yet.
 
     Returns:
         A concrete theme name (never ``"random_hourly"``), or ``""`` when

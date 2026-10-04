@@ -54,9 +54,7 @@ def draw_year_pulse(
     week_num = today.isocalendar()[1]
     pct = day_of_year / days_in_year
 
-    # -----------------------------------------------------------------------
     # Top section — year stats
-    # -----------------------------------------------------------------------
     year_font = style.font_bold(56)
     week_label_font = style.font_semibold(18)
     bar_label_font = style.font_regular(13)
@@ -89,9 +87,7 @@ def draw_year_pulse(
     bar_w = bar_x1 - bar_x0
     filled_w = int(bar_w * pct)
 
-    # Outline rect
     draw.rectangle((bar_x0, bar_top, bar_x1, bar_top + BAR_H - 1), outline=style.fg)
-    # Filled portion
     if filled_w > 0:
         filled_rect(
             draw,
@@ -113,14 +109,9 @@ def draw_year_pulse(
 
     stats_bottom = bar_top + BAR_H + 5 + bl_h + PAD
 
-    # -----------------------------------------------------------------------
-    # Divider
-    # -----------------------------------------------------------------------
     hline(draw, stats_bottom, x0 + PAD, x0 + w - PAD, fill=style.fg)
 
-    # -----------------------------------------------------------------------
     # Bottom section — countdown list
-    # -----------------------------------------------------------------------
     label_font = style.label_font()
     label_text = style.component_labels.get("year_pulse", "COMING UP")
     draw.text(

@@ -1,11 +1,8 @@
 """wide_horizon_panel.py — the next three days on one time axis, 1360x480.
 
-The 10.85" strip is nearly three times as wide as it is tall, and the one
-thing that shape does that an 800x480 plate cannot is carry a *long* time axis
-at a readable scale. This plate lays the next 72 hours left to right and puts
-everything that happens in them on that one axis, so the relationships are
-read by eye rather than by comparing columns: the dinner on Thursday is after
-dark, and it will be 38° and raining.
+The plate lays the next 72 hours left to right and puts everything that
+happens in them on that one axis, so the relationships are read by eye: the
+dinner on Thursday is after dark, and it will be 38° and raining.
 
 Bands, top to bottom, right of a hero block for the conditions now:
 
@@ -13,44 +10,32 @@ Bands, top to bottom, right of a hero block for the conditions now:
   * **Sky** — a panorama whose colour at every column is the sun's real
     altitude at that moment (``astronomy.solar_altitude``): paper by day,
     yellow into red into black through each twilight, stars and the moon by
-    night, the sun at each solar noon at the height it will reach. On a colour
-    panel the twilights are ordered dithers between *pairs* of inks — white
-    and yellow, yellow and red, red and black — so the panel shows pale
-    yellow, orange and maroon it has no ink for. On a monochrome panel the
+    night. On a colour panel the twilights are ordered dithers between
+    *pairs* of inks (white/yellow, yellow/red, red/black); on monochrome the
     same altitude drives a black-and-white Bayer ramp. Over the sky runs the
-    temperature, drawn from the forecast's 3-hour slots
-    (``WeatherData.hourly``) as a cased line, each day's high and low marked.
+    temperature from the forecast's 3-hour slots (``WeatherData.hourly``),
+    each day's high and low marked.
   * **Rain** — each slot's chance of precipitation as a bar hanging from the
     sky, its depth the chance and its density the expected amount.
   * **Hours** — a tick and label at 6a, 12p and 6p; midnight is the day rule.
-  * **Events** — a schedule strip with a block over each timed event's real
-    span; all-day events and birthdays as chips, multi-day spans above single
-    days (``stack_chips``); then one list per day in that day's column, a line
-    per event.
+  * **Events** — a schedule strip over each timed event's real span; all-day
+    events and birthdays as chips (``stack_chips``); then one list per day in
+    that day's column, a line per event.
 
-The axis is not linear. Hours between ``SLEEP_HOUR`` and ``WAKE_HOUR`` take
-``NIGHT_WEIGHT`` of a waking hour's width, which buys the waking hours ~19 px
-each against ~16 px on a linear axis — a thirty-minute meeting is a 10-px bar
-rather than an 8-px one — while the night keeps a truthful place on the axis.
+The axis is piecewise-linear: hours between ``SLEEP_HOUR`` and ``WAKE_HOUR``
+take ``NIGHT_WEIGHT`` of a waking hour's width.
 
-Everything on the plate is a pure ink. Type is set without antialiasing
-(``fontmode = "1"``) and every tone is an ordered dither computed here, so the
-colour panel's nearest-ink snap and the monochrome threshold are both the
-identity at native size. The sky is deliberately *not* declared as an art
-region: the backend's re-diffusion converts a tile to greyscale before its
-neutral pass, so the luminance error of red and yellow pixels flips black and
-white neighbours — the plate would come out speckled on the panel it was
-drawn for. The cost is on a panel that scales the plate (an 800x480 Inky),
-where the blurred twilights snap to their nearest ink; the panoramic themes
-are kept out of rotation on that shape anyway.
+Everything on the plate is a pure ink — type is set with ``fontmode = "1"``
+and every tone is an ordered dither computed here — so the colour panel's
+nearest-ink snap and the monochrome threshold are the identity at native
+size. The sky is deliberately *not* an art region: the backend's neutral
+re-diffusion flips black and white pixels beside red and yellow ones
+(``test_native_pipeline_changes_nothing_but_the_ink_snap`` pins this).
 
-Repaints: the window starts at the 3-hour slot holding *now*, so the plate
-moves at most eight times a day on the clock — the forecast grid itself only
-changes about that often. Nothing else reads the clock, and events carry no
-past/current state, so an idle tick renders byte-identically. The hero's
-reading and "updated" caption do move with every weather fetch, which is why
-the theme also declares ``repaint_slot_hours=1``: the panel is written at
-most once per clock hour, whatever changes inside it.
+The window starts at the 3-hour slot holding *now*, so the clock moves the
+plate at most eight times a day and an idle tick renders byte-identically.
+The hero's reading and "updated" caption move with each weather fetch, which
+is why the theme declares ``repaint_slot_hours=1``.
 """
 
 from __future__ import annotations
@@ -89,9 +74,7 @@ Box = tuple[float, float, float, float]
 Fill = int | tuple[int, int, int]
 T = TypeVar("T")
 
-# ---------------------------------------------------------------------------
 # Geometry (relative to the region's origin; the plate is drawn for 1360x480)
-# ---------------------------------------------------------------------------
 
 HERO_W = 236  # the conditions-now block at the left end
 # The hero reading's size; a reading wider than the column ("-40°", "108°"
@@ -122,7 +105,6 @@ COL_PAD = 8  # a column's text keeps this far off the midnight rules (= day-name
 TIME_GAP = 8  # between the time cell and the title
 MIN_COL_W = 90  # a day's column narrower than this lists nothing, only a count
 
-# The panorama.
 WINDOW_HOURS = 72
 SLOT_HOURS = 3
 WAKE_HOUR = 6
@@ -152,9 +134,7 @@ ALLDAY_MAX_ROWS = 2
 CHIP_PAD = 16  # an all-day chip's horizontal padding around its label
 
 
-# ---------------------------------------------------------------------------
 # Inks
-# ---------------------------------------------------------------------------
 
 
 @dataclass(frozen=True)
@@ -207,9 +187,7 @@ def bayer_field(w: int, h: int, x0: int, y0: int) -> np.ndarray:
     return _BAYER8[np.ix_(ys, xs)]
 
 
-# ---------------------------------------------------------------------------
 # The time axis
-# ---------------------------------------------------------------------------
 
 
 def window_start(now: datetime) -> datetime:
@@ -277,9 +255,7 @@ class TimeAxis:
         return hour_weight(hour) * self._scale
 
 
-# ---------------------------------------------------------------------------
 # Sun
-# ---------------------------------------------------------------------------
 
 
 def _aware(t: datetime, tz: tzinfo | None) -> datetime:
@@ -377,9 +353,7 @@ def solar_noons(
     return out
 
 
-# ---------------------------------------------------------------------------
 # Sky field
-# ---------------------------------------------------------------------------
 
 
 def column_altitudes(axis: TimeAxis, width: int, altitude) -> np.ndarray:
@@ -425,9 +399,7 @@ def sky_field(alt: np.ndarray, height: int, x0: int, y0: int, mode: str) -> Imag
     return Image.fromarray(out, mode="RGB")
 
 
-# ---------------------------------------------------------------------------
 # Temperature
-# ---------------------------------------------------------------------------
 
 
 def window_slots(
@@ -569,9 +541,7 @@ def daily_extremes(
     return out
 
 
-# ---------------------------------------------------------------------------
 # Events
-# ---------------------------------------------------------------------------
 
 
 def events_in_window(events: list[CalendarEvent], axis: TimeAxis) -> list[CalendarEvent]:
@@ -632,11 +602,6 @@ def fit_text(text: str, width: float, measure) -> str:
     return ""
 
 
-# ---------------------------------------------------------------------------
-# Drawing helpers
-# ---------------------------------------------------------------------------
-
-
 def _text_box(draw: ImageDraw.ImageDraw, text: str, font) -> Box:
     return draw.textbbox((0, 0), text, font=font)
 
@@ -662,9 +627,7 @@ def _is_dark(alt: np.ndarray, sky_x0: int, x: float) -> bool:
     return bool(alt[i] < -9.0)
 
 
-# ---------------------------------------------------------------------------
 # Plate
-# ---------------------------------------------------------------------------
 
 
 def sky_rect(region: ComponentRegion) -> Rect:

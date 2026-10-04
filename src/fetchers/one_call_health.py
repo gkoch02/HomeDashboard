@@ -3,9 +3,8 @@
 One Call supplies exactly two values — weather alerts and the UV index — and
 its failure is deliberately silent: ``weather._fetch_alerts_and_uv`` turns any
 error into ``([], None)`` so a render can never be broken by them. That
-contract is worth keeping, but it used to make a *permanent* misconfiguration
-indistinguishable from a ten-second read timeout: both produced one DEBUG line
-and no other trace.
+contract must not make a *permanent* misconfiguration indistinguishable from a
+ten-second read timeout.
 
 The two failures want different handling. A timeout is transient and genuinely
 fine at DEBUG. An HTTP 401 or 403 is not: an account holds a subscription to

@@ -68,9 +68,7 @@ from src.render.primitives import (
 )
 from src.render.theme import ComponentRegion, ThemeStyle
 
-# ---------------------------------------------------------------------------
 # Layout constants
-# ---------------------------------------------------------------------------
 
 _PAD_X = 24
 
@@ -97,11 +95,6 @@ _COL_DIVIDER_X = 400  # vertical rule between left & right columns
 _FOOTER_RULE_Y = 392
 _QUOTE_Y = 408
 _FOOTER_ORNAMENT_Y = 466
-
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
 
 
 def _to_local(dt: datetime | None, tz: tzinfo | None) -> datetime | None:
@@ -203,9 +196,7 @@ def _upcoming_calendar_summary(data: DashboardData, today: date, max_lines: int)
     return items[:max_lines]
 
 
-# ---------------------------------------------------------------------------
 # Drawing primitives specific to the almanac (rules + ornaments)
-# ---------------------------------------------------------------------------
 
 
 def _triple_rule(
@@ -244,9 +235,7 @@ def _ornament(draw: ImageDraw.ImageDraw, x: int, y: int, fill, size: int = 6) ->
     )
 
 
-# ---------------------------------------------------------------------------
 # Sections
-# ---------------------------------------------------------------------------
 
 
 def _draw_masthead(
@@ -641,11 +630,6 @@ def _draw_footer(
     for i in range(5):
         ox = region.x + _PAD_X + int(span * (i + 0.5) / 5)
         _ornament(draw, ox, yy, fg, size=4)
-
-
-# ---------------------------------------------------------------------------
-# Public entry point
-# ---------------------------------------------------------------------------
 
 
 def draw_almanac(

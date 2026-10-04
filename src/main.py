@@ -20,9 +20,9 @@ def main():
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
 
-    # load_config() is the one step with nothing above it to catch a failure.
-    # A malformed file used to surface as a raw traceback — including under
-    # --check-config, the flag whose whole job is diagnosing a bad config.
+    # load_config() is the one step with nothing above it to catch a failure;
+    # a malformed file must not surface as a raw traceback, least of all under
+    # --check-config.
     try:
         cfg = load_config(args.config)
     except Exception as exc:

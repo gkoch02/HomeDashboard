@@ -53,8 +53,8 @@ _MIGRATIONS: list[tuple[int, Callable[[dict], dict]]] = [
 
 # Steps that only stamp ``schema_version`` and change nothing a user wrote.
 # The stamp is in-memory, so a file without ``schema_version`` runs the step
-# on every load — every renderer tick, web reload and --check-config. Logging
-# that at INFO buried a real migration under identical lines (#304).
+# on every load — every renderer tick, web reload and --check-config — so it
+# logs at DEBUG, leaving INFO for real migrations.
 _METADATA_ONLY_STEPS: frozenset[int] = frozenset({4})
 
 

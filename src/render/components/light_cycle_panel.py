@@ -38,9 +38,7 @@ from src.render.primitives import (
 )
 from src.render.theme import ComponentRegion, ThemeStyle
 
-# ---------------------------------------------------------------------------
 # Layout constants
-# ---------------------------------------------------------------------------
 
 _CENTER_X = 400
 _CENTER_Y = 222
@@ -56,9 +54,7 @@ _INNER_DISC_R = 104  # central content area radius
 _GLYPH_R = 192  # sun/moon glyph sits just outside the rim
 
 
-# ---------------------------------------------------------------------------
 # Polar coordinate helpers
-# ---------------------------------------------------------------------------
 
 
 def _hour_to_pil_angle(hours: float) -> float:
@@ -94,9 +90,7 @@ def _bbox(radius: float) -> tuple[int, int, int, int]:
     )
 
 
-# ---------------------------------------------------------------------------
 # Twilight bands
-# ---------------------------------------------------------------------------
 
 
 def _resolve_sun_times(
@@ -215,9 +209,7 @@ def _draw_twilight_band(
         draw.line([(x0, y0), (x1, y1)], fill=fill, width=1)
 
 
-# ---------------------------------------------------------------------------
 # Tick marks + numerals
-# ---------------------------------------------------------------------------
 
 
 def _draw_hour_ticks(draw: ImageDraw.ImageDraw, fill) -> None:
@@ -244,9 +236,7 @@ def _draw_hour_labels(
         draw.text((x - tw // 2, y - th // 2 - 1), text, font=label_font, fill=fill)
 
 
-# ---------------------------------------------------------------------------
 # Events ring
-# ---------------------------------------------------------------------------
 
 
 def _draw_event_ticks(
@@ -281,9 +271,7 @@ def _draw_event_ticks(
     return drawn
 
 
-# ---------------------------------------------------------------------------
 # Center content
-# ---------------------------------------------------------------------------
 
 
 def _draw_center_disc(
@@ -358,9 +346,7 @@ def _draw_center_disc(
         draw.text((wx_x, wx_y), temp_str, font=wx_font, fill=fg)
 
 
-# ---------------------------------------------------------------------------
 # Sun/moon glyph + needle
-# ---------------------------------------------------------------------------
 
 
 def _draw_now_glyph_and_needle(
@@ -423,9 +409,7 @@ def _draw_now_glyph_and_needle(
     )
 
 
-# ---------------------------------------------------------------------------
 # Header + footer strips
-# ---------------------------------------------------------------------------
 
 
 def _draw_header_strip(
@@ -509,11 +493,6 @@ def _draw_footer_legend(
         )
 
 
-# ---------------------------------------------------------------------------
-# Public entry point
-# ---------------------------------------------------------------------------
-
-
 def draw_light_cycle(
     draw: ImageDraw.ImageDraw,
     data: DashboardData,
@@ -535,10 +514,8 @@ def draw_light_cycle(
     weather = data.weather
     tz = now.tzinfo
 
-    # Header strip
     _draw_header_strip(draw, region, today, weather, style)
 
-    # Outer rim circle
     draw.ellipse(_bbox(_OUTER_R), outline=fg, width=2)
 
     # Twilight bands
@@ -570,5 +547,4 @@ def draw_light_cycle(
     # Now-glyph + needle on top of everything
     _draw_now_glyph_and_needle(draw, now, today, sunrise_hr, sunset_hr, style)
 
-    # Footer legend
     _draw_footer_legend(draw, region, sunrise_hr, sunset_hr, event_count, style)

@@ -231,9 +231,7 @@ def draw_wide_day(
     )
 
 
-# ---------------------------------------------------------------------------
 # Left block
-# ---------------------------------------------------------------------------
 
 
 def _draw_left_block(
@@ -324,9 +322,7 @@ def _draw_left_block(
         )
 
 
-# ---------------------------------------------------------------------------
 # Timeline
-# ---------------------------------------------------------------------------
 
 
 def _draw_timeline(
@@ -358,7 +354,6 @@ def _draw_timeline(
     )
     _draw_allday_chips(draw, allday, (x0 + w - PAD, title_y), style)
 
-    # Axis.
     axis_y = y0 + 68
     ax0 = x0 + PAD
     ax1 = x0 + w - PAD
@@ -409,9 +404,8 @@ def _draw_timeline(
             bar = _Bar(evt, bx0, bx1, "inside", bx0, bx1)
         elif room_right >= beside_w or room_right >= room_left:
             # The label goes after the bar unless the axis end cuts it
-            # shorter than the room before the bar would — a 22:30 call with
-            # 30 px to the right and 700 px to the left used to set a "..."
-            # stub on the right.
+            # shorter than the room before the bar would (a 22:30 call with
+            # 30 px to the right and 700 px to the left goes left).
             bar = _Bar(evt, bx0, bx1, "right", bx0, min(ax1, bx1 + beside_w))
         else:
             bar = _Bar(evt, bx0, bx1, "left", max(ax0, bx0 - beside_w), bx1)
@@ -486,9 +480,8 @@ class _Bar:
 
     ``side`` is ``"inside"`` when the bar is wide enough to carry its label,
     ``"right"`` when the label sits after the bar, and ``"left"`` when there is
-    no room after it — a bar ending at or near the axis end (every event that
-    runs to midnight) had its label squeezed into the few px before the axis
-    edge and then dropped as unreadable, leaving an anonymous box (#291).
+    no room after it (a bar ending at or near the axis end — every event that
+    runs to midnight — must not lose its label to the few px before the edge).
     ``extent_x0``/``extent_x1`` are the outer edges of bar plus label, which
     is what the lanes are packed by.
     """
@@ -563,9 +556,7 @@ def _draw_bar(
     draw_text_truncated(draw, (tx, by0 + 23), detail, time_font, max_w, fill=fill)
 
 
-# ---------------------------------------------------------------------------
 # Right rail
-# ---------------------------------------------------------------------------
 
 
 def _draw_right_rail(

@@ -31,7 +31,6 @@ def scorecard_theme() -> Theme:
             canvas_w=800,
             canvas_h=480,
             scorecard=ComponentRegion(0, 0, 800, 480),
-            # Hide standard regions
             header=ComponentRegion(0, 0, 800, 40, visible=False),
             week_view=ComponentRegion(0, 0, 800, 320, visible=False),
             weather=ComponentRegion(0, 0, 800, 120, visible=False),
@@ -49,11 +48,6 @@ def scorecard_theme() -> Theme:
             show_borders=True,
         ),
     )
-
-
-# ---------------------------------------------------------------------------
-# Registry adapter
-# ---------------------------------------------------------------------------
 
 
 def _register() -> None:

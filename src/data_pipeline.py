@@ -71,7 +71,6 @@ def _merge_air_quality_with_weather_fallback(
     # Track which fields are filled from fallback
     fallback_fields: set[str] = set()
 
-    # Build fallback values
     temperature = air_quality.temperature
     if temperature is None:
         temperature = weather.current_temp
@@ -121,7 +120,7 @@ def retry_fetch(label: str, fn):
 
     A permanent failure — a config/data error, or an HTTP 4xx other than
     408/429 — is raised at once: retrying a bad API key only doubles the
-    rejected call every run (#295).
+    rejected call every run.
     """
     try:
         return fn()
@@ -210,10 +209,9 @@ class DataPipeline:
             skip_decisions[f.name] = (cached, skip)
             if skip:
                 cached_values[f.name] = cached
-        # Stash for _launch_fetches: the preserved v4 five-param signature only
-        # carries the built-in sources' decisions, and defaulting everything
-        # else to "never skip" bypassed registry-added fetchers' interval,
-        # cache, and breaker entirely (#209).
+        # Stash for _launch_fetches: its five-param signature only carries the
+        # built-in sources' decisions, and registry-added fetchers must not
+        # default to "never skip" (bypassing their interval, cache and breaker).
         self._skip_decisions = skip_decisions
 
         # Phase 2: launch concurrent fetches for the rest. Old-style five-param
@@ -374,10 +372,9 @@ class DataPipeline:
     ):
         """Submit retry-wrapped fetch jobs for each non-skipped source.
 
-        The argument shape is preserved verbatim from v4 so existing tests
-        that exercise this private method continue to work. Internally each
-        job is dispatched via the registry's ``fetch`` callable, so adding
-        a new source no longer requires editing this method.
+        The five-parameter shape is kept for the tests that exercise this
+        private method directly. Each job is dispatched via the registry's
+        ``fetch`` callable, so adding a new source does not touch this method.
         """
         skip_by_name = {
             "events": events_skip,
@@ -386,7 +383,7 @@ class DataPipeline:
             "air_quality": aq_skip if purpleair_enabled else True,
         }
         # Registry-added fetchers aren't in the legacy five-param signature —
-        # fall back to the phase-1 decisions instead of "never skip" (#209).
+        # fall back to the phase-1 decisions instead of "never skip".
         # getattr default keeps direct _launch_fetches test calls (no prior
         # fetch()) working.
         phase1: dict[str, tuple] = getattr(self, "_skip_decisions", {})
@@ -468,13 +465,10 @@ class DataPipeline:
             return current
 
         # The fetch succeeded; everything from here is bookkeeping about a
-        # value we already hold. It used to share the try above, so a
-        # serializer bug, a full disk under the cache, or a raise inside the
-        # success formatter was logged as "<source> fetch failed", counted
-        # against the breaker (three of them opened it for a source whose API
-        # was fine) and threw the fetched data away in favour of the cache
-        # (#272). Each step now fails alone, at WARNING, and the data is
-        # returned regardless.
+        # value we already hold, kept out of the try above so a serializer
+        # bug, a full disk or a raise in the success formatter is not counted
+        # as a fetch failure against the breaker. Each step fails alone, at
+        # WARNING, and the data is returned regardless.
         self.source_staleness[source] = StalenessLevel.FRESH
         self._content_at[source] = self.fetched_at
         self._after_fetch(source, "cache write", self._save_fetched, source, data)

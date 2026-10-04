@@ -58,11 +58,10 @@ def reset_breaker():
         return raw
 
     try:
-        # Read-modify-write under one lock. The renderer rewrites this file
-        # wholesale from a separate process on every fetch, and a reset is most
-        # likely to be pressed *while* a run is in flight — unlocked, whichever
-        # process wrote last erased the other's change, so a reset could report
-        # success while the breaker stayed open (#242).
+        # Read-modify-write under one lock. The renderer writes this file from
+        # a separate process on every fetch, and a reset is most likely to be
+        # pressed *while* a run is in flight — unlocked, whichever process
+        # wrote last would erase the other's change.
         locked_update_json(state_path, _reset, default={}, indent=2)
         logger.info("Breaker reset via web UI: source=%s", source)
         append_event(
@@ -97,7 +96,7 @@ def clear_cache():
     try:
         # Same lock as the breaker reset: unlocked, a source the renderer had
         # just refreshed could be resurrected from this process's stale read,
-        # or a just-saved source silently dropped (#242).
+        # or a just-saved source silently dropped.
         locked_update_json(cache_path, _clear, default={"schema_version": 2}, indent=2)
         logger.info("Cache cleared via web UI: source=%s", source)
         append_event(

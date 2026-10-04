@@ -49,15 +49,10 @@ def fuzzyclock_invert_theme() -> Theme:
             # Weather banner: full width at the bottom
             weather=ComponentRegion(0, clock_h, 800, BANNER_H),
             draw_order=["fuzzyclock", "fuzzyclock_weather"],
-            # NOT an oversight: this plate is 95% ink, the heaviest solid fill
-            # of any theme, and by the rule the other dark-canvas themes follow
-            # (terminal, fantasy, qotd_invert) it would decline partial refresh.
-            # It keeps it deliberately. The phrase changes every five minutes, so
-            # declining would mean ~200 full-waveform refreshes a day — the panel
-            # visibly flashing on every tick — to avoid ink that reads charcoal.
-            # For a clock face that trade goes the other way. Anyone who wants the
-            # cadence *and* true black has the light `fuzzyclock`, whose 5% ink
-            # plate holds up fine under the fast waveform.
+            # Overrides the derivation (a 95% ink plate would decline): the
+            # phrase changes every five minutes, so declining would mean ~200
+            # full-waveform flashes a day. Listed in OVERRIDES in
+            # tests/test_theme_partial_refresh.py.
             supports_partial_refresh=True,
         ),
         style=ThemeStyle(
@@ -74,11 +69,6 @@ def fuzzyclock_invert_theme() -> Theme:
             label_font_weight="semibold",
         ),
     )
-
-
-# ---------------------------------------------------------------------------
-# Registry adapter
-# ---------------------------------------------------------------------------
 
 
 def _register() -> None:

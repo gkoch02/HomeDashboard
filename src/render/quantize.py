@@ -347,13 +347,10 @@ def quantize_to_palette_fs(
 
     Floyd-Steinberg is inherently serial — every pixel's input depends on the
     error its left neighbour just emitted — so there is no row-vectorised form
-    of it. The per-pixel loop therefore runs on plain Python floats: a numpy
-    version that did the same arithmetic with per-pixel array slices spent
-    almost all of its time in numpy's per-call overhead and was ~4× slower
-    (1.5 s vs 0.4 s for halftone's 800×296 art region, 4.3 s vs 1.0 s for a
-    1360×480 plate — #287), for output that is pixel-identical on every
-    shipped art region. Numpy is used only for the cheap bulk conversions at
-    the edges when it is present.
+    of it. The per-pixel loop therefore runs on plain Python floats: the same
+    arithmetic on per-pixel numpy slices is ~4× slower (per-call overhead) for
+    pixel-identical output. Numpy is used only for the cheap bulk conversions
+    at the edges when it is present.
     """
     return _quantize_palette_fs_python(image, colors)
 

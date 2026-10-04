@@ -6,8 +6,7 @@ iterates the registry instead of carrying a giant ``component_drawers``
 dispatch dict.
 
 Adapters take a single :class:`RenderContext` and pull the inputs they
-need from it. The context bundles every piece of render-time state that
-canvas previously passed via a positional + many-kwarg signature, so a
+need from it. The context bundles every piece of render-time state, so a
 new component is registered with::
 
     from src.render.components.registry import register_component

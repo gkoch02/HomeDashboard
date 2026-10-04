@@ -1,16 +1,11 @@
 """The one place that turns a ``Config`` into ``render_dashboard()`` arguments.
 
 Two callers render the dashboard: ``DashboardApp._run()`` and the web UI's
-``POST /api/preview``. The preview passed a *subset* of the renderer's
-arguments, so several themes previewed as something the real render would never
-produce — ``photo`` with no photo (the one theme whose entire content is the
-config value being previewed), ``countdown`` with no events, a custom
-``quotes.path`` store ignored, and the documented ``(0.0, 0.0)`` "unset"
-coordinate sentinel passed through raw, so ``astronomy`` / ``light_cycle`` /
-``moonphase`` / ``day_arc`` / ``constellation_map`` computed sun and moon
-geometry for the Gulf of Guinea instead of showing their unset-coordinates
-fallback. That is exactly the surface the preview exists to de-risk, so the
-assembly lives here and both callers go through it (#240).
+``POST /api/preview``. Both go through this assembly so a preview cannot show
+something the real render would never produce — ``photo`` without its photo,
+``countdown`` without its events, a custom ``quotes.path`` ignored, or the
+``(0.0, 0.0)`` "unset" coordinate sentinel passed through raw to the
+astronomy themes.
 """
 
 from __future__ import annotations

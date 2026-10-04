@@ -52,7 +52,6 @@ def draw_weather(
         hline(draw, y0, x0, x0 + w, fill=style.fg)
         hline(draw, y0 + 1, x0, x0 + w, fill=style.fg)
 
-        # Right separator
         vline(draw, x0 + w - 1, y0, y0 + h, fill=style.fg)
 
     # Section label + moon phase icon
@@ -375,7 +374,6 @@ def _draw_aqi_column(
     )
     ty += val_h + gap
 
-    # Category label
     lbl_w = lbl_bbox[2] - lbl_bbox[0]
     draw.text(
         (cx + (col_w - lbl_w) // 2 - lbl_bbox[0], ty - lbl_bbox[1]),

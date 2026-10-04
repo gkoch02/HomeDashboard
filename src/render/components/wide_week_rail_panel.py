@@ -1,43 +1,35 @@
 """wide_week_rail_panel.py — the editorial rail beside wide_week's week grid.
 
-``wide_week`` keeps the standard week view intact and gives it the right-hand
-920 px of the strip. This module draws the column to its left: a modern
-broadsheet rail — Playfair Display for its display type, DM Sans for its
-body, Literata for the quote — with small-caps labels in the accent and
-hairline rules, carrying what the week grid does not — the conditions now,
-what is on or up next, a short forecast, the sky, birthdays and the day's
-quote. Top to bottom:
+``wide_week`` keeps the standard week view intact in the right-hand 920 px of
+the strip. This module draws the column to its left: a broadsheet rail —
+Playfair Display for display type, DM Sans for body, Literata for the quote —
+with small-caps labels in the accent and hairline rules. Top to bottom:
 
-  * **Masthead** — the weekday in display type, with the ISO week and day of
-    the year stacked at its right over the "updated" stamp (with a stale mark
+  * **Masthead** — the weekday in display type, the ISO week and day of the
+    year stacked at its right over the "updated" stamp (with a stale mark
     when any source is serving cache).
   * **Weather now** — the temperature as a display numeral beside the
     condition, high and low, feels-like and wind; an inverted bar for the
     first active alert.
   * **Now / Next** — the event in progress (``NOW``, with its end), else the
-    next one to start (``NEXT``, with the weekday when it is not today). This
-    is the rail's only clock-driven element, and it moves only at event
-    boundaries.
-  * **Forecast | Sky** — three forecast days beside sunrise, sunset, the day's
-    length (and its change since yesterday, with coordinates) and the moon.
+    next to start (``NEXT``, with the weekday when not today). The rail's
+    only clock-driven element; it moves only at event boundaries.
+  * **Forecast | Sky** — three forecast days beside sunrise, sunset, the
+    day's length (and its change since yesterday) and the moon.
   * **Birthdays** — the next two weeks' on one line.
-  * **Quote** — the day's quote set large in Literata, a hanging accent quote
-    mark, the author in small caps.
+  * **Quote** — the day's quote in Literata, a hanging accent quote mark,
+    the author in small caps.
 
-Colour has two jobs here, one per accent ink. **Red** (the primary accent) is
-for labels and warnings: section labels, the stale mark, the alert bar.
-**Yellow** (the resolved ``accent_warn``) is a highlighter and never ink —
-yellow type or rules on paper are the weakest contrast the four inks give, so
-it only ever sits *behind* black type: the NOW/NEXT band, the chance-of-rain
-chips, a birthday falling today. On a monochrome panel ``accent_warn`` resolves
-to ink, ``highlight()`` returns ``None``, and each of those falls back to plain
-black type on paper.
+Colour is split by ink. **Red** (the primary accent) is for labels and
+warnings. **Yellow** (the resolved ``accent_warn``) is a highlighter, never
+type or rules: it only sits *behind* black type (the NOW/NEXT band, rain
+chips, a birthday today). On monochrome ``highlight()`` returns ``None`` and
+those fall back to plain type on paper.
 
-Type is sized for a panel read from across a room, not a page held in the
-hand: nothing below 13 px, body rows at 16 px, and DM Sans at SemiBold or
-heavier throughout. On a 1-bit plate glyphs are rasterised without
-antialiasing, so a Medium weight at 13 px comes out as one-pixel hairlines with
-uneven spacing; the extra stroke mass is what makes the small type read.
+Type is sized for a panel read from across a room: nothing below 13 px, body
+rows at 16 px, DM Sans at SemiBold or heavier (on a 1-bit plate lighter
+weights rasterise to hairlines). ``TestQuoteWeight`` and ``TestBilevelType``
+in tests/test_wide_week_rail.py pin the stem widths.
 """
 
 from __future__ import annotations
@@ -105,9 +97,7 @@ QUOTE_Y = 384
 BOTTOM_PAD = 6
 
 
-# ---------------------------------------------------------------------------
 # Content (pure)
-# ---------------------------------------------------------------------------
 
 
 def masthead_line(today: date) -> str:
@@ -252,11 +242,6 @@ def fit_quote(text: str, width: int, height: int) -> tuple[int, list[str]]:
         lines = lines[:room]
         lines[-1] = lines[-1].rstrip(" ,;:.") + "…"
     return pt, lines
-
-
-# ---------------------------------------------------------------------------
-# Drawing
-# ---------------------------------------------------------------------------
 
 
 def highlight(style: ThemeStyle):

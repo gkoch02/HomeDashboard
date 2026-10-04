@@ -381,7 +381,6 @@ def draw_scorecard(
         fill=fg,
     )
 
-    # Quote tile
     quote = quote_for(today, refresh=quote_refresh, now=now, prefix="scorecard-", path=quotes_path)
     qx = x0 + moon_w + _PAD
     qy = row3_y + 14

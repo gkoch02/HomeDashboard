@@ -238,19 +238,15 @@ class ThemeLayout:
     # Optional quantization preference for L-mode themes on 1-bit backends.
     preferred_quantization_mode: QuantizationMode | None = None
     # Whether this theme's plate survives a partial (fast-waveform) refresh.
-    #
-    # ``None`` (the default) means **derive it** from the plate — see
-    # :func:`plate_needs_full_waveform`. Set it explicitly only to overrule that
-    # derivation, which is a judgement call and wants a comment saying why:
-    # ``fuzzyclock_invert``, ``moonphase`` and ``moonphase_photo`` all set
-    # ``True`` on plates the derivation would decline.
-    #
-    # Waveshare's ``epd.init_fast()`` does not drive black as deeply as a full
-    # init, so a plate built out of dithered ink or large solid fills fades —
-    # visibly, and in bands aligned with the artwork. ``OutputService.publish``
-    # forces the full waveform for any theme that resolves to ``False``,
-    # regardless of ``display.enable_partial_refresh``; the resolution can only
-    # remove partial refresh, never add it.
+    # ``None`` (the default) derives it from the plate — see
+    # :func:`plate_needs_full_waveform` — and an explicit value overrules the
+    # derivation (a judgement call that wants a comment; see OVERRIDES in
+    # tests/test_theme_partial_refresh.py). Waveshare's ``init_fast()`` does
+    # not drive black as deeply as a full init, so dithered ink and large
+    # solid fills fade in bands. ``OutputService.publish`` forces the full
+    # waveform for any theme that resolves ``False``, regardless of
+    # ``display.enable_partial_refresh``; the resolution can only remove
+    # partial refresh, never add it.
     supports_partial_refresh: bool | None = None
     # Write the panel at most once per clock-aligned block of this many local
     # hours (``None`` = no limit beyond the content hash and the cooldown).
@@ -333,7 +329,7 @@ class ThemeStyle:
     # sets it, so the default ``moonphase`` keeps the solid-disk look.
     use_moon_photo: bool = False
 
-    # Inky Spectra-6 (primary, secondary) palette index pair used to fill
+    # Inky Spectra-6 (primary, secondary) palette index pair that fills
     # ``accent_primary`` / ``accent_secondary`` when the inky backend is
     # active and the theme didn't supply explicit accent values. ``None``
     # falls back to ``(INKY_BLUE, INKY_RED)``. See palette index constants
@@ -449,11 +445,9 @@ class Theme:
         return not plate_needs_full_waveform(self.layout, self.style)
 
 
-# ---------------------------------------------------------------------------
 # Theme registry — derived from src.render.themes.registry, populated as a
 # side effect of importing each theme module. The package
 # `src.render.themes.__init__` triggers all the imports.
-# ---------------------------------------------------------------------------
 
 
 def _ensure_themes_imported() -> None:
@@ -502,11 +496,6 @@ class _AvailableThemesView(Set):
 
 
 AVAILABLE_THEMES: _AvailableThemesView = _AvailableThemesView()
-
-
-# ---------------------------------------------------------------------------
-# Factory functions
-# ---------------------------------------------------------------------------
 
 
 def default_layout() -> ThemeLayout:

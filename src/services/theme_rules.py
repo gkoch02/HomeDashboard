@@ -58,10 +58,9 @@ def _current_daypart(now: datetime, weather) -> str:
     now_min = hour * 60
     if weather is not None and weather.sunrise and weather.sunset:
         # Minutes since each timestamp's *own* midnight, not today's: weather
-        # served from cache across midnight carries yesterday's sun times, and
-        # subtracting today's midnight made them negative, so every bucket
-        # test failed and the whole day read as "night" (#293). A day's shift
-        # in sunrise is a minute or two, well inside the ±90/60 windows.
+        # served from cache across midnight carries yesterday's sun times,
+        # which against today's midnight go negative and read as "night". A
+        # day's shift in sunrise is a minute or two, inside the ±90/60 windows.
         sr_min = _minute_of_day(weather.sunrise, now)
         ss_min = _minute_of_day(weather.sunset, now)
         if sr_min - 90 <= now_min <= sr_min + 90:
@@ -175,7 +174,6 @@ def _rule_matches(rule, now: datetime, data: DashboardData | None) -> bool:
     when = rule.when
     weather = data.weather if data is not None else None
 
-    # Weather main
     if when.weather is not None:
         if weather is None:
             return False
@@ -186,7 +184,6 @@ def _rule_matches(rule, now: datetime, data: DashboardData | None) -> bool:
         if not any(token and token in current for token in want):
             return False
 
-    # Weather alerts
     if when.weather_alert_present is not None:
         if weather is None:
             return False
@@ -194,20 +191,17 @@ def _rule_matches(rule, now: datetime, data: DashboardData | None) -> bool:
         if has_alerts != when.weather_alert_present:
             return False
 
-    # Daypart
     if when.daypart is not None:
         dp = _current_daypart(now, weather)
         if dp not in _listify(when.daypart):
             return False
 
-    # Season
     if when.season is not None:
         season = _current_season(now)
         want = _listify(when.season)
         if not _match_season(want, season):
             return False
 
-    # Weekday
     if when.weekday is not None:
         day_name, weekend_key = _current_weekday(now)
         want = _listify(when.weekday)
@@ -233,7 +227,6 @@ def _rule_matches(rule, now: datetime, data: DashboardData | None) -> bool:
         if air_quality.aqi < when.aqi_at_least:
             return False
 
-    # Calendar
     if when.calendar is not None:
         if data is None:
             return False

@@ -1,54 +1,34 @@
 """Split-plate weather engraving + agenda for the ``halftone_agenda`` theme.
 
-``halftone`` gives its whole width to the engraving and squeezes the calendar
-down to a single NEXT line; ``day_arc`` promotes the calendar by turning the
-artwork into a time axis. This variant takes the third option: it cuts the
-plate down the middle. The left pane keeps halftone's hero illustration with
-the weather read-out beneath it, and the right pane is given entirely to
-today's events.
+``halftone`` gives its whole width to the engraving; ``day_arc`` turns the
+artwork into a time axis. This variant cuts the plate down the middle: the
+left pane keeps halftone's hero illustration with the weather read-out
+beneath it, and the right pane is given entirely to today's events.
 
 Three parts:
 
   * **Left pane** (372 px) — the procedural weather scene from
-    :func:`src.render.skyart.draw_weather_scene`, a 6-px ordered-Bayer rule,
-    then a typeset band: temperature numeral, condition, high/low, sunrise and
-    sunset, the date and the feels-like reading.
+    :func:`src.render.skyart.draw_weather_scene` at ``SCENE_SCALE``, a 6-px
+    ordered-Bayer rule, then a typeset band: temperature numeral, condition,
+    high/low, sunrise and sunset, the date and the feels-like reading.
   * **Divider** (6 px) — a full-height vertical Bayer rule.
   * **Right pane** (422 px) — a TODAY header over as many event rows as the
     pane can set at a legible size, with an "updated" caption in the bottom
     corner.
 
-The scene is drawn at ``SCENE_SCALE`` into a rect roughly half of halftone's
-width. ``draw_weather_scene`` maps its placements onto whatever rect it is
-handed and takes element sizes from that scale separately, so the composition
-survives the narrower, nearly-square pane instead of simply shrinking.
+The agenda encodes each event's state in its rendering, as ``day_arc`` does:
+elapsed rows are perforated on a Bayer lattice, the event in progress inverts
+into a solid bar, the next one up carries an accented tick, and everything
+else is crisp. Rows carry both ends of their event's time — on one line when
+both fall on the hour (``10a–12p``), stacked otherwise — and a rolled-over
+agenda sits behind an inverted TOMORROW chip. These treatments need the full
+waveform; the plate's own dithering derives it out of partial refresh
+(``Theme.allows_partial_refresh``), so they always get one.
 
-The agenda encodes each event's state in its rendering, the way ``day_arc``
-does: elapsed rows are perforated on a Bayer lattice, the event in progress
-inverts into a solid bar, the next one up carries an accented tick, and
-everything else is crisp. Rows still carry both ends of their event's time —
-on one line when both fall on the hour (``10a–12p``), stacked otherwise — and
-a rolled-over agenda sits behind an inverted TOMORROW chip.
-
-All four treatments were taken out at one point and put back (#222). They were
-removed because a filled bar reads as charcoal and a screened row as mud under
-Waveshare's fast waveform, and partial refresh looked worth keeping. It was
-not: the engraving in the left pane is dithered ink too, and the fast waveform
-faded it in bands that ran straight across the agenda beside it, so the plate
-was never going to survive a partial refresh whatever the calendar side did.
-The plate's own dithering settles that (``Theme.allows_partial_refresh``)
-and ``OutputService.publish`` gives it the full waveform regardless of
-``display.enable_partial_refresh`` — which is the condition these treatments
-needed all along.
-
-Encoding state does mean the pane's pixels depend on the clock, but only at
-event boundaries: a tick that crosses no start or end renders byte-identically
-and is suppressed by the image-hash check, so this costs a handful of extra
-hardware writes a day rather than one per tick.
-
-After dark, once every timed event has ended, the pane rolls over to tomorrow.
-
-No external assets — every illustration is generated from PIL primitives.
+The pane's pixels depend on the clock only at event boundaries, so an idle
+tick renders byte-identically and is suppressed by the image-hash check.
+After dark, once every timed event has ended, the pane rolls over to
+tomorrow. No external assets — every illustration is PIL primitives.
 """
 
 from __future__ import annotations
@@ -90,9 +70,7 @@ from src.render.theme import ComponentRegion, ThemeStyle
 _SUNRISE_GLYPH = ""  # wi-sunrise
 _SUNSET_GLYPH = ""  # wi-sunset
 
-# ---------------------------------------------------------------------------
 # Region geometry
-# ---------------------------------------------------------------------------
 
 ART_W = 372  # left pane: illustration + weather band
 DIVIDER_W = 6  # full-height vertical Bayer rule
@@ -128,12 +106,12 @@ _DATE_ROW_H = 32
 # its width whether the reading is "8°" or "108°". Same trick as halftone's
 # TEMP_COL_W, at this pane's smaller display size.
 #
-# The sizes below are the largest the band will take. 78 pt sets "108°" at
-# 153 px, which leaves the condition column 165 px — just enough for the widest
-# OWM phrase ("heavy intensity rain") to wrap the way it does now, as
-# "HEAVY INTENSITY / RAIN". At 82 pt it breaks as "HEAVY / INTENSITY RAIN" and
-# at 86 pt it needs three lines, which overruns the zone. The column reserves
-# 8 px past the numeral so a 3-digit reading never crowds the stack.
+# The sizes below are the largest the band will take: 78 pt sets "108°" at
+# 153 px, which leaves the condition column just enough for the widest OWM
+# phrase ("heavy intensity rain") to wrap as "HEAVY INTENSITY / RAIN"; larger
+# breaks it as "HEAVY / INTENSITY RAIN" or needs a third line. The column
+# reserves 8 px past the numeral so a 3-digit reading never crowds the stack.
+# tests/test_halftone_agenda_theme.py pins the bounds.
 TEMP_PT = 78
 TEMP_COL_W = 161
 TEMP_COL_GAP = 10
@@ -172,11 +150,6 @@ _DENSITY_TIERS: tuple[tuple[int, int, int, int, int, bool], ...] = (
     (8, 42, 76, 16, 19, False),
     (11, 33, 68, 14, 17, False),
 )
-
-
-# ---------------------------------------------------------------------------
-# Public entry point
-# ---------------------------------------------------------------------------
 
 
 def art_rect(region: ComponentRegion) -> tuple[int, int, int, int]:
@@ -300,9 +273,7 @@ def draw_halftone_agenda(
     harden_typeset(image, (pane_x, y0, pane_w, h))
 
 
-# ---------------------------------------------------------------------------
 # Left pane — typeset weather band
-# ---------------------------------------------------------------------------
 
 
 def _clock(dt: datetime) -> str:
@@ -498,9 +469,7 @@ def _draw_hairline(image: Image.Image, x0: int, y: int, w: int, mode: str) -> No
             px[x0 + xx, y] = on
 
 
-# ---------------------------------------------------------------------------
 # Right pane — agenda
-# ---------------------------------------------------------------------------
 
 
 def agenda_metrics(n_events: int, avail_h: int) -> tuple[int, int, int, int, int, bool]:

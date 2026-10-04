@@ -23,12 +23,10 @@ logger = logging.getLogger(__name__)
 
 _EVENT_FILE = "web_events.jsonl"
 
-# The stream used to carry only manual web actions, which are rare. Renderer
-# runs land here too now (#218), and the default systemd timer ticks every five
-# minutes — roughly 288 records a day — so the file needs a ceiling. When it
-# grows past _TRIM_THRESHOLD_BYTES the oldest records are dropped and the
-# newest _KEEP_EVENTS are rewritten in place. The status page never asks for
-# more than a couple of dozen, so nothing useful is lost.
+# Renderer runs land here as well as web actions — roughly 288 records a day on
+# the default timer — so the file needs a ceiling. Past _TRIM_THRESHOLD_BYTES
+# the oldest records are dropped and the newest _KEEP_EVENTS rewritten in
+# place; the status page never asks for more than a couple of dozen.
 _KEEP_EVENTS = 500
 _TRIM_THRESHOLD_BYTES = 256 * 1024
 
@@ -38,13 +36,12 @@ _TRIM_THRESHOLD_BYTES = 256 * 1024
 # inside a single record and produce a corrupt JSON line.
 _append_lock = threading.Lock()
 
-# The thread lock is not enough on its own. Since #218 the stream has two
-# writers: the long-running web service and the short-lived renderer, which are
-# separate processes. The append itself survives that (each record is one small
-# O_APPEND write), but the trim does not — it is read-all, write-elsewhere,
-# rename, and anything the other process appends inside that window is dropped
-# by the rename. ``_io.file_lock`` closes it; since #242 that helper is shared
-# with the cache and breaker state files, which have the same two writers.
+# The thread lock is not enough on its own: the stream has two writers in
+# separate processes, the long-running web service and the short-lived
+# renderer. The append survives that (each record is one small O_APPEND write)
+# but the trim does not — it is read-all, write-elsewhere, rename, and anything
+# the other process appends inside that window is dropped by the rename.
+# ``_io.file_lock`` (shared with the cache and breaker state files) closes it.
 
 
 def append_event(state_dir: str, kind: str, message: str, **details) -> None:

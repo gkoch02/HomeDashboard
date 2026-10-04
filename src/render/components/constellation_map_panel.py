@@ -53,9 +53,7 @@ from src.render.star_catalog import (
 )
 from src.render.theme import ComponentRegion, ThemeStyle
 
-# ---------------------------------------------------------------------------
 # Layout constants
-# ---------------------------------------------------------------------------
 
 _HEADER_H = 36
 _FOOTER_H = 40
@@ -65,9 +63,7 @@ _DISC_RADIUS = 196
 _PAD_X = 18
 
 
-# ---------------------------------------------------------------------------
 # Projection
-# ---------------------------------------------------------------------------
 
 
 def _alt_az_to_chart_xy(alt_deg: float, az_deg: float, radius: int) -> tuple[int, int] | None:
@@ -94,9 +90,7 @@ def _alt_az_to_chart_xy(alt_deg: float, az_deg: float, radius: int) -> tuple[int
     )
 
 
-# ---------------------------------------------------------------------------
 # Time + observation helpers
-# ---------------------------------------------------------------------------
 
 
 def _utc(dt: datetime) -> datetime:
@@ -135,11 +129,6 @@ def _resolve_observation_time(
         if st.solar_noon is not None:
             return st.solar_noon + timedelta(hours=12)
     return now_utc
-
-
-# ---------------------------------------------------------------------------
-# Drawing helpers
-# ---------------------------------------------------------------------------
 
 
 def _star_radius(mag: float) -> int:
@@ -323,9 +312,7 @@ def _draw_constellation_label(
     draw.text((cx - lw // 2, cy - 30), upper, font=label_font, fill=accent)
 
 
-# ---------------------------------------------------------------------------
 # Header + footer bands
-# ---------------------------------------------------------------------------
 
 
 def _draw_header(
@@ -403,11 +390,6 @@ def _draw_footer(
     )
 
 
-# ---------------------------------------------------------------------------
-# Public entry point
-# ---------------------------------------------------------------------------
-
-
 def draw_constellation_map(
     draw: ImageDraw.ImageDraw,
     data: DashboardData,
@@ -437,7 +419,6 @@ def draw_constellation_map(
     # we project for tonight's solar midnight; otherwise we use *now*.
     obs_time = _resolve_observation_time(now, today, latitude, longitude)
 
-    # Header
     _draw_header(draw, region, obs_time, tz, style, fg)
 
     # Disc chrome (horizon, altitude rings, cardinal labels)
@@ -458,7 +439,6 @@ def draw_constellation_map(
         # Constellation lines first so star halos sit on top of them.
         drawn_constellations = _draw_constellation_lines(draw, star_xy, accent_secondary)
 
-        # Stars
         for star in STARS:
             xy = star_xy.get(star.name)
             if xy is None:
@@ -494,7 +474,6 @@ def draw_constellation_map(
             fill=fg,
         )
 
-    # Footer
     _draw_footer(
         draw,
         region,

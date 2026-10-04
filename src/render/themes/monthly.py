@@ -41,11 +41,6 @@ def monthly_theme() -> Theme:
     )
 
 
-# ---------------------------------------------------------------------------
-# Registry adapter
-# ---------------------------------------------------------------------------
-
-
 def _register() -> None:
     from src.render.theme import INKY_RED, INKY_YELLOW
     from src.render.themes.registry import register_theme

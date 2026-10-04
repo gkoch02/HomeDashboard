@@ -27,9 +27,7 @@ if TYPE_CHECKING:
     from PIL import ImageDraw
 
 
-# ---------------------------------------------------------------------------
 # Overlay: whimsical vine border, stars, and corner flourishes
-# ---------------------------------------------------------------------------
 
 _BORDER_INSET = 8  # distance from canvas edge to vine border
 _INNER_INSET = 10  # inner accent line
@@ -88,9 +86,7 @@ def _corner_flourish(
     for radius in (r, r - 4, r - 8):
         if radius < 2:
             continue
-        # Compute arc points
         steps = max(8, radius * 2)
-        # Angle range per quadrant
         start_angle = quadrant * 90
         points = []
         for i in range(steps + 1):
@@ -101,7 +97,6 @@ def _corner_flourish(
         if len(points) >= 2:
             draw.line(points, fill=fill, width=1)
 
-    # Central dot
     draw.point((cx, cy), fill=fill)
 
 
@@ -116,9 +111,7 @@ def _draw_moonphase_overlay(
     fg = style.fg
     B = _BORDER_INSET
 
-    # ------------------------------------------------------------------
     # 1. Vine border — single-pixel rectangle with leaf buds
-    # ------------------------------------------------------------------
     draw.rectangle([B, B, W - B - 1, H - B - 1], outline=fg, width=1)
 
     # Leaf buds along top edge
@@ -137,18 +130,14 @@ def _draw_moonphase_overlay(
     for y in range(B + 45, H - B - 30, 50):
         _leaf_bud(draw, W - B - 1, y, "right", fg)
 
-    # ------------------------------------------------------------------
     # 2. Corner flourishes
-    # ------------------------------------------------------------------
     margin = B + 3
     _corner_flourish(draw, margin, margin, 2, fg)  # top-left
     _corner_flourish(draw, W - margin - 1, margin, 3, fg)  # top-right
     _corner_flourish(draw, W - margin - 1, H - margin - 1, 0, fg)  # bot-right
     _corner_flourish(draw, margin, H - margin - 1, 1, fg)  # bot-left
 
-    # ------------------------------------------------------------------
     # 3. Star scatter in upper corners
-    # ------------------------------------------------------------------
     # Deterministic positions using simple arithmetic
     star_positions = [
         (28, 24, 2),
@@ -167,18 +156,11 @@ def _draw_moonphase_overlay(
     for sx, sy, sz in star_positions:
         _small_star(draw, sx, sy, sz, fg)
 
-    # ------------------------------------------------------------------
     # 4. Edge midpoint star accents
-    # ------------------------------------------------------------------
     _small_star(draw, W // 2, B - 1, 2, fg)  # top
     _small_star(draw, W // 2, H - B, 2, fg)  # bottom
     _small_star(draw, B - 1, H // 2, 2, fg)  # left
     _small_star(draw, W - B, H // 2, 2, fg)  # right
-
-
-# ---------------------------------------------------------------------------
-# Theme factory
-# ---------------------------------------------------------------------------
 
 
 def moonphase_theme() -> Theme:
@@ -207,16 +189,11 @@ def moonphase_theme() -> Theme:
             canvas_mode="L",
             preferred_quantization_mode="threshold",
             prefer_color_on_inky=True,
-            # NOT an oversight: this plate is ~88% ink on a dark canvas (and
-            # ~93% for the `moonphase_photo` variant that shares this layout), so
-            # by the rule the other dark-canvas themes follow it would decline
-            # partial refresh. It keeps it deliberately, on field evidence: the
-            # maintainer runs these and has never seen the fade. The plate has no
-            # fine detail to band — a large disc and small type on an even field —
-            # and a uniformly greying black ground gives the eye nothing to read
-            # the drift against. Set against that, a full-waveform flash is at its
-            # most intrusive on exactly this theme, which is the one people leave
-            # up at night in a dark room.
+            # Overrides the derivation (a dark plate, ~88% ink, would decline):
+            # no fine detail to band, and the full-waveform flash is worst on a
+            # theme left up at night. Also covers `moonphase_photo`, which
+            # shares this layout. Listed in OVERRIDES in
+            # tests/test_theme_partial_refresh.py.
             supports_partial_refresh=True,
         ),
         style=ThemeStyle(
@@ -238,11 +215,6 @@ def moonphase_theme() -> Theme:
             label_font_weight="bold",
         ),
     )
-
-
-# ---------------------------------------------------------------------------
-# Registry adapter
-# ---------------------------------------------------------------------------
 
 
 def _register() -> None:

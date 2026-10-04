@@ -91,8 +91,8 @@ class AirQualityData:
     pm10: float | None = None  # PM10 µg/m³ (may be absent)
     sensor_id: int | None = None  # PurpleAir sensor_index
     pm1: float | None = None  # PM1.0 µg/m³ (may be absent)
-    # Corrected ambient temperature, in the units named by temperature_unit —
-    # weather.units since #297; a cache entry from before then is raw °F.
+    # Corrected ambient temperature, in the units named by temperature_unit
+    # (weather.units; an older cache entry is raw °F).
     temperature: float | None = None
     humidity: float | None = None  # % relative humidity — PurpleAir ambient, corrected
     pressure: float | None = None  # hPa atmospheric pressure — PurpleAir ambient

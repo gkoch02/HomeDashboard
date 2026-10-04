@@ -162,9 +162,8 @@ def read_cache_ages(state_dir: str, ttls: dict[str, int]) -> dict[str, dict]:
             fetched_at = datetime.fromisoformat(block["fetched_at"])
             # A naive (pre-v5) timestamp is UTC — the convention every other
             # reader follows (cache._normalise_fetched_at, read_last_success).
-            # Measuring it against the host's local clock put the age off by
-            # the UTC offset on any non-UTC host, so a source the renderer
-            # still held fresh showed "expired" here, or the reverse (#280).
+            # Measured against the host's local clock the age would be off by
+            # the UTC offset.
             if fetched_at.tzinfo is None:
                 fetched_at = fetched_at.replace(tzinfo=timezone.utc)
             fetched_at_utc = fetched_at.astimezone(timezone.utc)

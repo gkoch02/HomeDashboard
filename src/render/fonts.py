@@ -122,9 +122,8 @@ def cinzel_black(size: int) -> ImageFont.FreeTypeFont:
 
 # Oxanium — techno/cyberpunk display sans whose squared geometric terminals read
 # as retro-future (Sev Meyer, OFL).  Carries the terminal theme's title, day
-# column headers, and quote body, and (at ExtraBold) the ``wide_night`` labels.  Chosen over the wider Orbitron for these roles
-# because it stays legible in a 14px day header and a wrapped quote line, where a
-# wide face would force the text size down.
+# column headers, and quote body, and (at ExtraBold) the ``wide_night`` labels;
+# narrow enough to stay legible in a 14px day header and a wrapped quote line.
 #
 # Variable font, wght 200-800, whose DEFAULT axis instance is ExtraLight (200) —
 # every accessor must pin a weight explicitly or the terminal theme renders as

@@ -190,7 +190,6 @@ def _draw_event_list(
                 )
             y += allday_bar_h + event_spacing
         else:
-            # Time range
             start_s = _fmt_time(event.start)
             end_s = _fmt_time(event.end)
             if event.start.strftime("%p") == event.end.strftime("%p"):

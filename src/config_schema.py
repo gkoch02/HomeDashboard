@@ -70,7 +70,7 @@ def _log_level_names() -> tuple[str, ...]:
     Derived rather than listed: ``resolve_log_level`` accepts whatever
     ``logging`` knows (``CRITICAL`` and the ``FATAL``/``WARN`` aliases too),
     and a hand-written ``DEBUG/INFO/WARNING/ERROR`` dropdown could not show a
-    config using the others (#307).
+    config using the others.
     """
     mapping = getattr(logging, "getLevelNamesMapping", None)  # 3.11+
     names = mapping() if mapping is not None else dict(logging._nameToLevel)

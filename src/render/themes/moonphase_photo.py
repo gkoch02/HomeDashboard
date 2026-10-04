@@ -27,11 +27,6 @@ def moonphase_photo_theme() -> Theme:
     return dataclasses.replace(base, name="moonphase_photo", style=style)
 
 
-# ---------------------------------------------------------------------------
-# Registry adapter
-# ---------------------------------------------------------------------------
-
-
 def _register() -> None:
     from src.render.theme import INKY_BLUE, INKY_YELLOW
     from src.render.themes.registry import register_theme

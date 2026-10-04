@@ -139,7 +139,6 @@ def _draw_hero(
     else:
         draw.text((cx, name_cy), name_str, font=name_font, fill=style.fg, anchor="mm")
 
-    # Target date line
     date_str = _format_date(event.target)
     date_font = style.font_regular(16)
     draw.text((cx, region.y + 428), date_str, font=date_font, fill=style.fg, anchor="mm")
@@ -184,7 +183,6 @@ def _draw_list(
         fill=style.fg,
     )
 
-    # Underline
     underline_y = region.y + 24 + text_height(title_font) + 10
     hline(draw, underline_y, region.x + _PAD, region.x + region.w - _PAD, fill=style.fg)
 

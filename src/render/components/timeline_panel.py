@@ -22,9 +22,8 @@ from src.render.primitives import (
 from src.render.theme import ComponentRegion, ThemeStyle
 
 # Default visible hour range on the timeline. The axis widens past it to cover
-# any timed event on the day: with a fixed 07:00–21:00 window a 9:30 PM dinner
-# or a 6 AM flight was clamped to a zero-length span and silently skipped —
-# not drawn, not counted, nothing (#290).
+# any timed event on the day, so a 9:30 PM dinner or a 6 AM flight is never
+# clamped to a zero-length span and dropped.
 _START_HOUR = 7  # 7 AM
 _END_HOUR = 21  # 9 PM (exclusive top boundary)
 _VISIBLE_HOURS = _END_HOUR - _START_HOUR  # 14 hours
@@ -166,7 +165,6 @@ def draw_timeline(
         ey1 = timeline_top + int(end_min * px_per_min)
         block_h = max(ey1 - ey0, event_h_min)
 
-        # Inverted filled block
         filled_rect(draw, (ex0, ey0, ex1, ey0 + block_h - 1), fill=style.fg)
         if block_h >= text_height(event_font) + 4:
             draw_text_truncated(

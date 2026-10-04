@@ -10,7 +10,7 @@ or next, a short forecast beside the sky, birthdays and the day's quote. See
 ``src/render/components/wide_week_rail_panel.py``.
 
 There is no header bar: the rail's masthead carries the "updated" stamp and the
-stale mark the header used to, and the grid runs the panel's full height.
+stale mark, and the grid runs the panel's full height.
 
 The rail's NOW/NEXT line is the one thing that reads the clock, and it moves
 only when an event starts or ends. It can reach into next week on a Sunday, so

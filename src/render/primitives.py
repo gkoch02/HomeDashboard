@@ -88,10 +88,9 @@ def _break_word(word: str, measure, max_width: float) -> list[str]:
     """Split one word wider than *max_width* into pieces that each fit.
 
     A word-wrap that only breaks on whitespace has no bound on its output: a
-    URL, a hashtag or a long product code as an event title was drawn at full
-    width straight across the plate — over every day column of the week view
-    (#288). Pieces are cut by character; the caller decides how many lines it
-    can afford and ellipsizes the last one.
+    URL, a hashtag or a long product code as an event title would run straight
+    across the plate. Pieces are cut by character; the caller decides how many
+    lines it can afford and ellipsizes the last one.
     """
     pieces: list[str] = []
     current = ""
@@ -379,7 +378,7 @@ def wind_unit(weather) -> str:
     ``None`` weather or a missing/unknown ``units`` (older cache entries) falls
     back to mph, the historical default. Every panel that prints a wind speed
     labels it through this one helper so a metric install can't read "mph"
-    on one theme and "m/s" on another (#270).
+    on one theme and "m/s" on another.
     """
     units = getattr(weather, "units", None)
     if units in ("metric", "standard"):

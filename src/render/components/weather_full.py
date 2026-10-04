@@ -126,7 +126,6 @@ def _draw_hero(draw, weather, x0, y0, W, H, style):
     icon_y = y0 + 8 - glyph_bbox[1]
     draw.text((icon_x, icon_y), glyph, font=icon_font, fill=style.primary_accent_fill())
 
-    # Hero temperature
     temp_str = f"{weather.current_temp:.0f}°"
     temp_size = 64
     temp_font = style.font_bold(temp_size)
@@ -146,7 +145,6 @@ def _draw_hero(draw, weather, x0, y0, W, H, style):
     draw.text((temp_x, temp_y), temp_str, font=temp_font, fill=fg)
     temp_bottom = temp_y + text_height(temp_font)
 
-    # Description
     desc_font = style.font_medium(16)
     desc = weather.current_description.title()
     desc_w = text_width(draw, desc, desc_font)
@@ -182,13 +180,11 @@ def _draw_metric_cards(draw, weather, x0, y0, W, H, style, *, air_quality=None):
     # Build card data: list of (icon_glyph, value, label)
     cards = []
 
-    # Feels like
     if weather.feels_like is not None:
         cards.append((_GLYPH_THERMOMETER, f"{weather.feels_like:.0f}°", "Feels like"))
     else:
         cards.append((_GLYPH_THERMOMETER, f"{weather.current_temp:.0f}°", "Temp"))
 
-    # Wind
     if weather.wind_speed is not None:
         wind_val = f"{weather.wind_speed:.0f}"
         if weather.wind_deg is not None:
@@ -197,7 +193,6 @@ def _draw_metric_cards(draw, weather, x0, y0, W, H, style, *, air_quality=None):
     else:
         cards.append((_GLYPH_WIND, "—", "Wind"))
 
-    # Humidity
     cards.append((_GLYPH_HUMIDITY, f"{weather.humidity}%", "Humidity"))
 
     # UV index or Pressure (prefer UV when available)
@@ -238,7 +233,6 @@ def _draw_metric_cards(draw, weather, x0, y0, W, H, style, *, air_quality=None):
     for i, (glyph, value, label) in enumerate(cards):
         card_x = x0 + margin + i * (card_w + gap)
 
-        # Rounded rectangle outline
         draw.rounded_rectangle(
             [card_x, card_y, card_x + card_w, card_y + card_h],
             radius=6,
@@ -396,7 +390,6 @@ def _draw_alert_banner(draw, weather, x0, y0, W, H, style):
 
     aw = text_width(draw, alert_str, alert_font)
     if aw > max_w:
-        # Truncate
         draw_text_truncated(
             draw,
             (x0 + 30, y0 + (H - text_height(alert_font)) // 2),
@@ -444,13 +437,11 @@ def _draw_forecast_grid(draw, weather, x0, y0, W, H, style):
     for i, fc in enumerate(forecast):
         col_cx = x0 + margin + i * col_w + col_w // 2
 
-        # Day name
         day_str = fc.date.strftime("%a")
         dw = text_width(draw, day_str, day_font)
         day_y = y0 + 8
         draw.text((col_cx - dw // 2, day_y), day_str, font=day_font, fill=fg)
 
-        # Weather icon
         icon_y = day_y + text_height(day_font) + 6
         # Centre the icon glyph
         icon_font = weather_icon_font(icon_size)

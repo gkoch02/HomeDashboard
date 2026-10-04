@@ -50,9 +50,8 @@ def resolve_theme_name(
     ``persist=False`` makes this a pure read: a random cadence reports the
     theme already stored for the current bucket and returns the pseudo name
     unchanged when there is none, rather than drawing one and writing it to
-    ``state/``. Reporting callers must use it — resolving a random theme is a
-    *decision about what the dashboard will show*, and the status page's
-    30-second poll was making it (#238).
+    ``state/``. Reporting callers (the status page) must use it — resolving a
+    random theme is a *decision about what the dashboard will show*.
     """
     if override_theme is not None:
         theme_name: str = override_theme
@@ -77,10 +76,10 @@ def resolve_theme_name(
             exclude=cfg.random_theme.exclude,
             output_dir=cfg.state_dir,
             persist=persist,
-            # Rotate on the configured-timezone date, not the system clock's
-            # (#210) — without this the "new theme after midnight" flip lands
-            # at the host-tz midnight, and --dry-run --date previews ignore
-            # the date override for the daily variant.
+            # Rotate on the configured-timezone date, not the system clock's —
+            # otherwise the "new theme after midnight" flip lands at the
+            # host-tz midnight, and --dry-run --date previews ignore the date
+            # override for the daily variant.
             today=now.date() if now is not None else None,
             panel=(cfg.display.width, cfg.display.height),
         )
