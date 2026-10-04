@@ -8,7 +8,8 @@ from zoneinfo import ZoneInfo
 from src.config import Config, PurpleAirConfig
 from src.data.models import AirQualityData, StalenessLevel, WeatherData
 from src.data_pipeline import DataPipeline, _merge_air_quality_with_weather_fallback
-from src.fetchers.registry import Fetcher, register_fetcher, unregister_fetcher
+from src.fetchers import registry as fetcher_registry
+from src.fetchers.registry import Fetcher, register_fetcher
 
 # ---------------------------------------------------------------------------
 # fetched_at: always tz-aware (regression — naive raised TypeError when
@@ -42,7 +43,7 @@ class TestCacheReadOncePerFetch:
 
     The original implementation re-opened and re-parsed dashboard_cache.json
     once per source per code path (_cache_is_recent and _use_cache each
-    called load_cached_source). With 3-4 sources this added up to 4-8
+    re-read the file). With 3-4 sources this added up to 4-8
     redundant reads per tick. The blob-based path opens the file exactly
     once at the top of fetch().
     """
@@ -281,23 +282,21 @@ class TestLaunchFetchesPluginSources:
         """Registry plugins should run even when they are absent from the v4 skip map."""
         source_name = "custom_metric"
         expected = {"ok": True}
-        register_fetcher(
-            Fetcher(
-                name=source_name,
-                fetch=lambda _ctx: expected,
-                serialize=lambda value: value,
-                deserialize=lambda value: value,
-                ttl_minutes=lambda _cfg: 60,
-                interval_minutes=lambda _cfg: 60,
+        with patch.dict(fetcher_registry._REGISTRY):
+            register_fetcher(
+                Fetcher(
+                    name=source_name,
+                    fetch=lambda _ctx: expected,
+                    serialize=lambda value: value,
+                    deserialize=lambda value: value,
+                    ttl_minutes=lambda _cfg: 60,
+                    interval_minutes=lambda _cfg: 60,
+                )
             )
-        )
-        try:
             pipeline = _make_pipeline(tmp_path)
             futures = pipeline._launch_fetches(
                 {"events": True, "weather": True, "birthdays": True, "air_quality": True}
             )
-        finally:
-            unregister_fetcher(source_name)
 
         assert futures[source_name] is not None
         assert futures[source_name].result() == expected
@@ -607,24 +606,22 @@ class TestRegistryFetcherSkipDecisions:
         cfg = Config()
         cfg.purpleair = PurpleAirConfig()
         fetch_fn = MagicMock(name="fetch")
-        register_fetcher(
-            Fetcher(
-                name="__review_209__",
-                fetch=fetch_fn,
-                serialize=lambda d: d,
-                deserialize=lambda b: b,
-                ttl_minutes=lambda cfg: 60,
-                interval_minutes=lambda cfg: 60,
+        with patch.dict(fetcher_registry._REGISTRY):
+            register_fetcher(
+                Fetcher(
+                    name="__review_209__",
+                    fetch=fetch_fn,
+                    serialize=lambda d: d,
+                    deserialize=lambda b: b,
+                    ttl_minutes=lambda cfg: 60,
+                    interval_minutes=lambda cfg: 60,
+                )
             )
-        )
-        try:
             pipeline = DataPipeline(cfg, cache_dir=str(tmp_path))
             # Phase 1 says "skip everything" (fresh cache / open breaker).
             with patch.object(pipeline, "_should_skip", side_effect=lambda source: (None, True)):
                 pipeline.fetch()
             fetch_fn.assert_not_called()
-        finally:
-            unregister_fetcher("__review_209__")
 
     def test_non_skipped_registry_fetcher_still_runs(self, tmp_path):
         from unittest.mock import MagicMock
@@ -632,17 +629,17 @@ class TestRegistryFetcherSkipDecisions:
         cfg = Config()
         cfg.purpleair = PurpleAirConfig()
         fetch_fn = MagicMock(name="fetch", return_value={"ok": True})
-        register_fetcher(
-            Fetcher(
-                name="__review_209b__",
-                fetch=fetch_fn,
-                serialize=lambda d: d,
-                deserialize=lambda b: b,
-                ttl_minutes=lambda cfg: 60,
-                interval_minutes=lambda cfg: 60,
+        with patch.dict(fetcher_registry._REGISTRY):
+            register_fetcher(
+                Fetcher(
+                    name="__review_209b__",
+                    fetch=fetch_fn,
+                    serialize=lambda d: d,
+                    deserialize=lambda b: b,
+                    ttl_minutes=lambda cfg: 60,
+                    interval_minutes=lambda cfg: 60,
+                )
             )
-        )
-        try:
             pipeline = DataPipeline(cfg, cache_dir=str(tmp_path))
 
             def decide(source):
@@ -652,8 +649,6 @@ class TestRegistryFetcherSkipDecisions:
             with patch.object(pipeline, "_should_skip", side_effect=decide):
                 pipeline.fetch()
             fetch_fn.assert_called_once()
-        finally:
-            unregister_fetcher("__review_209b__")
 
 
 # ---------------------------------------------------------------------------
@@ -697,17 +692,17 @@ class TestCacheIsRecentUnregisteredSource:
 
         cfg = Config()
         cfg.purpleair = PurpleAirConfig()
-        register_fetcher(
-            Fetcher(
-                name="__no_meta_228__",
-                fetch=lambda ctx: {"v": 1},
-                serialize=lambda d: d,
-                deserialize=lambda b: b,
-                ttl_minutes=lambda cfg: 60,
-                interval_minutes=lambda cfg: 60,
+        with patch.dict(fetcher_registry._REGISTRY):
+            register_fetcher(
+                Fetcher(
+                    name="__no_meta_228__",
+                    fetch=lambda ctx: {"v": 1},
+                    serialize=lambda d: d,
+                    deserialize=lambda b: b,
+                    ttl_minutes=lambda cfg: 60,
+                    interval_minutes=lambda cfg: 60,
+                )
             )
-        )
-        try:
             pipeline = DataPipeline(cfg, cache_dir=str(tmp_path))
             # Cached 5 minutes ago, well inside the 60-minute interval.
             save_source(
@@ -725,8 +720,6 @@ class TestCacheIsRecentUnregisteredSource:
             data, recent = pipeline._cache_is_recent("__no_meta_228__")
             assert recent is True
             assert data == {"v": 1}
-        finally:
-            unregister_fetcher("__no_meta_228__")
 
 
 # ---------------------------------------------------------------------------

@@ -87,8 +87,7 @@ def register_component(name: str) -> Callable[[ComponentAdapter], ComponentAdapt
     """Decorator that registers *name* → the decorated adapter.
 
     Re-registration with the same name is a silent no-op so module
-    reloads in tests don't raise. Use :func:`unregister_component` to
-    genuinely replace.
+    reloads in tests don't raise.
     """
 
     def _decorate(adapter: ComponentAdapter) -> ComponentAdapter:
@@ -99,16 +98,6 @@ def register_component(name: str) -> Callable[[ComponentAdapter], ComponentAdapt
     return _decorate
 
 
-def unregister_component(name: str) -> None:
-    """Remove *name* from the registry. Used by tests."""
-    _REGISTRY.pop(name, None)
-
-
 def get_component(name: str) -> ComponentAdapter | None:
     """Return the adapter registered under *name*, or ``None``."""
     return _REGISTRY.get(name)
-
-
-def all_component_names() -> list[str]:
-    """Return all registered component names in registration order."""
-    return list(_REGISTRY.keys())

@@ -15,7 +15,7 @@ import threading
 from datetime import date, datetime, timezone
 from pathlib import Path
 
-from src._io import atomic_write_json, locked_update_json
+from src._io import locked_update_json
 from src.data.models import (
     AirQualityData,
     Birthday,
@@ -59,22 +59,6 @@ _CACHE_FILENAME = "dashboard_cache.json"
 
 _SCHEMA_VERSION = 2
 _cache_lock = threading.Lock()
-
-
-def load_cached(cache_dir: str) -> DashboardData | None:
-    """Return the last cached DashboardData, or None if absent / corrupt."""
-    path = Path(cache_dir) / _CACHE_FILENAME
-    if not path.exists():
-        return None
-    try:
-        with open(path) as f:
-            raw = json.load(f)
-        data = _deserialise(raw)
-        logger.info("Loaded cached data from %s (fetched at %s)", path, data.fetched_at)
-        return data
-    except Exception as exc:
-        logger.warning("Cache read failed (%s), ignoring: %s", path, exc)
-        return None
 
 
 def _read_cache_file(cache_dir: str) -> dict | None:
@@ -184,39 +168,6 @@ def _decode_source_with_metadata(
     return None if legacy is None else (legacy[0], legacy[1], {})
 
 
-def load_cached_source(
-    source: str, cache_dir: str
-) -> tuple[list | WeatherData | AirQualityData | None, datetime] | None:
-    """Load data for a single source from the cache.
-
-    Returns ``(data, fetched_at)`` if the source exists in the cache, else
-    ``None``.  *source* must be one of ``"events"``, ``"weather"``, or
-    ``"birthdays"``.
-
-    Falls back to reading the whole v1 cache when the file is in legacy format,
-    so existing cache files work without requiring a full re-fetch.
-    """
-    raw = _read_cache_file(cache_dir)
-    if raw is None:
-        return None
-    return _decode_source(source, raw)
-
-
-def load_cached_source_with_metadata(
-    source: str, cache_dir: str
-) -> tuple[list | WeatherData | AirQualityData | None, datetime, dict] | None:
-    """Load a single cached source plus its raw metadata block.
-
-    For v2 cache files, returns ``(data, fetched_at, metadata)`` where
-    *metadata* contains any extra fields stored alongside the source data.
-    For legacy v1 cache files, returns an empty metadata dict.
-    """
-    raw = _read_cache_file(cache_dir)
-    if raw is None:
-        return None
-    return _decode_source_with_metadata(source, raw)
-
-
 def load_cached_source_from_blob(
     source: str, raw: dict | None
 ) -> tuple[list | WeatherData | AirQualityData | None, datetime] | None:
@@ -285,39 +236,6 @@ def save_source(
             logger.warning("Cache write failed for source %r: %s", source, exc)
 
 
-def save_cache(data: DashboardData, cache_dir: str) -> None:
-    """Persist full DashboardData to the cache file (v2 format)."""
-    path = Path(cache_dir) / _CACHE_FILENAME
-    try:
-        atomic_write_json(path, _serialise(data), indent=2)
-        logger.debug("Cache written to %s", path)
-    except Exception as exc:
-        logger.warning("Cache write failed: %s", exc)
-
-
-# Serialisation helpers
-
-
-def _serialise(data: DashboardData) -> dict:
-    """Serialise to v2 format with per-source timestamps."""
-    ts = data.fetched_at.isoformat()
-    return {
-        "schema_version": _SCHEMA_VERSION,
-        "events": {
-            "fetched_at": ts,
-            "data": [_ser_event(e) for e in data.events],
-        },
-        "weather": {
-            "fetched_at": ts,
-            "data": _ser_weather(data.weather) if data.weather else None,
-        },
-        "birthdays": {
-            "fetched_at": ts,
-            "data": [_ser_birthday(b) for b in data.birthdays],
-        },
-    }
-
-
 def _ser_event(e: CalendarEvent) -> dict:
     return {
         "summary": e.summary,
@@ -374,41 +292,6 @@ def _ser_weather(w: WeatherData) -> dict:
 
 def _ser_birthday(b: Birthday) -> dict:
     return {"name": b.name, "date": b.date.isoformat(), "age": b.age}
-
-
-def _deserialise(raw: dict) -> DashboardData:
-    if raw.get("schema_version") == _SCHEMA_VERSION:
-        return _deserialise_v2(raw)
-    return _deserialise_v1(raw)
-
-
-def _deserialise_v2(raw: dict) -> DashboardData:
-    events_block = raw.get("events", {})
-    weather_block = raw.get("weather", {})
-    birthdays_block = raw.get("birthdays", {})
-
-    # Use the most recent per-source fetched_at as the overall timestamp
-    timestamps = []
-    for block in (events_block, weather_block, birthdays_block):
-        if block and block.get("fetched_at"):
-            try:
-                timestamps.append(datetime.fromisoformat(block["fetched_at"]))
-            except ValueError:
-                pass
-    fetched_at = (
-        max(timestamps) if timestamps else datetime.now()
-    )  # allow-naive-datetime — empty-cache fallback
-
-    events = [_deser_event(e) for e in events_block.get("data", [])]
-    weather = _deser_weather(weather_block["data"]) if weather_block.get("data") else None
-    birthdays = [_deser_birthday(b) for b in birthdays_block.get("data", [])]
-
-    return DashboardData(
-        fetched_at=fetched_at,
-        events=events,
-        weather=weather,
-        birthdays=birthdays,
-    )
 
 
 def _deserialise_v1(raw: dict) -> DashboardData:

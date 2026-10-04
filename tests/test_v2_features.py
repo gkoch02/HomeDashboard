@@ -14,15 +14,13 @@ from PIL import Image, ImageDraw
 
 from src.data.models import (
     CalendarEvent,
-    DashboardData,
     DayForecast,
     WeatherAlert,
     WeatherData,
 )
 from src.fetchers.cache import (
-    load_cached,
-    load_cached_source,
-    save_cache,
+    load_cache_blob,
+    load_cached_source_from_blob,
     save_source,
 )
 from src.fetchers.calendar import (
@@ -76,6 +74,10 @@ def _timed(day: date, h_start: int, h_end: int, summary: str = "Evt", location: 
         end=datetime.combine(day, datetime.min.time().replace(hour=h_end)),
         location=location,
     )
+
+
+def _load(source: str, cache_dir: str):
+    return load_cached_source_from_blob(source, load_cache_blob(cache_dir))
 
 
 def _make_weather(**kwargs) -> WeatherData:
@@ -330,7 +332,7 @@ class TestPerSourceCache:
             ]
             ts = datetime(2024, 3, 15, 8)
             save_source("events", events, ts, tmpdir)
-            result = load_cached_source("events", tmpdir)
+            result = _load("events", tmpdir)
             assert result is not None
             data, fetched_at = result
             assert len(data) == 1
@@ -343,7 +345,7 @@ class TestPerSourceCache:
             weather = _make_weather(alerts=[WeatherAlert(event="Storm")])
             ts = datetime(2024, 3, 15, 9)
             save_source("weather", weather, ts, tmpdir)
-            result = load_cached_source("weather", tmpdir)
+            result = _load("weather", tmpdir)
             assert result is not None
             w, fetched_at = result
             assert w.current_temp == weather.current_temp
@@ -362,17 +364,17 @@ class TestPerSourceCache:
             ]
             save_source("events", events, datetime(2024, 3, 15, 9, 30), tmpdir)
 
-            w_result = load_cached_source("weather", tmpdir)
-            e_result = load_cached_source("events", tmpdir)
+            w_result = _load("weather", tmpdir)
+            e_result = _load("events", tmpdir)
             assert w_result is not None
             assert e_result is not None
 
     def test_load_cached_source_returns_none_when_absent(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            assert load_cached_source("events", tmpdir) is None
+            assert _load("events", tmpdir) is None
 
     def test_load_cached_source_v1_fallback(self):
-        """load_cached_source should work with legacy v1 cache files."""
+        """Legacy v1 cache files still decode per source."""
         with tempfile.TemporaryDirectory() as tmpdir:
             # Write a v1 format cache manually
             v1 = {
@@ -394,32 +396,10 @@ class TestPerSourceCache:
             with open(cache_path, "w") as f:
                 json.dump(v1, f)
 
-            result = load_cached_source("events", tmpdir)
+            result = _load("events", tmpdir)
             assert result is not None
             data, fetched_at = result
             assert data[0].summary == "Old Evt"
-
-    def test_save_cache_writes_v2_format(self):
-        """save_cache (legacy full-dump API) should write v2 format."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            data = DashboardData(
-                fetched_at=datetime(2024, 3, 15, 8),
-                events=[],
-                weather=_make_weather(),
-                birthdays=[],
-            )
-            save_cache(data, tmpdir)
-            with open(Path(tmpdir) / "dashboard_cache.json") as f:
-                raw = json.load(f)
-            assert raw["schema_version"] == 2
-
-    def test_load_cached_reads_v2_format(self):
-        """load_cached (legacy API) should correctly deserialise v2 files."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            save_source("weather", _make_weather(), datetime(2024, 3, 15, 9), tmpdir)
-            result = load_cached(tmpdir)
-            assert result is not None
-            assert result.weather is not None
 
     def test_stale_sources_populated_on_partial_failure(self):
         """fetch_live_data should populate stale_sources for each failed source."""

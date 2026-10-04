@@ -340,23 +340,22 @@ def test_atomic_write_json_cleans_up_tempfile_on_failure(tmp_path):
 @pytest.fixture()
 def synthetic_source():
     """Register a throwaway fetcher for the duration of one test."""
-    from src.fetchers.registry import Fetcher, register_fetcher, unregister_fetcher
+    from src.fetchers import registry as fetcher_registry
+    from src.fetchers.registry import Fetcher, register_fetcher
 
     name = "synthetic_source"
-    register_fetcher(
-        Fetcher(
-            name=name,
-            fetch=lambda ctx: None,
-            serialize=lambda v: {},
-            deserialize=lambda b: None,
-            ttl_minutes=lambda cfg: 60,
-            interval_minutes=lambda cfg: 60,
+    with patch.dict(fetcher_registry._REGISTRY):
+        register_fetcher(
+            Fetcher(
+                name=name,
+                fetch=lambda ctx: None,
+                serialize=lambda v: {},
+                deserialize=lambda b: None,
+                ttl_minutes=lambda cfg: 60,
+                interval_minutes=lambda cfg: 60,
+            )
         )
-    )
-    try:
         yield name
-    finally:
-        unregister_fetcher(name)
 
 
 class TestSourcesDeriveFromRegistry:
@@ -445,51 +444,49 @@ class TestSourcesDeriveFromRegistry:
 
     def test_a_plugin_with_a_distinct_ttl_is_reported_with_it(self, client):
         """The status page must not call a source stale that the pipeline calls fresh."""
-        from src.fetchers.registry import Fetcher, register_fetcher, unregister_fetcher
+        from src.fetchers import registry as fetcher_registry
+        from src.fetchers.registry import Fetcher, register_fetcher
 
-        register_fetcher(
-            Fetcher(
-                name="slow_source",
-                fetch=lambda ctx: None,
-                serialize=lambda v: {},
-                deserialize=lambda b: None,
-                ttl_minutes=lambda cfg: 10_080,  # a week
-                interval_minutes=lambda cfg: 60,
+        with patch.dict(fetcher_registry._REGISTRY):
+            register_fetcher(
+                Fetcher(
+                    name="slow_source",
+                    fetch=lambda ctx: None,
+                    serialize=lambda v: {},
+                    deserialize=lambda b: None,
+                    ttl_minutes=lambda cfg: 10_080,  # a week
+                    interval_minutes=lambda cfg: 60,
+                )
             )
-        )
-        try:
             from src.config import Config
             from src.web.sources import source_ttls
 
             assert source_ttls(Config())["slow_source"] == 10_080
-        finally:
-            unregister_fetcher("slow_source")
 
     def test_a_plugin_whose_ttl_lookup_raises_is_skipped(self):
         """A broken plugin must not take down the status page."""
         from src.config import Config
-        from src.fetchers.registry import Fetcher, register_fetcher, unregister_fetcher
+        from src.fetchers import registry as fetcher_registry
+        from src.fetchers.registry import Fetcher, register_fetcher
         from src.web.sources import source_ttls
 
         def _boom(cfg):
             raise AttributeError("no such config section")
 
-        register_fetcher(
-            Fetcher(
-                name="broken_source",
-                fetch=lambda ctx: None,
-                serialize=lambda v: {},
-                deserialize=lambda b: None,
-                ttl_minutes=_boom,
-                interval_minutes=lambda cfg: 60,
+        with patch.dict(fetcher_registry._REGISTRY):
+            register_fetcher(
+                Fetcher(
+                    name="broken_source",
+                    fetch=lambda ctx: None,
+                    serialize=lambda v: {},
+                    deserialize=lambda b: None,
+                    ttl_minutes=_boom,
+                    interval_minutes=lambda cfg: 60,
+                )
             )
-        )
-        try:
             ttls = source_ttls(Config())
             assert "broken_source" not in ttls
             assert "weather" in ttls
-        finally:
-            unregister_fetcher("broken_source")
 
     def test_unknown_source_still_rejected_by_actions(self, client):
         headers = _csrf_headers(client)

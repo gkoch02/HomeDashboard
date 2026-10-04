@@ -7,7 +7,7 @@ from unittest.mock import patch
 from src.config import Config
 from src.data.models import Birthday, CalendarEvent, DashboardData, StalenessLevel, WeatherData
 from src.data_pipeline import DataPipeline
-from src.fetchers.cache import save_cache, save_source
+from src.fetchers.cache import save_source
 
 
 def fetch_live_data(cfg, cache_dir, tz=None, force_refresh=False, ignore_breakers=False):
@@ -44,7 +44,8 @@ def _make_cached(tmpdir: str) -> DashboardData:
         ),
         birthdays=[Birthday(name="Cached Person", date=date(2024, 3, 20))],
     )
-    save_cache(cached, tmpdir)
+    for source in ("events", "weather", "birthdays"):
+        save_source(source, getattr(cached, source), recent, tmpdir)
     return cached
 
 

@@ -9,7 +9,11 @@ import threading
 from datetime import datetime
 
 from src.data.models import CalendarEvent, WeatherData
-from src.fetchers.cache import load_cached_source, save_source
+from src.fetchers.cache import load_cache_blob, load_cached_source_from_blob, save_source
+
+
+def _load(source: str, cache_dir: str):
+    return load_cached_source_from_blob(source, load_cache_blob(cache_dir))
 
 
 def _make_weather(temp: float) -> WeatherData:
@@ -68,8 +72,8 @@ class TestConcurrentCacheWrites:
         assert not errors, f"Concurrent writes raised errors: {errors}"
 
         # Both sources should be readable and intact
-        weather_data = load_cached_source("weather", cache_dir)
-        events_data = load_cached_source("events", cache_dir)
+        weather_data = _load("weather", cache_dir)
+        events_data = _load("events", cache_dir)
         assert weather_data is not None, "Weather cache should be readable"
         assert events_data is not None, "Events cache should be readable"
 
@@ -99,7 +103,7 @@ class TestConcurrentCacheWrites:
         def reader():
             try:
                 for _ in range(30):
-                    result = load_cached_source("weather", cache_dir)
+                    result = _load("weather", cache_dir)
                     # Result can be None if we catch it between writes,
                     # but it should never be corrupt
                     if result is not None:

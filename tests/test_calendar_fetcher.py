@@ -1406,13 +1406,6 @@ class TestICalFetcher:
 class TestBuildPeopleService:
     """People API service construction, caching, and cache clearing."""
 
-    def test_clear_people_service_cache(self):
-        from src.fetchers.calendar import _clear_people_service_cache, _people_service_cache
-
-        _people_service_cache["sentinel"] = "value"
-        _clear_people_service_cache()
-        assert _people_service_cache == {}
-
     def test_clear_service_caches_clears_both(self):
         from src.fetchers.calendar import _people_service_cache, clear_service_caches
 
@@ -1421,9 +1414,9 @@ class TestBuildPeopleService:
         assert _people_service_cache == {}
 
     def test_build_people_service_loads_credentials(self):
-        from src.fetchers.calendar import _build_people_service, _clear_people_service_cache
+        from src.fetchers.calendar import _build_people_service, _people_service_cache
 
-        _clear_people_service_cache()
+        _people_service_cache.clear()
         cfg = GoogleConfig(service_account_path="/tmp/sa.json", contacts_email="user@example.com")
         fake_creds = MagicMock()
         fake_creds.with_subject.return_value = fake_creds
@@ -1447,9 +1440,9 @@ class TestBuildPeopleService:
         assert mock_build.call_args.kwargs["cache_discovery"] is False
 
     def test_build_people_service_caches_by_path_and_email(self):
-        from src.fetchers.calendar import _build_people_service, _clear_people_service_cache
+        from src.fetchers.calendar import _build_people_service, _people_service_cache
 
-        _clear_people_service_cache()
+        _people_service_cache.clear()
         cfg = GoogleConfig(service_account_path="/tmp/sa.json", contacts_email="user@example.com")
         fake_creds = MagicMock()
         fake_creds.with_subject.return_value = fake_creds
@@ -1465,9 +1458,9 @@ class TestBuildPeopleService:
             assert mock_build.call_count == 1
 
     def test_build_people_service_skips_subject_when_no_email(self):
-        from src.fetchers.calendar import _build_people_service, _clear_people_service_cache
+        from src.fetchers.calendar import _build_people_service, _people_service_cache
 
-        _clear_people_service_cache()
+        _people_service_cache.clear()
         cfg = GoogleConfig(service_account_path="/tmp/sa.json", contacts_email="")
         fake_creds = MagicMock()
         with (
@@ -1481,9 +1474,9 @@ class TestBuildPeopleService:
         fake_creds.with_subject.assert_not_called()
 
     def test_build_people_service_wraps_credential_load_error(self):
-        from src.fetchers.calendar import _build_people_service, _clear_people_service_cache
+        from src.fetchers.calendar import _build_people_service, _people_service_cache
 
-        _clear_people_service_cache()
+        _people_service_cache.clear()
         cfg = GoogleConfig(
             service_account_path="/tmp/missing.json", contacts_email="user@example.com"
         )
