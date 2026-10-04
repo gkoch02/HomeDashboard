@@ -117,7 +117,8 @@ def test_middleware_returns_401_with_wrong_username():
 
 
 @pytest.mark.parametrize("credentials", [b"admin", b"admin:"])
-def test_middleware_returns_401_with_username_but_no_password(credentials):
+def test_middleware_returns_401_with_username_and_empty_password(credentials):
+    """Werkzeug reads both a bare username and a trailing colon as password ""."""
     app = _app_with_auth("admin", hash_password("secret"))
     header = "Basic " + base64.b64encode(credentials).decode()
     resp = app.test_client().get("/ping", headers={"Authorization": header})

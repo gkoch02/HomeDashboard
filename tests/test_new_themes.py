@@ -267,24 +267,32 @@ class TestTimelinePanel:
         # No assertions on pixel content — just confirm no crash.
         assert img.mode == "1"
 
-    def test_event_outside_visible_range_is_skipped(self):
-        """An event entirely before _START_HOUR clamps to a zero-length span."""
-        from src.render.components.timeline_panel import draw_timeline
+    def test_event_before_default_window_widens_the_axis(self):
+        """An event before _START_HOUR moves the axis start to its hour, so it draws."""
+        from src.render.components.timeline_panel import (
+            _AXIS_W,
+            _PAD_RIGHT,
+            axis_hours,
+            draw_timeline,
+        )
         from src.render.theme import ComponentRegion
 
-        draw, img = self._make_draw()
-        events = [
-            # Whole event is before 7am — start_min and end_min both clamp to 0
-            CalendarEvent(
-                summary="Pre-dawn",
-                start=datetime(2026, 4, 5, 3, 0),
-                end=datetime(2026, 4, 5, 5, 0),
-            ),
-        ]
-        draw_timeline(
-            draw, events, date(2026, 4, 5), FIXED_NOW, region=ComponentRegion(0, 0, 800, 360)
+        pre_dawn = CalendarEvent(
+            summary="Pre-dawn",
+            start=datetime(2026, 4, 5, 3, 0),
+            end=datetime(2026, 4, 5, 5, 0),
         )
-        assert img.mode == "1"
+        assert axis_hours([pre_dawn], date(2026, 4, 5)) == (3, 21)
+
+        draw, img = self._make_draw()
+        draw_timeline(
+            draw, [pre_dawn], date(2026, 4, 5), FIXED_NOW, region=ComponentRegion(0, 0, 800, 360)
+        )
+        # 3a-9p over 360 px is 1/3 px per minute, so the two-hour block fills
+        # the top 40 rows of the timeline, its title knocked out in white.
+        block = (_AXIS_W + 2, 1, 800 - _PAD_RIGHT - 2, 39)
+        area = (block[2] - block[0]) * (block[3] - block[1])
+        assert ink(img, block) > area * 0.8, "the pre-dawn event drew no block"
 
     def test_minutes_from_start_past_day_clamps_to_zero(self):
         """A datetime on a previous day clamps to 0 (start of visible window)."""
