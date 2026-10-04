@@ -295,10 +295,6 @@ def manufacturing_consent(size: int) -> ImageFont.FreeTypeFont:
 
 # Astloch — antique blackletter / fraktur display face (OFL).  Two weights;
 # perfect "character" font for editorial mastheads and 19th-century almanacs.
-def astloch(size: int) -> ImageFont.FreeTypeFont:
-    return get_font("Astloch-Regular.ttf", size)
-
-
 def astloch_bold(size: int) -> ImageFont.FreeTypeFont:
     return get_font("Astloch-Bold.ttf", size)
 

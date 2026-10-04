@@ -24,6 +24,8 @@ Always:
 - [ ] `make test` passes, including the coverage gate (see `fail_under` in `pyproject.toml`)
 - [ ] `venv/bin/python -m mypy src/` is clean — CI runs it over every module
 - [ ] Tests added or updated for behaviour changes
+- [ ] Claude-authored: an independent review ran on the diff (e.g. `/code-review`)
+      and every finding is fixed or answered
 
 If the change touches **themes, components, or anything that renders**:
 

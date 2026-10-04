@@ -437,6 +437,70 @@ def check_readme_theme_count(theme_names: set[str]) -> list[str]:
     ]
 
 
+# CLAUDE.md is read at the start of every agent session and its register gets
+# copied into new code, so its size is held here rather than left to review.
+CLAUDE_MD_MAX_WORDS = 9500
+GOTCHAS_MAX_WORDS = 3500
+GOTCHA_BULLET_MAX_WORDS = 100
+
+
+def gotchas_section(text: str) -> str:
+    """The ``## Gotchas`` section, from its heading to the next ``## `` heading."""
+    start = text.find("\n## Gotchas")
+    if start < 0:
+        return ""
+    end = text.find("\n## ", start + 1)
+    return text[start : end if end >= 0 else len(text)]
+
+
+def gotcha_bullets(text: str) -> list[str]:
+    """Each bullet (nested ones included) of the ``## Gotchas`` section."""
+    section = gotchas_section(text)
+    bullets: list[str] = []
+    open_bullet = False
+    for line in section.splitlines():
+        if re.match(r"\s*- ", line):
+            bullets.append(line.strip())
+            open_bullet = True
+        elif open_bullet and line.startswith((" ", "\t")) and line.strip():
+            bullets[-1] += " " + line.strip()
+        else:
+            open_bullet = False
+    return bullets
+
+
+def check_claude_md_budget(text: str | None = None) -> list[str]:
+    """Hold CLAUDE.md to a word budget: the file, its Gotchas, and each bullet.
+
+    A Gotchas bullet is a rule, where it lives and the test that pins it. The
+    reasoning goes in the commit that introduced it.
+    """
+    if text is None:
+        path = ROOT / "CLAUDE.md"
+        if not path.exists():
+            return []
+        text = path.read_text()
+    errors: list[str] = []
+    words = len(text.split())
+    if words > CLAUDE_MD_MAX_WORDS:
+        errors.append(f"CLAUDE.md: {words} words, budget is {CLAUDE_MD_MAX_WORDS}")
+    bullets = gotcha_bullets(text)
+    if not bullets:
+        errors.append("CLAUDE.md: no `## Gotchas` bullets found; the budget cannot be checked")
+    # The whole section counts, not just its bullets: prose between them grows too.
+    total = len(gotchas_section(text).split())
+    if total > GOTCHAS_MAX_WORDS:
+        errors.append(f"CLAUDE.md Gotchas: {total} words, budget is {GOTCHAS_MAX_WORDS}")
+    for bullet in bullets:
+        n = len(bullet.split())
+        if n > GOTCHA_BULLET_MAX_WORDS:
+            errors.append(
+                f"CLAUDE.md Gotchas bullet is {n} words (max {GOTCHA_BULLET_MAX_WORDS}); "
+                f"state the rule and move the reasoning to the commit: {bullet[:70]!r}"
+            )
+    return errors
+
+
 def main() -> int:
     theme_names = load_theme_names()
     errors = check_links()
@@ -444,6 +508,7 @@ def main() -> int:
     errors.extend(check_theme_inventory(theme_names))
     errors.extend(check_example_config_themes(theme_names))
     errors.extend(check_example_config_fields())
+    errors.extend(check_claude_md_budget())
     if errors:
         for err in errors:
             print(err)

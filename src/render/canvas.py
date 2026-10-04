@@ -9,9 +9,6 @@ from src.config import DisplayConfig
 from src.data.models import DashboardData
 from src.display.backend import build_display_backend
 from src.display.driver import get_display_spec
-from src.render.components import (
-    _builtins as _component_builtins,  # noqa: F401  registers components
-)
 from src.render.components.registry import RenderContext, get_component
 from src.render.quantize import INKY_SPECTRA6_PALETTE, WAVESHARE_G_STYLE_PALETTE
 from src.render.theme import (

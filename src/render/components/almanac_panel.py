@@ -539,7 +539,7 @@ def _draw_garden(
     day_of_year = today.timetuple().tm_yday
     days_in_year = (
         366 if (today.year % 400 == 0 or (today.year % 4 == 0 and today.year % 100 != 0)) else 365
-    )  # noqa: E501
+    )
     season_line = f"{season}  ·  Day {day_of_year} of {days_in_year}"
     draw.text((x, y), season_line, font=bold_font, fill=style.fg)
     y += text_height(bold_font) + 4

@@ -422,7 +422,7 @@ class TestAirQualityDataNewFields:
 
 class TestAirQualityCacheRoundtrip:
     def test_roundtrip_with_new_fields(self):
-        from src.fetchers.cache import _deser_air_quality, _ser_air_quality  # noqa: PLC0415
+        from src.fetchers.cache import _deser_air_quality, _ser_air_quality
 
         original = AirQualityData(
             aqi=42,
@@ -443,7 +443,7 @@ class TestAirQualityCacheRoundtrip:
 
     def test_roundtrip_without_new_fields(self):
         """Old cache entries (missing new keys) deserialize without error."""
-        from src.fetchers.cache import _deser_air_quality  # noqa: PLC0415
+        from src.fetchers.cache import _deser_air_quality
 
         old_dict = {"aqi": 30, "category": "Good", "pm25": 8.0}
         restored = _deser_air_quality(old_dict)
@@ -452,7 +452,7 @@ class TestAirQualityCacheRoundtrip:
         assert restored.pressure is None
 
     def test_serialized_dict_includes_new_keys(self):
-        from src.fetchers.cache import _ser_air_quality  # noqa: PLC0415
+        from src.fetchers.cache import _ser_air_quality
 
         aq = AirQualityData(
             aqi=42,
@@ -618,14 +618,14 @@ class TestHostSectionFullData:
 
 class TestDiagsNotInRandomPool:
     def test_diags_excluded_from_pool_by_default(self):
-        from src.render.random_theme import eligible_themes  # noqa: PLC0415
+        from src.render.random_theme import eligible_themes
 
         pool = eligible_themes(include=[], exclude=[])
         assert "diags" not in pool
 
     def test_diags_excluded_even_with_include(self):
         """diags is a hard exclusion (like 'random') — include list cannot override it."""
-        from src.render.random_theme import eligible_themes  # noqa: PLC0415
+        from src.render.random_theme import eligible_themes
 
         pool = eligible_themes(include=["diags"], exclude=[])
         assert "diags" not in pool

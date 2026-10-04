@@ -50,6 +50,7 @@ coverage: _check-venv
 
 lint: _check-venv
 	$(VENV) -m ruff check src/ tests/ scripts/ tools/
+	$(VENV) tools/check_dead_code.py
 
 fmt: _check-venv
 	$(VENV) -m ruff format src/ tests/ scripts/ tools/
