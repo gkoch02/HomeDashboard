@@ -43,6 +43,7 @@ from src.render.artkit import to_local_naive
 from src.render.components.day_arc_panel import event_state
 from src.render.icons import draw_weather_icon
 from src.render.primitives import (
+    alert_fill,
     content_time,
     dashed_hline,
     dashed_vline,
@@ -95,10 +96,6 @@ BIRTHDAY_LOOKAHEAD_DAYS = 7
 
 # Filled chips on the title row for all-day events.
 ALLDAY_CHIP_MAX = 3
-
-
-def _alert_fill(style: ThemeStyle):
-    return style.fg if style.accent_alert is None else style.accent_alert
 
 
 def _naive(dt: datetime, now: datetime) -> datetime:
@@ -234,9 +231,7 @@ def draw_wide_day(
     )
 
 
-# ---------------------------------------------------------------------------
 # Left block
-# ---------------------------------------------------------------------------
 
 
 def _draw_left_block(
@@ -319,7 +314,7 @@ def _draw_left_block(
         bar_font = style.font_semibold(14)
         bar_h = text_height(bar_font) + 10
         bar_y = row2_y + text_height(row_font) + 12
-        fill = _alert_fill(style)
+        fill = alert_fill(style)
         filled_rect(draw, (lx, bar_y, x0 + w - PAD, bar_y + bar_h), fill=fill)
         names = " · ".join(a.event for a in weather.alerts[:2])
         draw_text_truncated(
@@ -327,9 +322,7 @@ def _draw_left_block(
         )
 
 
-# ---------------------------------------------------------------------------
 # Timeline
-# ---------------------------------------------------------------------------
 
 
 def _draw_timeline(
@@ -361,7 +354,6 @@ def _draw_timeline(
     )
     _draw_allday_chips(draw, allday, (x0 + w - PAD, title_y), style)
 
-    # Axis.
     axis_y = y0 + 68
     ax0 = x0 + PAD
     ax1 = x0 + w - PAD
@@ -412,9 +404,8 @@ def _draw_timeline(
             bar = _Bar(evt, bx0, bx1, "inside", bx0, bx1)
         elif room_right >= beside_w or room_right >= room_left:
             # The label goes after the bar unless the axis end cuts it
-            # shorter than the room before the bar would — a 22:30 call with
-            # 30 px to the right and 700 px to the left used to set a "..."
-            # stub on the right.
+            # shorter than the room before the bar would (a 22:30 call with
+            # 30 px to the right and 700 px to the left goes left).
             bar = _Bar(evt, bx0, bx1, "right", bx0, min(ax1, bx1 + beside_w))
         else:
             bar = _Bar(evt, bx0, bx1, "left", max(ax0, bx0 - beside_w), bx1)
@@ -447,7 +438,7 @@ def _draw_timeline(
     # NOW marker — only when the moment is on the axis.
     if day_start + timedelta(hours=start_h) <= now < day_start + timedelta(hours=end_h):
         nx = round(x_for(now))
-        fill = _alert_fill(style)
+        fill = alert_fill(style)
         vline(draw, nx, axis_y - 6, lanes_bottom, fill=fill)
         vline(draw, nx + 1, axis_y - 6, lanes_bottom, fill=fill)
         chip_font = style.font_bold(11)
@@ -489,9 +480,8 @@ class _Bar:
 
     ``side`` is ``"inside"`` when the bar is wide enough to carry its label,
     ``"right"`` when the label sits after the bar, and ``"left"`` when there is
-    no room after it — a bar ending at or near the axis end (every event that
-    runs to midnight) had its label squeezed into the few px before the axis
-    edge and then dropped as unreadable, leaving an anonymous box (#291).
+    no room after it (a bar ending at or near the axis end — every event that
+    runs to midnight — must not lose its label to the few px before the edge).
     ``extent_x0``/``extent_x1`` are the outer edges of bar plus label, which
     is what the lanes are packed by.
     """
@@ -533,7 +523,7 @@ def _draw_bar(
     bx0, bx1 = bar.x0, bar.x1
     by0, by1 = top, top + LANE_H
     if state == "now":
-        filled_rect(draw, (bx0, by0, bx1, by1), fill=_alert_fill(style))
+        filled_rect(draw, (bx0, by0, bx1, by1), fill=alert_fill(style))
         inside_fill = style.bg
     elif state == "next":
         draw.rectangle((bx0, by0, bx1, by1), outline=style.fg, width=2)
@@ -566,9 +556,7 @@ def _draw_bar(
     draw_text_truncated(draw, (tx, by0 + 23), detail, time_font, max_w, fill=fill)
 
 
-# ---------------------------------------------------------------------------
 # Right rail
-# ---------------------------------------------------------------------------
 
 
 def _draw_right_rail(

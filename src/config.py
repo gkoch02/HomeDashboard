@@ -9,6 +9,8 @@ from typing import Any
 
 import yaml  # type: ignore[import-untyped]
 
+from src.config_schema import DEFAULT_ONE_CALL_VERSION
+
 logger = logging.getLogger(__name__)
 
 
@@ -283,15 +285,12 @@ class Config:
 
     def __post_init__(self) -> None:
         # ``(field_path, message)`` for every YAML value load_config() could
-        # not read and replaced with the default — a quoted or non-numeric
-        # number, a mapping where a list belongs, a bare string where a
-        # theme_schedule entry belongs. validate_config() reports each as a
-        # ConfigError; the parser itself never raises on them, because
-        # load_config() is the one function with no error boundary above it
-        # (see _section). Deliberately an instance attribute rather than a
-        # dataclass field: it is not a YAML key, and everything that walks
-        # ``dataclasses.fields(Config)`` (the web schema, the example-config
-        # check) must not see it as one.
+        # not read and replaced with the default. validate_config() reports
+        # each as a ConfigError; the parser itself never raises on them,
+        # because load_config() has no error boundary above it (see _section).
+        # Deliberately an instance attribute, not a dataclass field: it is not
+        # a YAML key, and everything that walks ``dataclasses.fields(Config)``
+        # (the web schema, the example-config check) must not see it as one.
         self.unreadable: list[tuple[str, str]] = []
 
 
@@ -400,12 +399,9 @@ def _optional_int(value: Any) -> int | None:
 def _read_number(block: dict, key: str, default, cast, path: str, unreadable: list):
     """Read ``block[key]`` as a number, or record it and return *default*.
 
-    ``load_config()`` used to store YAML scalars verbatim, so a quoted number
-    (``quiet_hours_start: "23"``) reached ``validate_config()`` as text and
-    the comparison there raised ``TypeError`` — from the very function that
-    exists to report the mistake — taking down every renderer run,
-    ``--check-config`` and both web pages. Values validation never looked at
-    (``lookahead_days``, the TTLs) got as far as ``timedelta(minutes="30")``.
+    A quoted number (``quiet_hours_start: "23"``) must not reach
+    ``validate_config()`` as text: a ``TypeError`` there takes down every
+    renderer run, ``--check-config`` and both web pages.
 
     A readable value is returned in its proper type (``"23"`` → 23, ``40`` →
     40.0 for a float field). An unreadable one keeps the default and is
@@ -468,10 +464,10 @@ def _normalise_one_call_version(value: object) -> str:
     dispatcher falls back to the default.
     """
     if value is None:
-        return "3.0"
+        return DEFAULT_ONE_CALL_VERSION
     text = str(value).strip()
     if not text:
-        return "3.0"
+        return DEFAULT_ONE_CALL_VERSION
     return {"3": "3.0", "4": "4.0", "False": "off"}.get(text, text)
 
 
@@ -489,8 +485,7 @@ def load_config(path: str = "config/config.yaml") -> Config:
         raw = yaml.safe_load(f) or {}
 
     # v5: upgrade older config shapes in-memory before parsing into dataclasses.
-    # This is non-destructive — the on-disk file is only rewritten by the
-    # explicit ``write_pre_migration_backup`` path used by the bootstrap.
+    # This is non-destructive — the on-disk file is never rewritten here.
     from src.config_migrations import migrate_in_memory, needs_migration
 
     if needs_migration(raw):
@@ -627,10 +622,9 @@ def load_config(path: str = "config/config.yaml") -> Config:
         cfg.purpleair = PurpleAirConfig(
             api_key=pa.get("api_key", ""),
             sensor_id=sensor_id or 0,
-            # A sensor_id that will not parse used to raise straight out of
-            # load_config() (TypeError on an empty value, ValueError on text).
-            # Carry the offending value instead so validate_config() can name
-            # it as a ConfigError, which is what the user needs to see.
+            # A sensor_id that will not parse must not raise out of
+            # load_config(); carry the offending value so validate_config()
+            # can name it as a ConfigError.
             sensor_id_invalid=(
                 "" if sensor_id is not None or raw_sensor is None else repr(raw_sensor)
             ),
@@ -648,9 +642,8 @@ def load_config(path: str = "config/config.yaml") -> Config:
         entries = []
         if isinstance(raw_entries, list):
             for i, item in enumerate(raw_entries):
-                # ``- morning`` or a bare ``-`` used to raise AttributeError
-                # out of load_config(); theme_rules and countdown already skip
-                # non-mapping entries, and this loop now records them too.
+                # A non-mapping entry (``- morning``, a bare ``-``) is recorded
+                # and skipped, as theme_rules and countdown do.
                 if not isinstance(item, dict):
                     bad.append(
                         (f"theme_schedule[{i}]", f"must be a mapping, got {item!r}; skipped")

@@ -101,13 +101,11 @@ class DashboardApp:
     def _record_run_event(
         self, kind: str, started: float, exc: BaseException | None = None
     ) -> None:
-        """Append this run to the web event stream (#218).
+        """Append this run to the web event stream.
 
-        The stream used to carry only manual web-UI clicks, so the status page
-        could show that somebody pressed refresh but never whether the renders
-        themselves were happening. Imported lazily and failing silently: the
-        event store is stdlib-only, but recording history must never be what
-        turns a good run into a bad one.
+        Imported lazily and failing silently: the event store is stdlib-only,
+        but recording history must never be what turns a good run into a bad
+        one.
         """
         duration = round(time.monotonic() - started, 2)
         outcome = self._run_outcome or {}
@@ -330,9 +328,9 @@ class DashboardApp:
         A ``theme_rules`` entry may name a rotation pseudo-theme, and
         ``resolve_theme_name`` then draws from the whole pool post-fetch —
         ``monthly`` (the 35–42-day grid) or a rollover theme (+1/+2 days)
-        included. Sizing the window for the pseudo-name itself gave it the
-        plain 7-day default, so the pick rendered from a window that was never
-        fetched (#273). The pool is the same panel-aware one the picker uses.
+        included. Sizing the window for the pseudo-name itself would give it
+        the plain 7-day default and render the pick from a window that was
+        never fetched. The pool is the same panel-aware one the picker uses.
         """
         pseudo = {"random", "random_daily", "random_hourly"}
         if not names & pseudo:

@@ -21,9 +21,7 @@ from PIL import ImageDraw
 from src.render.primitives import Fill, text_height
 from src.render.theme import ComponentRegion, ThemeStyle
 
-# ---------------------------------------------------------------------------
 # Fuzzy time logic
-# ---------------------------------------------------------------------------
 
 _HOURS = [
     "twelve",
@@ -129,11 +127,6 @@ def _draw_segmented_text(
         cursor_x += int(font.getlength(text))
 
 
-# ---------------------------------------------------------------------------
-# Drawing
-# ---------------------------------------------------------------------------
-
-
 def draw_fuzzyclock(
     draw: ImageDraw.ImageDraw,
     now: datetime,
@@ -193,7 +186,6 @@ def draw_fuzzyclock(
         gap = 12
         block_h = phrase_h + gap + date_h
 
-    # Vertical centering
     block_top = region.y + (region.h - block_h) // 2
 
     phrase_segments = _phrase_segments(phrase, style)

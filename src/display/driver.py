@@ -14,15 +14,14 @@ logger = logging.getLogger(__name__)
 
 # Registry of supported Waveshare eInk display models.
 # Maps model name → (waveshare_epd module path, native width px, native height px).
-# Every entry names a module that exists in waveshare/e-Paper's
+# Every entry must name a module that exists in waveshare/e-Paper's
 # ``RaspberryPi_JetsonNano/python/lib/waveshare_epd`` (except ``epd10in85g``,
-# see below), and its dimensions are the driver's own ``EPD_WIDTH`` /
-# ``EPD_HEIGHT``. They have to be: a driver's ``getbuffer()`` compares the
-# image against those constants and returns a blank buffer on a mismatch, so a
-# wrong size here is a white panel with no error (#266). ``epd9in7`` and
-# ``epd7in5_V3`` used to be listed; neither module exists upstream (the 9.7"
-# panel is IT8951-driven), so selecting them failed at import on the first
-# hardware write.
+# see below), and its dimensions must be the driver's own ``EPD_WIDTH`` /
+# ``EPD_HEIGHT``: a driver's ``getbuffer()`` compares the image against those
+# constants and returns a blank buffer on a mismatch, so a wrong size here is a
+# white panel with no error. Check the vendor repo before adding a model:
+# ``epd9in7`` and ``epd7in5_V3`` have no module there (the 9.7" panel is
+# IT8951-driven), so listing them fails at import.
 WAVESHARE_MODELS: dict[str, tuple[str, int, int]] = {
     "epd7in5": ("waveshare_epd.epd7in5", 640, 384),
     "epd7in5_V2": ("waveshare_epd.epd7in5_V2", 800, 480),
@@ -36,16 +35,12 @@ WAVESHARE_MODELS: dict[str, tuple[str, int, int]] = {
     "epd10in85g": ("waveshare_epd.epd10in85g", 1360, 480),
 }
 
-# The name of the fast full-frame waveform each vendor driver exposes, for the
-# models that have one. This is the method ``WaveshareDisplay.show()`` calls
-# on a partial refresh, and a model absent from this dict does not support
-# partial refresh: ``epd7in5`` and ``epd7in5_HD`` ship only ``init()``, the
-# 13.3" K has an ``init_Part`` LUT meant for its windowed ``display_Partial``
-# rather than a full-frame repaint, and the G drivers repaint all four inks
-# every time. Until this was a per-model fact, every mono model claimed the
-# fast path and all but ``epd7in5_V2`` raised ``AttributeError`` on the first
-# partial refresh — and kept raising every tick, because the failed run never
-# recorded a partial and so never reached the next full one (#268).
+# The fast full-frame init each vendor driver exposes, for the models that
+# have one. ``WaveshareDisplay.show()`` calls it on a partial refresh; a model
+# absent here does not support partial refresh and gets a warning, not an
+# AttributeError. ``epd7in5`` and ``epd7in5_HD`` ship only ``init()``, the
+# 13.3" K's ``init_Part`` is a windowed-partial LUT rather than a full-frame
+# repaint, and the G drivers repaint all four inks every time.
 WAVESHARE_FAST_INIT: dict[str, str] = {
     "epd7in5_V2": "init_fast",
     "epd7in5b_V2": "init_Fast",
@@ -54,7 +49,7 @@ WAVESHARE_FAST_INIT: dict[str, str] = {
 # Tri-colour (black/white/red) drivers whose ``display()`` takes two planes,
 # ``(imageblack, imagered)``. The dashboard renders monochrome, so the red
 # plane it sends is empty; see ``WaveshareDisplay._blank_red_plane`` for why
-# "empty" is all-zero bytes and not 0xFF (#267).
+# "empty" is all-zero bytes and not 0xFF.
 WAVESHARE_TRICOLOR_MODELS: frozenset[str] = frozenset({"epd7in5b_V2"})
 
 # The physical inks of a Waveshare "G" panel, in the order the driver's
@@ -158,9 +153,8 @@ def image_changed(new_image: Image.Image, output_dir: str) -> bool:
     Compares SHA-256 hashes of the raw pixel bytes against
     ``<output_dir>/last_image_hash.txt``. Pure comparison — the hash is
     persisted separately via :func:`persist_image_hash`, only after the
-    hardware write succeeds. Persisting here recorded frames the panel never
-    actually showed, so one transient display failure pinned the panel on
-    stale content until the data changed again (issue #207).
+    hardware write succeeds — persisting a frame the panel never showed would
+    pin it on stale content until the data changed again.
     """
     hash_path = Path(output_dir) / _HASH_FILENAME
     new_hash = image_hash(new_image)
@@ -197,12 +191,10 @@ class DisplayDriver(ABC):
     def clear(self) -> None: ...
 
 
-#: How many timestamped dry-run PNGs to keep. Nothing used to remove them and
-#: nothing capped the count: they are gitignored (``output/*.png`` with a
-#: ``!output/latest.png`` exception), so they never showed up in ``git status``
-#: while quietly filling the card at ~50-100 KB each — and ``make dry`` and
-#: preview loops produce them in bulk. The log file next door gets a logrotate
-#: config; these got nothing (#245).
+#: How many timestamped dry-run PNGs to keep. They are gitignored
+#: (``output/*.png`` with a ``!output/latest.png`` exception) and ``make dry``
+#: and preview loops produce them in bulk, so without a cap they fill the card
+#: unseen.
 DRY_RUN_HISTORY = 20
 
 
@@ -216,7 +208,6 @@ class DryRunDisplay(DisplayDriver):
 
     def show(self, image: Image.Image, force_full: bool = False) -> None:
         del force_full
-        # Save timestamped version
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")  # allow-naive-datetime — file-name timestamp
         path = self.output_dir / f"dashboard_{ts}.png"
         image.save(path)
@@ -310,8 +301,7 @@ class WaveshareDisplay(DisplayDriver):
         black = epd.getbuffer(image)
         if self.is_tricolor:
             # display(imageblack, imagered): the dashboard is monochrome, so
-            # the red plane is blank. Calling display() with one buffer, as
-            # every other model takes, raised TypeError on every write (#267).
+            # the red plane is blank. Tri-colour display() takes two planes.
             epd.display(black, self._blank_red_plane(black))
         else:
             epd.display(black)
@@ -435,10 +425,9 @@ class InkyDisplay(DisplayDriver):
         import numpy as np
 
         device = self._get_device()
-        # inky_ac073tc1a.py's set_image() uses the deprecated image.im.convert("P", ...)
-        # internal Pillow API which assigns wrong palette indices with Pillow 10+.
-        # Pillow's .quantize(palette=...) also calls this broken path internally.
-        # Bypass set_image() entirely — it uses broken PIL internal APIs with Pillow 10+.
+        # Bypasses the driver's set_image(): it (and Pillow's .quantize(palette=...))
+        # goes through the deprecated image.im.convert("P", ...) internal API, which
+        # assigns wrong palette indices with Pillow 10+.
         # Compute nearest SATURATED_PALETTE index per pixel via numpy, then apply the
         # InkyE673 controller remap [0,1,2,3,5,6] that skips controller position 4
         # (matching inky_e673.py's set_image() remap step).  Write a 2-D (H×W) array

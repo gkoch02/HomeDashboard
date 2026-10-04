@@ -152,10 +152,8 @@ def _overall_health(
 
     # A crashed run is the most actionable thing on the page, so it is the
     # first issue and it sets the headline outright — including over quiet
-    # hours, because the failure needs fixing before the morning refresh.
-    # Until #263 only /api/health read the marker; the page a person looks at
-    # kept reporting "healthy" for the two hours the last_success threshold
-    # allows, while every 5-minute tick was dying.
+    # hours, because the failure needs fixing before the morning refresh, and
+    # before the last_success threshold alone would notice.
     failed_run = bool(last_error and last_error.get("is_current"))
     if failed_run:
         status = "needs_attention"
@@ -234,7 +232,7 @@ def _describe_theme_mode(cfg, effective_theme: str | None, now: datetime) -> dic
         mode = "randomized"
         detail = "The dashboard is rotating through a pool of themes automatically."
         if effective_theme is None:
-            # Reporting only — the page must not draw the pick itself (#238).
+            # Reporting only — the page must not draw the pick itself.
             detail += " The next theme has not been drawn yet; the next renderer run picks it."
     else:
         mode = "fixed"
@@ -290,7 +288,7 @@ def _calendar_integration(cfg, backend: str) -> dict:
         # Only the host. A private Google/iCloud feed URL carries its access
         # token in the path, and the config editor already withholds the URL
         # from the browser (the schema marks it secret); the status page must
-        # not print it to every viewer or into the status JSON (#279).
+        # not print it to every viewer or into the status JSON.
         detail = f"Using ICS feed: {_url_host(cfg.google.ical_url)}"
         if extra:
             detail += f" (+{extra} additional feed{'s' if extra != 1 else ''})"
@@ -309,7 +307,7 @@ def _build_integrations(cfg, one_call: dict | None = None) -> list[dict]:
     birthdays_path = Path(cfg.birthdays.file_path)
     # The service account is only reached on the Google API path — or by the
     # People API when birthdays come from contacts, whatever the calendar
-    # backend. Reporting it as missing otherwise is the bug in #214.
+    # backend — so it is only reported missing on those paths.
     needs_service_account = backend == "google" or cfg.birthdays.source == "contacts"
 
     items = [
@@ -389,9 +387,9 @@ def _build_status() -> dict:
     breakers = read_breakers(state_dir)
     cache_ages = read_cache_ages(state_dir, ttls)
     # Everything below is resolved against the *configured* timezone, the same
-    # clock the renderer uses. Reading the host clock here put quiet hours,
+    # clock the renderer uses; the host clock would put quiet hours,
     # theme_schedule and the daypart/weekday theme_rules on a different wall
-    # clock — and near local midnight on a different day (#239).
+    # clock, and near local midnight on a different day.
     now = now_local(config_tz(cfg))
     quota = read_quota(state_dir, today=now.date().isoformat())
     quiet_hours_active = is_quiet_hours_now(
@@ -419,10 +417,9 @@ def _build_status() -> dict:
     overall = _overall_health(
         last_run["seconds_since"], quiet_hours_active, sources, one_call, last_error
     )
-    # persist=False keeps this a read. Resolving a random cadence normally
-    # *draws* the theme and writes state/random_theme_state.json, so the page's
-    # 30-second poll was deciding what the dashboard would show — and winning
-    # that race against the 5-minute renderer at nearly every rollover (#238).
+    # persist=False keeps this a read: resolving a random cadence normally
+    # *draws* the theme and writes state/random_theme_state.json, and the
+    # page's 30-second poll must not decide what the renderer shows.
     resolved_theme = resolve_theme_name(cfg, override_theme=None, now=now, persist=False)
     effective_theme = None if resolved_theme in PSEUDO_THEMES else resolved_theme
     theme_info = _describe_theme_mode(cfg, effective_theme, now)

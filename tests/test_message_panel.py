@@ -1,17 +1,5 @@
-"""Tests for src/render/components/message_panel.py.
-
-Assertion discipline (see #229)
--------------------------------
-The smoke tests here asserted ``img.getbbox() is not None`` on a mode-``"1"``
-plate filled with 1, where every pixel is non-zero and getbbox can never
-return None. 10 of the 14 tests passed with ``draw_message`` stubbed to a
-no-op.
-
-Ink means **zero-valued** pixels. The typography measure is
-``_text_line_heights``: one band of ink per rendered line, whose height
-tracks the chosen font size — which is how the responsive size-selection
-loop, and its size-20 fallback, become things a test can check rather than
-describe.
+"""Tests for message_panel.py; ink is measured with the local ``_ink`` and
+``_text_line_heights`` (one band per rendered line, whose height tracks the font size).
 """
 
 from PIL import Image, ImageDraw

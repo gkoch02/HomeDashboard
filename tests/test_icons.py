@@ -78,8 +78,7 @@ class TestFallbackIcon:
 
 
 class TestDrawWeatherIcon:
-    """Ink means zero-valued pixels; the plate is white, so getbbox on it
-    reports the full canvas whether or not a glyph was drawn (#229)."""
+    """Ink means zero-valued pixels on the white plate."""
 
     @staticmethod
     def _ink(img) -> int:

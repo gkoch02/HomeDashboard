@@ -1,34 +1,5 @@
-"""Tests for src/render/components/tides_panel.py
-
-Covers: _quote_for_panel (key prefix, refresh cadence, fallback),
-individual band draw functions (_band_header, _band_events, _band_weather,
-_band_forecast, _band_environment, _band_birthdays, _band_quote, _band_host),
-and draw_tides (full render, missing data, band distribution).
-
-Assertion discipline (see #229)
--------------------------------
-Most of the band tests here used to call their function and assert nothing
-at all; the rest asserted ``img.getbbox() is not None``, which on a
-mode-``"1"`` plate filled with 1 can never be false. 40 of the 41 tests
-passed with every band function stubbed to a no-op.
-
-Ink here means **zero-valued** pixels. Watch the polarity: the header,
-weather, environment and quote bands are inverted — filled in ``fg`` with
-their text knocked out in ``bg`` — so for those four *more content means
-less ink*, and the assertions are written in that direction.
-
-At the whole-plate level the structural measure is ``_inverted_runs``: the
-four inverted bands give a fingerprint of which bands were laid down, so
-"losing weather drops a band" and "losing the forecast leaves weather and
-environment contiguous" are checked directly.
-
-Verification: with every band function and draw_tides stubbed to a no-op,
-35 of the 43 tests fail. Of the 8 survivors, 6 are ``_quote_for_panel``
-tests that exercise a pure function and never draw; the other two assert
-that a band draws *nothing* (``test_no_weather_noop`` and
-``test_empty_forecast_list_is_also_a_noop``), which a no-op satisfies by
-construction — both were checked instead by making the guard draw a
-placeholder and confirming they go red.
+"""Tests for tides_panel.py (``quote_for``, each ``_band_*`` function and ``draw_tides``); ink is
+counted with the local ``_ink`` and the inverted bands are fingerprinted with ``_inverted_runs``.
 """
 
 from __future__ import annotations
@@ -56,10 +27,10 @@ from src.render.components.tides_panel import (
     _band_host,
     _band_quote,
     _band_weather,
-    _quote_for_panel,
     draw_tides,
 )
 from src.render.quantize import flatten_pixels
+from src.render.quotes import quote_for
 from src.render.theme import ComponentRegion, ThemeStyle
 
 FIXED_NOW = datetime(2026, 4, 6, 10, 30)
@@ -107,18 +78,18 @@ def _weather(**kwargs) -> WeatherData:
 
 
 # ---------------------------------------------------------------------------
-# _quote_for_panel
+# quote_for(prefix="tides-")
 # ---------------------------------------------------------------------------
 
 
 class TestTidesQuoteForPanel:
     def test_returns_dict_with_text(self):
-        q = _quote_for_panel(FIXED_TODAY)
+        q = quote_for(FIXED_TODAY, prefix="tides-")
         assert "text" in q and q["text"]
 
     def test_deterministic_daily(self):
-        q1 = _quote_for_panel(FIXED_TODAY)
-        q2 = _quote_for_panel(FIXED_TODAY)
+        q1 = quote_for(FIXED_TODAY, prefix="tides-")
+        q2 = quote_for(FIXED_TODAY, prefix="tides-")
         assert q1["text"] == q2["text"]
 
     def test_tides_prefix_differs_from_scorecard(self):
@@ -130,31 +101,31 @@ class TestTidesQuoteForPanel:
         do with. Sampled across 60 days because a single day agreeing would
         be luck, not a bug.
         """
-        from src.render.components.scorecard_panel import _quote_for_panel as sc_quote
 
         collisions = [
             day
             for day in (FIXED_TODAY + timedelta(days=i) for i in range(60))
-            if _quote_for_panel(day)["text"] == sc_quote(day)["text"]
+            if quote_for(day, prefix="tides-")["text"]
+            == quote_for(day, prefix="scorecard-")["text"]
         ]
         assert not collisions, f"tides and scorecard picked the same quote on {collisions}"
 
     def test_hourly_refresh(self):
-        q = _quote_for_panel(FIXED_TODAY, refresh="hourly", now=FIXED_NOW)
+        q = quote_for(FIXED_TODAY, refresh="hourly", now=FIXED_NOW, prefix="tides-")
         assert "text" in q
 
     def test_twice_daily_refresh(self):
         am = datetime(2026, 4, 6, 9, 0)
         pm = datetime(2026, 4, 6, 15, 0)
-        q_am = _quote_for_panel(FIXED_TODAY, refresh="twice_daily", now=am)
-        q_pm = _quote_for_panel(FIXED_TODAY, refresh="twice_daily", now=pm)
+        q_am = quote_for(FIXED_TODAY, refresh="twice_daily", now=am, prefix="tides-")
+        q_pm = quote_for(FIXED_TODAY, refresh="twice_daily", now=pm, prefix="tides-")
         assert "text" in q_am and "text" in q_pm
 
     def test_fallback_when_no_file(self, monkeypatch, tmp_path):
         from src.render.quotes import DEFAULT_QUOTES
 
         monkeypatch.setattr("src.render.quotes.DEFAULT_QUOTES_PATH", tmp_path / "nonexistent.json")
-        q = _quote_for_panel(FIXED_TODAY)
+        q = quote_for(FIXED_TODAY, prefix="tides-")
         assert q in DEFAULT_QUOTES
 
 

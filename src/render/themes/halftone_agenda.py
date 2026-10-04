@@ -1,40 +1,27 @@
 """halftone_agenda.py — split-plate weather engraving + today's agenda.
 
-The third arrangement of halftone's engraving vocabulary. ``halftone`` gives
-the whole width to the illustration and reduces the calendar to a single NEXT
-line; ``day_arc`` turns the artwork itself into a time axis. This variant cuts
-the plate down the middle instead: art and weather on the left, the day's
-events on the right, divided by a full-height ordered-Bayer rule.
+The third arrangement of halftone's engraving vocabulary: art and weather on
+the left, the day's events on the right, divided by a full-height
+ordered-Bayer rule. The left pane carries the same procedural illustration as
+``halftone`` — chosen from the OWM icon code, recomposed for a narrower,
+nearly-square pane — with a typeset band beneath it (temperature numeral,
+condition, high/low, sunrise, sunset, date, feels-like).
 
-The left pane carries the same procedural illustration as ``halftone`` —
-rayed sun, phase-shaded moon, cumulus, stippled rain, lightning, snow or fog
-banding, chosen from the OWM icon code — recomposed for a narrower,
-nearly-square pane, with a typeset band beneath it holding the temperature
-numeral, condition, high/low, sunrise, sunset, date and feels-like reading.
+The right pane sets as many of today's events as fit at a legible size, each
+row carrying its start and end time, in the treatment its state calls for —
+elapsed perforated, in progress inverted, next up accented. Those need the
+full waveform, and the plate's own dithering derives it out of partial
+refresh (``Theme.allows_partial_refresh``).
 
-The right pane is the calendar, at the size a dedicated column allows: as many
-of today's events as fit at a legible type size, each row carrying its start
-and end time, and an "updated" caption in the bottom corner. Rows are rendered
-in the treatment their state calls for — elapsed ones perforated, the event in
-progress inverted, the next one up accented. Those need a full-waveform refresh
-to survive the panel; the theme declines partial refresh outright (#222) so
-they get one. See the panel module for the history.
-
-Typography follows the split. Righteous, halftone's single display voice,
-carries the weather pane and the agenda's chrome; DM Sans sets the event rows,
-which are small enough and numerous enough to want the screen-optimised cut
-(the same division ``day_arc`` makes, for the same reason).
-
-The agenda's DM Sans runs a weight heavier than the roles it fills — bold for
-titles, semibold for times, medium for locations and the footer. Weight, not
-size, is what makes ink read as black on an eInk panel: at 22 px Righteous
-sets ~4.4 px stems while DM Sans SemiBold sets ~3.7 px, so matching the roles
-one-for-one left the calendar side visibly greyer than the weather side.
+Typography follows the split: Righteous for the weather pane and the agenda's
+chrome, DM Sans for the event rows, one weight heavier than the roles it
+fills (bold titles, semibold times, medium locations) so that at 22 px its
+stems match Righteous's ~4.4 px and the calendar side reads as black as the
+weather side.
 
 On Inky the canvas is RGB (``prefer_color_on_inky=True``): yellow rings the
-sun and moon, and the red accent marks the running event's bar and the
-next-up tick. On Waveshare both accents collapse to ink, so the plate reads
-the same either way.
+sun and moon, red marks the running event's bar and the next-up tick. On
+Waveshare both accents collapse to ink.
 """
 
 from __future__ import annotations

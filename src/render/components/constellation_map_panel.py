@@ -44,7 +44,7 @@ from src.astronomy import (
 from src.data.models import DashboardData
 from src.render.fonts import weather_icon
 from src.render.moon import moon_phase_glyph, moon_phase_name
-from src.render.primitives import text_height, text_width
+from src.render.primitives import text_height, text_width, usable_coords
 from src.render.star_catalog import (
     CONSTELLATIONS,
     LABELED_STARS,
@@ -53,9 +53,7 @@ from src.render.star_catalog import (
 )
 from src.render.theme import ComponentRegion, ThemeStyle
 
-# ---------------------------------------------------------------------------
 # Layout constants
-# ---------------------------------------------------------------------------
 
 _HEADER_H = 36
 _FOOTER_H = 40
@@ -65,9 +63,7 @@ _DISC_RADIUS = 196
 _PAD_X = 18
 
 
-# ---------------------------------------------------------------------------
 # Projection
-# ---------------------------------------------------------------------------
 
 
 def _alt_az_to_chart_xy(alt_deg: float, az_deg: float, radius: int) -> tuple[int, int] | None:
@@ -94,9 +90,7 @@ def _alt_az_to_chart_xy(alt_deg: float, az_deg: float, radius: int) -> tuple[int
     )
 
 
-# ---------------------------------------------------------------------------
 # Time + observation helpers
-# ---------------------------------------------------------------------------
 
 
 def _utc(dt: datetime) -> datetime:
@@ -118,10 +112,11 @@ def _resolve_observation_time(
     are projected for tonight's solar midnight so the chart shows what the
     user will actually see tonight rather than an empty daytime sky.
     """
-    if latitude is None or longitude is None or (latitude, longitude) == (0.0, 0.0):
+    coords = usable_coords(latitude, longitude)
+    if coords is None:
         return _utc(now)
 
-    st = sun_times(today, latitude, longitude)
+    st = sun_times(today, *coords)
     now_utc = _utc(now)
     sunrise = st.sunrise
     sunset = st.sunset
@@ -135,11 +130,6 @@ def _resolve_observation_time(
         if st.solar_noon is not None:
             return st.solar_noon + timedelta(hours=12)
     return now_utc
-
-
-# ---------------------------------------------------------------------------
-# Drawing helpers
-# ---------------------------------------------------------------------------
 
 
 def _star_radius(mag: float) -> int:
@@ -323,17 +313,7 @@ def _draw_constellation_label(
     draw.text((cx - lw // 2, cy - 30), upper, font=label_font, fill=accent)
 
 
-# ---------------------------------------------------------------------------
 # Header + footer bands
-# ---------------------------------------------------------------------------
-
-
-def _fmt_local_time(dt: datetime, tz: tzinfo | None) -> str:
-    if dt.tzinfo is None:
-        local = dt
-    else:
-        local = dt.astimezone(tz) if tz is not None else dt.astimezone()
-    return local.strftime("%-H:%M")
 
 
 def _draw_header(
@@ -379,10 +359,12 @@ def _draw_footer(
     loc_parts: list[str] = []
     if weather is not None and weather.location_name:
         loc_parts.append(weather.location_name.upper())
-    if latitude is not None and longitude is not None and (latitude, longitude) != (0.0, 0.0):
-        ns = "N" if latitude >= 0 else "S"
-        ew = "E" if longitude >= 0 else "W"
-        loc_parts.append(f"{abs(latitude):.1f}°{ns}  {abs(longitude):.1f}°{ew}")
+    coords = usable_coords(latitude, longitude)
+    if coords is not None:
+        lat, lon = coords
+        ns = "N" if lat >= 0 else "S"
+        ew = "E" if lon >= 0 else "W"
+        loc_parts.append(f"{abs(lat):.1f}°{ns}  {abs(lon):.1f}°{ew}")
     loc = "  ·  ".join(loc_parts) if loc_parts else "OBSERVER UNSET"
     draw.text((region.x + _PAD_X, fy), loc, font=bold_font, fill=fg)
 
@@ -409,11 +391,6 @@ def _draw_footer(
         font=body_font,
         fill=accent,
     )
-
-
-# ---------------------------------------------------------------------------
-# Public entry point
-# ---------------------------------------------------------------------------
 
 
 def draw_constellation_map(
@@ -445,7 +422,6 @@ def draw_constellation_map(
     # we project for tonight's solar midnight; otherwise we use *now*.
     obs_time = _resolve_observation_time(now, today, latitude, longitude)
 
-    # Header
     _draw_header(draw, region, obs_time, tz, style, fg)
 
     # Disc chrome (horizon, altitude rings, cardinal labels)
@@ -454,11 +430,13 @@ def draw_constellation_map(
     # Project every catalogue star to chart coordinates (skipping ones below
     # the horizon).
     moon_visible = False
-    if latitude is not None and longitude is not None and (latitude, longitude) != (0.0, 0.0):
-        lst = local_sidereal_time(obs_time, longitude)
+    coords = usable_coords(latitude, longitude)
+    if coords is not None:
+        lat, lon = coords
+        lst = local_sidereal_time(obs_time, lon)
         star_xy: dict[str, tuple[int, int]] = {}
         for star in STARS:
-            alt, az = equatorial_to_horizontal(star.ra, star.dec, lst, latitude)
+            alt, az = equatorial_to_horizontal(star.ra, star.dec, lst, lat)
             xy = _alt_az_to_chart_xy(alt, az, _DISC_RADIUS)
             if xy is not None:
                 star_xy[star.name] = xy
@@ -466,7 +444,6 @@ def draw_constellation_map(
         # Constellation lines first so star halos sit on top of them.
         drawn_constellations = _draw_constellation_lines(draw, star_xy, accent_secondary)
 
-        # Stars
         for star in STARS:
             xy = star_xy.get(star.name)
             if xy is None:
@@ -489,7 +466,7 @@ def draw_constellation_map(
 
         # Moon — record visibility so the footer can flag a below-horizon moon
         # rather than print a phase line that doesn't match the disc.
-        moon_visible = _draw_moon(draw, today, obs_time, latitude, longitude, style, fg, bg)
+        moon_visible = _draw_moon(draw, today, obs_time, lat, lon, style, fg, bg)
     else:
         # No coordinates → render an explanatory message inside the disc.
         msg_font = style.font_medium(13)
@@ -502,7 +479,6 @@ def draw_constellation_map(
             fill=fg,
         )
 
-    # Footer
     _draw_footer(
         draw,
         region,

@@ -37,11 +37,9 @@ logger = logging.getLogger(__name__)
 
 _write_lock = threading.Lock()
 
-# How many rotated ``config.yaml.bak.<timestamp>`` archives to keep. Every save
-# used to add one and nothing ever removed them, so the directory grew without
-# bound — and each file is a byte-for-byte copy of the config, API keys
-# included. The UI only ever lists five, so anything past this is unreachable
-# from the app as well as unbounded on disk.
+# How many rotated ``config.yaml.bak.<timestamp>`` archives to keep. Each is a
+# byte-for-byte copy of the config, API keys included, and the UI only ever
+# lists five.
 _MAX_ROTATED_BACKUPS = 10
 
 
@@ -49,10 +47,9 @@ class ConfigReadError(Exception):
     """The on-disk config could not be read or parsed.
 
     Raised instead of degrading to an empty dict: a save that starts from
-    ``{}`` validates (everything defaults), and then *replaces* the file with
-    only the patched keys — API keys, calendar URLs and every field not on the
-    form gone, reported as "Saved" (#260). Callers turn this into a structured
-    error that blocks the write.
+    ``{}`` validates (everything defaults) and then *replaces* the file with
+    only the patched keys. Callers turn this into a structured error that
+    blocks the write.
     """
 
 
@@ -79,9 +76,7 @@ def config_write_lock():
         yield
 
 
-# ---------------------------------------------------------------------------
 # Field registry
-# ---------------------------------------------------------------------------
 
 # Maps the flat API field path to the nested YAML key path.
 # For top-level YAML keys the tuple has one element; for nested keys, two.
@@ -89,9 +84,7 @@ def config_write_lock():
 EDITABLE_FIELD_PATHS: dict[str, tuple] = _editable_field_paths()
 
 
-# ---------------------------------------------------------------------------
 # Public API
-# ---------------------------------------------------------------------------
 
 
 def list_config_backups(config_path: str, limit: int = 5) -> list[dict]:
@@ -152,7 +145,7 @@ def restore_latest_backup(config_path: str) -> tuple[bool, str]:
     try:
         # The whole read → validate → write runs under the lock: a Save
         # from another tab interleaving here would be discarded by this
-        # write while both requests reported success (#281).
+        # write while both requests reported success.
         with _write_lock:
             raw = _load_raw_yaml(str(backup_path))
             _cfg, errors_obj, _warnings_obj = _validate_raw(raw)
@@ -170,7 +163,7 @@ def get_config_for_web(config_path: str) -> dict:
     Sensitive fields are represented as boolean ``_<name>_set`` flags only,
     where ``<name>`` is the field's own key — ``google.service_account_path``
     is ``google._service_account_path_set`` — so ``/api/config/schema`` can
-    find each secret's flag by its schema path (#308). Read-only hardware
+    find each secret's flag by its schema path. Read-only hardware
     fields are prefixed with ``_``.
     """
     cfg = load_config(config_path)
@@ -353,12 +346,10 @@ def apply_patch(config_path: str, patch: dict) -> tuple[bool, list[dict], list[d
     patch, parse_errors = _normalise_patch(patch)
     safe_patch = {k: v for k, v in patch.items() if k in EDITABLE_FIELD_PATHS}
 
-    # Read → patch → validate → write is one critical section. Locking only
-    # the write let two saves (or a save and a restore) from different tabs
-    # interleave: the later write silently discarded the earlier patch while
-    # both responded ``saved: true``, and the .bak rotation raced on the same
-    # filenames. Validation is a temp-file parse, cheap enough to serialise
-    # (#281).
+    # Read → patch → validate → write is one critical section: locking only
+    # the write lets two saves from different tabs interleave, the later one
+    # silently discarding the earlier patch. Validation is a temp-file parse,
+    # cheap enough to serialise.
     with _write_lock:
         try:
             raw = _load_raw_yaml(config_path)
@@ -429,9 +420,7 @@ def build_patched_config(
     return cfg, errors, warnings
 
 
-# ---------------------------------------------------------------------------
 # Internal helpers
-# ---------------------------------------------------------------------------
 
 
 def _load_raw_yaml(config_path: str) -> dict:
@@ -439,8 +428,8 @@ def _load_raw_yaml(config_path: str) -> dict:
 
     A missing file is an empty mapping — a first save creates it. Anything
     else that stops the file being read as a mapping raises
-    :class:`ConfigReadError`; degrading to ``{}`` here is how a save came to
-    overwrite the whole config with just the patched keys (#260).
+    :class:`ConfigReadError`; degrading to ``{}`` here would let a save
+    overwrite the whole config with just the patched keys.
     """
     path = Path(config_path)
     if not path.exists():
@@ -514,9 +503,7 @@ def _write_raw_yaml(config_path: str, raw: dict, *, rotate_backup: bool = True) 
 
     A backup copy is written to ``<config>.bak`` before overwriting. A backup
     that cannot be taken raises :class:`ConfigBackupError` *before* the target
-    is touched: the backup is the one recovery path a web save leaves behind,
-    and proceeding without it used to turn a read failure into a silent
-    overwrite with no way back (#260).
+    is touched: the backup is the one recovery path a web save leaves behind.
     """
     path = Path(config_path)
     path.parent.mkdir(parents=True, exist_ok=True)

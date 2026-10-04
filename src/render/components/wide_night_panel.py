@@ -3,34 +3,24 @@
 Four marks and nothing else: the moon's phase, the temperature now, the
 air-quality index and the current weather glyph, centred on the strip's
 midline with equal gaps between them and at both ends. Everything else is
-ground — on the four-ink panel a solid red field with the marks in black ink.
+ground — on the four-ink panel a solid red field with the marks in black.
 
-**Size.** Every mark is drawn at one shared ink height: ``BAND_FRACTION`` (80%)
-of the plate when the four fit across it, and otherwise the tallest height at
-which they do with at least ``MIN_GAP`` between them. On a 1360-px strip they
-never fit at 80% — the moon alone is as wide as it is tall, and two numerals
-at 384 px are ~1500 px — so in practice the height is set by the width of
-tonight's readings, and ``fit_height`` is what decides it. Both numerals are
-set in ``style.font_date_number``. Every mark carries a small label on one
-shared baseline beneath the row — fixed-size, tracked caps in ``style.font_bold``,
-the instrument-panel convention — and the row plus its labels is centred on
-the plate.
+**Size.** Every mark is drawn at one shared ink height: ``BAND_FRACTION`` of
+the plate when the four fit across it, otherwise the tallest height at which
+they do with at least ``MIN_GAP`` between them — in practice the width of
+tonight's readings decides, via ``fit_height``. Numerals are set in
+``style.font_date_number``; each mark carries a fixed-size tracked-caps label
+in ``style.font_bold`` on one shared baseline, and the row plus labels is
+centred on the plate.
 
-The colours come from the theme's style rather than being fixed here, so the
-plate reads the same on every backend:
+**Colour** comes from the theme's style, not from here: on a colour panel the
+ground is the primary accent (red) and the marks ``style.bg`` (black); on
+monochrome the accent resolves to ``fg`` and the plate falls back to the
+dark-canvas convention, a black ground with marks knocked out in white.
 
-  * **colour** (four-ink G panel, Inky) — the ground is the primary accent
-    (red) and the marks are ``style.bg`` (black);
-  * **monochrome** — the primary accent resolves to ``fg`` and there is no red
-    to fill with, so the plate falls back to the dark-canvas convention the
-    ``*_invert`` themes use: a black ground with the marks knocked out in white.
-
-A mark whose data is missing is dropped and the rest re-spaced, so a setup
-without a PurpleAir sensor shows three evenly spaced marks rather than a gap.
-The moon is computed from the date and is always present.
-
-Nothing reads the clock: the marks move only when the data or the date does,
-so an idle tick renders byte-identically and costs no panel write.
+A mark whose data is missing is dropped and the rest re-spaced; the moon is
+computed from the date and always present. Nothing reads the clock, so an
+idle tick renders byte-identically.
 """
 
 from __future__ import annotations

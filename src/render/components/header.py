@@ -102,8 +102,8 @@ def draw_header(
     ts_y = y + (h - ts_h) // 2
 
     right_edge = x + w - pad
-    # The title yields to the timestamp: drawn at full width, a long title ran
-    # under the right-aligned block and the two overprinted (#310).
+    # The title yields to the timestamp: drawn at full width, a long title
+    # would run under the right-aligned block and overprint it.
     draw_text_truncated(
         draw,
         (x + pad, title_y),

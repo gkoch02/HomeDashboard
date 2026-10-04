@@ -24,9 +24,7 @@ if TYPE_CHECKING:
     from PIL import ImageDraw
 
 
-# ---------------------------------------------------------------------------
 # Layout geometry
-# ---------------------------------------------------------------------------
 
 _CANVAS_W = 800
 _CANVAS_H = 480
@@ -52,9 +50,7 @@ _INFO_H = _BODY_H - _WEATHER_H - _BIRTHDAY_H  # ancient wisdom — quote
 _CI = 7  # content inset — one pixel inside the inner border (INNER=6)
 
 
-# ---------------------------------------------------------------------------
 # Ornamental drawing helpers
-# ---------------------------------------------------------------------------
 
 
 def _diamond(
@@ -87,9 +83,7 @@ def _draw_fantasy_overlay(
     fg = style.fg  # WHITE (1) on dark canvas
     bg = style.bg  # BLACK (0)
 
-    # ------------------------------------------------------------------
     # 1. Outer double-frame border
-    # ------------------------------------------------------------------
     OUTER = 2  # outer border inset from canvas edge
     INNER = 6  # inner accent line inset
 
@@ -106,9 +100,7 @@ def _draw_fantasy_overlay(
     draw.rectangle([OUTER, OUTER, W - OUTER - 1, H - OUTER - 1], outline=fg, width=2)
     draw.rectangle([INNER, INNER, W - INNER - 1, H - INNER - 1], outline=fg, width=1)
 
-    # ------------------------------------------------------------------
     # 2. Corner ornaments (at inner-frame corners)
-    # ------------------------------------------------------------------
     for cx, cy in [
         (INNER, INNER),
         (W - INNER - 1, INNER),
@@ -117,9 +109,7 @@ def _draw_fantasy_overlay(
     ]:
         _corner_ornament(draw, cx, cy, fg, bg)
 
-    # ------------------------------------------------------------------
     # 3. Header bottom border — double rule with centre ornament
-    # ------------------------------------------------------------------
     hdr_bottom = _HEADER_H - 1
     # Erase the default single line; replace with a decorative thick rule
     draw.rectangle([INNER + 1, hdr_bottom - 2, W - INNER - 2, hdr_bottom + 3], fill=bg)
@@ -128,18 +118,14 @@ def _draw_fantasy_overlay(
     mid_x = W // 2
     _diamond(draw, mid_x, hdr_bottom, 5, fg)
 
-    # ------------------------------------------------------------------
     # 4. Decorative diamond ticks centred on the top header border
-    # ------------------------------------------------------------------
     # Small diamonds at the 1/4 and 3/4 horizontal positions of the header
     # bottom rule — purely ornamental, placed away from title and timestamp.
     hdr_mid_y = _HEADER_H // 2
     for tick_x in (W // 4, W * 3 // 4):
         _diamond(draw, tick_x, hdr_mid_y, 3, fg)
 
-    # ------------------------------------------------------------------
     # 5. Vertical divider between sidebar and quest log
-    # ------------------------------------------------------------------
     div_x = _SIDEBAR_W
     # Draw a triple-line divider: thick | thin | thin
     draw.line([(div_x, _HEADER_H), (div_x, H - INNER - 1)], fill=fg, width=2)
@@ -152,9 +138,7 @@ def _draw_fantasy_overlay(
         draw.line([(div_x + 4, oy - 6), (div_x + 4, oy + 6)], fill=bg, width=1)
         _diamond(draw, div_x + 2, oy, 5, fg)
 
-    # ------------------------------------------------------------------
     # 6. Horizontal dividers within the sidebar
-    # ------------------------------------------------------------------
     weather_bottom = _BODY_Y + _WEATHER_H
     birthday_bottom = weather_bottom + _BIRTHDAY_H
 
@@ -169,9 +153,7 @@ def _draw_fantasy_overlay(
         csx = (x_lo + x_hi) // 2
         _diamond(draw, csx, rule_y + 1, 4, fg)
 
-    # ------------------------------------------------------------------
     # 7. Small diamond tick-marks along canvas mid-edges for flair
-    # ------------------------------------------------------------------
     # Top and bottom edge midpoints
     for mx, my in [
         (W // 2, INNER),
@@ -180,11 +162,6 @@ def _draw_fantasy_overlay(
         (W - INNER - 1, H // 2),
     ]:
         _diamond(draw, mx, my, 4, fg)
-
-
-# ---------------------------------------------------------------------------
-# Theme factory
-# ---------------------------------------------------------------------------
 
 
 def fantasy_theme() -> Theme:
@@ -230,11 +207,6 @@ def fantasy_theme() -> Theme:
     )
 
     return Theme(name="fantasy", style=style, layout=layout)
-
-
-# ---------------------------------------------------------------------------
-# Registry adapter
-# ---------------------------------------------------------------------------
 
 
 def _register() -> None:

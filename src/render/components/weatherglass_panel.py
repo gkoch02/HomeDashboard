@@ -53,10 +53,8 @@ from src.render.theme import (
     ThemeStyle,
 )
 
-# ---------------------------------------------------------------------------
 # Supersample factor — must match the theme's canvas multiplier (2×).
 # Every absolute pixel size below is multiplied by SS.
-# ---------------------------------------------------------------------------
 
 SS = 2
 
@@ -84,12 +82,10 @@ _MOON_RECT = (504 * SS, _SEC_Y0, 600 * SS, _SEC_Y1)
 _AQI_RECT = (616 * SS, _SEC_Y0, 716 * SS, _SEC_Y1)
 
 
-# ---------------------------------------------------------------------------
 # Mode-aware colour helpers — brass/mercury collapse to solid ink on L mode
 # so thin needles stay crisp through Floyd-Steinberg quantization.  Large
 # fill bands (cold/comfort zones, wood grain) use mid-grey on L so they
 # dither into engraving-style halftone.
-# ---------------------------------------------------------------------------
 
 
 def _brass(mode: str) -> int | tuple[int, int, int]:
@@ -116,11 +112,9 @@ def _warm_good(mode: str) -> int | tuple[int, int, int]:
     return 70
 
 
-# ---------------------------------------------------------------------------
 # Pressure history — tiny rolling JSON file in state_dir.  The trend needle
 # compares the current pressure against the oldest sample between 1 and 36
 # hours old.  Any IO failure silently disables the trend needle.
-# ---------------------------------------------------------------------------
 
 _PRESSURE_FILE = "weatherglass_pressure_history.json"
 _MAX_SAMPLES = 48
@@ -212,9 +206,7 @@ def _save_pressure_sample(state_dir: str | None, current_hpa: float | None, now:
         return
 
 
-# ---------------------------------------------------------------------------
 # Unit-aware scale ranges
-# ---------------------------------------------------------------------------
 
 
 def _temp_scale(units: str | None) -> tuple[float, float, str, list[float]]:
@@ -254,11 +246,6 @@ def _temp_hot_threshold(units: str | None) -> float:
 def _wind_unit_label(units: str | None) -> str:
     """Kept for the tests that import it; the one rule lives in ``primitives.wind_unit``."""
     return wind_unit(SimpleNamespace(units=units))
-
-
-# ---------------------------------------------------------------------------
-# Public entry point
-# ---------------------------------------------------------------------------
 
 
 def draw_weatherglass(
@@ -311,9 +298,7 @@ def draw_weatherglass(
         _draw_alert_cartouche(draw, alerts, mode, style)
 
 
-# ---------------------------------------------------------------------------
 # Background — parchment fill + subtle wood-grain cross-hatch
-# ---------------------------------------------------------------------------
 
 
 def _draw_background(image: Image.Image, mode: str, style: ThemeStyle) -> None:
@@ -333,9 +318,7 @@ def _draw_background(image: Image.Image, mode: str, style: ThemeStyle) -> None:
     )
 
 
-# ---------------------------------------------------------------------------
 # Masthead — "WEATHERGLASS" wordmark + date + location
-# ---------------------------------------------------------------------------
 
 
 def _draw_masthead(
@@ -356,7 +339,6 @@ def _draw_masthead(
         else style.font_semibold(14 * SS)
     )
 
-    # Title centred.
     title = "WEATHERGLASS"
     tb = draw.textbbox((0, 0), title, font=title_font)
     tw = tb[2] - tb[0]
@@ -408,9 +390,7 @@ def _draw_compass_star(draw: ImageDraw.ImageDraw, cx: float, cy: int, r: int, fi
     draw.polygon(pts2, fill=fill)
 
 
-# ---------------------------------------------------------------------------
 # Filigree corner ornaments
-# ---------------------------------------------------------------------------
 
 
 def _draw_filigree_corners(draw: ImageDraw.ImageDraw, mode: str) -> None:
@@ -456,9 +436,7 @@ def _draw_filigree_corners(draw: ImageDraw.ImageDraw, mode: str) -> None:
         draw.ellipse((tx - tip_r, ty - tip_r, tx + tip_r, ty + tip_r), fill=ink)
 
 
-# ---------------------------------------------------------------------------
 # Instrument helpers — shared dial drawing primitives
-# ---------------------------------------------------------------------------
 
 
 def _draw_instrument_backplate(
@@ -520,46 +498,7 @@ def _draw_dial_rim(
     )
 
 
-def _rotate_text_paste(
-    image: Image.Image,
-    text: str,
-    font,
-    fill,
-    angle_deg: float,
-    centre: tuple[int, int],
-    radial_offset: int,
-) -> None:
-    """Render text on a transparent strip, rotate, and paste at radius=radial_offset.
-
-    The text reads outward from the rim — the angle is the direction the text
-    points (0° = right, 90° = down, etc).
-    """
-    bbox = font.getbbox(text)
-    tw = bbox[2] - bbox[0]
-    th = bbox[3] - bbox[1]
-    pad = 4 * SS
-    # Render to an L-mode strip and treat any non-zero pixel as the fill region.
-    strip = Image.new("L", (tw + 2 * pad, th + 2 * pad), 0)
-    sd = ImageDraw.Draw(strip)
-    sd.text((pad - bbox[0], pad - bbox[1]), text, font=font, fill=255)
-    rotated = strip.rotate(-angle_deg, resample=Image.Resampling.BICUBIC, expand=True)
-    rw, rh = rotated.size
-    cx, cy = centre
-    a = math.radians(angle_deg)
-    px = cx + math.cos(a) * radial_offset - rw // 2
-    py = cy + math.sin(a) * radial_offset - rh // 2
-    # Build a mask and paste the fill color through it.
-    if image.mode == "RGB":
-        coloured = Image.new("RGB", rotated.size, fill if isinstance(fill, tuple) else (0, 0, 0))
-        image.paste(coloured, (int(px), int(py)), rotated)
-    else:
-        coloured = Image.new("L", rotated.size, fill if isinstance(fill, int) else 0)
-        image.paste(coloured, (int(px), int(py)), rotated)
-
-
-# ---------------------------------------------------------------------------
 # Thermometer
-# ---------------------------------------------------------------------------
 
 
 def _draw_thermometer(
@@ -602,7 +541,6 @@ def _draw_thermometer(
         cold_y = _temp_to_y(cold_t, lo, hi, stem_top, stem_bot)
         if cold_y < stem_bot:
             _fill_zone(draw, (band_x0, cold_y, band_x1, stem_bot), _cold(mode), mode)
-        # Comfort band.
         comf_y1 = _temp_to_y(comf_hi, lo, hi, stem_top, stem_bot)
         comf_y0 = _temp_to_y(comf_lo, lo, hi, stem_top, stem_bot)
         _fill_zone(draw, (band_x0, comf_y1, band_x1, comf_y0), _warm_good(mode), mode)
@@ -773,9 +711,7 @@ def _fill_zone(
         draw.rectangle((x0, y0, x1, y1), fill=colour)
 
 
-# ---------------------------------------------------------------------------
 # Barometer
-# ---------------------------------------------------------------------------
 
 # Barometer scale: pressure 950..1050 hPa mapped to dial angle 180°..0°.
 # 180° = far left ("STORMY"), 90° = top ("CHANGE"), 0° = far right ("VERY DRY").
@@ -1000,9 +936,7 @@ def _draw_needle(
         draw.polygon(poly, fill=colour)
 
 
-# ---------------------------------------------------------------------------
 # Hygrometer + UV bar (stacked right column)
-# ---------------------------------------------------------------------------
 
 
 def _draw_hygrometer_uv_stack(
@@ -1260,9 +1194,7 @@ def _draw_uv_bar(
     )
 
 
-# ---------------------------------------------------------------------------
 # Wind compass
-# ---------------------------------------------------------------------------
 
 
 def _draw_wind_compass(
@@ -1401,9 +1333,7 @@ def _draw_wind_compass(
         )
 
 
-# ---------------------------------------------------------------------------
 # Sun arc + twilight band
-# ---------------------------------------------------------------------------
 
 
 def _draw_sun_arc(
@@ -1617,9 +1547,7 @@ def _fmt_clock(dt: datetime, tz) -> str:
     return s.replace("am", "a").replace("pm", "p")
 
 
-# ---------------------------------------------------------------------------
 # Moon porthole
-# ---------------------------------------------------------------------------
 
 
 def _draw_moon_porthole(
@@ -1698,9 +1626,7 @@ def _draw_moon_porthole(
     draw.text((vx, name_y + (nb[3] - nb[1]) + 4 * SS), val_text, font=val_font, fill=ink)
 
 
-# ---------------------------------------------------------------------------
 # AQI badge / nameplate
-# ---------------------------------------------------------------------------
 
 
 def _aqi_ring_colour(aqi: int, mode: str):
@@ -1770,7 +1696,6 @@ def _draw_aqi_badge(
     vy = cy - (vb[3] - vb[1]) // 2 - vb[1]
     draw.text((vx, vy), val_text, font=val_font, fill=ink)
 
-    # Labels below.
     label_font = (
         style.font_section_label(11 * SS)
         if style.font_section_label
@@ -1877,9 +1802,7 @@ def _draw_nameplate(
     )
 
 
-# ---------------------------------------------------------------------------
 # Alert cartouche overlay
-# ---------------------------------------------------------------------------
 
 
 def _draw_alert_cartouche(
@@ -1929,7 +1852,6 @@ def _draw_alert_cartouche(
         b_pt = poly[(i + 1) % len(poly)]
         draw.line([a_pt, b_pt], fill=mercury, width=2 * SS)
 
-    # Text lines.
     line_h = 18 * SS
     base_y = y0 + (band_h - len(text_lines) * line_h) // 2
     max_text_w = inner_w - 40 * SS

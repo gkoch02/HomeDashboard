@@ -1,12 +1,10 @@
 """Shared quote store for the panels that show a daily quote.
 
-Four panels — info, tides, scorecard, moonphase — each used to carry their own
-copy of the quotes path, the bundled fallback list, and the stable bucket-hash
-selection. The path was hardcoded four times over, which also made it
-unconfigurable: a user who customised ``config/quotes.json`` on the Pi had it
-overwritten by the next ``make deploy``.
+One loader and one selection rule for every panel that shows a quote (info,
+tides, scorecard, moonphase); the store path comes from ``quotes.path`` so a
+customised store can live outside the tree ``make deploy`` overwrites.
 
-Selection is deliberately unchanged. The bucket key is
+The bucket key is
 ``<prefix><date>[-bucket]`` hashed with MD5 and taken modulo the store size, so
 the same slot always maps to the same quote and repeats are possible. Each
 panel keeps its own *prefix* (``"tides-"``, ``"scorecard-"``, ``"moonphase-"``,

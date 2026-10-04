@@ -66,7 +66,7 @@ CLI (main.py)
 ### Configuration
 - **`config.py`** — YAML → dataclass hierarchy. `load_config()` and `validate_config()`
 - **`config_schema.py`** — v5 declarative schema (`FieldSpec`/`SectionSpec`); source of truth for editable / secret / enum metadata used by the web editor
-- **`config_migrations.py`** — schema-versioned migration runner; `v4_to_v5` step plus a versioned `.bak-v<N>` backup helper
+- **`config_migrations.py`** — schema-versioned migration runner; `v4_to_v5` step
 - **`data/models.py`** — Pure dataclasses: `CalendarEvent`, `WeatherData`, `Birthday`, `AirQualityData`, `HostData`, `DashboardData`, `StalenessLevel`
 
 ### Data fetching
@@ -94,7 +94,7 @@ CLI (main.py)
 
 ### Rendering
 - **`render/canvas.py`** — Top-level render: create canvas, iterate the component registry, hand off to the display backend
-- **`render/theme.py`** — `Theme`, `ThemeLayout`, `ThemeStyle`, `load_theme()`; the `_THEME_REGISTRY` and `AVAILABLE_THEMES` exports are read-through proxies over `render/themes/registry.py`
+- **`render/theme.py`** — `Theme`, `ThemeLayout`, `ThemeStyle`, `load_theme()`; `AVAILABLE_THEMES` is a live set view over `render/themes/registry.py`
 - **`render/themes/registry.py`** — v5 theme plugin registry; each theme registers its factory + Inky `(primary, secondary)` palette pair
 - **`render/components/registry.py`** — v5 component plugin registry; defines `RenderContext` and the `@register_component(name)` decorator
 - **`render/components/_builtins.py`** — adapter registrations for the built-in components
@@ -155,7 +155,7 @@ Each registry's package `__init__.py` runs side-effect imports of its members so
 - Which fields are secret and must never be returned to the browser as plaintext (`secret_field_paths()`).
 - Schema metadata served by `GET /api/config/schema` (the page's form is hand-written; a coverage test holds it to the schema).
 
-`src/config_migrations.py` runs at the top of `load_config()` and upgrades older YAML shapes to `CURRENT_SCHEMA_VERSION = 5` in-memory before parsing. The v4→v5 step is a metadata bump (v5 is a strict superset of v4) and the attachment point for future renames; `write_pre_migration_backup` writes versioned `.bak-v<N>` siblings for migrations that mutate state on disk.
+`src/config_migrations.py` runs at the top of `load_config()` and upgrades older YAML shapes to `CURRENT_SCHEMA_VERSION = 5` in-memory before parsing. The v4→v5 step is a metadata bump (v5 is a strict superset of v4) and the attachment point for future renames. Migrations run in memory only; a step that must mutate the file on disk needs to add its own backup.
 
 ### Per-source independence
 Every data source (calendar, weather, birthdays, air_quality) has independent:

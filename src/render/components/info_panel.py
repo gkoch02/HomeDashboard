@@ -55,7 +55,6 @@ def draw_info(
         hline(draw, y0, x0, x0 + w, fill=style.fg)
         hline(draw, y0 + 1, x0, x0 + w, fill=style.fg)
 
-    # Section label
     label_font = style.label_font()
     info_label = style.component_labels.get("info", "QUOTE OF THE DAY")
     draw.text((x0 + pad, y0 + pad), info_label, font=label_font, fill=style.primary_accent_fill())
@@ -86,7 +85,6 @@ def draw_info(
         fill=style.fg,
     )
 
-    # Attribution
     _author_fn = (
         style.font_quote_author if style.font_quote_author is not None else style.font_regular
     )

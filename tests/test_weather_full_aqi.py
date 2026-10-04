@@ -2,11 +2,13 @@
 
 from datetime import date, datetime, timedelta
 
+import pytest
 from PIL import Image, ImageDraw
 
 from src.data.models import AirQualityData, DayForecast, WeatherData
 from src.render.components.weather_full import draw_weather_full
 from src.render.theme import ComponentRegion, ThemeStyle
+from tests.inkutils import ink
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -56,49 +58,59 @@ def _make_aqi(**overrides) -> AirQualityData:
 # ---------------------------------------------------------------------------
 
 
+TODAY = date(2024, 3, 15)
+
+# The metric-card band, mirrored from draw_weather_full's own proportions.
+_CARDS_Y0 = int(480 * 0.44)
+CARDS = (0, _CARDS_Y0, 800, _CARDS_Y0 + int(480 * 0.155))
+
+
+def _render(weather, air_quality, **kwargs) -> Image.Image:
+    img, draw = _make_draw()
+    draw_weather_full(draw, weather, TODAY, air_quality=air_quality, **kwargs)
+    return img
+
+
 class TestDrawWeatherFullAqi:
-    def test_renders_without_aqi(self):
-        """4-card layout still works when air_quality is None."""
-        img, draw = _make_draw()
-        weather = _make_weather()
-        # Should not raise
-        draw_weather_full(draw, weather, date(2024, 3, 15), air_quality=None)
+    """Every AQI input shape renders a non-blank plate; nothing finer is asserted here.
 
-    def test_renders_with_aqi_good(self):
-        """5th AQI card renders without error for a 'Good' reading."""
-        img, draw = _make_draw()
-        weather = _make_weather()
-        aq = _make_aqi(aqi=42, category="Good")
-        draw_weather_full(draw, weather, date(2024, 3, 15), air_quality=aq)
+    The card's content is measured in test_weather_full_component.py.
+    """
 
-    def test_renders_with_aqi_unhealthy_for_sensitive(self):
-        """Long category label is truncated to fit the card."""
-        img, draw = _make_draw()
-        weather = _make_weather()
-        aq = _make_aqi(aqi=120, category="Unhealthy for Sensitive Groups", pm25=40.0)
-        draw_weather_full(draw, weather, date(2024, 3, 15), air_quality=aq)
+    @pytest.mark.parametrize(
+        "weather_present, aqi_kwargs, draw_kwargs",
+        [
+            (True, None, {}),
+            (True, dict(aqi=42, category="Good"), {}),
+            (True, dict(aqi=120, category="Unhealthy for Sensitive Groups", pm25=40.0), {}),
+            (True, dict(aqi=300, category="Very Unhealthy", pm25=200.0), {}),
+            (False, {}, {}),
+            (True, {}, dict(region=ComponentRegion(0, 0, 800, 480), style=ThemeStyle())),
+            (True, dict(pm10=None), {}),
+        ],
+        ids=[
+            "no_aqi",
+            "good",
+            "long_category_label",
+            "hazardous",
+            "weather_unavailable",
+            "explicit_region_and_style",
+            "pm10_missing",
+        ],
+    )
+    def test_renders_a_non_blank_plate(self, weather_present, aqi_kwargs, draw_kwargs):
+        weather = _make_weather() if weather_present else None
+        aq = None if aqi_kwargs is None else _make_aqi(**aqi_kwargs)
+        assert ink(_render(weather, aq, **draw_kwargs)) > 0
 
-    def test_renders_with_aqi_hazardous(self):
+    def test_renders_without_a_date(self):
+        """``today`` is optional: the moon-phase line is skipped, the rest still draws."""
         img, draw = _make_draw()
-        weather = _make_weather()
-        aq = _make_aqi(aqi=300, category="Very Unhealthy", pm25=200.0)
-        draw_weather_full(draw, weather, date(2024, 3, 15), air_quality=aq)
+        draw_weather_full(draw, _make_weather(), None, air_quality=_make_aqi())
+        assert ink(img) > 0
 
-    def test_renders_with_none_weather(self):
-        """Unavailable fallback still works with air_quality provided."""
-        img, draw = _make_draw()
-        draw_weather_full(draw, None, date(2024, 3, 15), air_quality=_make_aqi())
-
-    def test_renders_with_custom_region(self):
-        img, draw = _make_draw()
-        weather = _make_weather()
-        region = ComponentRegion(0, 0, 800, 480)
-        style = ThemeStyle()
-        draw_weather_full(draw, weather, air_quality=_make_aqi(), region=region, style=style)
-
-    def test_renders_without_pm10(self):
-        """pm10=None is handled gracefully."""
-        img, draw = _make_draw()
-        weather = _make_weather()
-        aq = _make_aqi(pm10=None)
-        draw_weather_full(draw, weather, date(2024, 3, 15), air_quality=aq)
+    def test_aqi_card_changes_the_cards_band(self):
+        """The fifth card is drawn from the reading: the band differs with and without it."""
+        with_aqi = _render(_make_weather(), _make_aqi())
+        without = _render(_make_weather(), None)
+        assert ink(with_aqi, CARDS) != ink(without, CARDS), "the AQI card is not drawn"

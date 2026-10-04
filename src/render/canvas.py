@@ -264,8 +264,8 @@ def render_dashboard(
     if layout.overlay_fn is not None:
         layout.overlay_fn(draw, layout, style)
 
-    # Delegate resize + final quantization to the backend so canvas no longer
-    # forks on `config.provider`.
+    # Delegate resize + final quantization to the backend; canvas does not
+    # fork on `config.provider`.
     backend = build_display_backend(config)
     image = backend.resize_and_finalize(
         image,

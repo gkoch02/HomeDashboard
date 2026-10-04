@@ -64,9 +64,9 @@ def event_window_utc(
     Both bounds are local midnights: ``time_max`` is the start of the day
     *days* after *window_start*, resolved in *tz* like ``time_min``. Adding
     ``timedelta(days=days)`` to ``time_min`` instead gives ``days × 24 h``, which
-    is not *days* local days across a DST change — in the fall-back week the
-    window ended at Sunday 23:00 local, so ``win_end_date`` became Sunday and
-    every all-day event that day was filtered out (#258).
+    is not *days* local days across a DST change: in the fall-back week the
+    window would end at Sunday 23:00 local and drop every all-day event that
+    day.
     """
     return day_start_utc(window_start, tz), day_start_utc(window_start + timedelta(days=days), tz)
 

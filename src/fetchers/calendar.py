@@ -102,9 +102,7 @@ def _build_people_service(cfg: GoogleConfig):
     return _people_service_cache[key]
 
 
-# ---------------------------------------------------------------------------
 # Public API: event fetching (dispatches to Google API or ICS)
-# ---------------------------------------------------------------------------
 
 # Keep _fetch_from_ical as an alias for backward compat with mock paths
 _fetch_from_ical = fetch_from_ical
@@ -148,9 +146,7 @@ def fetch_events(
     return fetch_google_events(cfg, days=days, start_date=start_date, tz=tz, cache_dir=cache_dir)
 
 
-# ---------------------------------------------------------------------------
 # Public API: birthday fetching
-# ---------------------------------------------------------------------------
 
 
 def fetch_birthdays(
@@ -187,9 +183,8 @@ def _birthdays_from_file(cfg: BirthdayConfig, tz: tzinfo | None = None) -> list[
         return []
 
     # A top-level object (the natural first guess for a name→date mapping) or
-    # any other non-list shape used to reach _parse_birthday_entry and raise
-    # TypeError out of the fetcher, failing the whole source and counting
-    # toward the circuit breaker. Name the expected shape instead.
+    # any other non-list shape must not raise TypeError out of the fetcher and
+    # count toward the circuit breaker. Name the expected shape instead.
     if not isinstance(entries, list):
         logger.warning(
             "Birthday file %s must contain a JSON list of {name, date} objects, got %s",
@@ -226,7 +221,7 @@ def _anniversary_in_year(month: int, day: int, year: int) -> date:
 
     Feb 29 rolls to Feb 28 in non-leap years — the same convention
     ``birthday_bar.py`` renders with, so a leap-day birthday neither drops
-    nor crashes the fetch (issue #204).
+    nor crashes the fetch.
     """
     try:
         return date(year, month, day)
@@ -271,9 +266,8 @@ def _strip_birthday_keyword(summary: str, keyword: str) -> str:
 
     Case-insensitive, and it removes an optional possessive attached to the
     name — ``"James's Birthday"`` and ``"Sam's birthday"`` both give the name.
-    ``str.replace`` was case-sensitive, so ``"Sam's birthday"`` kept the
-    keyword; and ``.strip(" :'s")`` strips a *character set*, so ``"James"``
-    became ``"Jame"`` (#259).
+    A regex rather than ``str.replace`` + ``.strip(" :'s")``: the latter
+    strips a *character set*, turning ``"James"`` into ``"Jame"``.
     """
     pattern = r"\s*(?:'s|’s)?\s*" + re.escape(keyword) + r"\s*"
     name = re.sub(pattern, " ", summary, flags=re.IGNORECASE)
@@ -289,7 +283,7 @@ def _birthdays_from_calendar(
 
     # API errors (DNS/auth/network/HTTP) propagate so the data pipeline can fall
     # back to the previously-cached birthday list rather than overwriting it with
-    # an empty list that blanks the birthday panel (issue #146).
+    # an empty list that blanks the birthday panel.
     try:
         request_counter.count_request()
         result = (
@@ -351,8 +345,7 @@ def _birthdays_from_contacts(
         # Propagate on failure instead of ``break``-ing: breaking would silently
         # commit a partial (or empty, on the first page) list to the cache via
         # _resolve_source. Raising lets the pipeline fall back to the previously
-        # cached birthday list so the panel keeps rendering last-known-good data
-        # (issue #146).
+        # cached birthday list so the panel keeps rendering last-known-good data.
         try:
             request_counter.count_request()
             result = service.people().connections().list(**kwargs).execute()
@@ -362,7 +355,7 @@ def _birthdays_from_contacts(
 
         for person in result.get("connections", []):
             # One malformed contact must not abort the whole fetch — log and
-            # keep parsing the rest (issue #204).
+            # keep parsing the rest.
             try:
                 bday = _parse_contact_birthday(person, today, lookahead)
             except (KeyError, ValueError, TypeError) as exc:
@@ -390,7 +383,7 @@ def _parse_contact_birthday(person: dict, today: date, lookahead: date) -> Birth
 
     # Contacts commonly carries two entries per person — one structured
     # ``date`` and one free-form ``text`` — in either order, so reading only
-    # the first skipped every contact whose text entry sorted ahead (#298).
+    # the first would skip every contact whose text entry sorts ahead.
     # Take the entries with a month and day, preferring one that has a year.
     dated = [
         b["date"]
@@ -408,8 +401,8 @@ def _parse_contact_birthday(person: dict, today: date, lookahead: date) -> Birth
 
     year: int = bday_date_raw.get("year") or 0
     age = today.year - year if year else None
-    # Feb 29 rolls to Feb 28 in non-leap years (issue #204) — a bare
-    # date(today.year, month, day) raises ValueError and used to abort the
+    # Feb 29 rolls to Feb 28 in non-leap years — a bare
+    # date(today.year, month, day) raises ValueError and would abort the
     # entire contacts fetch for the whole year.
     this_year = _anniversary_in_year(month, day, today.year)
 
@@ -429,9 +422,7 @@ def _days_until(d: date, today: date) -> int:
     return delta if delta >= 0 else delta + 365
 
 
-# ---------------------------------------------------------------------------
 # Registry adapters
-# ---------------------------------------------------------------------------
 
 
 def _events_fetch(ctx) -> list[CalendarEvent]:

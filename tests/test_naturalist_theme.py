@@ -21,10 +21,10 @@ from src.render.components.naturalist_panel import (
     _latin_name,
     _next_event_today,
     _plate_number,
-    _roman,
     _season,
     _weather_modifier,
 )
+from src.render.primitives import roman
 from src.render.quantize import flatten_pixels
 from src.render.theme import AVAILABLE_THEMES, load_theme
 
@@ -175,7 +175,7 @@ class TestRoman:
         ],
     )
     def test_known_values(self, n, expected):
-        assert _roman(n) == expected
+        assert roman(n) == expected
 
 
 class TestPlateNumber:

@@ -1,22 +1,5 @@
-"""Tests for src/render/components/header.py.
-
-Assertion discipline (see #229)
--------------------------------
-These tests asserted ``img.getbbox() is not None`` on a mode-``"1"`` plate
-filled with 1, where every pixel is non-zero and getbbox can never return
-None. All 10 passed with ``draw_header`` stubbed to a no-op.
-
-Ink means **zero-valued** pixels. Note the polarity: with the default style
-the header is an inverted band — filled in ``fg`` with its text knocked out
-in ``bg`` — so *more text means less ink*, and the staleness assertions are
-written in that direction.
-
-The load-bearing test here is ``test_updated_stamp_reads_content_at_not_now``.
-CLAUDE.md's idle-tick rule requires this label to be drawn from
-``DashboardData.content_at`` rather than the render clock: ``now`` advances
-every run whether or not anything was fetched, so reading it would change
-these pixels on every tick and force an eInk refresh for content that has
-not moved.
+"""Tests for header.py; ink is counted with the local ``_ink`` (the band is inverted, so more
+text means less ink, and the ``updated`` stamp must read ``content_at``, never ``now``).
 """
 
 from datetime import datetime

@@ -34,7 +34,7 @@ logger = logging.getLogger(__name__)
 # an unresponsive server blocks the fetch thread forever — and the pipeline's
 # ``future.result(timeout=120)`` bounds only the *render*, not the process:
 # ``concurrent.futures`` joins its worker threads at interpreter exit, so the
-# renderer stays alive holding the systemd unit active (#235).
+# renderer stays alive holding the systemd unit active.
 _TIMEOUT_SECONDS = 30
 
 
@@ -94,11 +94,10 @@ def fetch_from_caldav(
         CalendarFetchError: on connection, authentication, calendar-lookup or
             search failure. The return value is the caller's complete
             calendar — it gets cached, marked fresh, and counted as a breaker
-            success — so an unreachable server cannot be reported as an empty
-            week. Returning ``[]`` overwrote the last good calendar with an
-            empty one, silently and with no staleness indicator (#234).
-            Individual unparseable VEVENTs are still skipped, since those
-            genuinely are per-event problems.
+            success — so returning ``[]`` for an unreachable server would
+            overwrite the last good calendar silently, with no staleness
+            indicator. Individual unparseable VEVENTs are still skipped, since
+            those genuinely are per-event problems.
         RuntimeError: if the ``caldav`` package is not installed, or the
             password file is missing/unreadable/empty.
     """
@@ -145,14 +144,14 @@ def fetch_from_caldav(
         cal_name = _calendar_name(cal)
         try:
             # ``server_expand=True`` asks the CalDAV server to expand recurring
-            # events into individual instances within the window — the v4 code
-            # used ``expand=True`` which silently fell into ``**searchargs`` on
-            # caldav≥3 and produced one VEVENT per RRULE instead of one per
-            # occurrence. Requires ``caldav>=1.5``.
+            # events into individual instances within the window. Not
+            # ``expand=True``: on caldav≥3 that silently falls into
+            # ``**searchargs`` and yields one VEVENT per RRULE instead of one
+            # per occurrence. Requires ``caldav>=1.5``.
             results = cal.search(start=time_min, end=time_max, event=True, server_expand=True)
         except Exception as exc:
             # Not skipped: this calendar's events would go missing from a
-            # result the caller caches as the complete picture (#234).
+            # result the caller caches as the complete picture.
             logger.warning("CalDAV search failed on %s: %s", cal_name, exc)
             raise CalendarFetchError(f"CalDAV search failed on {cal_name}: {exc}") from exc
 

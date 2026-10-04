@@ -168,11 +168,9 @@ def draw_sunrise(
         glyph_y = arc_cy - int(arc_radius * math.sin(angle))
 
         if is_daytime:
-            # Sun glyph
             glyph = OWM_ICON_MAP.get("01d", FALLBACK_ICON)
             glyph_font = weather_icon(28)
         else:
-            # Moon glyph
             glyph = moon_phase_glyph(today)
             glyph_font = weather_icon(28)
 
@@ -222,7 +220,6 @@ def draw_sunrise(
         day_events = timed_events
         night_events = []
 
-    # Column labels
     label_font = font_label(11)
     draw.text(
         (x0 + _PAD, sched_y + 4), "DAYLIGHT", font=label_font, fill=style.primary_accent_fill()

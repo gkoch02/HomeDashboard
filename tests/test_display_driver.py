@@ -47,7 +47,9 @@ class TestDryRunDisplayInit:
 
     def test_existing_directory_ok(self, output_dir):
         output_dir.mkdir(parents=True)
-        DryRunDisplay(output_dir=str(output_dir))  # no exception
+        DryRunDisplay(output_dir=str(output_dir))
+        assert output_dir.is_dir()
+        assert list(output_dir.iterdir()) == []
 
 
 class TestDryRunDisplayShow:
@@ -87,8 +89,9 @@ class TestDryRunDisplayShow:
 
 
 class TestDryRunDisplayClear:
-    def test_clear_does_not_raise(self, display):
-        display.clear()  # should be a no-op, no exception
+    def test_clear_is_a_no_op(self, display, output_dir):
+        display.clear()
+        assert not (output_dir / "latest.png").exists()
 
 
 class TestWaveshareModels:
@@ -603,11 +606,15 @@ class TestImageChanged:
             result = image_changed(image, str(tmp_path))
         assert result is True
 
-    def test_persist_swallows_write_failure(self, tmp_path):
+    def test_persist_swallows_write_failure(self, tmp_path, caplog):
         """A failed hash write must log, not raise, so publish() completes."""
         image = Image.new("1", (100, 100), 1)
-        with patch("pathlib.Path.write_text", side_effect=OSError("read-only")):
-            persist_image_hash(image, str(tmp_path))  # must not raise
+        with (
+            caplog.at_level("WARNING", logger="src.display.driver"),
+            patch("pathlib.Path.write_text", side_effect=OSError("read-only")),
+        ):
+            persist_image_hash(image, str(tmp_path))
+        assert any("image hash" in r.message for r in caplog.records), caplog.text
 
 
 class TestDryRunHistoryPruning:

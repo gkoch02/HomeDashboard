@@ -43,15 +43,6 @@ def _icon_width(draw, owm_code: str, size: int) -> int:
     return bbox[2]  # right edge from origin = true rendered width
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-# ---------------------------------------------------------------------------
-# Main quote panel
-# ---------------------------------------------------------------------------
-
-
 def draw_qotd(
     draw: ImageDraw.ImageDraw,
     today: date,
@@ -161,9 +152,7 @@ def draw_qotd(
     draw.text((ax, y), author, font=best_attr_font, fill=style.accent_info or style.fg)
 
 
-# ---------------------------------------------------------------------------
 # Weather banner (full-width horizontal strip)
-# ---------------------------------------------------------------------------
 
 
 def draw_qotd_weather(

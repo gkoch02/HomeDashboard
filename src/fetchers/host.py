@@ -23,7 +23,6 @@ def fetch_host_data() -> HostData | None:
     host = HostData()
     any_success = False
 
-    # Hostname
     try:
         host.hostname = socket.gethostname()
         any_success = True

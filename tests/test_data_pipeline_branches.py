@@ -1,4 +1,4 @@
-"""Tests for uncovered branches in src/data_pipeline.py."""
+"""Tests for the skip, cache-fallback and PurpleAir branches of src/data_pipeline.py."""
 
 from concurrent.futures import Future
 from datetime import timezone
@@ -242,14 +242,14 @@ def _make_pipeline(tmp_path, api_key="", sensor_id=0):
 
 
 # ---------------------------------------------------------------------------
-# _launch_fetches: early-return when everything is skipped (line 171)
+# _launch_fetches: early-return when everything is skipped
 # ---------------------------------------------------------------------------
 
 
 class TestLaunchFetchesEarlyReturn:
     def test_all_sources_skipped_returns_none_futures(self, tmp_path):
         """When all sources are skipped and purpleair is disabled,
-        _launch_fetches returns immediately with all-None futures (line 171)."""
+        _launch_fetches submits nothing and returns all-None futures."""
         pipeline = _make_pipeline(tmp_path)
         futures = pipeline._launch_fetches(
             events_skip=True,
@@ -262,13 +262,13 @@ class TestLaunchFetchesEarlyReturn:
 
 
 # ---------------------------------------------------------------------------
-# _launch_fetches: purpleair fetch submitted (line 191)
+# _launch_fetches: purpleair fetch submitted
 # ---------------------------------------------------------------------------
 
 
 class TestLaunchFetchesPurpleair:
     def test_purpleair_future_submitted_when_not_skipped(self, tmp_path):
-        """When purpleair is enabled and aq_skip=False, a Future is submitted (line 191)."""
+        """When purpleair is enabled and aq_skip=False, an air_quality fetch is submitted."""
         pipeline = _make_pipeline(tmp_path, api_key="key", sensor_id=123)
         aq = AirQualityData(aqi=50, category="Good", pm25=10.0)
 
@@ -316,13 +316,13 @@ class TestLaunchFetchesPluginSources:
 
 
 # ---------------------------------------------------------------------------
-# _resolve_air_quality: exception path (lines 260-277)
+# _resolve_source for air_quality: the fetch-failure path
 # ---------------------------------------------------------------------------
 
 
 class TestResolveAirQualityFailure:
     def test_exception_with_cached_fallback(self, tmp_path):
-        """On fetch exception, _resolve_air_quality falls back to cache (lines 267-276)."""
+        """A failed air_quality fetch falls back to the cached reading."""
         pipeline = _make_pipeline(tmp_path, api_key="key", sensor_id=123)
         cached = AirQualityData(aqi=25, category="Good", pm25=5.0)
         pipeline.source_staleness["air_quality"] = StalenessLevel.AGING
@@ -336,7 +336,7 @@ class TestResolveAirQualityFailure:
         assert result is cached
 
     def test_exception_no_cache_returns_current(self, tmp_path):
-        """On fetch exception with no cache, returns current value (line 277)."""
+        """A failed air_quality fetch with nothing cached keeps the current value."""
         pipeline = _make_pipeline(tmp_path, api_key="key", sensor_id=123)
 
         future = Future()
@@ -355,14 +355,14 @@ class TestResolveAirQualityFailure:
 
 
 # ---------------------------------------------------------------------------
-# fetch(): purpleair-enabled path (lines 83 and 94)
+# fetch(): purpleair-enabled path
 # ---------------------------------------------------------------------------
 
 
 class TestFetchWithPurpleair:
     def test_purpleair_enabled_aq_fetched(self, tmp_path):
-        """With purpleair configured, fetch() checks air_quality skip (line 83)
-        and returns fetched AQ data with OWM fallback for missing fields."""
+        """With purpleair configured, fetch() runs the air_quality source
+        and returns the reading with OWM fallback for missing fields."""
         pipeline = _make_pipeline(tmp_path, api_key="key", sensor_id=123)
         aq = AirQualityData(aqi=42, category="Good", pm25=8.0)
 
@@ -385,7 +385,7 @@ class TestFetchWithPurpleair:
 
     def test_purpleair_enabled_cached_aq_used_when_skipped(self, tmp_path):
         """When purpleair enabled and AQ should be skipped with cached data,
-        the cached value is used and merged with OWM fallback (line 94)."""
+        the cached value is used and merged with OWM fallback."""
         pipeline = _make_pipeline(tmp_path, api_key="key", sensor_id=123)
         cached_aq = AirQualityData(aqi=30, category="Good", pm25=6.0)
 

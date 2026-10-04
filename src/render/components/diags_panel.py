@@ -69,14 +69,11 @@ def draw_diags(
     fg = style.fg
     rx, ry = region.x, region.y
 
-    # Header
     _draw_header(draw, rx, ry, region.w, data, style)
 
-    # Rule below header
     rule_y = ry + _HEADER_H
     hline(draw, rule_y, rx, rx + region.w, fill=fg)
 
-    # Vertical column divider
     div_x = rx + _DIVIDER_X
     vline(draw, div_x, rule_y, ry + region.h - 1, fill=fg)
 

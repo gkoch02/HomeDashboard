@@ -489,23 +489,16 @@ class TestFilterToWindow:
         time_max = time_min + timedelta(days=7)
         return time_min, time_max
 
-    def test_event_inside_window_included(self):
-        stored = [self._make_stored("e1", datetime(2024, 3, 13, 10), datetime(2024, 3, 13, 11))]
+    @pytest.mark.parametrize(
+        "day, kept",
+        [(13, 1), (10, 0), (20, 0)],
+        ids=["inside_window_included", "before_window_excluded", "after_window_excluded"],
+    )
+    def test_timed_event_against_the_window(self, day, kept):
+        stored = [self._make_stored("e1", datetime(2024, 3, day, 10), datetime(2024, 3, day, 11))]
         time_min, time_max = self._window()
         result = _filter_to_window(stored, time_min, time_max)
-        assert len(result) == 1
-
-    def test_event_before_window_excluded(self):
-        stored = [self._make_stored("e1", datetime(2024, 3, 10, 10), datetime(2024, 3, 10, 11))]
-        time_min, time_max = self._window()
-        result = _filter_to_window(stored, time_min, time_max)
-        assert len(result) == 0
-
-    def test_event_after_window_excluded(self):
-        stored = [self._make_stored("e1", datetime(2024, 3, 20, 10), datetime(2024, 3, 20, 11))]
-        time_min, time_max = self._window()
-        result = _filter_to_window(stored, time_min, time_max)
-        assert len(result) == 0
+        assert len(result) == kept
 
     def test_all_day_event_spanning_window(self):
         # All-day event: Mar 11 (Monday) to Mar 18 (exclusive end)
@@ -1083,8 +1076,11 @@ class TestClearServiceCaches:
         assert len(calendar_google._service_cache) == 0
 
     def test_clear_is_idempotent(self):
+        from src.fetchers import calendar_google
+
         clear_service_caches()
-        clear_service_caches()  # no error on second call
+        clear_service_caches()
+        assert calendar_google._service_cache == {}
 
 
 class TestFilterToWindowOverlap:

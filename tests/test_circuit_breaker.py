@@ -75,7 +75,7 @@ class TestCircuitBreaker:
     # --- Additional coverage tests ---
 
     def test_half_open_state_allows_attempt(self, tmp_state_dir):
-        """should_attempt returns True when state is already half_open (line 62)."""
+        """should_attempt returns True when state is already half_open."""
         from src.fetchers.circuit_breaker import BreakerState
 
         cb = CircuitBreaker(max_failures=3, state_dir=tmp_state_dir)
@@ -88,7 +88,7 @@ class TestCircuitBreaker:
         assert cb.should_attempt("weather") is True
 
     def test_half_open_probe_failure_with_low_count_reopens(self, tmp_state_dir):
-        """record_failure in half_open when consecutive_failures < max_failures → OPEN (lines 90-91)."""
+        """record_failure in half_open reopens the breaker even below max_failures."""
         from src.fetchers.circuit_breaker import BreakerState
 
         cb = CircuitBreaker(max_failures=5, state_dir=tmp_state_dir)
@@ -102,7 +102,7 @@ class TestCircuitBreaker:
         assert cb._states["events"].state == "open"
 
     def test_cooldown_with_none_last_failure_at_returns_expired(self, tmp_state_dir):
-        """_cooldown_expired returns True when last_failure_at is None (line 100)."""
+        """_cooldown_expired returns True when last_failure_at is None."""
         from src.fetchers.circuit_breaker import BreakerState
 
         cb = CircuitBreaker(max_failures=3, cooldown_minutes=60, state_dir=tmp_state_dir)
@@ -118,7 +118,7 @@ class TestCircuitBreaker:
         assert cb._states["weather"].state == "half_open"
 
     def test_cooldown_with_invalid_timestamp_treated_as_expired(self, tmp_state_dir):
-        """_cooldown_expired returns True on ValueError when parsing timestamp (lines 103-104)."""
+        """_cooldown_expired returns True when the stored timestamp does not parse."""
         from src.fetchers.circuit_breaker import BreakerState
 
         cb = CircuitBreaker(max_failures=3, cooldown_minutes=60, state_dir=tmp_state_dir)
@@ -193,14 +193,13 @@ class TestCircuitBreaker:
         assert path.read_text() == good
 
     def test_save_exception_does_not_propagate(self, tmp_state_dir):
-        """_save() exception is silently swallowed (lines 137-138)."""
+        """A failed _save() is swallowed; the in-memory state still records the failure."""
         from unittest.mock import patch
 
         cb = CircuitBreaker(state_dir=tmp_state_dir)
-        # Patch json.dump in the shared atomic-write helper so that _save() hits
-        # the exception handler.
         with patch("src._io.json.dump", side_effect=OSError("disk full")):
-            cb.record_failure("weather")  # triggers _save(), should not raise
+            cb.record_failure("weather")
+        assert cb._states["weather"].consecutive_failures == 1
 
 
 class TestConcurrentWebWrites:

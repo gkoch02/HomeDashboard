@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from functools import lru_cache
 from typing import TYPE_CHECKING
 
@@ -8,6 +8,8 @@ from PIL import ImageDraw, ImageFont
 
 if TYPE_CHECKING:
     from PIL import Image
+
+    from src.render.theme import ThemeStyle
 
 BLACK = 0
 WHITE = 1
@@ -86,10 +88,9 @@ def _break_word(word: str, measure, max_width: float) -> list[str]:
     """Split one word wider than *max_width* into pieces that each fit.
 
     A word-wrap that only breaks on whitespace has no bound on its output: a
-    URL, a hashtag or a long product code as an event title was drawn at full
-    width straight across the plate — over every day column of the week view
-    (#288). Pieces are cut by character; the caller decides how many lines it
-    can afford and ellipsizes the last one.
+    URL, a hashtag or a long product code as an event title would run straight
+    across the plate. Pieces are cut by character; the caller decides how many
+    lines it can afford and ellipsizes the last one.
     """
     pieces: list[str] = []
     current = ""
@@ -243,7 +244,6 @@ def inverted_text(
     rect: tuple[int, int, int, int],
     text: str,
     font: ImageFont.FreeTypeFont,
-    pad_h: int = 2,
 ):
     """Draw white text on a black-filled rectangle."""
     filled_rect(draw, rect, fill=BLACK)
@@ -378,7 +378,7 @@ def wind_unit(weather) -> str:
     ``None`` weather or a missing/unknown ``units`` (older cache entries) falls
     back to mph, the historical default. Every panel that prints a wind speed
     labels it through this one helper so a metric install can't read "mph"
-    on one theme and "m/s" on another (#270).
+    on one theme and "m/s" on another.
     """
     units = getattr(weather, "units", None)
     if units in ("metric", "standard"):
@@ -394,3 +394,61 @@ def deg_to_compass(deg: float) -> str:
     directions = ("N", "NE", "E", "SE", "S", "SW", "W", "NW")
     idx = round(deg % 360 / 45) % 8
     return directions[idx]
+
+
+def fmt_duration(td: timedelta | None) -> str:
+    """``14h 03m`` for a span, an em dash for none."""
+    if td is None:
+        return "—"
+    total = int(td.total_seconds())
+    hours, rem = divmod(abs(total), 3600)
+    minutes = rem // 60
+    return f"{hours}h {minutes:02d}m"
+
+
+def aqi_accent(style: ThemeStyle, aqi: int) -> Fill:
+    """The accent role for an EPA AQI: good to 50, warn to 150, alert above."""
+    if aqi <= 50:
+        return style.accent_good if style.accent_good is not None else style.fg
+    if aqi <= 150:
+        return style.accent_warn if style.accent_warn is not None else style.fg
+    return style.accent_alert if style.accent_alert is not None else style.fg
+
+
+def alert_fill(style: ThemeStyle) -> Fill:
+    """The alert accent, or ``fg`` where the theme sets none."""
+    return style.fg if style.accent_alert is None else style.accent_alert
+
+
+_ROMAN = (
+    (1000, "M"), (900, "CM"), (500, "D"), (400, "CD"),
+    (100, "C"), (90, "XC"), (50, "L"), (40, "XL"),
+    (10, "X"), (9, "IX"), (5, "V"), (4, "IV"),
+    (1, "I"),
+)  # fmt: skip
+
+
+def roman(n: int) -> str:
+    """Roman numeral for a positive *n*; an em dash for zero or below."""
+    if n <= 0:
+        return "—"
+    out: list[str] = []
+    for value, sym in _ROMAN:
+        while n >= value:
+            out.append(sym)
+            n -= value
+    return "".join(out)
+
+
+def usable_coords(latitude: float | None, longitude: float | None) -> tuple[float, float] | None:
+    """The pair as floats, or ``None`` when no usable coordinates were supplied.
+
+    Exactly ``(0.0, 0.0)`` means "not configured" — the convention
+    ``validate_config()`` warns about. Any other coordinate (the equator or the
+    prime meridian alone included) counts, so twilight math can run.
+    """
+    if latitude is None or longitude is None:
+        return None
+    if latitude == 0.0 and longitude == 0.0:
+        return None
+    return float(latitude), float(longitude)

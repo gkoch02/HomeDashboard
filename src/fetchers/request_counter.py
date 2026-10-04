@@ -1,10 +1,8 @@
 """Per-thread count of the HTTP requests a fetch makes.
 
-The quota tracker used to add one per successful *fetch*, but a weather fetch
-is two OpenWeatherMap requests plus One Call (four on a stormy 4.0 day), a
-Google fetch is a request per page, and a failed fetch — the 401 retried on
-every run — cost requests it never recorded. So the daily threshold could
-not fire (#296).
+The quota counts requests, not fetches: a weather fetch is two OpenWeatherMap
+requests plus One Call (four on a stormy 4.0 day), a Google fetch is a request
+per page, and a failed fetch — a 401 retried on every run — costs requests too.
 
 The pipeline runs each source's fetch in its own worker thread inside
 :func:`counting`; the fetcher bumps the tally at each request it sends, via

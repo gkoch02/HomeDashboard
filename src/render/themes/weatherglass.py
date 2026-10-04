@@ -77,10 +77,9 @@ def weatherglass_theme() -> Theme:
             font_semibold=playfair_semibold,
             font_bold=playfair_semibold,
             # Rye Western-saloon masthead; Cinzel for engraved dial labels
-            # and high-contrast instrument numerals (Cinzel Black has the
-            # full glyph coverage we need — the condensed display face this
-            # theme originally reached for had degenerate metrics for
-            # pure-digit strings and degree-sign rendering).
+            # and high-contrast instrument numerals (Cinzel Black has sound
+            # digit and degree-sign metrics, which a condensed display face
+            # need not).
             font_title=rye,
             font_section_label=cinzel_semibold,
             font_date_number=cinzel_black,

@@ -8,11 +8,9 @@ upgrade.
 from __future__ import annotations
 
 from src.config_migrations import (
-    backup_path_for,
     migrate_in_memory,
     needs_migration,
     v4_to_v5,
-    write_pre_migration_backup,
 )
 from src.config_schema import CURRENT_SCHEMA_VERSION
 
@@ -107,35 +105,6 @@ class TestMigrateInMemory:
         once = migrate_in_memory({"title": "X"})
         twice = migrate_in_memory(once)
         assert once == twice
-
-
-class TestBackup:
-    def test_backup_path_uses_versioned_suffix(self, tmp_path):
-        cfg = tmp_path / "config.yaml"
-        assert backup_path_for(str(cfg), 4) == tmp_path / "config.yaml.bak-v4"
-
-    def test_write_pre_migration_backup_copies_file(self, tmp_path):
-        cfg = tmp_path / "config.yaml"
-        cfg.write_text("title: test\n")
-        backup = write_pre_migration_backup(str(cfg), 4)
-        assert backup is not None
-        assert backup.read_text() == "title: test\n"
-        # Original is untouched.
-        assert cfg.read_text() == "title: test\n"
-
-    def test_write_pre_migration_backup_missing_source(self, tmp_path):
-        cfg = tmp_path / "missing.yaml"
-        assert write_pre_migration_backup(str(cfg), 4) is None
-
-    def test_write_pre_migration_backup_oserror_returns_none(self, tmp_path):
-        """When shutil.copy2 raises OSError, return None and log a warning."""
-        from unittest.mock import patch
-
-        cfg = tmp_path / "config.yaml"
-        cfg.write_text("title: test\n")
-        with patch("shutil.copy2", side_effect=OSError("disk full")):
-            result = write_pre_migration_backup(str(cfg), 4)
-        assert result is None
 
 
 class TestMigrateInMemoryNoStep:

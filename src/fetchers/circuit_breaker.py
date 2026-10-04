@@ -150,7 +150,7 @@ class CircuitBreaker:
         flight. Writing this instance's whole ``_states`` dict back would erase
         a reset made since the file was loaded — the UI reporting success while
         the breaker stayed open — so the read and write happen under one lock
-        and **only the one source that just changed** is written (#242).
+        and **only the one source that just changed** is written.
 
         Exactly one source, not a running set of every source touched so far:
         with a set, the second save of a run rewrites the first source too,

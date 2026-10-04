@@ -1,19 +1,4 @@
-"""Tests for src/render/components/birthday_bar.py
-
-Assertion discipline (see #229)
--------------------------------
-These tests asserted ``img.getbbox() is not None`` on a mode-``"1"`` plate
-filled with 1, where every pixel is non-zero and getbbox can never return
-None. 13 of the 14 tests passed with ``draw_birthdays`` stubbed to a no-op.
-
-Ink means **zero-valued** pixels, counted inside the bar's own region. The
-strongest signal here is the today-birthday row, which is inverted — a
-filled_rect with its text knocked out — so it inks roughly five times what
-an ordinary row does.
-
-Verification: with ``draw_birthdays`` stubbed to a no-op, every test in this
-file fails.
-"""
+"""Tests for birthday_bar.py; ink is counted inside the bar's region with the local ``_ink``."""
 
 from datetime import date, timedelta
 

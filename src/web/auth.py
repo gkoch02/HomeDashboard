@@ -50,8 +50,8 @@ def check_password(password: str, stored_hash: str) -> bool:
         return False
 
 
-# Paths an uptime monitor must reach without credentials: a probe that cannot
-# send Basic Auth got a 401 indistinguishable from "down" (#309). An
+# Paths an uptime monitor must reach without credentials: to a probe that
+# cannot send Basic Auth, a 401 is indistinguishable from "down". An
 # unauthenticated caller gets the status code and a bare healthy flag — the
 # route reads ``g.web_authenticated`` — never timestamps or exception types.
 PUBLIC_PATHS = frozenset({"/api/health"})
@@ -91,9 +91,7 @@ def make_auth_middleware(username: str | None, password_hash: str | None):
     return _check_auth
 
 
-# ---------------------------------------------------------------------------
 # CLI helper: python -m src.web.auth --set-password
-# ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
     if "--set-password" in sys.argv:

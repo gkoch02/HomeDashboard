@@ -111,7 +111,7 @@ class TestResolveRenderMode:
 
 
 # ---------------------------------------------------------------------------
-# _resolve_style — Inky-but-not-RGB branch (line 164)
+# _resolve_style — Inky on a greyscale (non-RGB) render
 # ---------------------------------------------------------------------------
 
 
@@ -185,7 +185,7 @@ def _empty_data():
 
 class TestRenderDashboardInkyPaths:
     def test_prefer_color_on_inky_promotes_l_to_rgb(self):
-        """Force the line 209 branch: layout.canvas_mode='L' AND prefer_color_on_inky=True."""
+        """An L-mode layout with prefer_color_on_inky=True is promoted to RGB on Inky."""
         from dataclasses import replace as dc_replace
 
         # Synthesize an L-mode + prefer_color_on_inky layout from any L-mode theme.
@@ -203,7 +203,7 @@ class TestRenderDashboardInkyPaths:
         assert img.mode == "RGB"
 
     def test_inky_resize_uses_rgb_convert(self):
-        """When Inky display dimensions differ from canvas dimensions, line 425 fires."""
+        """When the Inky panel is not the canvas size, the resize happens in RGB."""
         theme = default_theme()
         # Pick a model size that differs from the 800×480 canvas.
         cfg = DisplayConfig(

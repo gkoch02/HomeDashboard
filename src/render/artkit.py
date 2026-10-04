@@ -103,3 +103,8 @@ def hours_of_day(dt: datetime | None, today: date, tz: tzinfo | None) -> float |
         return None
     hours = naive.hour + naive.minute / 60.0 + naive.second / 3600.0 + delta_days * 24.0
     return max(0.0, min(24.0, hours))
+
+
+def fmt_temp(value: float | None) -> str:
+    """``42°`` for a reading, an em dash for none; shared by the art themes."""
+    return "—" if value is None else f"{int(round(value))}°"

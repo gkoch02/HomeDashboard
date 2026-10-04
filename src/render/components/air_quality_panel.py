@@ -41,7 +41,7 @@ from src.data.models import AirQualityData, DashboardData, WeatherData
 from src.render.fonts import weather_icon as weather_icon_font
 from src.render.icons import FALLBACK_ICON, OWM_ICON_MAP
 from src.render.primitives import (
-    Fill,
+    aqi_accent,
     draw_text_truncated,
     filled_rect,
     hline,
@@ -67,14 +67,6 @@ _AQI_ZONES: list[tuple[int, str]] = [
     (500, "Hazardous"),
 ]
 _AQI_MAX = 500
-
-
-def _aqi_accent(style: ThemeStyle, aqi: int) -> Fill:
-    if aqi <= 50:
-        return style.accent_good if style.accent_good is not None else style.fg
-    if aqi <= 150:
-        return style.accent_warn if style.accent_warn is not None else style.fg
-    return style.accent_alert if style.accent_alert is not None else style.fg
 
 
 def draw_air_quality_full(
@@ -125,9 +117,7 @@ def draw_air_quality_full(
     _draw_weather_strip(draw, data.weather, x0, weather_top, W, weather_h, style)
 
 
-# ---------------------------------------------------------------------------
 # Zone 1: AQI hero + scale bar
-# ---------------------------------------------------------------------------
 
 
 def _draw_aqi_hero(
@@ -140,7 +130,7 @@ def _draw_aqi_hero(
     style: ThemeStyle,
 ) -> None:
     """Left: large AQI number + category label.  Right: 6-zone scale bar."""
-    accent = _aqi_accent(style, aq.aqi)
+    accent = aqi_accent(style, aq.aqi)
 
     split = int(W * 0.28)  # left column width
     pad = 20
@@ -169,7 +159,6 @@ def _draw_aqi_hero(
     draw.text((lx, label_bottom), aqi_str, font=aqi_font, fill=accent)
     aqi_bottom = label_bottom + text_height(aqi_font)
 
-    # Category text
     cat_font = style.font_medium(24)
     draw.text((lx, aqi_bottom + 4), aq.category, font=cat_font, fill=accent)
 
@@ -197,7 +186,7 @@ def _draw_scale_bar(
     """Horizontal 6-zone AQI health scale with filled progress and tick."""
     fg = style.fg
     bg = style.bg
-    accent = _aqi_accent(style, aqi)
+    accent = aqi_accent(style, aqi)
 
     # Clamp to valid range
     aqi_clamped = max(0, min(aqi, _AQI_MAX))
@@ -249,9 +238,7 @@ def _draw_scale_bar(
     )
 
 
-# ---------------------------------------------------------------------------
 # Zone 2: Particulate matter row
-# ---------------------------------------------------------------------------
 
 
 def _draw_pm_row(
@@ -294,7 +281,6 @@ def _draw_pm_row(
         lw = text_width(draw, pm_label, label_font)
         draw.text((col_cx - lw // 2, block_top), pm_label, font=label_font, fill=fg)
 
-        # Value
         vw = text_width(draw, pm_val, val_font)
         draw.text((col_cx - vw // 2, block_top + label_h + 4), pm_val, font=val_font, fill=fg)
 
@@ -314,9 +300,7 @@ def _draw_pm_row(
     )
 
 
-# ---------------------------------------------------------------------------
 # Zone 3: Ambient sensor cards (temp / humidity / pressure)
-# ---------------------------------------------------------------------------
 
 
 def _draw_ambient_cards(
@@ -418,9 +402,7 @@ def _draw_ambient_cards(
         )
 
 
-# ---------------------------------------------------------------------------
 # Zone 4: Weather + forecast strip
-# ---------------------------------------------------------------------------
 
 
 def _draw_weather_strip(
@@ -473,7 +455,6 @@ def _draw_current_conditions(
     pad = 14
     cy = y0 + H // 2
 
-    # Weather icon
     icon_size = 44
     icon_font = weather_icon_font(icon_size)
     glyph = OWM_ICON_MAP.get(wx.current_icon, FALLBACK_ICON)
@@ -540,13 +521,11 @@ def _draw_forecast_columns(
         col_cx = x0 + i * col_w + col_w // 2
         row_y = y0 + 10
 
-        # Day name
         day_str = fc.date.strftime("%a")
         dw = text_width(draw, day_str, day_font)
         draw.text((col_cx - dw // 2, row_y), day_str, font=day_font, fill=fg)
         row_y += text_height(day_font) + 7
 
-        # Icon
         icon_font = weather_icon_font(icon_size)
         glyph = OWM_ICON_MAP.get(fc.icon, FALLBACK_ICON)
         gbbox = draw.textbbox((0, 0), glyph, font=icon_font)
@@ -565,17 +544,11 @@ def _draw_forecast_columns(
         draw.text((col_cx - hw // 2, row_y), hilo_str, font=hilo_font, fill=fg)
         row_y += text_height(hilo_font) + 5
 
-        # Precip chance
         if fc.precip_chance is not None and fc.precip_chance >= 0.05:
             precip_str = f"{fc.precip_chance:.0%}"
             pw = text_width(draw, precip_str, precip_font)
             if row_y + text_height(precip_font) <= y0 + H - 2:
                 draw.text((col_cx - pw // 2, row_y), precip_str, font=precip_font, fill=fg)
-
-
-# ---------------------------------------------------------------------------
-# Fallback
-# ---------------------------------------------------------------------------
 
 
 def _draw_unavailable(

@@ -40,14 +40,14 @@ def _config(provider="waveshare", width=800, height=480, quant="threshold"):
 
 
 class TestBuildDisplayBackend:
-    def test_waveshare(self):
-        backend = build_display_backend(_config(provider="waveshare"))
-        assert isinstance(backend, WaveshareBackend)
-        assert isinstance(backend, DisplayBackend)
-
-    def test_inky(self):
-        backend = build_display_backend(_config(provider="inky"))
-        assert isinstance(backend, InkyBackend)
+    @pytest.mark.parametrize(
+        "provider, backend_cls",
+        [("waveshare", WaveshareBackend), ("inky", InkyBackend)],
+        ids=["waveshare", "inky"],
+    )
+    def test_provider_selects_its_backend(self, provider, backend_cls):
+        backend = build_display_backend(_config(provider=provider))
+        assert isinstance(backend, backend_cls)
         assert isinstance(backend, DisplayBackend)
 
     def test_unknown_provider_raises(self):

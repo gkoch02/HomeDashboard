@@ -43,12 +43,11 @@ _FIELD_NAMES = [
 _FIELDS = ",".join(_FIELD_NAMES)
 _TIMEOUT = 10
 
-# EPA PM2.5 AQI breakpoints: (C_lo, C_hi, I_lo, I_hi). The May 2024 revision
-# of the PM NAAQS (89 FR 16202) tightened the Good/Moderate cut from 12.0 to
-# 9.0 µg/m³, the Unhealthy band to 55.5–125.4, Very Unhealthy to 125.5–225.4,
-# and Hazardous to 225.5 and up, with no separate 401–500 band. The old table
-# read 10 µg/m³ as "42 Good" where AirNow and PurpleAir's own map say
-# "55 Moderate", so aqi_at_least theme rules fired late (#277).
+# EPA PM2.5 AQI breakpoints: (C_lo, C_hi, I_lo, I_hi), per the May 2024
+# revision of the PM NAAQS (89 FR 16202): Good/Moderate cut at 9.0 µg/m³,
+# Unhealthy 55.5–125.4, Very Unhealthy 125.5–225.4, Hazardous 225.5 and up
+# with no separate 401–500 band. This is the table AirNow and PurpleAir's own
+# map use.
 _PM25_BP = [
     (0.0, 9.0, 0, 50),
     (9.1, 35.4, 51, 100),
@@ -71,8 +70,8 @@ _AQI_CATEGORIES = [
 def _pm25_to_aqi(pm25: float) -> tuple[int, str]:
     """Compute EPA AQI integer and category string from a PM2.5 µg/m³ reading."""
     # PurpleAir sensors report small negative concentrations in clean air
-    # (baseline drift). A negative value matches no breakpoint bracket and
-    # used to fall through to the ≥500.4 "Hazardous" clamp (issue #206).
+    # (baseline drift); unclamped, a negative value matches no breakpoint
+    # bracket and falls through to the "Hazardous" clamp.
     pm25 = max(0.0, pm25)
     pm25 = math.floor(pm25 * 10) / 10  # EPA truncates to 1 decimal place before lookup
     for c_lo, c_hi, i_lo, i_hi in _PM25_BP:
@@ -163,10 +162,9 @@ def fetch_air_quality(cfg: PurpleAirConfig, units: str = "imperial") -> AirQuali
     """Fetch current air quality from a PurpleAir sensor.
 
     Temperature and humidity are corrected from the sensor housing to ambient
-    and the temperature is converted to *units* (``weather.units``), so a
-    metric install no longer shows a Fahrenheit card beside Celsius weather,
-    and the OWM fallback merged into the same field is in the same units
-    (#297).
+    and the temperature is converted to *units* (``weather.units``), so the
+    card matches the weather panel and the OWM fallback merged into the same
+    field is in the same units.
 
     Raises ``RuntimeError`` when credentials are missing or the API returns an
     unrecoverable error (403 invalid key, 404 sensor not found).  Transient
@@ -255,9 +253,7 @@ def fetch_air_quality(cfg: PurpleAirConfig, units: str = "imperial") -> AirQuali
     )
 
 
-# ---------------------------------------------------------------------------
 # Registry adapter
-# ---------------------------------------------------------------------------
 
 
 def _air_quality_fetch(ctx) -> AirQualityData:

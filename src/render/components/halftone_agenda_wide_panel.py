@@ -1,38 +1,28 @@
 """Wide-native halftone agenda for the 1360x480 panoramic plate.
 
-``halftone_agenda`` cuts an 800x480 plate in two: engraving and weather on the
-left, today's events on the right. Stretched or fitted onto the 10.85" strip
-it wastes the panel either way. This plate is the same vocabulary drawn for the
-strip's own shape, in three panes divided by full-height ordered-Bayer rules:
+``halftone_agenda``'s vocabulary drawn for the strip's own shape, in three
+panes divided by full-height ordered-Bayer rules:
 
   * **Art pane** (``ART_W``) — the procedural weather illustration from
-    :func:`src.render.skyart.draw_weather_scene`, a horizontal Bayer rule, then
-    the typeset weather band ``halftone_agenda`` sets: temperature numeral,
-    condition, high/low, sunrise, sunset, date and feels-like. The band is
-    imported from that panel rather than copied — the two plates must not
-    drift apart in what they read out.
-  * **Agenda pane** (``AGENDA_W``) — today's events at half again the
-    original's width, with a schedule strip, a duration column and free-time
-    markers. Deliberately *without* the original's state treatments: no
-    perforated past rows, no inverted running event, no next-up accent. On
-    the four-ink panel every repaint is a twenty-second colour flash, and a
-    plate whose rows change treatment at every event boundary repaints a
-    dozen times on a busy day. Here the day is shown whole, the same from
-    dawn to dusk, and the only clock-driven change left is the after-dark
-    rollover to TOMORROW — one repaint a day, and the reason the theme
-    fetches the extra days.
-  * **Rail** (the rest) — what the original plate has no room for. Top to
-    bottom: an inverted alert bar when the weather service has one; the
-    following day's first events (``TOMORROW``, or the day after that once
-    the agenda has rolled over — the theme fetches two extra days for it);
-    the forecast, one row per day with glyph, high, low and chance of rain;
-    up to five coming birthdays, in whatever room is left; and a bottom row pairing the air-quality index
-    with the moon's phase.
+    :func:`src.render.skyart.draw_weather_scene`, a horizontal Bayer rule,
+    then the typeset weather band, imported from ``halftone_agenda_panel``
+    rather than copied so the two plates read out the same things.
+  * **Agenda pane** (``AGENDA_W``) — today's events with a schedule strip, a
+    duration column and free-time markers. Deliberately *without* the
+    original's state treatments (perforated past rows, inverted running
+    event, next-up accent): on the four-ink panel every repaint is a
+    twenty-second colour flash, so the day is shown whole and the same from
+    dawn to dusk. The after-dark rollover to TOMORROW is the one clock-driven
+    change; ``tests/test_halftone_agenda_wide_theme.py`` pins it.
+  * **Rail** (the rest) — top to bottom: an inverted alert bar; the following
+    day's first events (the day after that once the agenda has rolled over,
+    which is why the theme fetches two extra days); the forecast, a row per
+    day; up to five coming birthdays in the room that is left; and a bottom
+    row pairing the air-quality index with the moon's phase.
 
-Nothing on the plate reads the clock except through ``agenda_day`` and the
-data timestamp in the caption, so a tick renders byte-identically until the
-data itself moves. Every typeset region is hardened before the backend
-dithers; only the illustration diffuses.
+Nothing reads the clock except through ``agenda_day`` and the data timestamp
+in the caption. Every typeset region is hardened before the backend dithers;
+only the illustration diffuses.
 """
 
 from __future__ import annotations
@@ -71,9 +61,7 @@ from src.render.primitives import (
 from src.render.skyart import draw_bayer_rule, draw_weather_scene, harden_typeset
 from src.render.theme import ComponentRegion, ThemeStyle
 
-# ---------------------------------------------------------------------------
 # Region geometry
-# ---------------------------------------------------------------------------
 
 ART_W = 420  # illustration + weather band
 DIVIDER_W = 6  # each full-height vertical Bayer rule
@@ -263,9 +251,7 @@ def _paper(image: Image.Image, x: int, y: int, w: int, h: int) -> None:
     image.paste(paper, (x, y))
 
 
-# ---------------------------------------------------------------------------
 # Agenda pane
-# ---------------------------------------------------------------------------
 
 
 def _minutes(evt: CalendarEvent) -> int:
@@ -287,7 +273,7 @@ def booked_minutes(events: list[CalendarEvent], day: date | None = None) -> int:
 
     With *day*, each span is clipped to that day first: a timed event running
     across several days books only the part that falls on it, not its whole
-    length — "136H BOOKED" for one day was the unclipped sum (#311).
+    length.
     """
     spans = []
     for e in events:
@@ -628,9 +614,7 @@ def _draw_wide_agenda(
         draw.text((x0 + time_w + 12, y + 2), f"+{overflow} more", font=more_font, fill=ink)
 
 
-# ---------------------------------------------------------------------------
 # Rail
-# ---------------------------------------------------------------------------
 
 
 class _Cursor:

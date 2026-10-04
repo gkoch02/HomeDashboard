@@ -98,9 +98,8 @@ def _load_last_refresh(state_dir: str) -> datetime | None:
             logger.debug("Could not migrate legacy inky refresh state: %s", exc)
         # Legacy v4 files were written via datetime.utcnow().isoformat() —
         # naive. Readers treat naive ISO timestamps as UTC (repo convention);
-        # returning them raw made the aware-now subtraction in
-        # should_throttle_display_refresh raise TypeError on every publish,
-        # a permanent crash loop until the state file was deleted (#208).
+        # returned raw, the aware-now subtraction in
+        # should_throttle_display_refresh would raise TypeError.
         return to_aware(ts)
 
     try:
@@ -114,7 +113,7 @@ def _load_last_refresh(state_dir: str) -> datetime | None:
         return None
     try:
         # Naive timestamps (legacy writers) are treated as UTC — see the
-        # migration branch above (#208).
+        # migration branch above.
         return to_aware(datetime.fromisoformat(value))
     except ValueError:
         return None
@@ -233,10 +232,9 @@ class OutputService:
         #      rapid-fire refreshes on slow panels (Inky default 60s; set 3600
         #      to restore v4 hourly).
         # The hash is checked first: an unchanged image is the common idle
-        # tick, and reaching the cooldown branch with it logged a "deferred
-        # content change" that did not exist and rewrote latest.png for
-        # nothing (#292). The cooldown still blocks novel content — it is a
-        # rate-limiter on the hardware, not just a dedup filter.
+        # tick and must not reach the cooldown branch, which logs a deferred
+        # change and rewrites latest.png. The cooldown still blocks novel
+        # content — it is a rate-limiter on the hardware, not a dedup filter.
         if not force_full and not image_changed(image, self.cfg.output_dir):
             logger.info("Image unchanged — skipping display refresh")
             # Normally latest.png already holds this frame. It does not after
@@ -285,18 +283,16 @@ class OutputService:
                 theme_name,
             )
             # The content *did* change; the panel just is not allowed to redraw
-            # yet. latest.png claims to be the current render, and the web UI
-            # shows it as such — leaving the previous frame there made it wrong
-            # for up to min_refresh_interval_seconds, an hour for anyone who
-            # sets 3600 on Inky to restore the v4 hourly throttle, which is the
-            # configuration the docs recommend (#245).
+            # yet. latest.png is the current render, not a mirror of the panel,
+            # so the web UI must get this frame now rather than after the
+            # cooldown (up to an hour on the documented Inky setting).
             self._save_latest_png(image)
             return
 
         # A theme can decline the fast waveform (Theme.allows_partial_refresh).
         # Waveshare's init_fast() does not drive black as deeply as a full init, so a
         # plate built from dithered greyscale fades in bands aligned with its artwork;
-        # for those themes the config's opt-in is overridden rather than obeyed (#222).
+        # for those themes the config's opt-in is overridden rather than obeyed.
         enable_partial = self.cfg.display.enable_partial_refresh and theme_supports_partial
         if self.cfg.display.enable_partial_refresh and not theme_supports_partial:
             logger.info(
@@ -314,11 +310,11 @@ class OutputService:
 
         # Persist the hash only now that the hardware write succeeded — a
         # failed show() must leave the old hash in place so the next run
-        # retries the write instead of skipping it as "unchanged" (#207).
+        # retries the write instead of skipping it as "unchanged".
         persist_image_hash(image, self.cfg.output_dir)
 
         # Record the refresh so the next tick can apply the cooldown. The
-        # marker is provider-agnostic now — a Waveshare user who sets
+        # marker is provider-agnostic — a Waveshare user who sets
         # min_refresh_interval_seconds gets the same throttling Inky does.
         _save_last_refresh(self.cfg.state_dir, now, theme_name)
 

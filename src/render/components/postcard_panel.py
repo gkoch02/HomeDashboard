@@ -51,7 +51,6 @@ from src.render.primitives import (
 )
 from src.render.theme import ComponentRegion, ThemeStyle
 
-# ---------------------------------------------------------------------------
 # Geometry — postcard is split at SCENE_W; everything left of it is the
 # dithered view, everything right is the postcard back.
 #
@@ -61,12 +60,10 @@ from src.render.theme import ComponentRegion, ThemeStyle
 # anti-aliasing on every curved edge — sun discs, mountain ridges, ripple
 # lines, cloud lobes — and softens the Floyd-Steinberg quantize step that
 # follows it, since the input greyscale already carries sub-pixel detail.
-# ---------------------------------------------------------------------------
 
 SS = 2  # supersample factor — must match the theme's canvas multiplier.
 
 SCENE_W = 480 * SS
-BACK_X = SCENE_W
 BACK_PAD_X = 20 * SS
 BACK_PAD_Y = 18 * SS
 
@@ -75,14 +72,7 @@ _SCENE_CX = SCENE_W // 2
 _HORIZON_Y_FRAC = 0.62
 
 
-# ---------------------------------------------------------------------------
 # Mode-aware colour helpers (mirrors halftone_panel)
-# ---------------------------------------------------------------------------
-
-
-# ---------------------------------------------------------------------------
-# Public entry point
-# ---------------------------------------------------------------------------
 
 
 def draw_postcard(
@@ -125,9 +115,7 @@ def draw_postcard(
     _draw_center_crease(image, x0 + SCENE_W, y0, h)
 
 
-# ---------------------------------------------------------------------------
 # Scene dispatch (left panel)
-# ---------------------------------------------------------------------------
 
 
 def _scene_kind(icon: str | None) -> tuple[str, bool]:
@@ -206,13 +194,9 @@ def _draw_scene(
     # 6–7. Water surface + sun/moon reflection on it.
     _draw_water(image, rect, horizon_y, kind)
     if kind in ("clear", "partly") and not is_night:
-        _draw_water_reflection(
-            image, rect, horizon_y, source_cx=source_cx, source_cy=sun_cy, today=today
-        )
+        _draw_water_reflection(image, rect, horizon_y, source_cx=source_cx, today=today)
     elif kind in ("clear", "partly") and is_night:
-        _draw_water_reflection(
-            image, rect, horizon_y, source_cx=source_cx, source_cy=moon_cy, today=today
-        )
+        _draw_water_reflection(image, rect, horizon_y, source_cx=source_cx, today=today)
 
     # 8. Clouds — in front of distant peaks, in front of the sun.
     if kind == "partly" or kind == "overcast":
@@ -237,9 +221,7 @@ def _draw_scene(
         _draw_sailboat(image, rect, horizon_y, today)
 
 
-# ---------------------------------------------------------------------------
 # Sky — vertical gradient keyed to weather + daypart
-# ---------------------------------------------------------------------------
 
 
 def _daypart_palette(kind: str, is_night: bool, now: datetime) -> tuple[int, int]:
@@ -306,9 +288,7 @@ def _draw_sky(
     image.paste(full, (x0, y0))
 
 
-# ---------------------------------------------------------------------------
 # Mountains, water, foreground silhouettes
-# ---------------------------------------------------------------------------
 
 
 def _draw_distant_mountains(
@@ -419,7 +399,6 @@ def _draw_water_reflection(
     horizon_y: int,
     *,
     source_cx: int,
-    source_cy: int,
     today: date,
 ) -> None:
     """Broken vertical shimmer trail directly below a sun or moon source.
@@ -636,9 +615,7 @@ def _draw_deciduous(
         )
 
 
-# ---------------------------------------------------------------------------
 # Sun / moon / stars / clouds / weather effects
-# ---------------------------------------------------------------------------
 
 
 def _draw_sun(
@@ -996,9 +973,7 @@ def _draw_birds(
         draw.line([(bx, by), (bx + span, by + span // 2)], fill=fill, width=SS)
 
 
-# ---------------------------------------------------------------------------
 # Centre crease — vertical line between scene + back
-# ---------------------------------------------------------------------------
 
 
 def _draw_center_crease(
@@ -1024,9 +999,7 @@ def _draw_center_crease(
         yy += 9 * SS
 
 
-# ---------------------------------------------------------------------------
 # Postcard back (right panel)
-# ---------------------------------------------------------------------------
 
 
 def _events_today(events: list[CalendarEvent], today: date) -> list[CalendarEvent]:

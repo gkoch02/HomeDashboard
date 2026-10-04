@@ -178,13 +178,7 @@ class TestResolveSunTimes:
 
 
 def _ink(img, box=None) -> int:
-    """Count ink (value-0) pixels, optionally only inside *box*.
-
-    (#229) The tests below asserted `img.getbbox() is not None` on a
-    mode-"1" plate filled with 1, where every pixel is non-zero and getbbox
-    can never return None — 33 of 34 passed with draw_light_cycle stubbed to
-    a no-op. This counts actual marks instead.
-    """
+    """Count ink (value-0) pixels, optionally only inside *box*."""
     px = flatten_pixels(img)
     width = img.width
     if box is None:

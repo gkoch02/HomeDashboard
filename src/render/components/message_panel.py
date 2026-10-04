@@ -68,7 +68,6 @@ def draw_message(
     line_gap = max(4, best_size // 6)
     total_h = len(best_lines) * lh + max(0, len(best_lines) - 1) * line_gap
 
-    # Vertical centering
     text_block_top = region.y + (region.h - total_h) // 2
     text_block_bottom = text_block_top + total_h
 

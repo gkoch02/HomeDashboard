@@ -44,9 +44,9 @@ class CalendarFetchError(Exception):
     calendar could not be read. The pipeline treats whatever a fetcher returns
     as complete and authoritative — it writes the value to the cache, marks the
     source FRESH and records a breaker *success* — so returning ``[]`` during an
-    outage overwrote the last known good calendar with an empty one, left no
-    staleness indicator, and kept the breaker closed so nothing ever fell back
-    to cache (#234).
+    outage would overwrite the last known good calendar with an empty one, leave
+    no staleness indicator, and keep the breaker closed so nothing ever fell
+    back to cache.
 
     Deliberately **not** a ``RuntimeError``/``ValueError``/``TypeError``/
     ``KeyError``: ``data_pipeline.retry_fetch`` treats those four as permanent

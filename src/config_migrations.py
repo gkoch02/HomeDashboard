@@ -13,9 +13,7 @@ registration in :data:`_MIGRATIONS`.
 from __future__ import annotations
 
 import logging
-import shutil
 from collections.abc import Callable
-from pathlib import Path
 
 from src.config_schema import CURRENT_SCHEMA_VERSION
 
@@ -54,8 +52,8 @@ _MIGRATIONS: list[tuple[int, Callable[[dict], dict]]] = [
 
 # Steps that only stamp ``schema_version`` and change nothing a user wrote.
 # The stamp is in-memory, so a file without ``schema_version`` runs the step
-# on every load — every renderer tick, web reload and --check-config. Logging
-# that at INFO buried a real migration under identical lines (#304).
+# on every load — every renderer tick, web reload and --check-config — so it
+# logs at DEBUG, leaving INFO for real migrations.
 _METADATA_ONLY_STEPS: frozenset[int] = frozenset({4})
 
 
@@ -114,29 +112,3 @@ def _step_for(from_version: int) -> Callable[[dict], dict] | None:
         if fv == from_version:
             return fn
     return None
-
-
-def backup_path_for(config_path: str, from_version: int) -> Path:
-    """Return the path the pre-migration backup will be written to."""
-    p = Path(config_path)
-    return p.with_suffix(f".yaml.bak-v{from_version}")
-
-
-def write_pre_migration_backup(config_path: str, from_version: int) -> Path | None:
-    """Copy *config_path* to a versioned ``.bak-v<from_version>`` sibling.
-
-    Returns the backup path on success, ``None`` if the source doesn't
-    exist or the copy fails. The runner calls this before mutating the
-    on-disk file so a user can recover the original verbatim.
-    """
-    src = Path(config_path)
-    if not src.is_file():
-        return None
-    dst = backup_path_for(config_path, from_version)
-    try:
-        shutil.copy2(src, dst)
-        logger.info("Wrote pre-migration backup: %s", dst)
-        return dst
-    except OSError as exc:
-        logger.warning("Could not write pre-migration backup %s: %s", dst, exc)
-        return None

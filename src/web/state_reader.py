@@ -13,6 +13,7 @@ from collections import deque
 from datetime import datetime, timezone, tzinfo
 from pathlib import Path
 
+from src._io import read_json
 from src._time import now_utc as _now_utc
 from src.config import resolve_tz
 from src.fetchers.cache import check_staleness
@@ -119,14 +120,7 @@ def read_breakers(state_dir: str) -> dict[str, dict]:
 
     Missing sources default to state="closed", 0 failures.
     """
-    path = Path(state_dir) / "dashboard_breaker_state.json"
-    raw: dict = {}
-    if path.exists():
-        try:
-            with open(path) as f:
-                raw = json.load(f)
-        except Exception as exc:
-            logger.debug("Could not read breaker state: %s", exc)
+    raw: dict = read_json(Path(state_dir) / "dashboard_breaker_state.json", default={})
 
     result = {}
     for source in source_names():
@@ -155,14 +149,7 @@ def read_cache_ages(state_dir: str, ttls: dict[str, int]) -> dict[str, dict]:
             ...
         }
     """
-    path = Path(state_dir) / "dashboard_cache.json"
-    raw: dict = {}
-    if path.exists():
-        try:
-            with open(path) as f:
-                raw = json.load(f)
-        except Exception as exc:
-            logger.debug("Could not read cache: %s", exc)
+    raw: dict = read_json(Path(state_dir) / "dashboard_cache.json", default={})
 
     now_utc = datetime.now(timezone.utc)
     result: dict[str, dict] = {}
@@ -175,9 +162,8 @@ def read_cache_ages(state_dir: str, ttls: dict[str, int]) -> dict[str, dict]:
             fetched_at = datetime.fromisoformat(block["fetched_at"])
             # A naive (pre-v5) timestamp is UTC — the convention every other
             # reader follows (cache._normalise_fetched_at, read_last_success).
-            # Measuring it against the host's local clock put the age off by
-            # the UTC offset on any non-UTC host, so a source the renderer
-            # still held fresh showed "expired" here, or the reverse (#280).
+            # Measured against the host's local clock the age would be off by
+            # the UTC offset.
             if fetched_at.tzinfo is None:
                 fetched_at = fetched_at.replace(tzinfo=timezone.utc)
             fetched_at_utc = fetched_at.astimezone(timezone.utc)
@@ -202,12 +188,8 @@ def read_quota(state_dir: str, today: str | None = None) -> dict[str, int]:
     reads as empty: the renderer resets it on its next run, and until then its
     counts are yesterday's, which the status page would show as today's.
     """
-    path = Path(state_dir) / "api_quota_state.json"
-    if not path.exists():
-        return {}
+    raw = read_json(Path(state_dir) / "api_quota_state.json", default={})
     try:
-        with open(path) as f:
-            raw = json.load(f)
         if today is not None and raw.get("date") != today:
             return {}
         return dict(raw.get("counts", {}))

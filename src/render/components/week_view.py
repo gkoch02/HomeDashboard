@@ -193,7 +193,6 @@ def draw_week(
         # Pre-compute events for this day
         day_events = _events_for_day(events, day)
 
-        # Column header
         day_abbr = day.strftime("%a").upper()
         day_num = str(day.day)
 
@@ -398,7 +397,7 @@ def _autofit_font(
     A word that fits at no size (a URL, a long code) does not drag the type
     down to *min_size* for nothing: ``draw_text_wrapped`` breaks it by
     character, so the largest size whose *broken* line count fits is used
-    instead (#288).
+    instead.
     """
     current = font
     size = current.size
@@ -494,11 +493,9 @@ def _draw_day_events(
         is_last = idx == len(events) - 1
         # The "+N more" marker needs a row of its own at the foot of the
         # column, so a row that is not the last one may only be drawn if the
-        # marker would still fit below it; otherwise the marker took the
-        # current y, which after a location line already sat past the
-        # column's bottom, and "+27 more" printed over the panel beneath
-        # (#289). The row's own height is measured first for the same reason:
-        # a two-line title was checked as one.
+        # marker would still fit below it — otherwise the marker prints over
+        # the panel beneath. The row's own height (a two-line title, a
+        # location line) is measured first for the same reason.
         if event.is_all_day:
             bar_h = text_height(allday_font) + allday_pad
             need_h = bar_h

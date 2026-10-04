@@ -122,8 +122,8 @@ class TestDayLength:
 class TestMeteorShowers:
     def test_all_showers_have_valid_peak_date(self):
         for shower in METEOR_SHOWERS:
-            # Constructor check — raises ValueError for bad date
-            date(2026, shower.peak_month, shower.peak_day)
+            peak = date(2026, shower.peak_month, shower.peak_day)  # ValueError on a bad pair
+            assert (peak.month, peak.day) == (shower.peak_month, shower.peak_day), shower.name
 
     def test_next_shower_returns_zero_days_on_peak(self):
         # Perseids peak Aug 12

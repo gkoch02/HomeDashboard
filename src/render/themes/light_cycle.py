@@ -76,11 +76,6 @@ def light_cycle_theme() -> Theme:
     )
 
 
-# ---------------------------------------------------------------------------
-# Registry adapter
-# ---------------------------------------------------------------------------
-
-
 def _register() -> None:
     from src.render.themes.registry import register_theme
 

@@ -78,9 +78,8 @@ def create_app(
         # back to a shared, publicly-known constant (which would let anyone forge a
         # signed session cookie and defeat CSRF protection on mutating endpoints).
         # The template's placeholder counts as no key — it is published in the
-        # repo, so every install that only filled in the password was signing
-        # its cookies with it (#282). Sessions won't survive a restart, which is
-        # fine for this admin UI.
+        # repo. Sessions won't survive a restart, which is fine for this admin
+        # UI.
         import secrets
 
         secret_key = secrets.token_hex(32)

@@ -41,9 +41,7 @@ from src.render.theme import INKY_YELLOW
 Rect = tuple[int, int, int, int]
 
 
-# ---------------------------------------------------------------------------
 # Mode-aware colour helpers
-# ---------------------------------------------------------------------------
 
 
 def accent_yellow(mode: str) -> int | tuple[int, int, int]:
@@ -57,9 +55,7 @@ def accent_yellow(mode: str) -> int | tuple[int, int, int]:
     return 210
 
 
-# ---------------------------------------------------------------------------
 # Weather icon classification
-# ---------------------------------------------------------------------------
 
 
 def illustration_kind(icon: str | None) -> tuple[str, bool]:
@@ -91,9 +87,7 @@ def illustration_kind(icon: str | None) -> tuple[str, bool]:
     return ("missing", False)
 
 
-# ---------------------------------------------------------------------------
 # Sky backgrounds
-# ---------------------------------------------------------------------------
 
 
 def draw_sky(image: Image.Image, rect: Rect, *, day: bool) -> None:
@@ -171,9 +165,7 @@ def draw_fog(image: Image.Image, rect: Rect, today: date) -> None:
         image.paste(tail, (x0, y0 + band_count * band_h))
 
 
-# ---------------------------------------------------------------------------
 # Sun + rays
-# ---------------------------------------------------------------------------
 
 
 def draw_sun(
@@ -256,9 +248,7 @@ def radial_gradient_disc(d: int, inner_v: int, outer_v: int) -> Image.Image:
     return out
 
 
-# ---------------------------------------------------------------------------
 # Moon
-# ---------------------------------------------------------------------------
 
 
 def draw_moon(
@@ -360,9 +350,7 @@ def draw_stars(
             draw.rectangle((x, y, x + 1, y + 1), fill=fill)
 
 
-# ---------------------------------------------------------------------------
 # Clouds
-# ---------------------------------------------------------------------------
 
 
 def draw_cloud(
@@ -423,9 +411,7 @@ def draw_cloud(
     image.paste(interior, top_left, mask)
 
 
-# ---------------------------------------------------------------------------
 # Precipitation
-# ---------------------------------------------------------------------------
 
 
 def draw_precip(
@@ -463,7 +449,6 @@ def draw_precip(
             x = rng.randint(x0 + 6, x1 - 6)
             y = rng.randint(top, bottom)
             r = rng.choice((1, 2, 2))
-            # Centre dot.
             draw.ellipse((x - 1, y - 1, x + 1, y + 1), fill=flake_fill)
             if r >= 2:
                 draw.line((x - r - 1, y, x + r + 1, y), fill=flake_fill, width=1)
@@ -496,9 +481,7 @@ def draw_lightning(
     draw.polygon(points, fill=_ink(mode))
 
 
-# ---------------------------------------------------------------------------
 # "Missing" / no-signal fallback
-# ---------------------------------------------------------------------------
 
 
 def draw_missing(image: Image.Image, rect: Rect) -> None:
@@ -524,9 +507,7 @@ def draw_missing(image: Image.Image, rect: Rect) -> None:
         )
 
 
-# ---------------------------------------------------------------------------
 # Scene composition
-# ---------------------------------------------------------------------------
 
 # The scene below was composed for halftone's 800x296 hero, and every placement
 # is still written in those coordinates. They are re-expressed as fractions of
@@ -640,9 +621,7 @@ def draw_weather_scene(
         draw_missing(image, rect)
 
 
-# ---------------------------------------------------------------------------
 # Decorative Bayer rule + screening
-# ---------------------------------------------------------------------------
 
 
 def draw_bayer_rule(

@@ -36,6 +36,7 @@ from urllib.parse import quote
 
 import requests  # type: ignore[import-untyped]
 
+from src.config_schema import DEFAULT_ONE_CALL_VERSION, ONE_CALL_VERSIONS
 from src.data.models import WeatherAlert
 
 logger = logging.getLogger(__name__)
@@ -51,16 +52,12 @@ _TIMEOUT = 10  # seconds
 # there is nothing to gain from resolving a fourth.
 _V4_MAX_ALERT_DETAILS = 3
 
-# Fallback for an unrecognised version string.  The accepted set lives in
-# src.config_schema.ONE_CALL_VERSIONS, alongside the rest of the enum metadata.
-DEFAULT_VERSION = "3.0"
-
 
 def fetch_alerts_and_uv(
     session: requests.Session,
     params: dict,
     *,
-    version: str = DEFAULT_VERSION,
+    version: str = DEFAULT_ONE_CALL_VERSION,
 ) -> tuple[list[WeatherAlert], float | None]:
     """Fetch active weather alerts and the UV index via the selected One Call version.
 
@@ -70,6 +67,8 @@ def fetch_alerts_and_uv(
 
     May raise; the caller is responsible for degrading to ``([], None)``.
     """
+    if version not in ONE_CALL_VERSIONS:
+        version = DEFAULT_ONE_CALL_VERSION
     if version == "off":
         return [], None
     if version == "4.0":
@@ -77,9 +76,7 @@ def fetch_alerts_and_uv(
     return _fetch_v3(session, params)
 
 
-# ---------------------------------------------------------------------------
 # One Call 3.0 — single all-in-one request
-# ---------------------------------------------------------------------------
 
 
 def _fetch_v3(
@@ -108,7 +105,6 @@ def _fetch_v3(
     return alerts, uv_index
 
 
-# ---------------------------------------------------------------------------
 # One Call 4.0 — modular endpoints
 #
 # These parsers are pure (dict in, value out) and hold all of this module's
@@ -117,7 +113,6 @@ def _fetch_v3(
 # deliberately do not guess at unrecognised shapes: a genuinely wrong payload
 # raises, and the caller's degradation boundary turns that into ([], None) —
 # the same result a key without the subscription already gets.
-# ---------------------------------------------------------------------------
 
 
 def _v4_first_record(payload: dict) -> dict | None:

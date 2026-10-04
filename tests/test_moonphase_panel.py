@@ -1,38 +1,5 @@
-"""Tests for src/render/components/moonphase_panel.py.
-
-Assertion discipline (see #229)
--------------------------------
-The 1-bit draw tests asserted ``img.getbbox() is not None`` on a plate
-filled with 1, where every pixel is non-zero and getbbox can never return
-None; 54 of the 59 tests passed with ``draw_moonphase`` stubbed to a no-op.
-(The five that already failed use an L canvas with a *black* background,
-where getbbox is genuinely meaningful — just weak.)
-
-Two things shape the measurements here:
-
-* Polarity is not fixed. This panel is drawn on greyscale plates whose
-  background is black (``moonphase``) or white (``moonphase_invert``), so
-  ``_marks`` counts pixels differing from the background rather than a
-  fixed value, and the real theme styles are used. Passing the default
-  ``ThemeStyle`` (``fg=0, bg=1``, a 1-bit style) onto an L canvas — which
-  the pre-existing L tests did — is a combination the themes never produce,
-  and under it the lunar disc renders inverted: bright at new moon, dark at
-  full. Measuring against it would have pinned an artefact.
-* Counting the filmstrip's discs is phase-dependent and unreliable: a
-  near-new flanking moon has almost no lit area, and the hero's outline ring
-  reads as two marks on a scanline. ``_assert_filmstrip`` measures the
-  strip's span and centring instead, which holds at every phase.
-
-The load-bearing test is ``test_hero_disc_tracks_illumination``: the lit
-area of the hero disc must rank the same way the illumination percentage
-does across the cycle. That is the panel's whole job.
-
-Verification: with ``draw_moonphase`` stubbed to a no-op, 28 of the 63
-tests fail. The survivors are pure helpers (``_ordinal_suffix``,
-``_quote_for_panel``, ``_luminance``, ``_coords_set``), theme-factory
-cases, and tests that drive ``moon_render`` directly — none of which go
-through this entry point — plus ``test_returns_none``, which was checked
-by making the component return a value.
+"""Tests for moonphase_panel.py; marks are counted with ``tests.inkutils.marks`` against the
+real theme styles, because the plate's polarity differs between ``moonphase`` and its invert.
 """
 
 import json
@@ -46,10 +13,10 @@ from PIL import Image, ImageDraw
 from src.data.models import DashboardData, WeatherData
 from src.render.components.moonphase_panel import (
     _ordinal_suffix,
-    _quote_for_panel,
     draw_moonphase,
 )
 from src.render.quantize import flatten_pixels
+from src.render.quotes import quote_for
 from src.render.theme import ComponentRegion, ThemeStyle, load_theme
 from tests.inkutils import marks
 
@@ -120,29 +87,30 @@ class TestOrdinalSuffix:
 
 
 # ---------------------------------------------------------------------------
-# _quote_for_panel — refresh modes
+# quote_for(prefix="moonphase-") — refresh modes
 # ---------------------------------------------------------------------------
 
 
 class TestQuoteForPanel:
     def test_daily_refresh_is_deterministic(self):
-        q1 = _quote_for_panel(TODAY, refresh="daily")
-        q2 = _quote_for_panel(TODAY, refresh="daily")
+        q1 = quote_for(TODAY, refresh="daily", prefix="moonphase-")
+        q2 = quote_for(TODAY, refresh="daily", prefix="moonphase-")
         assert q1 == q2
 
     def test_different_days_may_differ(self):
         """Two different dates should generally produce different quotes.
         This is probabilistic but with 5+ quotes it's extremely reliable."""
         quotes = {
-            json.dumps(_quote_for_panel(date(2024, 3, d), refresh="daily")) for d in range(1, 20)
+            json.dumps(quote_for(date(2024, 3, d), refresh="daily", prefix="moonphase-"))
+            for d in range(1, 20)
         }
         assert len(quotes) > 1
 
     def test_hourly_refresh_uses_hour(self):
         now_am = datetime(2024, 3, 15, 9, 0)
         now_pm = datetime(2024, 3, 15, 14, 0)
-        q_am = _quote_for_panel(TODAY, refresh="hourly", now=now_am)
-        q_pm = _quote_for_panel(TODAY, refresh="hourly", now=now_pm)
+        q_am = quote_for(TODAY, refresh="hourly", now=now_am, prefix="moonphase-")
+        q_pm = quote_for(TODAY, refresh="hourly", now=now_pm, prefix="moonphase-")
         # Same date but different hours — they may differ (not guaranteed, but
         # test that the call succeeds and returns a dict with expected keys)
         assert "text" in q_am
@@ -151,13 +119,13 @@ class TestQuoteForPanel:
     def test_twice_daily_am_pm_differ(self):
         now_am = datetime(2024, 3, 15, 8, 0)
         now_pm = datetime(2024, 3, 15, 13, 0)
-        q_am = _quote_for_panel(TODAY, refresh="twice_daily", now=now_am)
-        q_pm = _quote_for_panel(TODAY, refresh="twice_daily", now=now_pm)
+        q_am = quote_for(TODAY, refresh="twice_daily", now=now_am, prefix="moonphase-")
+        q_pm = quote_for(TODAY, refresh="twice_daily", now=now_pm, prefix="moonphase-")
         assert "text" in q_am
         assert "text" in q_pm
 
     def test_returns_dict_with_text_and_author(self):
-        q = _quote_for_panel(TODAY)
+        q = quote_for(TODAY, prefix="moonphase-")
         assert "text" in q
         assert "author" in q
 
@@ -166,7 +134,7 @@ class TestQuoteForPanel:
             "src.render.quotes.DEFAULT_QUOTES_PATH",
             Path("/nonexistent/path/quotes.json"),
         ):
-            q = _quote_for_panel(TODAY)
+            q = quote_for(TODAY, prefix="moonphase-")
         assert "text" in q
         assert "author" in q
 
@@ -174,7 +142,7 @@ class TestQuoteForPanel:
         corrupt_file = tmp_path / "quotes.json"
         corrupt_file.write_text("{ this is not valid json }")
         with patch("src.render.quotes.DEFAULT_QUOTES_PATH", corrupt_file):
-            q = _quote_for_panel(TODAY)
+            q = quote_for(TODAY, prefix="moonphase-")
         assert "text" in q
 
     def test_mp_key_prefix_differs_from_info_panel(self):
@@ -581,13 +549,13 @@ class TestMoonphaseHelpers:
         assert _luminance((255, 255, 255)) == 1.0
         assert _luminance((0, 0, 0)) == 0.0
 
-    def test_coords_set(self):
-        from src.render.components.moonphase_panel import _coords_set
+    def test_usable_coords(self):
+        from src.render.primitives import usable_coords
 
-        assert _coords_set(37.0, -122.0) is True
-        assert _coords_set(0.0, 0.0) is False
-        assert _coords_set(None, -122.0) is False
-        assert _coords_set(37.0, None) is False
+        assert usable_coords(37.0, -122.0) == (37.0, -122.0)
+        assert usable_coords(0.0, 0.0) is None
+        assert usable_coords(None, -122.0) is None
+        assert usable_coords(37.0, None) is None
 
     def test_moon_tones_modes(self):
         from src.render.components.moonphase_panel import _moon_tones

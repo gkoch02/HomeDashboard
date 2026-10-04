@@ -112,8 +112,8 @@ def _flatten_for_schema(cfg_for_web: dict) -> dict:
     A secret surfaces as ``_<name>_set``; that flag becomes the secret's
     ``has_value`` only when ``<section>.<name>`` really is a secret schema
     path. The suffix alone is not enough: ``purpleair._sensor_id_set`` is a
-    display flag for a plain int field, and reading it as the value reported
-    the sensor ID as ``True`` (#308). Other ``_``-prefixed keys are read-only
+    display flag for a plain int field, and reading it as the value would
+    report the sensor ID as ``True``. Other ``_``-prefixed keys are read-only
     values (``display._model``, ``google._calendar_id``) and keep their
     public path.
     """

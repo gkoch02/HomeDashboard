@@ -112,7 +112,6 @@ def _solar_declination_and_eot(jd: float) -> tuple[float, float]:
     lam = math.radians(L + 1.915 * math.sin(g) + 0.020 * math.sin(2 * g))
     # Obliquity of the ecliptic
     eps = math.radians(23.439 - 0.0000004 * n)
-    # Declination
     declination = math.degrees(math.asin(math.sin(eps) * math.sin(lam)))
     # Right ascension
     ra = math.degrees(math.atan2(math.cos(eps) * math.sin(lam), math.cos(lam)))
@@ -268,7 +267,6 @@ def next_meteor_shower(today: date) -> tuple[MeteorShower, int]:
     return shower, days
 
 
-# ---------------------------------------------------------------------------
 # Equatorial / horizontal coordinate transforms
 #
 # Used by the constellation_map theme.  All inputs/outputs are in conventional
@@ -276,7 +274,6 @@ def next_meteor_shower(today: date) -> tuple[MeteorShower, int]:
 # degrees, sidereal times in degrees).  Algorithms follow Meeus / Schlyter and
 # are accurate to a few arcminutes — far more than enough for an eInk star
 # chart.
-# ---------------------------------------------------------------------------
 
 
 _J2000 = 2451545.0

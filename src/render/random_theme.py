@@ -27,13 +27,12 @@ which naturally rotates the theme at the start of each new day or hour.
 
 from __future__ import annotations
 
-import json
 import logging
 import random
 from datetime import date, datetime
 from pathlib import Path
 
-from src._io import atomic_write_json
+from src._io import atomic_write_json, read_json
 from src.render.theme import AVAILABLE_THEMES
 
 logger = logging.getLogger(__name__)
@@ -100,6 +99,70 @@ def eligible_themes(
     return sorted(pool)
 
 
+def _pick(
+    include: list[str],
+    exclude: list[str],
+    state_path: Path,
+    *,
+    bucket_field: str,
+    bucket_key: str,
+    label: str,
+    state_label: str,
+    persist: bool,
+    panel: tuple[int, int] | None,
+) -> str:
+    """The shared body of the two cadences, parameterised by bucket and state file.
+
+    A persisted pick is reused when its *bucket_field* matches *bucket_key*;
+    otherwise a new one is drawn from the eligible pool and written back.
+    *label* / *state_label* only shape the log lines.
+    """
+    # Try to reuse a persisted choice for this bucket
+    state = read_json(state_path, default=None)
+    if isinstance(state, dict) and state.get(bucket_field) == bucket_key:
+        chosen = state.get("theme", "")
+        # Validate against the pool this run would draw from, panel filter
+        # included: a pick persisted before the panel changed (or by a run
+        # configured for another one) would otherwise letterbox for the rest
+        # of the bucket.
+        if isinstance(chosen, str) and chosen in eligible_themes(include, exclude, panel):
+            logger.info("%s for %s: %s (persisted)", label, bucket_key, chosen)
+            return chosen
+
+    # Choose a new theme for this bucket
+    pool = eligible_themes(include, exclude, panel)
+    if not pool:
+        # An empty pool is not a draw: every run resolves to "default" and
+        # persists nothing, so reporting it needs no write either. Evaluated
+        # before the persist check so the status page reports what the panel
+        # is really showing rather than "not drawn yet" forever. The warning
+        # stays on the renderer's path — the page polls every 30 seconds.
+        if persist:
+            logger.warning(
+                "Random theme pool is empty (include=%r, exclude=%r) — falling back to 'default'",
+                include,
+                exclude,
+            )
+        return "default"
+
+    if not persist:
+        # Reporting only: drawing here would decide what the dashboard shows.
+        return ""
+
+    chosen = random.choice(pool)
+    logger.info("%s for %s: %s (newly selected from pool: %s)", label, bucket_key, chosen, pool)
+
+    # Persist the choice. Atomic (tempfile + rename) like every other JSON
+    # state file — a truncated write here would be re-picked on the next tick,
+    # so the theme would change mid-bucket after a power cut.
+    try:
+        atomic_write_json(state_path, {bucket_field: bucket_key, "theme": chosen})
+    except Exception as exc:
+        logger.warning("Could not save %s: %s", state_label, exc)
+
+    return chosen
+
+
 def pick_random_theme(
     include: list[str],
     exclude: list[str],
@@ -122,9 +185,8 @@ def pick_random_theme(
         today: Override for the current date (useful in tests).
         persist: When False, *report* the stored pick without making one —
             no draw, no write. Returns ``""`` when today's bucket has no
-            valid stored pick yet. This exists for read-only callers like the
-            status page, whose 30-second poll otherwise won the race to pick
-            the day's theme at almost every rollover (#238).
+            valid stored pick yet. For read-only callers like the status
+            page, whose poll must not be what picks the day's theme.
 
     Returns:
         A concrete theme name (never ``"random"`` or ``"random_daily"``), or
@@ -132,58 +194,17 @@ def pick_random_theme(
     """
     if today is None:
         today = date.today()
-
-    today_str = today.isoformat()
-    state_path = Path(output_dir) / _DAILY_STATE_FILE
-
-    # Try to reuse a persisted choice for today
-    if state_path.exists():
-        try:
-            state = json.loads(state_path.read_text())
-            if state.get("date") == today_str:
-                chosen = state.get("theme", "")
-                # Validate against the pool this run would draw from, panel
-                # filter included: a pick persisted before the panel changed
-                # (or by a run configured for another one) would otherwise
-                # letterbox for the rest of the day.
-                if chosen in eligible_themes(include, exclude, panel):
-                    logger.info("Random theme for %s: %s (persisted)", today_str, chosen)
-                    return chosen
-        except Exception as exc:
-            logger.warning("Could not read random theme state: %s", exc)
-
-    # Choose a new theme for today
-    pool = eligible_themes(include, exclude, panel)
-    if not pool:
-        # An empty pool is not a draw: every run resolves to "default" and
-        # persists nothing, so reporting it needs no write either. Evaluated
-        # before the persist check so the status page reports what the panel
-        # is really showing rather than "not drawn yet" forever. The warning
-        # stays on the renderer's path — the page polls every 30 seconds.
-        if persist:
-            logger.warning(
-                "Random theme pool is empty (include=%r, exclude=%r) — falling back to 'default'",
-                include,
-                exclude,
-            )
-        return "default"
-
-    if not persist:
-        # Reporting only: drawing here would decide what the dashboard shows.
-        return ""
-
-    chosen = random.choice(pool)
-    logger.info("Random theme for %s: %s (newly selected from pool: %s)", today_str, chosen, pool)
-
-    # Persist the choice. Atomic (tempfile + rename) like every other JSON
-    # state file — a truncated write here would be re-picked on the next tick,
-    # so the theme would change mid-day after a power cut.
-    try:
-        atomic_write_json(state_path, {"date": today_str, "theme": chosen})
-    except Exception as exc:
-        logger.warning("Could not save random theme state: %s", exc)
-
-    return chosen
+    return _pick(
+        include,
+        exclude,
+        Path(output_dir) / _DAILY_STATE_FILE,
+        bucket_field="date",
+        bucket_key=today.isoformat(),
+        label="Random theme",
+        state_label="random theme state",
+        persist=persist,
+        panel=panel,
+    )
 
 
 def pick_random_theme_hourly(
@@ -210,7 +231,7 @@ def pick_random_theme_hourly(
         now: Override for the current datetime (useful in tests).
         persist: When False, *report* the stored pick without making one —
             no draw, no write. Returns ``""`` when this hour's bucket has no
-            valid stored pick yet (#238).
+            valid stored pick yet.
 
     Returns:
         A concrete theme name (never ``"random_hourly"``), or ``""`` when
@@ -218,48 +239,14 @@ def pick_random_theme_hourly(
     """
     if now is None:
         now = datetime.now()  # allow-naive-datetime — naive local for hourly bucket
-
-    hour_key = now.strftime("%Y-%m-%dT%H")
-    state_path = Path(output_dir) / _HOURLY_STATE_FILE
-
-    # Try to reuse a persisted choice for this hour
-    if state_path.exists():
-        try:
-            state = json.loads(state_path.read_text())
-            if state.get("hour") == hour_key:
-                chosen = state.get("theme", "")
-                # Same validation as the daily variant — see pick_random_theme().
-                if chosen in eligible_themes(include, exclude, panel):
-                    logger.info("Random hourly theme for %s: %s (persisted)", hour_key, chosen)
-                    return chosen
-        except Exception as exc:
-            logger.warning("Could not read random hourly theme state: %s", exc)
-
-    # Choose a new theme for this hour
-    pool = eligible_themes(include, exclude, panel)
-    if not pool:
-        # Same ordering as the daily variant — see pick_random_theme().
-        if persist:
-            logger.warning(
-                "Random theme pool is empty (include=%r, exclude=%r) — falling back to 'default'",
-                include,
-                exclude,
-            )
-        return "default"
-
-    if not persist:
-        # Reporting only — see pick_random_theme().
-        return ""
-
-    chosen = random.choice(pool)
-    logger.info(
-        "Random hourly theme for %s: %s (newly selected from pool: %s)", hour_key, chosen, pool
+    return _pick(
+        include,
+        exclude,
+        Path(output_dir) / _HOURLY_STATE_FILE,
+        bucket_field="hour",
+        bucket_key=now.strftime("%Y-%m-%dT%H"),
+        label="Random hourly theme",
+        state_label="random hourly theme state",
+        persist=persist,
+        panel=panel,
     )
-
-    # Persist the choice — atomic, same reasoning as the daily variant.
-    try:
-        atomic_write_json(state_path, {"hour": hour_key, "theme": chosen})
-    except Exception as exc:
-        logger.warning("Could not save random hourly theme state: %s", exc)
-
-    return chosen

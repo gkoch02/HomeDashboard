@@ -2,10 +2,12 @@
 
 from datetime import datetime
 
+import pytest
 from PIL import Image, ImageDraw
 
 from src.render.components.fuzzyclock_panel import _phrase_segments, draw_fuzzyclock, fuzzy_time
 from src.render.theme import ComponentRegion, ThemeStyle
+from tests.inkutils import ink, text_line_heights
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -153,41 +155,42 @@ class TestDrawFuzzyclock:
         result = draw_fuzzyclock(draw, _dt(7, 30))
         assert result is None  # pure side-effect function
 
-    def test_smoke_custom_region(self):
-        img, draw = _make_draw()
-        region = ComponentRegion(0, 0, 800, 400)
-        draw_fuzzyclock(draw, _dt(12, 0), region=region)
-
-    def test_smoke_with_style(self):
-        img, draw = _make_draw()
-        style = ThemeStyle(fg=0, bg=1)
-        draw_fuzzyclock(draw, _dt(23, 45), style=style)
-
-    def test_smoke_midnight(self):
-        img, draw = _make_draw()
-        draw_fuzzyclock(draw, _dt(0, 0))
-
-    def test_smoke_noon(self):
-        img, draw = _make_draw()
-        draw_fuzzyclock(draw, _dt(12, 0))
-
-    def test_smoke_small_region(self):
-        """Should not crash even in a very small region."""
-        img, draw = _make_draw(400, 200)
-        region = ComponentRegion(0, 0, 400, 200)
-        draw_fuzzyclock(draw, _dt(9, 15), region=region)
-
-    def test_long_phrase_fits(self):
-        """'twenty five past eleven' is among the longest phrases — must not crash."""
-        img, draw = _make_draw()
-        draw_fuzzyclock(draw, _dt(11, 25))
+    @pytest.mark.parametrize(
+        "now, region, style",
+        [
+            (_dt(12, 0), ComponentRegion(0, 0, 800, 400), None),
+            (_dt(23, 45), None, ThemeStyle(fg=0, bg=1)),
+            (_dt(0, 0), None, None),
+            (_dt(12, 0), None, None),
+            (_dt(9, 15), ComponentRegion(0, 0, 400, 200), None),
+            (_dt(11, 25), None, None),
+        ],
+        ids=[
+            "custom_region",
+            "explicit_style",
+            "midnight",
+            "noon",
+            "small_region",
+            "longest_phrase",
+        ],
+    )
+    def test_renders_a_non_blank_plate(self, now, region, style):
+        """Every input shape draws something; the phrase itself is pinned by TestFuzzyTime."""
+        box = (0, 0, 800, 480) if region is None else (region.x, region.y, region.w, region.h)
+        img, draw = _make_draw(max(box[2], 800), max(box[3], 480))
+        draw_fuzzyclock(draw, now, region=region, style=style)
+        assert ink(img, (box[0], box[1], box[0] + box[2], box[1] + box[3])) > 0
 
     def test_overflow_block_falls_back_to_minimum_sizes(self):
-        """A very short region triggers the block-overflow fallback (lines 137-144)."""
-        img, draw = _make_draw()
+        """A region too short for the fitted block is set at the minimum phrase size."""
+        roomy, roomy_draw = _make_draw()
+        draw_fuzzyclock(roomy_draw, _dt(7, 30), region=ComponentRegion(0, 0, 800, 400))
         # height=60 means threshold = 60 - 2*24 = 12px, far smaller than any rendered block
-        region = ComponentRegion(0, 0, 800, 60)
-        draw_fuzzyclock(draw, _dt(7, 30), region=region)  # must not raise
+        short, short_draw = _make_draw()
+        draw_fuzzyclock(short_draw, _dt(7, 30), region=ComponentRegion(0, 0, 800, 60))
+        tallest_roomy = max(text_line_heights(roomy, (0, 0, 800, 400)))
+        tallest_short = max(text_line_heights(short, (0, 0, 800, 480)))
+        assert tallest_short < tallest_roomy, "the phrase was not set smaller in the short region"
 
 
 class TestPhraseSegments:

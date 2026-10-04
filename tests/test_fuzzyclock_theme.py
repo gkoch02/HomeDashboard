@@ -136,12 +136,13 @@ class TestFuzzyclockRender:
         assert result.size == (800, 480)
 
     def test_render_no_weather(self):
-        """Should not crash when weather data is absent."""
+        """Without weather the plate still renders, and differs from one with weather."""
+        with_weather = render_dashboard(_make_data(), DisplayConfig(), theme=fuzzyclock_theme())
         data = _make_data()
         data.weather = None
-        config = DisplayConfig()
-        theme = fuzzyclock_theme()
-        render_dashboard(data, config, theme=theme)
+        result = render_dashboard(data, DisplayConfig(), theme=fuzzyclock_theme())
+        assert isinstance(result, Image.Image)
+        assert result.tobytes() != with_weather.tobytes(), "the weather band ignores the data"
 
     def test_render_via_load_theme(self):
         data = _make_data()
@@ -219,6 +220,11 @@ class TestFuzzyclockInvertTheme:
         assert result.size == (800, 480)
 
     def test_render_no_weather(self):
+        """Without weather the plate still renders, and differs from one with weather."""
+        theme = load_theme("fuzzyclock_invert")
+        with_weather = render_dashboard(_make_data(), DisplayConfig(), theme=theme)
         data = _make_data()
         data.weather = None
-        render_dashboard(data, DisplayConfig(), theme=load_theme("fuzzyclock_invert"))
+        result = render_dashboard(data, DisplayConfig(), theme=theme)
+        assert isinstance(result, Image.Image)
+        assert result.tobytes() != with_weather.tobytes(), "the weather band ignores the data"

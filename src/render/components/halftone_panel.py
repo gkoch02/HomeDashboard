@@ -21,34 +21,17 @@ from datetime import date, datetime
 from PIL import Image, ImageDraw
 
 from src.data.models import CalendarEvent, DashboardData
+from src.render.artkit import fmt_temp
 from src.render.artkit import ink as _ink
 from src.render.fonts import weather_icon
 from src.render.primitives import content_time, draw_text_truncated
 from src.render.quantize import _BAYER_4X4
 
 # The procedural illustration vocabulary lives in ``src.render.skyart`` so the
-# ``day_arc`` theme can share it. Imported under the private aliases this
-# module has always used, so the drawing code below reads unchanged.
-#
-# ``_accent_yellow`` / ``_moon_disc`` / ``_radial_gradient_disc`` are no longer
-# called here but stay re-exported: they were part of this module's surface
-# before the move and existing tests import them from it.
-from src.render.skyart import accent_yellow as _accent_yellow  # noqa: F401
+# ``day_arc`` theme can share it.
 from src.render.skyart import draw_bayer_rule as _draw_bayer_rule
-from src.render.skyart import draw_cloud as _draw_cloud  # noqa: F401
-from src.render.skyart import draw_fog as _draw_fog  # noqa: F401
-from src.render.skyart import draw_lightning as _draw_lightning  # noqa: F401
-from src.render.skyart import draw_missing as _draw_missing  # noqa: F401
-from src.render.skyart import draw_moon as _draw_moon  # noqa: F401
-from src.render.skyart import draw_precip as _draw_precip  # noqa: F401
-from src.render.skyart import draw_sky as _draw_sky  # noqa: F401
-from src.render.skyart import draw_sky_stormy as _draw_sky_stormy  # noqa: F401
-from src.render.skyart import draw_stars as _draw_stars  # noqa: F401
-from src.render.skyart import draw_sun as _draw_sun  # noqa: F401
 from src.render.skyart import draw_weather_scene as _draw_weather_scene
 from src.render.skyart import illustration_kind as _illustration_kind  # noqa: F401
-from src.render.skyart import moon_disc as _moon_disc  # noqa: F401
-from src.render.skyart import radial_gradient_disc as _radial_gradient_disc  # noqa: F401
 from src.render.theme import ComponentRegion, ThemeStyle
 
 # Weather Icons font glyphs — Righteous itself has no ↑/↓ arrows, so the
@@ -57,9 +40,7 @@ from src.render.theme import ComponentRegion, ThemeStyle
 _SUNRISE_GLYPH = "\uf051"  # wi-sunrise
 _SUNSET_GLYPH = "\uf052"  # wi-sunset
 
-# ---------------------------------------------------------------------------
 # Region geometry
-# ---------------------------------------------------------------------------
 
 HERO_H = 296
 RULE_H = 6
@@ -74,11 +55,6 @@ TEMP_COL_W = 280
 # The row math above subtracts this from the band height so the existing
 # zones (NOW / TODAY / NEXT) never overlap the footer.
 FOOTER_H = 22
-
-
-# ---------------------------------------------------------------------------
-# Public entry point
-# ---------------------------------------------------------------------------
 
 
 def art_rect(region: ComponentRegion) -> tuple[int, int, int, int]:
@@ -131,9 +107,7 @@ def draw_halftone(
     )
 
 
-# ---------------------------------------------------------------------------
 # Illustration dispatch
-# ---------------------------------------------------------------------------
 
 
 def _draw_illustration(
@@ -154,15 +128,7 @@ def _draw_illustration(
     _draw_weather_scene(image, hero_rect, icon, today)
 
 
-# ---------------------------------------------------------------------------
 # Margin band — typeset weather info + next event + daily quote
-# ---------------------------------------------------------------------------
-
-
-def _fmt_temp(t: float | None) -> str:
-    if t is None:
-        return "—"
-    return f"{int(round(t))}°"
 
 
 def _format_event_time(dt: datetime) -> str:
@@ -241,7 +207,7 @@ def _draw_margin_band(
     # weather summary on the right can stay tight without losing that
     # secondary reading.
     feels_caption = (
-        f"feels {_fmt_temp(weather.feels_like)}"
+        f"feels {fmt_temp(weather.feels_like)}"
         if weather and weather.feels_like is not None
         else ""
     )
@@ -257,7 +223,7 @@ def _draw_margin_band(
     # so 1- and 2-digit values don't look left-biased against the wide
     # blank reservation that 3-digit values would fill.
     temp_font = (style.font_title or style.font_bold)(TEMP_NUMERAL_SIZE)
-    temp_text = _fmt_temp(weather.current_temp) if weather else "—"
+    temp_text = fmt_temp(weather.current_temp) if weather else "—"
     temp_bbox = draw.textbbox((0, 0), temp_text, font=temp_font)
     temp_visible_h = temp_bbox[3] - temp_bbox[1]
     temp_w = temp_bbox[2] - temp_bbox[0]
@@ -319,8 +285,8 @@ def _draw_margin_band(
     if weather is not None:
         if weather.current_description:
             now_parts.append(weather.current_description.upper())
-        now_parts.append(f"H {_fmt_temp(weather.high)}")
-        now_parts.append(f"L {_fmt_temp(weather.low)}")
+        now_parts.append(f"H {fmt_temp(weather.high)}")
+        now_parts.append(f"L {fmt_temp(weather.low)}")
     else:
         now_parts.append("AWAITING DATA")
     now_text = "  ·  ".join(now_parts)

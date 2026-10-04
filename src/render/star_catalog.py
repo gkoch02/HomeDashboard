@@ -30,9 +30,7 @@ class Star:
     mag: float
 
 
-# ---------------------------------------------------------------------------
 # Star catalogue (45 stars)
-# ---------------------------------------------------------------------------
 #
 # Ordered loosely by constellation for readability; the table is consumed by
 # name lookup, not by index.
@@ -102,9 +100,7 @@ STARS: list[Star] = [
 STARS_BY_NAME: dict[str, Star] = {s.name: s for s in STARS}
 
 
-# ---------------------------------------------------------------------------
 # Constellation outlines
-# ---------------------------------------------------------------------------
 #
 # Each entry maps a display name to the ordered list of (star, star) line
 # segments that trace out the asterism.  All referenced stars must exist in

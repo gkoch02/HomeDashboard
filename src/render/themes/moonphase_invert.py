@@ -70,11 +70,6 @@ def moonphase_invert_theme() -> Theme:
     )
 
 
-# ---------------------------------------------------------------------------
-# Registry adapter
-# ---------------------------------------------------------------------------
-
-
 def _register() -> None:
     from src.render.theme import INKY_BLUE, INKY_YELLOW
     from src.render.themes.registry import register_theme

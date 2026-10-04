@@ -15,9 +15,8 @@ from flask import abort, jsonify, make_response, request, session
 _SESSION_KEY = "csrf_token"
 
 # With the default ephemeral secret key every session — and so every open
-# tab's token — dies when the service restarts. The bare abort(403) returned
-# an HTML page the client's resp.json() could not parse, so the user saw
-# "Request failed — check network." for what is fixed by a reload (#309).
+# tab's token — dies when the service restarts. The 403 must be JSON the
+# client's resp.json() can parse, naming the fix (a reload).
 EXPIRED_MESSAGE = (
     "Your session has expired — the web service probably restarted. Reload the page and try again."
 )

@@ -32,9 +32,7 @@ from src.render.fonts import (
 from src.render.primitives import hline, vline
 from src.render.theme import ComponentRegion, Theme, ThemeLayout, ThemeStyle
 
-# ---------------------------------------------------------------------------
 # Hybrid font callable: Cinzel Black for small label sizes, Playfair for body
-# ---------------------------------------------------------------------------
 
 
 def _press_bold(size: int):
@@ -48,9 +46,7 @@ def _press_bold(size: int):
     return playfair_bold(size)
 
 
-# ---------------------------------------------------------------------------
 # Newspaper overlay — ornamental rules, column separator, masthead ornaments
-# ---------------------------------------------------------------------------
 
 
 def _newspaper_overlay(draw, layout, style):
@@ -72,10 +68,8 @@ def _newspaper_overlay(draw, layout, style):
     body_y = layout.today_view.y  # body starts here (80 px)
     sep_x = layout.today_view.x + layout.today_view.w  # column split (490)
 
-    # ------------------------------------------------------------------
     # 1.  Corner-bracket ornaments inside the inverted masthead (white).
     #     Each bracket is a pair of thin white rectangles forming an L-shape.
-    # ------------------------------------------------------------------
     pad = 8
     arm = 11  # bracket arm length in px
 
@@ -98,42 +92,29 @@ def _newspaper_overlay(draw, layout, style):
     inner_x1 = W - pad - arm - 4
     hline(draw, hdr_h - pad - 2, inner_x0, inner_x1, fill=bg)
 
-    # ------------------------------------------------------------------
     # 2.  Triple-rule band between masthead and body  (y = hdr_h … body_y).
     #     Classic broadsheet pattern: thick–thick / gap / thin.
-    # ------------------------------------------------------------------
     hline(draw, hdr_h + 2, 0, W - 1, fill=fg)
     hline(draw, hdr_h + 3, 0, W - 1, fill=fg)  # thick pair
     hline(draw, hdr_h + 7, 0, W - 1, fill=fg)  # thin accent
 
-    # ------------------------------------------------------------------
     # 3.  Double vertical column rule separating today_view / right sidebar.
     #     Two vlines with a 2-px gap — the traditional broadsheet gutter rule.
-    # ------------------------------------------------------------------
     vline(draw, sep_x, body_y, H - 7, fill=fg)
     vline(draw, sep_x + 3, body_y, H - 7, fill=fg)
 
     # Small filled-square dingbat bridging the gap at the top of the rule.
     draw.rectangle([sep_x - 1, body_y - 1, sep_x + 4, body_y + 2], fill=fg)
 
-    # ------------------------------------------------------------------
     # 4.  Dingbats where right-column section borders cross the column rule.
-    # ------------------------------------------------------------------
     for junc_y in (layout.birthdays.y, layout.info.y):
         draw.rectangle([sep_x - 1, junc_y, sep_x + 4, junc_y + 1], fill=fg)
 
-    # ------------------------------------------------------------------
     # 5.  Double-rule bottom border.
     #     Pattern: thick–thick / gap / thin  (mirrors the top triple-rule).
-    # ------------------------------------------------------------------
     hline(draw, H - 6, 0, W - 1, fill=fg)
     hline(draw, H - 5, 0, W - 1, fill=fg)
     hline(draw, H - 2, 0, W - 1, fill=fg)
-
-
-# ---------------------------------------------------------------------------
-# Theme factory
-# ---------------------------------------------------------------------------
 
 
 def old_fashioned_theme() -> Theme:
@@ -206,11 +187,6 @@ def old_fashioned_theme() -> Theme:
             },
         ),
     )
-
-
-# ---------------------------------------------------------------------------
-# Registry adapter
-# ---------------------------------------------------------------------------
 
 
 def _register() -> None:

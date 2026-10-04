@@ -36,11 +36,6 @@ def today_theme() -> Theme:
     )
 
 
-# ---------------------------------------------------------------------------
-# Registry adapter
-# ---------------------------------------------------------------------------
-
-
 def _register() -> None:
     from src.render.theme import INKY_BLUE, INKY_RED
     from src.render.themes.registry import register_theme

@@ -42,9 +42,9 @@ from PIL import Image, ImageDraw
 from src.astronomy import sun_times
 from src.data.models import Birthday, CalendarEvent, DashboardData, WeatherData
 from src.render.artkit import accent_red as _accent_red
+from src.render.artkit import fmt_temp, to_local_naive
 from src.render.artkit import grey as _grey
 from src.render.artkit import ink as _ink
-from src.render.artkit import to_local_naive
 from src.render.fonts import weather_icon
 from src.render.moon import moon_phase_age
 from src.render.moon_render import MoonTones, render_moon_disc
@@ -55,6 +55,7 @@ from src.render.primitives import (
     location_line,
     text_height,
     text_width,
+    usable_coords,
 )
 from src.render.skyart import (
     accent_yellow as _accent_yellow,
@@ -75,9 +76,7 @@ from src.render.theme import ComponentRegion, ThemeStyle
 _SUNRISE_GLYPH = ""  # wi-sunrise
 _SUNSET_GLYPH = ""  # wi-sunset
 
-# ---------------------------------------------------------------------------
 # Region geometry
-# ---------------------------------------------------------------------------
 
 SKY_H = 160  # dithered sky + disc + weather art
 AXIS_Y = SKY_H  # solid horizon hairline sits on this row
@@ -97,11 +96,10 @@ RAIL_W = 212
 # ink. Marks drawn onto the sky itself would vanish into the night gradient at
 # one end of the day and wash out against the midday band at the other.
 #
-# Every element gets an *exclusive* row band, all offsets relative to AXIS_Y.
-# They used to share rows, which made collisions a matter of luck: an event
-# starting on the hour puts its pip at exactly the x its hour label is centred
-# on, so the two could only ever land on top of each other. Keep these bands
-# disjoint — ``TestAxisStripBands`` fails the build if they stop being so.
+# Every element gets an *exclusive* row band, all offsets relative to AXIS_Y:
+# an event starting on the hour puts its pip at exactly the x its hour label
+# is centred on, so shared rows collide. Keep these bands disjoint —
+# ``TestAxisStripBands`` fails the build if they stop being so.
 #
 #   y+0            baseline hairline
 #   y+2  … y+4     daylight bar
@@ -167,9 +165,7 @@ _STAR_SALT = 0xDA7
 _FOG_SALT = 0xF0A
 
 
-# ---------------------------------------------------------------------------
 # Time axis
-# ---------------------------------------------------------------------------
 
 
 @dataclass(frozen=True)
@@ -359,8 +355,9 @@ def _resolve_day_bounds(
     ``(0.0, 0.0)`` counts as unset — the same convention the ``astronomy`` and
     ``light_cycle`` panels use.
     """
-    if latitude is not None and longitude is not None and (latitude, longitude) != (0.0, 0.0):
-        st = sun_times(today, latitude, longitude)
+    coords = usable_coords(latitude, longitude)
+    if coords is not None:
+        st = sun_times(today, *coords)
         if st.sunrise is not None and st.sunset is not None:
             return (
                 to_local_naive(st.civil_dawn, tz) if st.civil_dawn else None,
@@ -375,9 +372,7 @@ def _resolve_day_bounds(
     return (None, None, None, None)
 
 
-# ---------------------------------------------------------------------------
 # Sky
-# ---------------------------------------------------------------------------
 
 
 def _sky_marks(axis: TimeAxis) -> tuple[int, int, int, int, int]:
@@ -499,9 +494,7 @@ def _draw_margin_stars(
                 draw.rectangle((x, y, x + 1, y + 1), fill=fill)
 
 
-# ---------------------------------------------------------------------------
 # Ribbon artwork
-# ---------------------------------------------------------------------------
 
 
 def _disc_centre(axis: TimeAxis, now: datetime, y0: int) -> tuple[int, int]:
@@ -638,9 +631,7 @@ def _draw_ribbon_art(
         _draw_ribbon_fog(image, rect, today)
 
 
-# ---------------------------------------------------------------------------
 # Event state
-# ---------------------------------------------------------------------------
 
 
 def _strip_tz(dt: datetime) -> datetime:
@@ -731,9 +722,7 @@ def agenda_day(
     return (today + timedelta(days=1), True)
 
 
-# ---------------------------------------------------------------------------
 # Axis strip
-# ---------------------------------------------------------------------------
 
 
 def _pip_points(cx: int, cy: int, half: int) -> list[tuple[int, int]]:
@@ -857,9 +846,7 @@ def _draw_axis_strip(
     )
 
 
-# ---------------------------------------------------------------------------
 # Agenda
-# ---------------------------------------------------------------------------
 
 # (max_rows, row_h, time_w, time_pt, title_pt, show_location)
 _DENSITY_TIERS: tuple[tuple[int, int, int, int, int, bool], ...] = (
@@ -1059,8 +1046,8 @@ def _draw_agenda(
         def _render(d: ImageDraw.ImageDraw, t: str = text) -> None:
             d.text((0, 2), t, font=more_font, fill=0)
 
-        # Screened like a past row so it reads as secondary, but at the same
-        # threshold — the lighter cut used previously was too faint to read.
+        # Screened like a past row so it reads as secondary, at the same
+        # threshold — a lighter cut is too faint to read.
         screened_paste(
             image,
             (x0 + time_w + 14, y + 2, 200, text_height(more_font) + 10),
@@ -1069,13 +1056,7 @@ def _draw_agenda(
         )
 
 
-# ---------------------------------------------------------------------------
 # Supporting rail
-# ---------------------------------------------------------------------------
-
-
-def _fmt_temp(value: float | None) -> str:
-    return "—" if value is None else f"{int(round(value))}°"
 
 
 def _next_birthdays(
@@ -1126,13 +1107,13 @@ def _draw_rail(
     label_font = (style.font_section_label or style.font_bold)(13)
     cond_font = style.font_medium(15)
 
-    temp = _fmt_temp(weather.current_temp if weather else None)
+    temp = fmt_temp(weather.current_temp if weather else None)
     tw = text_width(draw, temp, numeral_font)
     draw.text((x0 + (w - tw) // 2, y0), temp, font=numeral_font, fill=ink)
     y = y0 + text_height(numeral_font) + 12
 
     if weather is not None and weather.feels_like is not None:
-        feels = f"feels {_fmt_temp(weather.feels_like)}"
+        feels = f"feels {fmt_temp(weather.feels_like)}"
         fw = text_width(draw, feels, small_font)
         draw.text((x0 + (w - fw) // 2, y), feels, font=small_font, fill=ink)
     y += text_height(small_font) + 14
@@ -1142,7 +1123,7 @@ def _draw_rail(
             draw, (x0, y), weather.current_description.upper(), cond_font, w, fill=ink
         )
         y += text_height(cond_font) + 6
-        hl = f"H {_fmt_temp(weather.high)}  ·  L {_fmt_temp(weather.low)}"
+        hl = f"H {fmt_temp(weather.high)}  ·  L {fmt_temp(weather.low)}"
         draw.text((x0, y), hl, font=cond_font, fill=ink)
         y += text_height(cond_font) + 14
     else:
@@ -1172,9 +1153,7 @@ def _draw_rail(
         y += text_height(small_font) + 8
 
 
-# ---------------------------------------------------------------------------
 # Footer
-# ---------------------------------------------------------------------------
 
 
 def _draw_footer(
@@ -1210,11 +1189,6 @@ def _draw_footer(
     stamp = f"updated {fmt_time(now)}"
     sw = text_width(draw, stamp, font)
     draw.text((x0 + w - sw, baseline), stamp, font=font, fill=ink)
-
-
-# ---------------------------------------------------------------------------
-# Public entry point
-# ---------------------------------------------------------------------------
 
 
 def art_rect(region: ComponentRegion) -> tuple[int, int, int, int]:

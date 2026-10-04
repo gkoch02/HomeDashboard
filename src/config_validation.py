@@ -70,8 +70,8 @@ def validate_config(
 
     # --- Values load_config() could not read ---
     # The parser keeps the default for these rather than raising (a quoted
-    # number used to reach the range checks below as text and TypeError out
-    # of this very function). Each one is a typo the user needs named.
+    # number reaching the range checks below as text would TypeError out of
+    # this very function). Each one is a typo the user needs named.
     for path, message in list(getattr(cfg, "unreadable", ()) or ()):
         errors.append(
             ConfigError(
@@ -410,7 +410,7 @@ def validate_config(
 
     # A theme whose plate is dithered greyscale or large solid ink declares
     # ThemeLayout.supports_partial_refresh = False, and OutputService renders it
-    # with the full waveform whatever this setting says (#222). Say so here
+    # with the full waveform whatever this setting says. Say so here
     # rather than leave the user reading a config value their runs ignore.
     if cfg.display.enable_partial_refresh and cfg.display.provider == "waveshare":
         declined = _themes_declining_partial_refresh(cfg)
@@ -483,8 +483,7 @@ def validate_config(
     # Config carries a name, not a level object; ``resolve_log_level`` folds an
     # unrecognised one back to INFO rather than crashing, so this is a warning
     # naming the typo, not an error. It asks the resolver rather than checking
-    # a list of its own: the two drift otherwise, and did — an allowlist here
-    # omitted the ``FATAL`` alias, reporting a level that works as unknown.
+    # a list of its own, which would drift (the ``FATAL`` alias, for one).
     # Imported inside the function because src.config imports this module at
     # its own bottom, so a top-level import would close the cycle.
     from src.config import is_known_log_level
@@ -527,7 +526,7 @@ def validate_config(
                 )
             )
 
-    # --- Values that run but misbehave (#306) ---
+    # --- Values that run but misbehave ---
     # Warnings, not errors: every one of these ran before the check existed,
     # and main.py exits on any error — an upgrade must not stop a working
     # panel over, say, a zero TTL for a PurpleAir source that is not even
@@ -816,7 +815,7 @@ def _themes_declining_partial_refresh(cfg) -> list[str]:
     pseudo = {"random", "random_daily", "random_hourly"}
     # A theme_schedule row or a theme_rules entry may name a pseudo-theme too,
     # and resolve_theme_name() then draws from the pool for it — so the pool
-    # has to be counted for those as well, not just for cfg.theme (#273).
+    # has to be counted for those as well, not just for cfg.theme.
     named: set[str] = {cfg.theme}
     named.update(entry.theme for entry in cfg.theme_schedule.entries)
     named.update(rule.theme for rule in cfg.theme_rules.rules)

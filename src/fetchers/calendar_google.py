@@ -19,7 +19,7 @@ from src._time import event_window_utc, week_start
 from src.config import GoogleConfig
 from src.data.models import CalendarEvent
 
-# NOTE (#211): the googleapiclient stack (httplib2, google.oauth2,
+# NOTE: the googleapiclient stack (httplib2, google.oauth2,
 # google_auth_httplib2, googleapiclient) is deliberately NOT imported at
 # module top. It costs 1-2 s to import on a Pi, and this module is reached
 # by every run — including ICS-only, CalDAV-only, and --dummy ticks, plus
@@ -36,9 +36,7 @@ _SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"]
 _SYNC_STATE_FILENAME = "calendar_sync_state.json"
 
 
-# ---------------------------------------------------------------------------
 # Shared utilities
-# ---------------------------------------------------------------------------
 
 
 def _today(tz: tzinfo | None) -> date:
@@ -47,9 +45,7 @@ def _today(tz: tzinfo | None) -> date:
     return datetime.now(tz).date()
 
 
-# ---------------------------------------------------------------------------
 # Service building + cache
-# ---------------------------------------------------------------------------
 
 # Cache the built service object so fetch_events and fetch_birthdays reuse it
 # within the same process run (fix: service built twice).
@@ -71,7 +67,7 @@ def clear_service_caches() -> None:
 
 
 def _build_service(cfg: GoogleConfig):
-    # Deferred heavy imports — see the module-top note (#211).
+    # Deferred heavy imports — see the module-top note.
     import httplib2
     from google.oauth2 import service_account
     from google_auth_httplib2 import AuthorizedHttp
@@ -93,9 +89,7 @@ def _build_service(cfg: GoogleConfig):
     return _service_cache[key]
 
 
-# ---------------------------------------------------------------------------
 # Sync state persistence
-# ---------------------------------------------------------------------------
 
 
 def _load_sync_state(cache_dir: str) -> dict:
@@ -120,9 +114,7 @@ def _save_sync_state(state: dict, cache_dir: str) -> None:
         logger.warning("Sync state write failed: %s", exc)
 
 
-# ---------------------------------------------------------------------------
 # Google Calendar API event fetching
-# ---------------------------------------------------------------------------
 
 
 def fetch_google_events(
@@ -226,16 +218,13 @@ def fetch_google_events(
             last_exc = exc
             if cal_id not in sync_state:
                 # This calendar has never synced (first run, or a newly added
-                # additional_calendars entry). A calendar that synced before
-                # and simply had no events keeps its (empty) stored list as
-                # the fallback rather than failing the whole fetch.
-                # Returning the siblings' events would hand the pipeline a
-                # calendar missing this source as the complete answer: it
-                # would be cached, marked FRESH and counted as a breaker
-                # success, with no staleness glyph and no retry before the
-                # next fetch interval — the failure mode #234 removed from
-                # ICS/CalDAV. Fail instead so the pipeline serves the last
-                # complete calendar from cache and flags it stale (#278).
+                # additional_calendars entry); one that synced before and had
+                # no events keeps its (empty) stored list as the fallback.
+                # Returning the siblings' events alone would hand the pipeline
+                # a short calendar as the complete answer (cached, FRESH, a
+                # breaker success, no staleness glyph). Fail instead so the
+                # pipeline serves the last complete calendar from cache and
+                # flags it stale.
                 raise CalendarFetchError(
                     f"Calendar {cal_id} could not be fetched and has no previously "
                     f"synced events to fall back on: {exc}"
@@ -278,8 +267,8 @@ def _fetch_full(
     with an empty list.
     """
     # NOTE: no orderBy here — the Calendar API omits nextSyncToken from
-    # responses when orderBy is set, which silently disabled incremental sync
-    # entirely (issue #205). Events are sorted client-side by the caller.
+    # responses when orderBy is set, which silently disables incremental sync
+    # entirely. Events are sorted client-side by the caller.
     params: dict = dict(
         calendarId=calendar_id,
         timeMin=time_min.isoformat(),
@@ -334,7 +323,7 @@ def _fetch_incremental(
     *delta_items* are raw Google Calendar API event dicts (not ``CalendarEvent``
     objects) so that ``status="cancelled"`` items can be used for deletion.
     """
-    # Deferred import (#211): free at this point — the caller already built
+    # Deferred import: free at this point — the caller already built
     # ``service``, so googleapiclient is loaded.
     from googleapiclient.errors import HttpError
 
@@ -392,7 +381,7 @@ def _apply_delta(
     events are upserted by ``event_id``.  Events without an ID are left as-is.
     """
     by_id: dict[str, dict] = {d["event_id"]: d for d in stored if d.get("event_id")}
-    # Preserve events without IDs (e.g. from before incremental sync was added)
+    # Preserve events without IDs (legacy stored entries)
     no_id = [d for d in stored if not d.get("event_id")]
 
     for item in delta_items:
@@ -447,8 +436,8 @@ def _filter_to_window(
             # Overlap, not start-in-window: the full-sync API call bounds the
             # *end* with timeMin, so a timed event that began before the window
             # and runs into it (a Sunday→Tuesday conference) is in the first
-            # sync's result; filtering on start alone dropped it from every
-            # incremental sync after (#275).
+            # sync's result; filtering on start alone would drop it from every
+            # incremental sync after.
             start, end = event.start, event.end
             if start.tzinfo is not None:
                 # tz-aware: compare directly with UTC window
@@ -465,9 +454,7 @@ def _filter_to_window(
     return result
 
 
-# ---------------------------------------------------------------------------
 # Sync state serialisation helpers
-# ---------------------------------------------------------------------------
 
 
 def _ser_sync_event(e: CalendarEvent) -> dict:
