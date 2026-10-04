@@ -209,7 +209,7 @@ def _parse_hourly(slots: list[dict], slot_tz: tzinfo) -> list[HourlyForecast]:
 def _fetch_alerts_and_uv(
     session: requests.Session,
     params: dict,
-    version: str = weather_onecall.DEFAULT_VERSION,
+    version: str = weather_onecall.DEFAULT_ONE_CALL_VERSION,
     state_dir: str | None = None,
 ) -> tuple[list[WeatherAlert], float | None]:
     """Fetch active weather alerts and the UV index from OpenWeatherMap One Call.

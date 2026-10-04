@@ -103,6 +103,12 @@ class TestDrawWeatherFullAqi:
         aq = None if aqi_kwargs is None else _make_aqi(**aqi_kwargs)
         assert ink(_render(weather, aq, **draw_kwargs)) > 0
 
+    def test_renders_without_a_date(self):
+        """``today`` is optional: the moon-phase line is skipped, the rest still draws."""
+        img, draw = _make_draw()
+        draw_weather_full(draw, _make_weather(), None, air_quality=_make_aqi())
+        assert ink(img) > 0
+
     def test_aqi_card_changes_the_cards_band(self):
         """The fifth card is drawn from the reading: the band differs with and without it."""
         with_aqi = _render(_make_weather(), _make_aqi())

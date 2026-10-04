@@ -17,12 +17,12 @@ from src.dummy_data import generate_dummy_data
 from src.render.canvas import render_dashboard
 from src.render.components.halftone_panel import (
     _illustration_kind,
-    _moon_disc,
     _next_event_line,
-    _radial_gradient_disc,
     draw_halftone,
 )
 from src.render.quantize import flatten_pixels
+from src.render.skyart import moon_disc as _moon_disc
+from src.render.skyart import radial_gradient_disc as _radial_gradient_disc
 from src.render.theme import AVAILABLE_THEMES, load_theme
 
 FIXED_NOW = datetime(2026, 4, 6, 10, 30)

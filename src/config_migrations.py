@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
-from pathlib import Path
 
 from src.config_schema import CURRENT_SCHEMA_VERSION
 
@@ -113,9 +112,3 @@ def _step_for(from_version: int) -> Callable[[dict], dict] | None:
         if fv == from_version:
             return fn
     return None
-
-
-def backup_path_for(config_path: str, from_version: int) -> Path:
-    """Return the path the pre-migration backup will be written to."""
-    p = Path(config_path)
-    return p.with_suffix(f".yaml.bak-v{from_version}")

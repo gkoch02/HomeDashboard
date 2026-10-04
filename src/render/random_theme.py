@@ -27,13 +27,12 @@ which naturally rotates the theme at the start of each new day or hour.
 
 from __future__ import annotations
 
-import json
 import logging
 import random
 from datetime import date, datetime
 from pathlib import Path
 
-from src._io import atomic_write_json
+from src._io import atomic_write_json, read_json
 from src.render.theme import AVAILABLE_THEMES
 
 logger = logging.getLogger(__name__)
@@ -119,20 +118,16 @@ def _pick(
     *label* / *state_label* only shape the log lines.
     """
     # Try to reuse a persisted choice for this bucket
-    if state_path.exists():
-        try:
-            state = json.loads(state_path.read_text())
-            if state.get(bucket_field) == bucket_key:
-                chosen = state.get("theme", "")
-                # Validate against the pool this run would draw from, panel
-                # filter included: a pick persisted before the panel changed
-                # (or by a run configured for another one) would otherwise
-                # letterbox for the rest of the bucket.
-                if chosen in eligible_themes(include, exclude, panel):
-                    logger.info("%s for %s: %s (persisted)", label, bucket_key, chosen)
-                    return chosen
-        except Exception as exc:
-            logger.warning("Could not read %s: %s", state_label, exc)
+    state = read_json(state_path, default=None)
+    if isinstance(state, dict) and state.get(bucket_field) == bucket_key:
+        chosen = state.get("theme", "")
+        # Validate against the pool this run would draw from, panel filter
+        # included: a pick persisted before the panel changed (or by a run
+        # configured for another one) would otherwise letterbox for the rest
+        # of the bucket.
+        if isinstance(chosen, str) and chosen in eligible_themes(include, exclude, panel):
+            logger.info("%s for %s: %s (persisted)", label, bucket_key, chosen)
+            return chosen
 
     # Choose a new theme for this bucket
     pool = eligible_themes(include, exclude, panel)

@@ -8,7 +8,6 @@ upgrade.
 from __future__ import annotations
 
 from src.config_migrations import (
-    backup_path_for,
     migrate_in_memory,
     needs_migration,
     v4_to_v5,
@@ -106,12 +105,6 @@ class TestMigrateInMemory:
         once = migrate_in_memory({"title": "X"})
         twice = migrate_in_memory(once)
         assert once == twice
-
-
-class TestBackup:
-    def test_backup_path_uses_versioned_suffix(self, tmp_path):
-        cfg = tmp_path / "config.yaml"
-        assert backup_path_for(str(cfg), 4) == tmp_path / "config.yaml.bak-v4"
 
 
 class TestMigrateInMemoryNoStep:

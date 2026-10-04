@@ -96,7 +96,7 @@ src/
 ├── config.py                  # YAML → typed dataclasses; validate_config()
 ├── config_schema.py           # v5 declarative schema (FieldSpec/SectionSpec) — source of truth
 │                              #   for editable / secret / enum metadata; powers the web editor
-├── config_migrations.py       # Schema-versioned migration runner; v4_to_v5 step + backup helper
+├── config_migrations.py       # Schema-versioned migration runner; v4_to_v5 step
 ├── config_validation.py       # validate_config / ConfigError / ConfigWarning (split from
 │                              #   config.py; every name re-exported from src.config)
 ├── dummy_data.py              # Realistic dummy data for --dummy / dev previews
@@ -320,7 +320,7 @@ The cooldown is `display.min_refresh_interval_seconds` (config), defaulting to 6
 ### Config schema + migration runner (v5)
 `src/config_schema.py` is the single source of truth for which fields are editable via the web UI, which are secret (and must never be sent to the browser as plaintext), and which have enumerated choices. `editable_field_paths()` replaces the v4 hand-rolled `EDITABLE_FIELD_PATHS` constant in `web.config_editor`. `to_json(values=...)` powers `GET /api/config/schema` for the schema-driven web editor.
 
-`src/config_migrations.py` runs at the top of `load_config()` and upgrades older YAML shapes to `CURRENT_SCHEMA_VERSION = 5` in-memory before parsing. `v4_to_v5` is currently a metadata bump (v5 is a strict superset of v4 — every v4 config still parses unchanged) and the attachment point for future renames. A versioned `.bak-v<N>` backup helper is wired in for migrations that need to mutate state on disk.
+`src/config_migrations.py` runs at the top of `load_config()` and upgrades older YAML shapes to `CURRENT_SCHEMA_VERSION = 5` in-memory before parsing. `v4_to_v5` is currently a metadata bump (v5 is a strict superset of v4 — every v4 config still parses unchanged) and the attachment point for future renames. Migrations run in memory only; a step that must mutate the file on disk needs to add its own backup.
 
 ## Key Conventions
 

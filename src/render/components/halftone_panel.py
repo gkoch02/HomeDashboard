@@ -28,14 +28,10 @@ from src.render.primitives import content_time, draw_text_truncated
 from src.render.quantize import _BAYER_4X4
 
 # The procedural illustration vocabulary lives in ``src.render.skyart`` so the
-# ``day_arc`` theme can share it; it is imported under private aliases here.
-# ``_moon_disc`` / ``_radial_gradient_disc`` are not called here but stay
-# re-exported: existing tests import them from this module.
+# ``day_arc`` theme can share it.
 from src.render.skyart import draw_bayer_rule as _draw_bayer_rule
 from src.render.skyart import draw_weather_scene as _draw_weather_scene
 from src.render.skyart import illustration_kind as _illustration_kind  # noqa: F401
-from src.render.skyart import moon_disc as _moon_disc  # noqa: F401
-from src.render.skyart import radial_gradient_disc as _radial_gradient_disc  # noqa: F401
 from src.render.theme import ComponentRegion, ThemeStyle
 
 # Weather Icons font glyphs — Righteous itself has no ↑/↓ arrows, so the

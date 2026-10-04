@@ -488,6 +488,8 @@ class _AvailableThemesView(Set):
     def __contains__(self, item):
         return item in self._names()
 
+    __hash__ = Set._hash
+
     def __len__(self):
         return len(self._names())
 

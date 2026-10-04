@@ -73,13 +73,13 @@ class TestReturnContract:
 class TestEveryModeKeepsTheExtremes:
     """Solid black and solid white are fixed points of every quantizer."""
 
-    @pytest.mark.parametrize("mode", ["threshold", "floyd_steinberg", "ordered"])
+    @pytest.mark.parametrize("mode", QUANTIZATION_MODES)
     def test_pure_black_stays_black(self, mode):
         result = quantize_for_display(_solid_L(0), mode=mode)
         pixels = list(flatten_pixels(result))
         assert all(p == 0 for p in pixels)
 
-    @pytest.mark.parametrize("mode", ["threshold", "floyd_steinberg", "ordered"])
+    @pytest.mark.parametrize("mode", QUANTIZATION_MODES)
     def test_pure_white_stays_white(self, mode):
         result = quantize_for_display(_solid_L(255), mode=mode)
         pixels = list(flatten_pixels(result))
@@ -303,14 +303,6 @@ class TestBlendInkyPalette:
 # ---------------------------------------------------------------------------
 # quantize_to_palette_fs
 # ---------------------------------------------------------------------------
-
-
-_SMALL_PALETTE_FS = [
-    (0, 0, 0),  # black
-    (255, 255, 255),  # white
-    (255, 0, 0),  # red
-    (0, 0, 255),  # blue
-]
 
 
 class TestQuantizeToPaletteFs:

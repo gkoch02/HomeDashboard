@@ -52,16 +52,12 @@ _TIMEOUT = 10  # seconds
 # there is nothing to gain from resolving a fourth.
 _V4_MAX_ALERT_DETAILS = 3
 
-# Fallback for an unrecognised version string; the accepted set is the same
-# enum config validation and the web editor use.
-DEFAULT_VERSION = DEFAULT_ONE_CALL_VERSION
-
 
 def fetch_alerts_and_uv(
     session: requests.Session,
     params: dict,
     *,
-    version: str = DEFAULT_VERSION,
+    version: str = DEFAULT_ONE_CALL_VERSION,
 ) -> tuple[list[WeatherAlert], float | None]:
     """Fetch active weather alerts and the UV index via the selected One Call version.
 
@@ -72,7 +68,7 @@ def fetch_alerts_and_uv(
     May raise; the caller is responsible for degrading to ``([], None)``.
     """
     if version not in ONE_CALL_VERSIONS:
-        version = DEFAULT_VERSION
+        version = DEFAULT_ONE_CALL_VERSION
     if version == "off":
         return [], None
     if version == "4.0":
