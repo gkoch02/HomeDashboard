@@ -128,6 +128,30 @@ class TestClaudeMdBudget:
         assert any(e.startswith("CLAUDE.md:") for e in errors), errors
 
 
+class TestThemeEntryBudget:
+    def test_repo_themes_md_is_within_budget(self):
+        assert check_docs.check_theme_entry_budget() == []
+
+    def test_repo_themes_md_has_entries_to_measure(self):
+        text = (REPO_ROOT / "docs" / "themes.md").read_text()
+        assert len(check_docs.theme_entries(text)) > 40
+
+    def test_long_entry_fails(self):
+        body = "word " * (check_docs.THEME_ENTRY_MAX_WORDS + 1)
+        errors = check_docs.check_theme_entry_budget(f"#### long\n\n{body}\n")
+        assert errors and "'long'" in errors[0]
+
+    def test_tab_separated_heading_is_measured(self):
+        body = "word " * (check_docs.THEME_ENTRY_MAX_WORDS + 1)
+        assert check_docs.check_theme_entry_budget(f"####\tlong\n\n{body}\n")
+
+    def test_entry_ends_at_next_heading_and_skips_images(self):
+        half = "word " * (check_docs.THEME_ENTRY_MAX_WORDS // 2 + 1)
+        image = "[![T](" + "x " * check_docs.THEME_ENTRY_MAX_WORDS + ")](t.png)"
+        text = f"#### a\n\n{half}\n\n{image}\n\n## Next\n\n{half}\n\n#### b\n\n{half}\n"
+        assert check_docs.check_theme_entry_budget(text) == []
+
+
 class TestDeadCodeGuard:
     """Skipped where vulture is absent (the core-install job installs no dev extras)."""
 
