@@ -88,10 +88,9 @@ class TestRegistration:
         assert not theme.allows_partial_refresh
 
     def test_event_window_reaches_two_days_past_the_week(self):
-        from src.app import EXTRA_EVENT_DAYS, THEMES_NEEDING_TOMORROW
+        from src.app import EXTRA_EVENT_DAYS
 
         assert EXTRA_EVENT_DAYS["halftone_agenda_wide"] == 2
-        assert "halftone_agenda_wide" in THEMES_NEEDING_TOMORROW
 
 
 class TestGeometry:

@@ -453,31 +453,6 @@ class TestPythonFallbacks:
         assert (0, 0, 0) in set(flatten_pixels(result))
 
 
-# ---------------------------------------------------------------------------
-# quantize_to_palette — Pillow-based palette conversion
-# ---------------------------------------------------------------------------
-
-
-class TestQuantizeToPalette:
-    """Cover the public ``quantize_to_palette`` wrapper around Pillow's quantize."""
-
-    def test_returns_rgb_image(self):
-        from src.render.quantize import quantize_to_palette
-
-        img = Image.new("RGB", (4, 4), (200, 0, 0))
-        result = quantize_to_palette(img, [(0, 0, 0), (255, 0, 0), (255, 255, 255)])
-        assert result.mode == "RGB"
-        assert result.size == (4, 4)
-
-    def test_all_pixels_are_palette_colors(self):
-        from src.render.quantize import quantize_to_palette
-
-        palette = [(0, 0, 0), (255, 0, 0), (0, 0, 255), (255, 255, 255)]
-        img = Image.new("RGB", (4, 4), (200, 50, 50))
-        result = quantize_to_palette(img, palette)
-        assert set(flatten_pixels(result)) <= set(palette)
-
-
 def test_build_palette_image_pads_to_768_entries():
     """``build_palette_image`` must pad the palette to a full 256-color entry table."""
     from src.render.quantize import build_palette_image

@@ -343,10 +343,10 @@ class TestEventWindow:
 
     def test_every_rollover_theme_is_registered(self, tmp_path):
         # A typo here silently drops the extra day rather than failing.
-        from src.app import THEMES_NEEDING_TOMORROW
+        from src.app import EXTRA_EVENT_DAYS
         from src.render.theme import AVAILABLE_THEMES
 
-        assert THEMES_NEEDING_TOMORROW <= set(AVAILABLE_THEMES)
+        assert set(EXTRA_EVENT_DAYS) <= set(AVAILABLE_THEMES)
 
     def test_default_anchor_stays_none_so_the_cache_key_is_unchanged(self, tmp_path):
         # The union resolves a None start to week_start() internally, but must

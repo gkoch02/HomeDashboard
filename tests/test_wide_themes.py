@@ -125,18 +125,22 @@ class TestThemes:
 # ---------------------------------------------------------------------------
 
 
-class TestEventLanes:
+def _lanes(events):
+    return wd.pack_lanes([(e.start.timestamp(), e.end.timestamp(), e) for e in events])
+
+
+class TestPackLanesByTimeSpan:
     def test_sequential_events_share_a_lane(self):
-        lanes = wd.event_lanes([_event("a", 9, 10), _event("b", 10, 11), _event("c", 11, 12)])
+        lanes = _lanes([_event("a", 9, 10), _event("b", 10, 11), _event("c", 11, 12)])
         assert len(lanes) == 1
         assert [e.summary for e in lanes[0]] == ["a", "b", "c"]
 
     def test_overlaps_open_a_second_lane(self):
-        lanes = wd.event_lanes([_event("a", 9, 11), _event("b", 10, 12), _event("c", 11, 12)])
+        lanes = _lanes([_event("a", 9, 11), _event("b", 10, 12), _event("c", 11, 12)])
         assert [[e.summary for e in lane] for lane in lanes] == [["a", "c"], ["b"]]
 
     def test_input_order_does_not_matter(self):
-        lanes = wd.event_lanes([_event("b", 10, 12), _event("a", 9, 11)])
+        lanes = _lanes([_event("b", 10, 12), _event("a", 9, 11)])
         assert [[e.summary for e in lane] for lane in lanes] == [["a"], ["b"]]
 
 

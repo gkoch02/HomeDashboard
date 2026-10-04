@@ -176,7 +176,7 @@ The cooldown is `display.min_refresh_interval_seconds` (config), defaulting to 6
 | `PlayfairDisplay-*.ttf` | `playfair_regular/medium/semibold/bold` | `old_fashioned`, `qotd`, `almanac` (body + quote), `wide_week` rail (masthead, temperature, NEXT time, quote mark) |
 | `Literata-SemiBold.ttf` / `Literata-Bold.ttf` (OFL; static instances at opsz 12 cut from the upstream variable font with `fonttools varLib.instancer`) | `literata_semibold`, `literata_bold` | `wide_week` rail — the quote (SemiBold ≥ 18 px, Bold below, via `wide_week_rail_panel.quote_font`) |
 | `Figtree-ExtraBold.ttf` (OFL; static full-glyph Google Fonts build, via `@expo-google-fonts/figtree`) | `figtree_extrabold` | `wide_horizon` — event rows (21-px titles, 17-px times) |
-| `Cinzel.ttf` | `cinzel_regular/semibold/bold/black` | `fantasy`, `old_fashioned` section labels, `moonphase`, `almanac` (section labels + small caps) |
+| `Cinzel.ttf` | `cinzel_semibold/bold/black` | `fantasy`, `old_fashioned` section labels, `moonphase`, `almanac` (section labels + small caps) |
 | `CormorantGaramond.ttf` / `CormorantGaramond-Italic.ttf` (OFL, variable) | `cormorant_regular/medium/semibold/italic` | `moonphase` — date, illumination, celestial + weather strips, quote body (italic) |
 | `Tangerine-Regular.ttf` (OFL) | `tangerine_regular` | `moonphase` — calligraphic script quote attribution |
 | `ManufacturingConsent-Regular.ttf` (OFL) | `manufacturing_consent` | `moonphase` — Fraktur blackletter phase-name headline |
@@ -189,7 +189,7 @@ The cooldown is `display.min_refresh_interval_seconds` (config), defaulting to 6
 | `Righteous-Regular.ttf` (OFL) | `righteous` | `light_cycle` — hero day-of-month numeral; `halftone` — every typeset element; `day_arc` — chrome (dateline, numeral, labels) |
 | `Rye-Regular.ttf` (OFL) | `rye` | `weatherglass` — Western-saloon instrument-deck masthead |
 | `Jura-Variable.ttf` (OFL, variable, wght 300–700) | `jura_semibold` | `wide_night` — numerals |
-| `BigShouldersDisplay-{SemiBold,ExtraBold,Black}.ttf` (OFL; static cuts converted from the Fontsource latin subset) | `big_shoulders_semibold/extrabold/black` | `wide_horizon` — day names, temperature labels, hero reading and outlook |
+| `BigShouldersDisplay-{ExtraBold,Black}.ttf` (OFL; static cuts converted from the Fontsource latin subset) | `big_shoulders_extrabold/black` | `wide_horizon` — day names, temperature labels, hero reading and outlook |
 
 ### `ThemeLayout` rendering fields
 

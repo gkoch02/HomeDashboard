@@ -35,13 +35,6 @@ def get_font(name: str, size: int) -> ImageFont.FreeTypeFont:
     return ImageFont.truetype(str(FONT_DIR / name), size)
 
 
-@lru_cache(maxsize=32)
-def _get_variable_font(name: str, size: int, wght: int) -> ImageFont.FreeTypeFont:
-    font = ImageFont.truetype(str(FONT_DIR / name), size)
-    font.set_variation_by_axes([wght])
-    return font
-
-
 # Convenience accessors — Plus Jakarta Sans (warm geometric)
 def regular(size: int) -> ImageFont.FreeTypeFont:
     return get_font("PlusJakartaSans-Regular.ttf", size)
@@ -103,10 +96,6 @@ def _get_cinzel(size: int, wght: int) -> ImageFont.FreeTypeFont:
     font = ImageFont.truetype(str(FONT_DIR / "Cinzel.ttf"), size)
     font.set_variation_by_axes([wght])
     return font
-
-
-def cinzel_regular(size: int) -> ImageFont.FreeTypeFont:
-    return _get_cinzel(size, 400)
 
 
 def cinzel_semibold(size: int) -> ImageFont.FreeTypeFont:
@@ -346,10 +335,6 @@ def antonio_bold(size: int) -> ImageFont.FreeTypeFont:
 # covers ASCII, the degree sign, the en dash and the arrows.  Condensed enough
 # that a 100-px numeral sits in a narrow column, so the wide_horizon theme sets
 # its day names, temperatures and hero reading in it.
-def big_shoulders_semibold(size: int) -> ImageFont.FreeTypeFont:
-    return get_font("BigShouldersDisplay-SemiBold.ttf", size)
-
-
 def big_shoulders_extrabold(size: int) -> ImageFont.FreeTypeFont:
     return get_font("BigShouldersDisplay-ExtraBold.ttf", size)
 

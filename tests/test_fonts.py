@@ -7,7 +7,6 @@ from src.render.fonts import (
     antonio_bold,
     antonio_semibold,
     bold,
-    cinzel_regular,
     cinzel_semibold,
     medium,
     orbitron_black,
@@ -33,7 +32,6 @@ class TestFontAccessors:
             (semibold, 12),
             (bold, 12),
             (weather_icon, 20),
-            (cinzel_regular, 12),
             (cinzel_semibold, 12),
             (oxanium, 12),
             (oxanium_bold, 12),
@@ -73,38 +71,4 @@ class TestFontAccessors:
         """@lru_cache should return the same object on repeated calls."""
         f1 = regular(12)
         f2 = regular(12)
-        assert f1 is f2
-
-
-class TestGetVariableFont:
-    """_get_variable_font pins the weight axis, checked through a mock font."""
-
-    def test_get_variable_font_calls_set_variation_by_axes(self):
-        from unittest.mock import MagicMock, patch
-
-        from src.render.fonts import _get_variable_font
-
-        mock_font = MagicMock()
-        mock_font.set_variation_by_axes = MagicMock()
-
-        with patch("src.render.fonts.ImageFont.truetype", return_value=mock_font):
-            _get_variable_font.cache_clear()
-            result = _get_variable_font("SomeFontVariable.ttf", 14, 600)
-
-        mock_font.set_variation_by_axes.assert_called_once_with([600])
-        assert result is mock_font
-
-    def test_get_variable_font_is_cached(self):
-        from unittest.mock import MagicMock, patch
-
-        from src.render.fonts import _get_variable_font
-
-        mock_font = MagicMock()
-        mock_font.set_variation_by_axes = MagicMock()
-
-        with patch("src.render.fonts.ImageFont.truetype", return_value=mock_font):
-            _get_variable_font.cache_clear()
-            f1 = _get_variable_font("CachedFont.ttf", 12, 400)
-            f2 = _get_variable_font("CachedFont.ttf", 12, 400)
-
         assert f1 is f2

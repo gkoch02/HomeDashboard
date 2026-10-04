@@ -20,7 +20,7 @@ asks for yellow, so the registered pair is red and black.
 This is a time-driven plate. The marker and the bar states follow the clock,
 so the image changes every tick; on a colour panel, whose full refresh
 flashes for twenty seconds, set ``display.min_refresh_interval_seconds`` to
-space the writes out. The theme is listed in ``THEMES_NEEDING_TOMORROW``
+space the writes out. The theme is listed in ``EXTRA_EVENT_DAYS``
 because the UP NEXT rail reaches into tomorrow once today's events are done.
 """
 

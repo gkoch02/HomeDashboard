@@ -483,14 +483,3 @@ def build_palette_image(colors: list[tuple[int, int, int]]) -> Image.Image:
     flat.extend([0] * (768 - len(flat)))
     palette.putpalette(flat)
     return palette
-
-
-def quantize_to_palette(
-    image: Image.Image,
-    colors: list[tuple[int, int, int]],
-    *,
-    dither: Image.Dither = Image.Dither.NONE,
-) -> Image.Image:
-    """Convert an image to a limited palette and return it as RGB."""
-    palette = build_palette_image(colors)
-    return image.convert("RGB").quantize(palette=palette, dither=dither).convert("RGB")

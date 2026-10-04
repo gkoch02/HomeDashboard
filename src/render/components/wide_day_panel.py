@@ -126,11 +126,6 @@ def pack_lanes(items: list[tuple[float, float, T]]) -> list[list[T]]:
     return lanes
 
 
-def event_lanes(events: list[CalendarEvent]) -> list[list[CalendarEvent]]:
-    """Pack timed *events* into lanes by their time span alone."""
-    return pack_lanes([(e.start.timestamp(), e.end.timestamp(), e) for e in events])
-
-
 def timed_events_for_day(events: list[CalendarEvent], today: date) -> list[CalendarEvent]:
     """Today's timed events by *overlap* with the calendar day, by start time.
 
