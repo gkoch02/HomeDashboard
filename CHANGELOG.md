@@ -8,6 +8,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Fixed
 
+- Cut the panoramic and dithered-art entries in `docs/themes.md` to what each
+  theme shows, the data it needs and the config it reads; `make docs-check` now
+  caps each entry at 200 words.
+
 - Fetcher adapters call their owning functions; the pipeline takes a single
   source skip map instead of preserving private mock paths and legacy arguments.
 

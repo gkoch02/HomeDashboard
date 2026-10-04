@@ -501,6 +501,37 @@ def check_claude_md_budget(text: str | None = None) -> list[str]:
     return errors
 
 
+# A theme entry tells a user what the theme shows, the data it needs and the config
+# it reads; why it is drawn that way belongs in the panel's module docstring.
+THEME_ENTRY_MAX_WORDS = 200
+
+
+def theme_entries(text: str) -> dict[str, str]:
+    """Each ``#### <theme>`` entry's prose, up to the next heading or rule, images dropped."""
+    entries: dict[str, str] = {}
+    for chunk in re.split(r"^####\s+", text, flags=re.MULTILINE)[1:]:
+        name, _, body = chunk.partition("\n")
+        body = re.split(r"^(?:#{1,3} |---)", body, flags=re.MULTILINE)[0]
+        body = re.sub(r"^\[?!\[.*$", "", body, flags=re.MULTILINE)
+        entries[normalize_heading(name)] = body
+    return entries
+
+
+def check_theme_entry_budget(text: str | None = None) -> list[str]:
+    """Hold each docs/themes.md entry to ``THEME_ENTRY_MAX_WORDS``."""
+    if text is None:
+        text = (ROOT / "docs" / "themes.md").read_text()
+    errors: list[str] = []
+    for name, body in theme_entries(text).items():
+        n = len(body.split())
+        if n > THEME_ENTRY_MAX_WORDS:
+            errors.append(
+                f"docs/themes.md: '{name}' entry is {n} words (max {THEME_ENTRY_MAX_WORDS}); "
+                "keep what it shows, needs and reads, and move the rationale to the panel"
+            )
+    return errors
+
+
 def main() -> int:
     theme_names = load_theme_names()
     errors = check_links()
@@ -509,6 +540,7 @@ def main() -> int:
     errors.extend(check_example_config_themes(theme_names))
     errors.extend(check_example_config_fields())
     errors.extend(check_claude_md_budget())
+    errors.extend(check_theme_entry_budget())
     if errors:
         for err in errors:
             print(err)

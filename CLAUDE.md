@@ -247,7 +247,7 @@ art themes, in the panel's module docstring. Keep new entries to that shape.
 
 ### Repo hygiene
 
-- Four guards hold the code to the shape above; fix the code, not the guard. The test suite runs `tools/check_test_assertions.py`, which fails a `test_*` that asserts nothing (a deliberate smoke test marks its `def` line `# allow-no-assert`). `make lint` runs `tools/check_dead_code.py`: vulture over `src/` with scripts, never tests, as callers. Ruff `PGH003` and `RUF100` require a `type: ignore` to name its code and drop stale `noqa`. `make docs-check` holds this file to its word budget.
+- Four guards hold the code to the shape above; fix the code, not the guard. The test suite runs `tools/check_test_assertions.py`, which fails a `test_*` that asserts nothing (a deliberate smoke test marks its `def` line `# allow-no-assert`). `make lint` runs `tools/check_dead_code.py`: vulture over `src/` with scripts, never tests, as callers. Ruff `PGH003` and `RUF100` require a `type: ignore` to name its code and drop stale `noqa`. `make docs-check` holds this file to its word budget and each `docs/themes.md` entry to `THEME_ENTRY_MAX_WORDS` (200).
 
 ### Version and release
 
