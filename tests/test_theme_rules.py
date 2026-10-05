@@ -147,25 +147,42 @@ class TestCurrentDaypart:
         assert _current_daypart(_now(hour=23), None) == "night"
         assert _current_daypart(_now(hour=3), None) == "night"
 
-    def test_sunrise_defines_dawn_bucket(self):
+    @pytest.mark.parametrize(
+        ("hour", "minute", "expected"),
+        [
+            (3, 0, "night"),
+            (6, 30, "dawn"),
+            (10, 0, "day"),
+            (15, 0, "day"),
+            (18, 30, "day"),
+            (18, 50, "dusk"),
+            (19, 43, "dusk"),
+            (19, 50, "night"),
+            (21, 0, "night"),
+            (23, 0, "night"),
+        ],
+        ids=[
+            "before-dawn-window-is-night",
+            "within-90-min-of-sunrise-is-dawn",
+            "mid-morning-is-day",
+            "afternoon-is-day",
+            "just-before-dusk-start-is-day",
+            "within-60-min-of-sunset-is-dusk",
+            "sunset-itself-is-dusk",
+            "just-past-sunset-is-night",
+            "evening-is-night",
+            "late-night-is-night",
+        ],
+    )
+    def test_bucket_from_sun_times(self, hour, minute, expected):
+        """With a 06:05 sunrise and 19:43 sunset: dawn is sunrise +/- 90 min, dusk is the
+        hour up to and including sunset, day lies between, and everything else is night
+        (there is no dusk window after sunset)."""
         w = _wx(
             sunrise=datetime(2026, 4, 23, 6, 5),
             sunset=datetime(2026, 4, 23, 19, 43),
         )
-        # 6:30 AM is within 90 minutes of 6:05 AM sunrise → dawn
-        assert _current_daypart(_now(hour=6, minute=30), w) == "dawn"
-
-    def test_dusk_runs_from_sunset_minus_60_through_sunset(self):
-        w = _wx(
-            sunrise=datetime(2026, 4, 23, 6, 5),
-            sunset=datetime(2026, 4, 23, 19, 43),
-        )
-        # 18:50 is 53 minutes before 19:43 sunset → dusk
-        assert _current_daypart(_now(hour=18, minute=50), w) == "dusk"
-        # 19:43 is the sunset boundary → still dusk (inclusive)
-        assert _current_daypart(_now(hour=19, minute=43), w) == "dusk"
-        # Past sunset is night (new spec — was previously dusk for +60min)
-        assert _current_daypart(_now(hour=19, minute=50), w) == "night"
+        assert _current_daypart(_now(hour=hour, minute=minute), w) == expected
 
     def test_sun_times_from_a_previous_day_still_bucket_by_time_of_day(self):
         """Cached weather across midnight carries yesterday's sun times (#293)."""
@@ -191,35 +208,6 @@ class TestCurrentDaypart:
         assert _current_daypart(datetime(2026, 4, 23, 6, 30, tzinfo=la), w) == "dawn"
         assert _current_daypart(datetime(2026, 4, 23, 19, 0, tzinfo=la), w) == "dusk"
 
-    def test_day_runs_from_dawn_end_to_dusk_start(self):
-        w = _wx(
-            sunrise=datetime(2026, 4, 23, 6, 5),
-            sunset=datetime(2026, 4, 23, 19, 43),
-        )
-        # 10 AM is past the dawn window (sunrise+90 = 7:35) and well before dusk.
-        assert _current_daypart(_now(hour=10), w) == "day"
-        # 3 PM is also in the day window.
-        assert _current_daypart(_now(hour=15), w) == "day"
-        # 18:30 is still before dusk start (sunset-60 = 18:43).
-        assert _current_daypart(_now(hour=18, minute=30), w) == "day"
-
-    def test_before_sunrise_is_night(self):
-        w = _wx(
-            sunrise=datetime(2026, 4, 23, 6, 5),
-            sunset=datetime(2026, 4, 23, 19, 43),
-        )
-        # 3 AM is before the dawn window (sunrise-90 = 4:35) → night
-        assert _current_daypart(_now(hour=3), w) == "night"
-
-    def test_night_extends_after_sunset(self):
-        w = _wx(
-            sunrise=datetime(2026, 4, 23, 6, 5),
-            sunset=datetime(2026, 4, 23, 19, 43),
-        )
-        # After sunset the bucket flips straight to night (no dusk+60 window).
-        assert _current_daypart(_now(hour=21), w) == "night"
-        assert _current_daypart(_now(hour=23), w) == "night"
-
     def test_rule_daypart_day_matches_only_day_bucket(self):
         """``daypart: day`` matches the new dedicated ``day`` bucket."""
         rule = ThemeRule(when=ThemeRuleCondition(daypart="day"), theme="today")
@@ -243,32 +231,34 @@ class TestRuleMatches:
         rule = ThemeRule(when=ThemeRuleCondition(), theme="default")
         assert _rule_matches(rule, _now(), _data()) is True
 
-    def test_weather_rule_matches_description_substring(self):
-        rule = ThemeRule(when=ThemeRuleCondition(weather="rain"), theme="weather")
-        data = _data(_wx(description="light rain"))
-        assert _rule_matches(rule, _now(), data) is True
+    @pytest.mark.parametrize(
+        ("weather", "description", "expected"),
+        [
+            ("rain", "light rain", True),
+            ("rain", "clear sky", False),
+            (["rain", "snow", "thunderstorm"], "heavy snow", True),
+        ],
+        ids=["substring-match", "no-match", "list-of-alternatives"],
+    )
+    def test_weather_rule_matches_description(self, weather, description, expected):
+        """``weather`` matches a substring of the description; a list matches any entry."""
+        rule = ThemeRule(when=ThemeRuleCondition(weather=weather), theme="weather")
+        data = _data(_wx(description=description))
+        assert _rule_matches(rule, _now(), data) is expected
 
-    def test_weather_rule_no_match(self):
-        rule = ThemeRule(when=ThemeRuleCondition(weather="rain"), theme="weather")
-        data = _data(_wx(description="clear sky"))
+    @pytest.mark.parametrize(
+        ("when", "data"),
+        [
+            ({"weather": "rain"}, None),
+            ({"weather": "rain"}, _data(None)),
+            ({"weather_alert_present": True}, None),
+        ],
+        ids=["weather-no-data", "weather-data-without-weather", "alert-present-no-data"],
+    )
+    def test_weather_dependent_rule_fails_without_weather(self, when, data):
+        """Rules that need weather data silently fail when data or its weather is missing."""
+        rule = ThemeRule(when=ThemeRuleCondition(**when), theme="weather")
         assert _rule_matches(rule, _now(), data) is False
-
-    def test_weather_rule_fails_when_no_data(self):
-        """Rules that need weather data silently fail when data is None."""
-        rule = ThemeRule(when=ThemeRuleCondition(weather="rain"), theme="weather")
-        assert _rule_matches(rule, _now(), None) is False
-
-    def test_weather_rule_fails_when_data_has_no_weather(self):
-        rule = ThemeRule(when=ThemeRuleCondition(weather="rain"), theme="weather")
-        assert _rule_matches(rule, _now(), _data(None)) is False
-
-    def test_weather_rule_accepts_list_of_alternatives(self):
-        rule = ThemeRule(
-            when=ThemeRuleCondition(weather=["rain", "snow", "thunderstorm"]),
-            theme="weather",
-        )
-        data = _data(_wx(description="heavy snow"))
-        assert _rule_matches(rule, _now(), data) is True
 
     def test_alert_present_true_matches_when_alerts_exist(self):
         rule = ThemeRule(when=ThemeRuleCondition(weather_alert_present=True), theme="message")
@@ -280,35 +270,24 @@ class TestRuleMatches:
         data = _data(_wx(alerts=[]))
         assert _rule_matches(rule, _now(), data) is True
 
-    def test_alert_present_requires_weather_data(self):
-        rule = ThemeRule(when=ThemeRuleCondition(weather_alert_present=True), theme="message")
-        assert _rule_matches(rule, _now(), None) is False
-
-    def test_daypart_matches(self):
-        rule = ThemeRule(when=ThemeRuleCondition(daypart="night"), theme="moonphase")
-        assert _rule_matches(rule, _now(hour=23), _data()) is True
-        assert _rule_matches(rule, _now(hour=12), _data()) is False
-
-    def test_season_matches(self):
-        rule = ThemeRule(when=ThemeRuleCondition(season="spring"), theme="today")
-        assert _rule_matches(rule, _now(month=4), _data()) is True
-        assert _rule_matches(rule, _now(month=11), _data()) is False
-
     def test_season_autumn_alias_for_fall(self):
         rule = ThemeRule(when=ThemeRuleCondition(season="autumn"), theme="today")
         # October is fall in our bucket
         assert _rule_matches(rule, _now(month=10), _data()) is True
 
     @pytest.mark.parametrize(
-        "weekday, matching, other",
+        ("when", "matching", "other"),
         [
-            ("monday", datetime(2026, 4, 20, 12), datetime(2026, 4, 21, 12)),
-            ("weekend", datetime(2026, 4, 25, 12), datetime(2026, 4, 20, 12)),
+            ({"daypart": "night"}, _now(hour=23), _now(hour=12)),
+            ({"season": "spring"}, _now(month=4), _now(month=11)),
+            ({"weekday": "monday"}, datetime(2026, 4, 20, 12), datetime(2026, 4, 21, 12)),
+            ({"weekday": "weekend"}, datetime(2026, 4, 25, 12), datetime(2026, 4, 20, 12)),
         ],
-        ids=["day_name", "weekend_key"],
+        ids=["daypart", "season", "weekday_day_name", "weekday_weekend_key"],
     )
-    def test_weekday_condition(self, weekday, matching, other):
-        rule = ThemeRule(when=ThemeRuleCondition(weekday=weekday), theme="today")
+    def test_clock_condition(self, when, matching, other):
+        """A daypart, season or weekday condition matches inside its window only."""
+        rule = ThemeRule(when=ThemeRuleCondition(**when), theme="today")
         assert _rule_matches(rule, matching, _data()) is True
         assert _rule_matches(rule, other, _data()) is False
 
@@ -355,42 +334,34 @@ class TestResolveRuleTheme:
 
 
 class TestResolveThemeNamePriority:
-    def test_cli_override_beats_rules(self):
-        rules = [ThemeRule(when=ThemeRuleCondition(weather="rain"), theme="weather")]
-        cfg = _cfg(rules=rules, theme="default")
-        data = _data(_wx(description="light rain"))
-        result = resolve_theme_name(cfg, "terminal", now=_now(), data=data)
-        assert result == "terminal"
-
-    def test_rules_beat_schedule(self):
-        rules = [ThemeRule(when=ThemeRuleCondition(weather="rain"), theme="weather")]
-        schedule = [ThemeScheduleEntry(time="00:00", theme="minimalist")]
-        cfg = _cfg(rules=rules, schedule=schedule)
-        data = _data(_wx(description="light rain"))
-        result = resolve_theme_name(cfg, None, now=_now(), data=data)
-        assert result == "weather"
-
-    def test_schedule_used_when_no_rule_matches(self):
-        rules = [ThemeRule(when=ThemeRuleCondition(weather="snow"), theme="weather")]
-        schedule = [ThemeScheduleEntry(time="00:00", theme="minimalist")]
-        cfg = _cfg(rules=rules, schedule=schedule)
-        data = _data(_wx(description="clear sky"))
-        result = resolve_theme_name(cfg, None, now=_now(), data=data)
-        assert result == "minimalist"
-
-    def test_cfg_theme_used_when_no_rule_or_schedule_matches(self):
-        rules = [ThemeRule(when=ThemeRuleCondition(weather="snow"), theme="weather")]
-        cfg = _cfg(rules=rules, schedule=[], theme="today")
-        data = _data(_wx(description="clear sky"))
-        result = resolve_theme_name(cfg, None, now=_now(), data=data)
-        assert result == "today"
-
-    def test_weather_rule_skipped_when_data_none(self):
-        """Pre-fetch calls pass data=None; weather rules shouldn't match."""
-        rules = [ThemeRule(when=ThemeRuleCondition(weather="rain"), theme="weather")]
-        cfg = _cfg(rules=rules, theme="default")
-        result = resolve_theme_name(cfg, None, now=_now(), data=None)
-        assert result == "default"
+    @pytest.mark.parametrize(
+        ("rule_weather", "schedule_theme", "cfg_theme", "override", "data", "expected"),
+        [
+            ("rain", None, "default", "terminal", _data(_wx("light rain")), "terminal"),
+            ("rain", "minimalist", "default", None, _data(_wx("light rain")), "weather"),
+            ("snow", "minimalist", "default", None, _data(_wx("clear sky")), "minimalist"),
+            ("snow", None, "today", None, _data(_wx("clear sky")), "today"),
+            ("rain", None, "default", None, None, "default"),
+        ],
+        ids=[
+            "cli-override-beats-rules",
+            "rules-beat-schedule",
+            "schedule-when-no-rule-matches",
+            "cfg-theme-when-nothing-matches",
+            "weather-rule-skipped-pre-fetch",
+        ],
+    )
+    def test_priority_chain(
+        self, rule_weather, schedule_theme, cfg_theme, override, data, expected
+    ):
+        """CLI override > matching rule > schedule > ``cfg.theme``; on the pre-fetch pass
+        (``data=None``) a weather rule cannot match and resolution falls through."""
+        rules = [ThemeRule(when=ThemeRuleCondition(weather=rule_weather), theme="weather")]
+        schedule = (
+            [ThemeScheduleEntry(time="00:00", theme=schedule_theme)] if schedule_theme else []
+        )
+        cfg = _cfg(rules=rules, schedule=schedule, theme=cfg_theme)
+        assert resolve_theme_name(cfg, override, now=_now(), data=data) == expected
 
     def test_rule_theme_random_falls_through_to_random_picker(self):
         """A rule whose theme is 'random' triggers random_theme resolution."""
@@ -541,30 +512,30 @@ class TestCalendarStates:
         assert "empty" not in states
         assert "active" not in states
 
-    def test_active_when_inside_an_event(self):
-        now = _now(hour=10, minute=30)
-        events = [_event(now.replace(hour=10), now.replace(hour=11))]
+    @pytest.mark.parametrize(
+        ("hour", "minute", "active"),
+        [(10, 30, True), (11, 0, False)],
+        ids=["inside-event-is-active", "event-ending-exactly-now-is-done"],
+    )
+    def test_active_versus_done(self, hour, minute, active):
+        """``start <= now < end`` is active; an event whose end equals now is done."""
+        now = _now(hour=hour, minute=minute)
+        events = [_event(now.replace(hour=10, minute=0), now.replace(hour=11, minute=0))]
         states = _calendar_states(now, _data(events=events))
-        assert "active" in states
-        assert "done" not in states
+        assert ("active" in states) is active
+        assert ("done" in states) is not active
 
-    def test_event_ending_exactly_now_is_not_active(self):
-        """``start <= now < end`` — an event whose end == now is treated as past."""
-        now = _now(hour=11)
-        events = [_event(now.replace(hour=10), now.replace(hour=11))]
-        states = _calendar_states(now, _data(events=events))
-        assert "active" not in states
-        assert "done" in states
-
-    def test_upcoming_soon_within_30_minutes(self):
+    @pytest.mark.parametrize(
+        ("lead_minutes", "expected"),
+        [(15, True), (31, False)],
+        ids=["15-minutes-out", "31-minutes-out"],
+    )
+    def test_upcoming_soon_window(self, lead_minutes, expected):
+        """``upcoming_soon`` covers events starting within the next 30 minutes."""
         now = _now(hour=10)
-        events = [_event(now + timedelta(minutes=15), now + timedelta(minutes=45))]
-        assert "upcoming_soon" in _calendar_states(now, _data(events=events))
-
-    def test_event_31_minutes_out_is_not_upcoming_soon(self):
-        now = _now(hour=10)
-        events = [_event(now + timedelta(minutes=31), now + timedelta(minutes=60))]
-        assert "upcoming_soon" not in _calendar_states(now, _data(events=events))
+        start = now + timedelta(minutes=lead_minutes)
+        events = [_event(start, start + timedelta(minutes=30))]
+        assert ("upcoming_soon" in _calendar_states(now, _data(events=events))) is expected
 
     def test_event_starting_now_is_active_not_upcoming(self):
         now = _now(hour=10)
@@ -573,30 +544,27 @@ class TestCalendarStates:
         assert "active" in states
         assert "upcoming_soon" not in states
 
-    def test_busy_at_threshold(self):
+    @pytest.mark.parametrize(
+        ("hours", "expected"),
+        [((8, 9, 11, 13, 14), True), ((8, 9, 11, 13), False)],
+        ids=["five-events-at-threshold", "four-events-below-threshold"],
+    )
+    def test_busy_threshold(self, hours, expected):
+        """Five events in a day is ``busy``; four is not."""
         now = _now(hour=10)
-        events = [
-            _event(now.replace(hour=h), now.replace(hour=h, minute=30)) for h in (8, 9, 11, 13, 14)
-        ]
-        assert "busy" in _calendar_states(now, _data(events=events))
+        events = [_event(now.replace(hour=h), now.replace(hour=h, minute=30)) for h in hours]
+        assert ("busy" in _calendar_states(now, _data(events=events))) is expected
 
-    def test_not_busy_below_threshold(self):
-        now = _now(hour=10)
-        events = [
-            _event(now.replace(hour=h), now.replace(hour=h, minute=30)) for h in (8, 9, 11, 13)
-        ]
-        assert "busy" not in _calendar_states(now, _data(events=events))
-
-    def test_birthday_today_matches_month_and_day(self):
+    @pytest.mark.parametrize(
+        ("birthday", "expected"),
+        [(date(1990, 4, 23), True), (date(1990, 4, 24), False)],
+        ids=["same-month-and-day", "other-day"],
+    )
+    def test_birthday_today_matches_month_and_day(self, birthday, expected):
+        """``birthday_today`` compares month and day only, ignoring the birth year."""
         now = _now(year=2026, month=4, day=23)
-        # Birthday in a different year but matching month/day
-        b = Birthday(name="Alex", date=date(1990, 4, 23))
-        assert "birthday_today" in _calendar_states(now, _data(birthdays=[b]))
-
-    def test_birthday_other_day_does_not_match(self):
-        now = _now(year=2026, month=4, day=23)
-        b = Birthday(name="Alex", date=date(1990, 4, 24))
-        assert "birthday_today" not in _calendar_states(now, _data(birthdays=[b]))
+        b = Birthday(name="Alex", date=birthday)
+        assert ("birthday_today" in _calendar_states(now, _data(birthdays=[b]))) is expected
 
     def test_states_can_overlap(self):
         """A busy day with an in-progress event reports both ``busy`` and ``active``."""
@@ -649,25 +617,21 @@ class TestCalendarStates:
         ]
         assert "busy" in _calendar_states(now, _data(events=[vacation] + timed))
 
-    def test_all_day_event_does_not_produce_active(self):
-        """``active`` is reserved for timed events — all-day events don't apply."""
-        now = _now(hour=10)
+    @pytest.mark.parametrize(
+        ("hour", "state"),
+        [(10, "active"), (22, "done")],
+        ids=["not-active", "not-done"],
+    )
+    def test_all_day_event_produces_neither_active_nor_done(self, hour, state):
+        """``active`` and ``done`` are reserved for timed events; an ongoing all-day
+        event alone never produces them."""
+        now = _now(hour=hour)
         vacation = _event(
             datetime(2026, 4, 22),
             datetime(2026, 4, 25),
             is_all_day=True,
         )
-        assert "active" not in _calendar_states(now, _data(events=[vacation]))
-
-    def test_all_day_only_day_does_not_produce_done(self):
-        """A day with only an ongoing all-day event isn't ``done`` either."""
-        now = _now(hour=22)
-        vacation = _event(
-            datetime(2026, 4, 22),
-            datetime(2026, 4, 25),
-            is_all_day=True,
-        )
-        assert "done" not in _calendar_states(now, _data(events=[vacation]))
+        assert state not in _calendar_states(now, _data(events=[vacation]))
 
     def test_event_ending_today_excluded_by_exclusive_end(self):
         """An all-day event with end=today does not cover today (exclusive end)."""
@@ -705,9 +669,16 @@ class TestCalendarStates:
 
 
 class TestCalendarRule:
-    def test_calendar_empty_matches(self):
-        rule = ThemeRule(when=ThemeRuleCondition(calendar="empty"), theme="qotd")
-        assert _rule_matches(rule, _now(), _data()) is True
+    @pytest.mark.parametrize(
+        ("calendar", "expected"),
+        [("empty", True), ("bogus", False)],
+        ids=["empty-matches-empty-day", "unknown-token-never-matches"],
+    )
+    def test_calendar_token_on_empty_day(self, calendar, expected):
+        """``empty`` matches a day with no events; unknown tokens never match (validation
+        surfaces them as warnings)."""
+        rule = ThemeRule(when=ThemeRuleCondition(calendar=calendar), theme="qotd")
+        assert _rule_matches(rule, _now(), _data()) is expected
 
     def test_calendar_empty_does_not_match_when_events_exist(self):
         now = _now(hour=10)
@@ -724,10 +695,16 @@ class TestCalendarRule:
         events = [_event(now.replace(hour=8), now.replace(hour=9))]
         assert _rule_matches(rule, now, _data(events=events)) is True
 
-    def test_calendar_skips_when_data_is_none(self):
-        """Pre-fetch resolution passes data=None — calendar rules silently skip."""
+    @pytest.mark.parametrize(
+        "data",
+        [None, _data(events_loaded=False)],
+        ids=["pre-fetch-data-none", "fetch-outage-no-cache"],
+    )
+    def test_calendar_empty_skips_without_event_data(self, data):
+        """Missing event data silently skips a calendar rule, as with weather rules, rather
+        than matching a false-positive ``empty`` state."""
         rule = ThemeRule(when=ThemeRuleCondition(calendar="empty"), theme="qotd")
-        assert _rule_matches(rule, _now(), None) is False
+        assert _rule_matches(rule, _now(), data) is False
 
     def test_calendar_combines_with_other_conditions(self):
         now = datetime(2026, 4, 25, 10)  # Saturday
@@ -738,20 +715,6 @@ class TestCalendarRule:
         assert _rule_matches(rule, now, _data()) is True
         # Weekday — same calendar state, but condition fails on weekday
         assert _rule_matches(rule, datetime(2026, 4, 20, 10), _data()) is False
-
-    def test_calendar_unknown_value_does_not_match(self):
-        """Unknown calendar tokens never match — validation surfaces them as warnings."""
-        rule = ThemeRule(when=ThemeRuleCondition(calendar="bogus"), theme="qotd")
-        assert _rule_matches(rule, _now(), _data()) is False
-
-    def test_calendar_empty_does_not_fire_on_fetch_outage(self):
-        """No cached events + fetch failure must NOT trip ``calendar: empty`` rules.
-
-        Mirrors the weather-rule behavior: missing data silently skips rather
-        than matching a false-positive empty state.
-        """
-        rule = ThemeRule(when=ThemeRuleCondition(calendar="empty"), theme="qotd")
-        assert _rule_matches(rule, _now(), _data(events_loaded=False)) is False
 
 
 # ---------------------------------------------------------------------------
@@ -824,12 +787,13 @@ class TestTemperatureConditions:
 
 
 class TestAqiCondition:
-    def test_matches_at_or_above_the_threshold(self):
-        assert _rule_matches(_rule(aqi_at_least=100), _now(), _data_with_aq(_aq(150)))
-        assert _rule_matches(_rule(aqi_at_least=100), _now(), _data_with_aq(_aq(100)))
-
-    def test_rejects_below_the_threshold(self):
-        assert not _rule_matches(_rule(aqi_at_least=100), _now(), _data_with_aq(_aq(42)))
+    @pytest.mark.parametrize(
+        ("aqi", "expected"),
+        [(150, True), (100, True), (42, False)],
+        ids=["above", "at-threshold-inclusive", "below"],
+    )
+    def test_matches_at_or_above_the_threshold(self, aqi, expected):
+        assert _rule_matches(_rule(aqi_at_least=100), _now(), _data_with_aq(_aq(aqi))) is expected
 
     def test_skips_silently_when_air_quality_is_absent(self):
         """The common case: PurpleAir is optional, so the source is often missing."""
@@ -873,12 +837,18 @@ class TestNumericConditionParsing:
         assert rules[0].when.temp_at_least == 10.0
         assert rules[0].when.aqi_at_least == 101
 
-    def test_float_temperature_survives(self, tmp_path):
+    @pytest.mark.parametrize(
+        ("value", "expected"),
+        [("32.5", 32.5), ('"32"', 32.0)],
+        ids=["float", "quoted-numeric-string"],
+    )
+    def test_temperature_threshold_reads_as_float(self, tmp_path, value, expected):
+        """A float survives, and a quoted number is still a number."""
         rules = self._rules_from(
             tmp_path,
-            "theme_rules:\n  - when: {temp_at_most: 32.5}\n    theme: weatherglass\n",
+            f"theme_rules:\n  - when: {{temp_at_most: {value}}}\n    theme: weatherglass\n",
         )
-        assert rules[0].when.temp_at_most == 32.5
+        assert rules[0].when.temp_at_most == expected
 
     def test_unset_thresholds_are_none(self, tmp_path):
         rules = self._rules_from(
@@ -909,12 +879,18 @@ class TestNumericConditionParsing:
         )
         assert [r.theme for r in rules] == ["today"]
 
-    def test_mapping_threshold_drops_the_rule(self, tmp_path):
-        rules = self._rules_from(
-            tmp_path,
-            "theme_rules:\n  - when: {temp_at_most: {a: 1}}\n    theme: weatherglass\n",
-        )
-        assert rules == []
+    @pytest.mark.parametrize(
+        "yaml_rule",
+        [
+            "  - when: {temp_at_most: {a: 1}}\n    theme: weatherglass\n",
+            "  - when: {aqi_at_least: yes}\n    theme: air_quality\n",
+        ],
+        ids=["mapping", "boolean"],
+    )
+    def test_non_numeric_shape_drops_the_rule(self, tmp_path, yaml_rule):
+        """A mapping is unreadable, and a boolean is rejected because YAML 1.1 reads 'yes'
+        as True and int(True) is a plausible-looking 1."""
+        assert self._rules_from(tmp_path, "theme_rules:\n" + yaml_rule) == []
 
     def test_an_explicit_null_threshold_means_unset(self, tmp_path):
         """`null` is absence, not a malformed value — the rule survives."""
@@ -924,18 +900,3 @@ class TestNumericConditionParsing:
         )
         assert [r.theme for r in rules] == ["today"]
         assert rules[0].when.aqi_at_least is None
-
-    def test_numeric_string_threshold_is_accepted(self, tmp_path):
-        """A quoted number is still a number; only unparseable shapes drop."""
-        rules = self._rules_from(
-            tmp_path,
-            'theme_rules:\n  - when: {temp_at_most: "32"}\n    theme: weatherglass\n',
-        )
-        assert rules[0].when.temp_at_most == 32.0
-
-    def test_boolean_threshold_is_rejected(self, tmp_path):
-        """YAML 1.1 reads 'yes' as True, and int(True) is a plausible-looking 1."""
-        rules = self._rules_from(
-            tmp_path, "theme_rules:\n  - when: {aqi_at_least: yes}\n    theme: air_quality\n"
-        )
-        assert rules == []

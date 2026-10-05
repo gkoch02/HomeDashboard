@@ -51,20 +51,20 @@ class TestPreviewEndpoint:
         # And that PIL can re-decode it.
         Image.open(io.BytesIO(body)).verify()
 
-    def test_rejects_missing_theme_param(self, client):
-        resp = _post_with_csrf(client, "/api/preview", {})
+    @pytest.mark.parametrize(
+        ("payload", "message"),
+        [
+            ({}, "theme"),
+            ({"theme": "__never__"}, "Unknown theme"),
+            ({"theme": "random"}, "Pseudo-themes"),
+        ],
+        ids=["missing-theme", "unknown-theme", "pseudo-theme"],
+    )
+    def test_rejects_unrenderable_theme(self, client, payload, message):
+        """A missing, unregistered or pseudo theme name is a 400 naming the problem."""
+        resp = _post_with_csrf(client, "/api/preview", payload)
         assert resp.status_code == 400
-        assert "theme" in resp.get_json()["error"]
-
-    def test_rejects_unknown_theme(self, client):
-        resp = _post_with_csrf(client, "/api/preview", {"theme": "__never__"})
-        assert resp.status_code == 400
-        assert "Unknown theme" in resp.get_json()["error"]
-
-    def test_rejects_pseudo_theme(self, client):
-        resp = _post_with_csrf(client, "/api/preview", {"theme": "random"})
-        assert resp.status_code == 400
-        assert "Pseudo-themes" in resp.get_json()["error"]
+        assert message in resp.get_json()["error"]
 
     def test_render_failure_returns_500(self, client, monkeypatch):
         def _boom(*_a, **_k):
@@ -191,15 +191,17 @@ class TestPreviewMatchesTheRenderer:
         kwargs = self._render_kwargs(client, "qotd", monkeypatch)
         assert kwargs["quotes_path"] == "/etc/quotes.json"
 
-    def test_unset_coordinates_are_not_previewed_as_the_gulf_of_guinea(self, tmp_path, monkeypatch):
-        client = self._client(tmp_path, "weather:\n  latitude: 0.0\n  longitude: 0.0\n")
+    @pytest.mark.parametrize(
+        ("lat", "lon", "expected"),
+        [(0.0, 0.0, (None, None)), (37.8, -122.4, (37.8, -122.4))],
+        ids=["unset-origin-is-not-gulf-of-guinea", "configured-coordinates-pass-through"],
+    )
+    def test_coordinates_reach_the_render(self, tmp_path, monkeypatch, lat, lon, expected):
+        """``(0.0, 0.0)`` means unset and is forwarded as ``None``; real coordinates
+        reach the render unchanged."""
+        client = self._client(tmp_path, f"weather:\n  latitude: {lat}\n  longitude: {lon}\n")
         kwargs = self._render_kwargs(client, "astronomy", monkeypatch)
-        assert (kwargs["latitude"], kwargs["longitude"]) == (None, None)
-
-    def test_configured_coordinates_still_reach_the_render(self, tmp_path, monkeypatch):
-        client = self._client(tmp_path, "weather:\n  latitude: 37.8\n  longitude: -122.4\n")
-        kwargs = self._render_kwargs(client, "astronomy", monkeypatch)
-        assert (kwargs["latitude"], kwargs["longitude"]) == (37.8, -122.4)
+        assert (kwargs["latitude"], kwargs["longitude"]) == expected
 
     def test_preview_still_persists_no_pressure_history(self, tmp_path, monkeypatch):
         client = self._client(tmp_path, f"state_dir: {tmp_path / 'state'}\n")

@@ -3,6 +3,8 @@
 from datetime import datetime
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from src.config import ThemeScheduleEntry
 from src.services.theme import _resolve_scheduled_theme, resolve_theme_name
 
@@ -32,46 +34,39 @@ def _make_cfg(theme="default", entries=None):
 
 
 class TestResolveScheduledTheme:
-    def test_empty_entries_returns_none(self):
-        assert _resolve_scheduled_theme([], _now(12)) is None
-
-    def test_single_entry_before_now_returns_theme(self):
-        entries = _entries(("06:00", "default"))
-        assert _resolve_scheduled_theme(entries, _now(10)) == "default"
-
-    def test_single_entry_after_now_returns_none(self):
-        """Entry starts at 22:00 but it's 08:00 — no match yet."""
-        entries = _entries(("22:00", "terminal"))
-        assert _resolve_scheduled_theme(entries, _now(8)) is None
-
-    def test_entry_exactly_at_current_time_matches(self):
-        entries = _entries(("14:00", "minimalist"))
-        assert _resolve_scheduled_theme(entries, _now(14, 0)) == "minimalist"
-
-    def test_latest_matching_entry_wins(self):
-        """With entries at 06:00 and 20:00, the 20:00 one should win at 21:00."""
-        entries = _entries(("06:00", "default"), ("20:00", "fuzzyclock_invert"))
-        assert _resolve_scheduled_theme(entries, _now(21)) == "fuzzyclock_invert"
-
-    def test_earlier_entry_wins_when_later_not_yet_reached(self):
-        """It's 10:00 — the 06:00 entry matches, the 20:00 one does not."""
-        entries = _entries(("06:00", "default"), ("20:00", "terminal"))
-        assert _resolve_scheduled_theme(entries, _now(10)) == "default"
-
-    def test_entries_evaluated_in_time_order_regardless_of_input_order(self):
-        """Input order should not matter — only chronological order."""
-        entries = _entries(("20:00", "terminal"), ("06:00", "default"))
-        # At 10:00, only "06:00" has been reached
-        assert _resolve_scheduled_theme(entries, _now(10)) == "default"
-
-    def test_all_entries_before_midnight_wrap_correctly(self):
-        """At 05:00, before the first entry at 06:00, returns None."""
-        entries = _entries(("06:00", "default"), ("22:00", "terminal"))
-        assert _resolve_scheduled_theme(entries, _now(5)) is None
-
-    def test_three_entries_last_one_wins(self):
-        entries = _entries(("06:00", "default"), ("18:00", "minimalist"), ("22:00", "terminal"))
-        assert _resolve_scheduled_theme(entries, _now(23)) == "terminal"
+    @pytest.mark.parametrize(
+        ("pairs", "now", "expected"),
+        [
+            ((), _now(12), None),
+            ((("06:00", "default"),), _now(10), "default"),
+            ((("22:00", "terminal"),), _now(8), None),
+            ((("14:00", "minimalist"),), _now(14, 0), "minimalist"),
+            ((("06:00", "default"), ("20:00", "fuzzyclock_invert")), _now(21), "fuzzyclock_invert"),
+            ((("06:00", "default"), ("20:00", "terminal")), _now(10), "default"),
+            ((("20:00", "terminal"), ("06:00", "default")), _now(10), "default"),
+            ((("06:00", "default"), ("22:00", "terminal")), _now(5), None),
+            (
+                (("06:00", "default"), ("18:00", "minimalist"), ("22:00", "terminal")),
+                _now(23),
+                "terminal",
+            ),
+        ],
+        ids=[
+            "empty-entries",
+            "single-entry-already-reached",
+            "single-entry-not-yet-reached",
+            "entry-exactly-at-now",
+            "latest-reached-entry-wins",
+            "earlier-entry-when-later-not-reached",
+            "input-order-ignored",
+            "before-first-entry",
+            "three-entries-last-wins",
+        ],
+    )
+    def test_resolves_last_entry_at_or_before_now(self, pairs, now, expected):
+        """The active entry is the chronologically last one whose time is at or before
+        ``now``, whatever the input order; before the first entry nothing applies."""
+        assert _resolve_scheduled_theme(_entries(*pairs), now) == expected
 
 
 # ---------------------------------------------------------------------------
@@ -80,68 +75,53 @@ class TestResolveScheduledTheme:
 
 
 class TestResolveThemeName:
-    def test_cli_override_bypasses_schedule(self):
-        """--theme terminal should win even when a schedule entry applies."""
-        entries = _entries(("00:00", "minimalist"))
-        cfg = _make_cfg(theme="default", entries=entries)
-        result = resolve_theme_name(cfg, override_theme="terminal", now=_now(12))
-        assert result == "terminal"
+    @pytest.mark.parametrize(
+        ("cfg_theme", "pairs", "override", "now", "expected"),
+        [
+            ("default", (("00:00", "minimalist"),), "terminal", _now(12), "terminal"),
+            ("random", (), "today", _now(12), "today"),
+            ("default", (("06:00", "minimalist"),), None, _now(10), "minimalist"),
+            ("default", (("06:00", "minimalist"),), None, _now(4), "default"),
+            ("today", (), None, _now(12), "today"),
+            ("default", (("00:00", "terminal"),), None, None, "default"),
+        ],
+        ids=[
+            "cli-override-beats-schedule",
+            "cli-override-beats-random",
+            "schedule-beats-cfg-theme",
+            "cfg-theme-before-first-entry",
+            "empty-schedule-uses-cfg-theme",
+            "no-now-ignores-schedule",
+        ],
+    )
+    def test_priority_chain(self, cfg_theme, pairs, override, now, expected):
+        """CLI override beats the schedule and random; a matching schedule entry beats
+        ``cfg.theme``; with no match, no entries, or no ``now``, ``cfg.theme`` applies."""
+        cfg = _make_cfg(theme=cfg_theme, entries=_entries(*pairs))
+        assert resolve_theme_name(cfg, override_theme=override, now=now) == expected
 
-    def test_cli_override_bypasses_random(self):
-        cfg = _make_cfg(theme="random")
-        result = resolve_theme_name(cfg, override_theme="today", now=_now(12))
-        assert result == "today"
-
-    def test_schedule_wins_over_cfg_theme(self):
-        """When a schedule entry matches, it overrides cfg.theme."""
-        entries = _entries(("06:00", "minimalist"))
-        cfg = _make_cfg(theme="default", entries=entries)
-        result = resolve_theme_name(cfg, override_theme=None, now=_now(10))
-        assert result == "minimalist"
-
-    def test_cfg_theme_used_when_no_schedule_entry_matches(self):
-        """Before any entry fires (e.g. 04:00 with first entry at 06:00), cfg.theme is used."""
-        entries = _entries(("06:00", "minimalist"))
-        cfg = _make_cfg(theme="default", entries=entries)
-        result = resolve_theme_name(cfg, override_theme=None, now=_now(4))
-        assert result == "default"
-
-    def test_empty_schedule_falls_through_to_cfg_theme(self):
-        cfg = _make_cfg(theme="today", entries=[])
-        result = resolve_theme_name(cfg, override_theme=None, now=_now(12))
-        assert result == "today"
-
-    def test_no_now_ignores_schedule(self):
-        """When now=None (legacy call), schedule is not consulted."""
-        entries = _entries(("00:00", "terminal"))
-        cfg = _make_cfg(theme="default", entries=entries)
-        result = resolve_theme_name(cfg, override_theme=None, now=None)
-        assert result == "default"
-
-    def test_random_theme_resolved_when_cfg_theme_is_random(self):
-        cfg = _make_cfg(theme="random", entries=[])
-        with patch(
-            "src.render.random_theme.pick_random_theme", return_value="fantasy"
-        ) as mock_pick:
+    @pytest.mark.parametrize(
+        ("cfg_theme", "pairs", "picker", "picked"),
+        [
+            ("random", (), "pick_random_theme", "fantasy"),
+            ("default", (("00:00", "random"),), "pick_random_theme", "today"),
+            ("random_daily", (), "pick_random_theme", "qotd"),
+            ("default", (("00:00", "random_hourly"),), "pick_random_theme_hourly", "tides"),
+        ],
+        ids=[
+            "cfg-random",
+            "schedule-entry-random",
+            "cfg-random-daily-alias",
+            "schedule-entry-random-hourly",
+        ],
+    )
+    def test_pseudo_theme_routes_through_picker(self, cfg_theme, pairs, picker, picked):
+        """A random pseudo-theme, whether from ``cfg.theme`` or a schedule entry, is
+        resolved by the matching daily or hourly picker exactly once."""
+        cfg = _make_cfg(theme=cfg_theme, entries=_entries(*pairs))
+        with patch(f"src.render.random_theme.{picker}", return_value=picked) as mock_pick:
             result = resolve_theme_name(cfg, override_theme=None, now=_now(12))
-        assert result == "fantasy"
-        mock_pick.assert_called_once()
-
-    def test_random_theme_resolved_when_schedule_entry_is_random(self):
-        """If a schedule entry maps to 'random', it falls through to pick_random_theme."""
-        entries = _entries(("00:00", "random"))
-        cfg = _make_cfg(theme="default", entries=entries)
-        with patch("src.render.random_theme.pick_random_theme", return_value="today") as mock_pick:
-            result = resolve_theme_name(cfg, override_theme=None, now=_now(12))
-        assert result == "today"
-        mock_pick.assert_called_once()
-
-    def test_random_daily_alias_resolves_via_pick_random_theme(self):
-        """'random_daily' routes through the same daily picker as 'random'."""
-        cfg = _make_cfg(theme="random_daily", entries=[])
-        with patch("src.render.random_theme.pick_random_theme", return_value="qotd") as mock_pick:
-            result = resolve_theme_name(cfg, override_theme=None, now=_now(12))
-        assert result == "qotd"
+        assert result == picked
         mock_pick.assert_called_once()
 
     def test_random_hourly_resolves_via_pick_random_theme_hourly(self):
@@ -158,15 +138,3 @@ class TestResolveThemeName:
         # ``now`` must be forwarded so the picker can bucket by hour correctly.
         assert mock_pick.call_args.kwargs["now"] == now
         assert mock_pick.call_args.kwargs["output_dir"] == cfg.state_dir
-
-    def test_random_hourly_from_schedule_entry(self):
-        """A schedule entry mapping to 'random_hourly' also routes through the hourly picker."""
-        entries = _entries(("00:00", "random_hourly"))
-        cfg = _make_cfg(theme="default", entries=entries)
-        with patch(
-            "src.render.random_theme.pick_random_theme_hourly",
-            return_value="tides",
-        ) as mock_pick:
-            result = resolve_theme_name(cfg, override_theme=None, now=_now(12))
-        assert result == "tides"
-        mock_pick.assert_called_once()
