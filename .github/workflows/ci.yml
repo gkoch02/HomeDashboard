@@ -66,7 +66,6 @@ jobs:
 
   test:
     needs: changes
-    if: needs.changes.outputs.docs_only != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     strategy:
@@ -74,13 +73,21 @@ jobs:
       matrix:
         python-version: ["3.10", "3.11", "3.12", "3.13"]
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-python@v7
+      # Keep all four required `test (3.x)` contexts on Markdown-only PRs.
+      # Skipping the matrix job itself reports only a single `test` context.
+      - if: needs.changes.outputs.docs_only == 'true'
+        run: echo "Markdown-only change; Python tests not needed."
+      - if: needs.changes.outputs.docs_only != 'true'
+        uses: actions/checkout@v7
+      - if: needs.changes.outputs.docs_only != 'true'
+        uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
           cache: "pip"
-      - run: pip install -e ".[dev]"
-      - run: python -m pytest tests/ -v --tb=short
+      - if: needs.changes.outputs.docs_only != 'true'
+        run: pip install -e ".[dev]"
+      - if: needs.changes.outputs.docs_only != 'true'
+        run: python -m pytest tests/ -v --tb=short
 
   test-core-install:
     needs: changes
