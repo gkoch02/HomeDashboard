@@ -31,6 +31,10 @@ from src.data.models import (
 logger = logging.getLogger(__name__)
 
 
+# A cached value older than this many TTLs is discarded rather than shown stale.
+EXPIRED_TTL_MULTIPLE = 4
+
+
 def check_staleness(
     fetched_at: datetime,
     ttl_minutes: int,
@@ -50,7 +54,7 @@ def check_staleness(
         return StalenessLevel.FRESH
     if age_minutes <= ttl_minutes * 2:
         return StalenessLevel.AGING
-    if age_minutes <= ttl_minutes * 4:
+    if age_minutes <= ttl_minutes * EXPIRED_TTL_MULTIPLE:
         return StalenessLevel.STALE
     return StalenessLevel.EXPIRED
 

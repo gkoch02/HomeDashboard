@@ -18,6 +18,7 @@ from src.data.models import (
 )
 from src.fetchers import request_counter
 from src.fetchers.cache import (
+    EXPIRED_TTL_MULTIPLE,
     check_staleness,
     load_cache_blob,
     load_cached_source_from_blob,
@@ -134,9 +135,10 @@ def retry_fetch(label: str, fn):
 class DataPipeline:
     """Orchestrate concurrent fetches across all registered data sources.
 
-    The pipeline iterates the fetcher registry (``src.fetchers.registry``)
-    rather than naming sources directly. Adding a new data source is a
-    single new ``register_fetcher`` call.
+    Fetching, caching, breakers and quota iterate the fetcher registry
+    (``src.fetchers.registry``). Assembling the result does not: ``fetch()``
+    names each ``DashboardData`` field, defaults the list-valued sources, and
+    merges air quality with weather.
 
     Each instance is single-use: ``stale_sources`` and ``source_staleness``
     accumulate during one ``fetch()`` call and are baked into the returned
@@ -291,7 +293,9 @@ class DataPipeline:
         data, cached_at = cached
         level = check_staleness(cached_at, self.ttl_map[source], now=self.fetched_at)
         if level == StalenessLevel.EXPIRED:
-            logger.warning("Cached %s is expired (>%dx TTL), discarding", source, 4)
+            logger.warning(
+                "Cached %s is expired (>%dx TTL), discarding", source, EXPIRED_TTL_MULTIPLE
+            )
             return None
         self.source_staleness[source] = level
         self._content_at[source] = cached_at

@@ -556,3 +556,63 @@ class TestTodayExtremesNeverContradictNow:
 
         assert result.high == 86.0  # never below the 85° reading or its period max
         assert result.low == 60.0  # the period min, below the remaining slot's 76
+
+
+class TestEmptyWeatherArrayGuard:
+    @staticmethod
+    def _mock_forecast_resp():
+        resp = MagicMock()
+        resp.json.return_value = {"list": []}
+        resp.raise_for_status = MagicMock()
+        return resp
+
+    @staticmethod
+    def _mock_alerts_resp():
+        resp = MagicMock()
+        resp.json.return_value = {}
+        resp.raise_for_status = MagicMock()
+        return resp
+
+    @patch("src.fetchers.weather.requests.Session")
+    def test_raises_on_empty_weather_array(self, mock_session_cls):
+        cfg = WeatherConfig(api_key="k", latitude=1.0, longitude=2.0)
+        current_resp = MagicMock()
+        current_resp.json.return_value = {
+            "main": {"temp": 42, "temp_max": 48, "temp_min": 35, "humidity": 65},
+            "weather": [],  # empty
+        }
+        current_resp.raise_for_status = MagicMock()
+
+        session = MagicMock()
+        session.get.side_effect = [
+            current_resp,
+            self._mock_forecast_resp(),
+            self._mock_alerts_resp(),
+        ]
+        mock_session_cls.return_value.__enter__ = MagicMock(return_value=session)
+        mock_session_cls.return_value.__exit__ = MagicMock(return_value=False)
+
+        with pytest.raises(RuntimeError, match="weather"):
+            fetch_weather(cfg)
+
+    @patch("src.fetchers.weather.requests.Session")
+    def test_raises_on_missing_main_key(self, mock_session_cls):
+        cfg = WeatherConfig(api_key="k", latitude=1.0, longitude=2.0)
+        current_resp = MagicMock()
+        current_resp.json.return_value = {
+            "weather": [{"icon": "01d", "description": "clear"}],
+            # no "main" key
+        }
+        current_resp.raise_for_status = MagicMock()
+
+        session = MagicMock()
+        session.get.side_effect = [
+            current_resp,
+            self._mock_forecast_resp(),
+            self._mock_alerts_resp(),
+        ]
+        mock_session_cls.return_value.__enter__ = MagicMock(return_value=session)
+        mock_session_cls.return_value.__exit__ = MagicMock(return_value=False)
+
+        with pytest.raises(RuntimeError, match="main"):
+            fetch_weather(cfg)

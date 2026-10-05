@@ -8,6 +8,7 @@ _fetch_incremental, fetch_google_events, clear_service_caches.
 from __future__ import annotations
 
 import json
+import tempfile
 import zoneinfo
 from datetime import date, datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch
@@ -1112,3 +1113,143 @@ class TestFilterToWindowOverlap:
         assert [(e.start, e.end) for e in kept] == [
             (datetime(2026, 4, 5, 9, 0), datetime(2026, 4, 7, 17, 0))
         ]
+
+
+class TestIncrementalSync:
+    def _make_service(self, result: dict):
+        svc = MagicMock()
+        svc.events().list().execute.return_value = result
+        return svc
+
+    def test_apply_delta_adds_new_event(self):
+        """New events in delta are appended to the stored list."""
+        stored = []
+        new_item = {
+            "id": "evt1",
+            "summary": "New Meeting",
+            "start": {"dateTime": "2024-03-15T09:00:00+00:00"},
+            "end": {"dateTime": "2024-03-15T09:30:00+00:00"},
+            "status": "confirmed",
+        }
+        merged = _apply_delta(stored, [new_item], "Cal")
+        assert len(merged) == 1
+        assert merged[0]["summary"] == "New Meeting"
+
+    def test_apply_delta_removes_cancelled_event(self):
+        """Cancelled events in delta are removed from the stored list."""
+        stored_event = CalendarEvent(
+            summary="To Delete",
+            event_id="evt1",
+            start=datetime(2024, 3, 15, 9),
+            end=datetime(2024, 3, 15, 10),
+        )
+        stored = [_ser_sync_event(stored_event)]
+        cancelled_item = {"id": "evt1", "status": "cancelled"}
+        merged = _apply_delta(stored, [cancelled_item], "Cal")
+        assert len(merged) == 0
+
+    def test_apply_delta_updates_existing_event(self):
+        """Updated events replace their previous version by event_id."""
+        stored_event = CalendarEvent(
+            summary="Old Title",
+            event_id="evt1",
+            start=datetime(2024, 3, 15, 9),
+            end=datetime(2024, 3, 15, 10),
+        )
+        stored = [_ser_sync_event(stored_event)]
+        updated_item = {
+            "id": "evt1",
+            "summary": "New Title",
+            "start": {"dateTime": "2024-03-15T09:00:00+00:00"},
+            "end": {"dateTime": "2024-03-15T10:00:00+00:00"},
+            "status": "confirmed",
+        }
+        merged = _apply_delta(stored, [updated_item], "Cal")
+        assert len(merged) == 1
+        assert merged[0]["summary"] == "New Title"
+
+    def test_apply_delta_preserves_events_without_id(self):
+        """Events without an event_id (legacy) are left untouched."""
+        stored = [
+            {
+                "summary": "No ID Event",
+                "start": "2024-03-15T09:00:00",
+                "end": "2024-03-15T10:00:00",
+                "is_all_day": False,
+            }
+        ]
+        merged = _apply_delta(stored, [], "Cal")
+        assert len(merged) == 1
+
+    def test_ser_deser_sync_event_roundtrip(self):
+        event = CalendarEvent(
+            summary="Roundtrip",
+            start=datetime(2024, 3, 15, 9),
+            end=datetime(2024, 3, 15, 10),
+            location="Room A",
+            calendar_name="Work",
+            event_id="abc123",
+        )
+        d = _ser_sync_event(event)
+        restored = _deser_sync_event(d)
+        assert restored.summary == event.summary
+        assert restored.location == event.location
+        assert restored.event_id == event.event_id
+
+    def test_filter_to_window_includes_events_in_range(self):
+        week_start = datetime(2024, 3, 11, 0, 0, tzinfo=timezone.utc)  # Monday
+        week_end = week_start + timedelta(days=7)
+
+        event = CalendarEvent(
+            summary="In Window",
+            start=datetime(2024, 3, 13, 9),  # Wednesday, naive
+            end=datetime(2024, 3, 13, 10),
+            event_id="e1",
+        )
+        stored = [_ser_sync_event(event)]
+        result = _filter_to_window(stored, week_start, week_end)
+        assert len(result) == 1
+
+    def test_filter_to_window_excludes_events_outside_range(self):
+        week_start = datetime(2024, 3, 11, 0, 0, tzinfo=timezone.utc)
+        week_end = week_start + timedelta(days=7)
+
+        old_event = CalendarEvent(
+            summary="Old",
+            start=datetime(2024, 3, 1, 9),  # before window
+            end=datetime(2024, 3, 1, 10),
+            event_id="old",
+        )
+        stored = [_ser_sync_event(old_event)]
+        result = _filter_to_window(stored, week_start, week_end)
+        assert len(result) == 0
+
+    def test_fetch_incremental_handles_410_gone(self):
+        """HTTP 410 Gone should set needs_reset=True without raising."""
+        from googleapiclient.errors import HttpError
+
+        svc = MagicMock()
+        mock_resp = MagicMock()
+        mock_resp.status = 410
+        svc.events().list().execute.side_effect = HttpError(mock_resp, b"Gone")
+
+        delta, cal_name, new_token, needs_reset = _fetch_incremental(svc, "primary", "bad-token")
+        assert needs_reset is True
+        assert delta == []
+
+    def test_sync_state_persisted_across_calls(self):
+        """Sync token is stored in the state file after a full fetch."""
+        from src.fetchers.calendar import _load_sync_state, _save_sync_state
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            state = {"primary": {"sync_token": "tok123", "events": []}}
+            _save_sync_state(state, tmpdir)
+            loaded = _load_sync_state(tmpdir)
+            assert loaded["primary"]["sync_token"] == "tok123"
+
+    def test_load_sync_state_returns_empty_when_missing(self):
+        from src.fetchers.calendar import _load_sync_state
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            result = _load_sync_state(tmpdir)
+        assert result == {}

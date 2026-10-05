@@ -24,6 +24,32 @@ from src.render.quantize import flatten_pixels
 from src.render.theme import ComponentRegion, ThemeStyle
 from tests.inkutils import ink, ink_bbox
 
+
+def _make_weather_with_forecast(**kwargs) -> WeatherData:
+    defaults = dict(
+        current_temp=55.0,
+        current_icon="01d",
+        current_description="clear",
+        high=60.0,
+        low=45.0,
+        humidity=50,
+        forecast=[
+            DayForecast(
+                date=date.today() + timedelta(days=1),
+                high=58.0,
+                low=44.0,
+                icon="02d",
+                description="cloudy",
+            )
+        ],
+    )
+    defaults.update(kwargs)
+    return WeatherData(**defaults)
+
+
+WEATHER_BOX = (L.WEATHER_X, L.WEATHER_Y, L.WEATHER_X + L.WEATHER_W, L.WEATHER_Y + L.WEATHER_H)
+
+
 REGION = ComponentRegion(L.WEATHER_X, L.WEATHER_Y, L.WEATHER_W, L.WEATHER_H)
 
 
@@ -651,3 +677,33 @@ class TestAQIAccent:
         style = ThemeStyle(accent_good=1, accent_warn=2, accent_alert=3, fg=0)
         assert aqi_accent(style, 150) == 2
         assert aqi_accent(style, 151) == 3
+
+
+class TestWeatherPanelMoon:
+    def test_draw_weather_with_today_no_crash(self):
+        """today= adds the moon glyph to the weather panel's label row."""
+        from src.render.components.weather_panel import draw_weather
+
+        with_today, draw = _make_draw()
+        draw_weather(draw, _make_weather_with_forecast(), today=date(2024, 3, 15))
+        without, draw2 = _make_draw()
+        draw_weather(draw2, _make_weather_with_forecast(), today=None)
+        assert ink(with_today, WEATHER_BOX) > ink(without, WEATHER_BOX), "no moon glyph"
+
+    def test_draw_weather_without_today_no_crash(self):
+        """Backward compat: today=None renders the panel minus the glyph."""
+        from src.render.components.weather_panel import draw_weather
+
+        img, draw = _make_draw()
+        draw_weather(draw, _make_weather_with_forecast(), today=None)
+        assert ink(img, WEATHER_BOX) > 0
+
+    def test_draw_weather_none_with_today(self):
+        """The moon glyph is drawn even when there is no weather to pair it with."""
+        from src.render.components.weather_panel import draw_weather
+
+        with_today, draw = _make_draw()
+        draw_weather(draw, None, today=date(2024, 3, 15))
+        without, draw2 = _make_draw()
+        draw_weather(draw2, None, today=None)
+        assert ink(with_today, WEATHER_BOX) > ink(without, WEATHER_BOX)

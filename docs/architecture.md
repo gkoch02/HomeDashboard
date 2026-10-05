@@ -124,7 +124,7 @@ CLI (main.py)
 ## Key Design Decisions
 
 ### v5 plugin registries
-Three internal plugin registries collapse the v4 hard-coded dispatch sites. Adding a new source / theme / component is now a single new file plus a registration call instead of edits across 6+ files:
+Three internal plugin registries collapse the v4 hard-coded dispatch sites. Adding a new source / theme / component is now mostly a new file plus a registration call instead of edits across 6+ files. The remaining central edits: a new `DashboardData` field is assembled in `DataPipeline.fetch()`, and a theme whose agenda reaches past the week needs an `EXTRA_EVENT_DAYS` entry in `src/app.py`:
 
 - **`src/fetchers/registry.py`** — `Fetcher` dataclass + `FetchContext`; `DataPipeline` and `cache.py` iterate it.
 - **`src/render/themes/registry.py`** — `register_theme(name, factory, *, inky_palette=...)`; the per-theme Inky palette pair lives next to the theme module, not in a central dict.

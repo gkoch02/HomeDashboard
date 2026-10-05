@@ -21,6 +21,45 @@ from src.render.themes.qotd import qotd_theme
 from tests.inkutils import ink, marks
 
 
+def _all_day(start: date, end: date, summary: str = "All Day"):
+    return CalendarEvent(
+        summary=summary,
+        start=datetime.combine(start, datetime.min.time()),
+        end=datetime.combine(end, datetime.min.time()),
+        is_all_day=True,
+    )
+
+
+def _make_weather(**kwargs) -> WeatherData:
+    defaults = dict(
+        current_temp=55.0,
+        current_icon="01d",
+        current_description="clear",
+        high=60.0,
+        low=45.0,
+        humidity=50,
+        forecast=[
+            DayForecast(
+                date=date.today() + timedelta(days=1),
+                high=58.0,
+                low=44.0,
+                icon="02d",
+                description="cloudy",
+            )
+        ],
+    )
+    defaults.update(kwargs)
+    return WeatherData(**defaults)
+
+
+def _timed(day: date, h_start: int, h_end: int, summary: str = "Evt"):
+    return CalendarEvent(
+        summary=summary,
+        start=datetime.combine(day, datetime.min.time().replace(hour=h_start)),
+        end=datetime.combine(day, datetime.min.time().replace(hour=h_end)),
+    )
+
+
 def _make_data(today: date | None = None) -> DashboardData:
     today = today or date(2024, 3, 15)
     now = datetime.combine(today, datetime.min.time().replace(hour=8))
@@ -225,3 +264,43 @@ class TestGreyscaleCanvas:
             result = render_dashboard(data, cfg, theme=theme)
             assert result.mode == "1", f"Failed for mode={mode}"
             assert result.size == (200, 100), f"Wrong size for mode={mode}"
+
+
+class TestRenderWithSpanningEventsAndForecast:
+    def test_render_with_spanning_events_forecast_and_moon(self):
+        """Smoke test: full render with spanning events, forecast, and moon phase."""
+        from src.config import DisplayConfig
+        from src.render.canvas import render_dashboard
+
+        today = date(2024, 3, 15)
+        now = datetime.combine(today, datetime.min.time().replace(hour=8))
+        week_start = today - timedelta(days=today.weekday())
+
+        events = [
+            _all_day(week_start, week_start + timedelta(days=3), "Multi-day Conf"),
+            _timed(today, 9, 10, "Standup"),
+        ]
+        forecast = [
+            DayForecast(
+                date=today + timedelta(days=i),
+                high=50.0,
+                low=40.0,
+                icon="02d",
+                description="cloudy",
+            )
+            for i in range(1, 6)
+        ]
+        weather = _make_weather(forecast=forecast)
+
+        data = DashboardData(
+            events=events,
+            weather=weather,
+            birthdays=[],
+            fetched_at=now,
+        )
+        cfg = DisplayConfig()
+        result = render_dashboard(data, cfg)
+        assert isinstance(result, Image.Image)
+        assert result.size == (800, 480)
+        assert result.mode == "1"
+        assert ink(result) > 0, "the full pipeline rendered a blank plate"

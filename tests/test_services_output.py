@@ -1009,3 +1009,14 @@ def test_wide_horizon_repaints_at_most_hourly():
     from src.render.themes.wide_horizon import wide_horizon_theme
 
     assert wide_horizon_theme().layout.repaint_slot_hours == 1
+
+
+class TestCooldownDefaultFollowsTheSpec:
+    def test_four_ink_waveshare_gets_the_colour_default(self):
+        assert _resolve_min_refresh_seconds("waveshare", None, "epd10in85g") == 60
+
+    def test_mono_waveshare_keeps_zero(self):
+        assert _resolve_min_refresh_seconds("waveshare", None, "epd7in5_V2") == 0
+
+    def test_configured_value_wins(self):
+        assert _resolve_min_refresh_seconds("waveshare", 900, "epd10in85g") == 900

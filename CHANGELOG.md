@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Fixed
 
+- The web UI compares CSRF tokens in constant time, and a non-ASCII token is
+  rejected with the usual 403 rather than a 500.
 - A fetch thread stuck past the pipeline bound no longer keeps the renderer
   alive after the run: Python joined it at exit, holding the oneshot active and
   blocking every later timer run and Refresh Now. The run now exits without

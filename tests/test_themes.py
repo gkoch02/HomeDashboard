@@ -570,3 +570,26 @@ class TestThemeConfigField:
         errors, warnings = validate_config(cfg)
         warning_fields = [w.field for w in warnings]
         assert "theme" not in warning_fields
+
+
+class TestThemeRegistration:
+    def test_timeline_in_available_themes(self):
+        assert "timeline" in AVAILABLE_THEMES
+
+    def test_year_pulse_in_available_themes(self):
+        assert "year_pulse" in AVAILABLE_THEMES
+
+    def test_monthly_in_available_themes(self):
+        assert "monthly" in AVAILABLE_THEMES
+
+    def test_load_timeline(self):
+        theme = load_theme("timeline")
+        assert theme.name == "timeline"
+
+    def test_load_year_pulse(self):
+        theme = load_theme("year_pulse")
+        assert theme.name == "year_pulse"
+
+    def test_load_monthly(self):
+        theme = load_theme("monthly")
+        assert theme.name == "monthly"

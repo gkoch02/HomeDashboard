@@ -3,8 +3,9 @@
 Each data source (calendar events, weather, birthdays, air quality, …)
 registers a :class:`Fetcher` describing how to fetch, serialise, and cache
 its value. :class:`~src.data_pipeline.DataPipeline` and the cache I/O layer
-iterate the registry instead of naming sources directly, so adding a new
-data source in v5 is a single new registration call.
+iterate the registry for fetching, caching, breakers and quota, so those need
+no edit for a new source. Exposing its value to the renderer still means a
+``DashboardData`` field and a line where ``DataPipeline.fetch()`` builds it.
 
 The registry is populated as a side effect of importing the fetcher
 modules. ``src.fetchers.__init__`` imports the built-in fetchers so any

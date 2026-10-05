@@ -1,5 +1,7 @@
 """Tests for src/render/primitives.py."""
 
+from datetime import date
+
 import pytest
 from PIL import Image, ImageDraw, ImageFont
 
@@ -12,6 +14,7 @@ from src.render.primitives import (
     filled_rect,
     hline,
     location_line,
+    next_birthday,
     text_height,
     text_width,
     vline,
@@ -256,3 +259,20 @@ class TestLocationLine:
     @pytest.mark.parametrize("loc", [None, "", "   ", "\n", ", ,"])
     def test_nothing_usable_is_empty(self, loc):
         assert location_line(loc) == ""
+
+
+class TestNextBirthday:
+    def test_this_year_when_ahead(self):
+        assert next_birthday(date(1990, 6, 1), date(2026, 4, 6)) == date(2026, 6, 1)
+
+    def test_today_counts(self):
+        assert next_birthday(date(1990, 4, 6), date(2026, 4, 6)) == date(2026, 4, 6)
+
+    def test_rolls_to_next_year(self):
+        assert next_birthday(date(1990, 1, 5), date(2026, 4, 6)) == date(2027, 1, 5)
+
+    def test_leap_day_off_leap_years(self):
+        assert next_birthday(date(1992, 2, 29), date(2027, 1, 1)) == date(2027, 2, 28)
+        assert next_birthday(date(1992, 2, 29), date(2028, 1, 1)) == date(2028, 2, 29)
+        # Past Feb 28 in a non-leap year: next year, which is a leap year.
+        assert next_birthday(date(1992, 2, 29), date(2027, 3, 1)) == date(2028, 2, 29)

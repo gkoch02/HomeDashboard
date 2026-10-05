@@ -1,5 +1,6 @@
 """Tests for src/display/driver.py — display registries and drivers."""
 
+import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -20,6 +21,7 @@ from src.display.driver import (
     build_display_driver,
     get_display_spec,
     image_changed,
+    image_hash,
     persist_image_hash,
     supported_display_models,
 )
@@ -689,3 +691,41 @@ class TestDryRunHistoryPruning:
 
 def _raise_oserror(*args, **kwargs):
     raise OSError("read-only filesystem")
+
+
+class TestImageDiffing:
+    def test_image_hash_deterministic(self):
+        img = Image.new("1", (10, 10), 1)
+        assert image_hash(img) == image_hash(img)
+
+    def test_different_images_different_hash(self):
+        white = Image.new("1", (10, 10), 1)
+        black = Image.new("1", (10, 10), 0)
+        assert image_hash(white) != image_hash(black)
+
+    def test_image_changed_first_call_returns_true(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            img = Image.new("1", (10, 10), 1)
+            assert image_changed(img, tmpdir) is True
+
+    def test_image_changed_same_image_returns_false(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            img = Image.new("1", (10, 10), 1)
+            persist_image_hash(img, tmpdir)  # record as displayed
+            assert image_changed(img, tmpdir) is False
+
+    def test_image_changed_different_image_returns_true(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            img1 = Image.new("1", (10, 10), 1)
+            persist_image_hash(img1, tmpdir)
+            img2 = Image.new("1", (10, 10), 0)
+            assert image_changed(img2, tmpdir) is True
+
+    def test_hash_file_persisted(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            img = Image.new("1", (10, 10), 1)
+            persist_image_hash(img, tmpdir)
+            hash_path = Path(tmpdir) / "last_image_hash.txt"
+            assert hash_path.exists()
+            stored = hash_path.read_text().strip()
+            assert stored == image_hash(img)

@@ -132,9 +132,9 @@ when it is noise, and goes stale silently if the plate later changes.
 
 ## Adding a Fetcher or Data Source
 
-v5 fetchers self-register via a `register_fetcher(...)` call. The `DataPipeline`,
-cache layer, circuit breaker, and quota tracker all iterate the registry — no edits
-to `data_pipeline.py` or `cache.py` are required.
+v5 fetchers self-register via a `register_fetcher(...)` call. The cache layer,
+circuit breaker, and quota tracker all iterate the registry, so `cache.py` needs no
+edit; a new `DashboardData` field still needs its line in `DataPipeline.fetch()`.
 
 1. Create the fetcher module in `src/fetchers/` with a function that takes the
    relevant config (or the full `Config`) and returns a serialisable value.

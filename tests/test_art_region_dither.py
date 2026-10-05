@@ -9,6 +9,7 @@ from PIL import Image
 
 from src.config import DisplayConfig
 from src.display.backend import (
+    G_EXACT_REMAP,
     InkyBackend,
     WaveshareColorBackend,
     dither_art_regions,
@@ -206,3 +207,46 @@ class TestRegistration:
         sky = _colours(img, (10, 10, 790, 60))
         assert sky <= set(INKY_SPECTRA6_PALETTE)
         assert len(sky) >= 2
+
+
+class TestSpectraAccentsOnTheGPanel:
+    def test_solid_spectra_yellow_stays_a_solid_yellow_disc(self):
+        """skyart fills the sun with Inky's measured yellow on any RGB canvas;
+        diffused as-is against pure yellow it speckles."""
+        tile = Image.new("RGB", (92, 92), INKY_SPECTRA6_PALETTE[2])
+        plate = Image.new("RGB", (92, 92), (0, 0, 0))
+        out = dither_art_regions(
+            tile,
+            plate,
+            [(0, 0, 92, 92)],
+            (1.0, 1.0, 0, 0),
+            list(WAVESHARE_G_PALETTE),
+            remap=G_EXACT_REMAP,
+        )
+        assert set(flatten_pixels(out)) == {(255, 255, 0)}
+
+    def test_backend_applies_the_remap(self):
+        cfg = DisplayConfig(model="epd10in85g", width=1360, height=480)
+        img = Image.new("RGB", PANORAMIC, (255, 255, 255))
+        img.paste(INKY_SPECTRA6_PALETTE[3], (0, 0, 100, 100))  # Spectra red
+        out = WaveshareColorBackend(cfg, WAVESHARE_G_PALETTE).resize_and_finalize(
+            img,
+            canvas_size=PANORAMIC,
+            layout=type("L", (), {"canvas_mode": "1", "preferred_quantization_mode": None})(),
+            background=(255, 255, 255),
+            dither_regions=[(0, 0, 200, 200)],
+        )
+        assert set(flatten_pixels(out.crop((0, 0, 100, 100)))) == {(255, 0, 0)}
+
+    def test_blue_and_green_fold_onto_black_inside_a_region(self):
+        tile = Image.new("RGB", (20, 20), INKY_SPECTRA6_PALETTE[4])
+        plate = Image.new("RGB", (20, 20), (255, 255, 255))
+        out = dither_art_regions(
+            tile,
+            plate,
+            [(0, 0, 20, 20)],
+            (1.0, 1.0, 0, 0),
+            list(WAVESHARE_G_PALETTE),
+            remap=G_EXACT_REMAP,
+        )
+        assert set(flatten_pixels(out)) == {(0, 0, 0)}

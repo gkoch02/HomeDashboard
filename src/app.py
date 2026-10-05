@@ -35,12 +35,9 @@ class RunTerminated(BaseException):
     """
 
 
-# Themes whose view can extend past the end of the standard Monday-anchored
-# week and therefore need one extra day of calendar events fetched. Both
-# themes here roll their agenda over to tomorrow after dark.
-# Days past the standard week each theme's plate reaches. The rollover themes
-# show tomorrow after dark; halftone_agenda_wide's rail then shows the day
-# after that, so it needs one more.
+# Days past the standard Monday-anchored week each theme's plate reaches. The
+# rollover themes show tomorrow after dark; halftone_agenda_wide's rail then
+# shows the day after that, so it needs one more.
 EXTRA_EVENT_DAYS: dict[str, int] = {
     "day_arc": 1,
     "halftone_agenda": 1,
