@@ -433,8 +433,9 @@ In the preceding 24-hour journal sample (mostly before this deployment), the
 28.0 s. The 10.85" Pi had 292: median 4.9 s, 95th percentile 26.4 s,
 slowest 52.6 s (first run after quiet hours). Both booted and completed a run
 under the 260 s limit after deploying the deadline. A 120 s injected weather
-fetch hang was also tested on the 7.5" Pi; it rendered from cache and exited
-without waiting for the worker thread. The 260 s deadline remains conservative
+fetch hang was also tested on the 7.5" Pi; the service finished in 124 s using
+cached weather, without waiting for the stuck worker thread. The next timer
+tick ran normally. The 260 s deadline remains conservative
 without risking the next five-minute timer tick.
 
 The reserved phase maxima total 265 s, but the clock-sync wait and a full
