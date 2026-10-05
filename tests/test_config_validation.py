@@ -3,14 +3,17 @@
 from pathlib import Path
 
 import pytest
+import yaml
 
 from src.config import (
     BirthdayConfig,
+    CacheConfig,
     Config,
     ConfigError,
     ConfigWarning,
     DisplayConfig,
     GoogleConfig,
+    ScheduleConfig,
     WeatherConfig,
     load_config,
     print_validation_report,
@@ -89,14 +92,12 @@ class TestValidateConfigWarnings:
         charcoal rather than ink. The example shipped ``true`` for a while, so
         every install derived from it had it on.
         """
-        import yaml
 
         root = Path(__file__).resolve().parents[1]
         raw = yaml.safe_load((root / "config" / "config.example.yaml").read_text())
         assert raw["display"]["enable_partial_refresh"] is False
 
     def test_example_config_matches_the_code_default(self):
-        import yaml
 
         from src.config import DisplayConfig
 
@@ -114,7 +115,6 @@ class TestValidateConfigWarnings:
         every run, failed, and tripped the circuit breaker — while the comment
         above the section called it optional.
         """
-        import yaml
 
         from src.config import load_config
 
@@ -907,3 +907,48 @@ class TestRangeAndPositivityChecks:
         path.write_text("display:\n  model: epd7in5_HD\n")
         _, warnings = validate_config(load_config(str(path)))
         assert "display.width/height" not in self._fields(warnings)
+
+
+class TestQuietHoursValidation:
+    def test_invalid_quiet_hours_start_is_error(self):
+        cfg = Config(schedule=ScheduleConfig(quiet_hours_start=25))
+        errors, _ = validate_config(cfg)
+        assert any(e.field == "schedule.quiet_hours_start" for e in errors)
+
+    def test_negative_quiet_hours_end_is_error(self):
+        cfg = Config(schedule=ScheduleConfig(quiet_hours_end=-1))
+        errors, _ = validate_config(cfg)
+        assert any(e.field == "schedule.quiet_hours_end" for e in errors)
+
+    def test_valid_quiet_hours_no_error(self):
+        cfg = Config(
+            schedule=ScheduleConfig(
+                quiet_hours_start=23,
+                quiet_hours_end=6,
+            )
+        )
+        errors, _ = validate_config(cfg)
+        assert not any(e.field.startswith("schedule.quiet_hours") for e in errors)
+
+
+class TestFetchIntervalValidation:
+    def test_negative_fetch_interval_is_error(self):
+        cfg = Config(cache=CacheConfig(weather_fetch_interval=-30))
+        errors, _ = validate_config(cfg)
+        assert any(e.field == "cache.weather_fetch_interval" for e in errors)
+
+    def test_zero_fetch_interval_is_error(self):
+        cfg = Config(cache=CacheConfig(events_fetch_interval=0))
+        errors, _ = validate_config(cfg)
+        assert any(e.field == "cache.events_fetch_interval" for e in errors)
+
+    def test_positive_fetch_interval_no_error(self):
+        cfg = Config(
+            cache=CacheConfig(
+                weather_fetch_interval=30,
+                events_fetch_interval=120,
+                birthdays_fetch_interval=1440,
+            )
+        )
+        errors, _ = validate_config(cfg)
+        assert not any(e.field.startswith("cache.") and "interval" in e.field for e in errors)

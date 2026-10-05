@@ -167,3 +167,20 @@ class TestBatch:
         assert calls == ["agenda", "qotd"]
         assert (tmp_path / "theme_qotd.png").exists()
         assert rc == 1  # but the failure is still reported
+
+
+class TestPreviewScript:
+    def test_aspect_and_suffix_rules(self):
+        import importlib.util
+        from pathlib import Path
+
+        spec = importlib.util.spec_from_file_location(
+            "build_previews", Path("scripts/build_previews.py")
+        )
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        assert mod._aspect_differs((1360, 480), (800, 480))
+        assert not mod._aspect_differs((1600, 960), (800, 480))
+        assert mod._default_suffix("waveshare", "epd7in5_V2") == ""
+        assert mod._default_suffix("waveshare", "epd10in85g") == "_g"
+        assert mod._default_suffix("inky", "impression_7_3_2025") == "_inky"

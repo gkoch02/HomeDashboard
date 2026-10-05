@@ -135,11 +135,9 @@ function renderBackupList(backups = []) {
   ).join("");
 }
 
-// The form's patch is flat ("display.show_weather"), but /api/config is
-// nested ({display: {show_weather}}), so diffing one against the other used
-// to report every nested field as removed and every dotted one as added — an
-// untouched form showed dozens of changes and the real edit hid among them
-// (#262). Flatten the baseline to the same dotted keys first.
+// The form's patch is flat ("display.show_weather") but /api/config is
+// nested ({display: {show_weather}}); flatten the baseline to the same dotted
+// keys before diffing, or every field reads as both removed and added.
 const CONFIG_SECTIONS = [
   "display", "schedule", "weather", "birthdays", "filters", "cache", "random_theme",
   "google", "quotes", "photo",
@@ -319,8 +317,8 @@ function applyStatus(data) {
     }
   }
 
-  // Last failed run (#263): the renderer's error marker, shown whenever it is
-  // newer than the last success so a crash loop is visible at a glance.
+  // Last failed run: the renderer's error marker, shown whenever it is newer
+  // than the last success so a crash loop is visible at a glance.
   const lastError = $("last-error");
   if (lastError) {
     const err = data.last_error;
@@ -648,8 +646,8 @@ function collectConfigPatch() {
     ["cfg-cool", "cache.cooldown_minutes",            n],
     ["cfg-qr",   "cache.quote_refresh",              v],
     ["cfg-quota", "google.daily_quota_warning",      n],
-    // Rendered by the template but never collected until #308's audit, so an
-    // edit to the quotes path silently did nothing.
+    // Every field the template renders must be collected here, or its edit
+    // is silently dropped on save.
     ["cfg-quotes-path", "quotes.path",               v],
   ];
   for (const [id, key, coerce] of cache_fields) {
@@ -708,9 +706,8 @@ function populateConfigForm(data) {
   set_val("cfg-lat",   w.latitude);
   set_val("cfg-lon",   w.longitude);
   set_val("cfg-units", w.units);
-  // Rendered server-side like the rest, but collected on save: without this a
-  // Discard or Restore left the abandoned value in the form while the dirty
-  // badge cleared, and the next Save wrote it (#309).
+  // Collected on save, so Discard and Restore must reset it too; otherwise the
+  // abandoned value survives a cleared dirty badge and the next Save writes it.
   set_val("cfg-onecall", w.one_call_version);
 
   const bday = data.birthdays || {};
@@ -905,7 +902,7 @@ async function saveConfig(btn, opts = {}) {
           }
         });
         // Validation messages echo user input (an unknown theme name, a
-        // non-numeric threshold), so every field is escaped (#309).
+        // non-numeric threshold), so every field is escaped.
         const err_html = data.errors.map(e =>
           `<div>✗ [${esc_html(e.field)}] ${esc_html(e.message)}${e.hint ? ` — ${esc_html(e.hint)}` : ""}</div>`
         ).join("");

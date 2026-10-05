@@ -11,8 +11,18 @@ from src.render.random_theme import (
     eligible_themes,
     pick_random_theme,
     pick_random_theme_hourly,
+    theme_fits_panel,
 )
 from src.render.theme import AVAILABLE_THEMES
+
+PANORAMIC = (1360, 480)
+
+
+LANDSCAPE = (800, 480)
+
+
+WIDE = {"wide_week", "wide_day", "wide_forecast", "wide_horizon", "halftone_agenda_wide"}
+
 
 # Themes that can actually appear in a pool (everything except hard-excluded themes)
 _REAL_THEMES = AVAILABLE_THEMES - _EXCLUDED_FROM_POOL
@@ -429,3 +439,72 @@ class TestEmptyPoolIsReportedNotHidden:
         with caplog.at_level(logging.WARNING, logger="src.render.random_theme"):
             pick_random_theme(["no_such_theme"], [], str(tmp_path), today=date(2026, 3, 22))
         assert "pool is empty" in caplog.text
+
+
+class TestRandomPoolRespectsThePanelShape:
+    def test_landscape_panel_excludes_the_panoramic_themes(self):
+        pool = set(eligible_themes([], [], LANDSCAPE))
+        assert not pool & WIDE
+        assert "halftone_agenda" in pool
+
+    def test_panoramic_panel_keeps_only_the_panoramic_themes(self):
+        pool = set(eligible_themes([], [], PANORAMIC))
+        assert pool == WIDE
+
+    def test_no_panel_means_no_filter(self):
+        assert WIDE <= set(eligible_themes([], []))
+
+    def test_supersampled_canvas_is_the_panels_shape(self):
+        assert theme_fits_panel("weatherglass", LANDSCAPE)  # 1600x960 is 800x480's shape
+        assert not theme_fits_panel("weatherglass", PANORAMIC)
+        assert theme_fits_panel("no_such_theme", LANDSCAPE)
+
+    def test_a_persisted_pick_is_revalidated_against_the_panel(self, tmp_path):
+        """A stored pick bypassed the panel filter (Codex review on #257).
+
+        The persisted-choice branch validated against the whole real-theme
+        set, so a ``halftone_agenda_wide`` stored for today kept letterboxing
+        an 800x480 panel until midnight.
+        """
+        import json
+
+        from src.render.random_theme import pick_random_theme, pick_random_theme_hourly
+
+        today = date(2026, 3, 22)
+        (tmp_path / "random_theme_state.json").write_text(
+            json.dumps({"date": "2026-03-22", "theme": "halftone_agenda_wide"})
+        )
+        assert pick_random_theme([], [], str(tmp_path), today=today) == "halftone_agenda_wide"
+        chosen = pick_random_theme([], [], str(tmp_path), today=today, panel=LANDSCAPE)
+        assert chosen not in WIDE
+        # Reporting only: the stale pick is not what the panel will show.
+        (tmp_path / "random_theme_state.json").write_text(
+            json.dumps({"date": "2026-03-22", "theme": "halftone_agenda_wide"})
+        )
+        assert (
+            pick_random_theme([], [], str(tmp_path), today=today, persist=False, panel=LANDSCAPE)
+            == ""
+        )
+
+        from datetime import datetime
+
+        now = datetime(2026, 3, 22, 14, 5)
+        (tmp_path / "random_theme_hourly_state.json").write_text(
+            json.dumps({"hour": "2026-03-22T14", "theme": "wide_day"})
+        )
+        assert pick_random_theme_hourly([], [], str(tmp_path), now=now) == "wide_day"
+        chosen = pick_random_theme_hourly([], [], str(tmp_path), now=now, panel=LANDSCAPE)
+        assert chosen not in WIDE
+
+    def test_a_persisted_pick_that_fits_is_kept(self, tmp_path):
+        import json
+
+        from src.render.random_theme import pick_random_theme
+
+        (tmp_path / "random_theme_state.json").write_text(
+            json.dumps({"date": "2026-03-22", "theme": "wide_day"})
+        )
+        assert (
+            pick_random_theme([], [], str(tmp_path), today=date(2026, 3, 22), panel=PANORAMIC)
+            == "wide_day"
+        )

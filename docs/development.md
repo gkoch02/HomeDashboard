@@ -246,8 +246,9 @@ modifying it.
    `src/fetchers/__init__.py` so the side-effect import fires on package load.
 4. Extend `DashboardData` in `src/data/models.py` if a new top-level field is needed.
 
-The `DataPipeline`, cache layer, circuit breaker, quota tracker, and staleness tracker
-all iterate the registry — no edits to `data_pipeline.py` or `cache.py` are required.
+The cache layer, circuit breaker, quota tracker, and staleness tracker all iterate the
+registry, so `cache.py` needs no edit. `DataPipeline.fetch()` still builds `DashboardData`
+field by field: a new top-level field needs its line there.
 See `src/fetchers/calendar_caldav.py` plus the `_register()` block at the bottom of
 `src/fetchers/calendar.py` for the v5 reference.
 

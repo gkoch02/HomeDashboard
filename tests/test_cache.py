@@ -14,6 +14,7 @@ from src.data.models import (
     DashboardData,
     DayForecast,
     StalenessLevel,
+    WeatherAlert,
     WeatherData,
 )
 from src.fetchers.cache import (
@@ -23,6 +24,28 @@ from src.fetchers.cache import (
     load_cached_source_with_metadata_from_blob,
     save_source,
 )
+
+
+def _make_weather(**kwargs) -> WeatherData:
+    defaults = dict(
+        current_temp=55.0,
+        current_icon="01d",
+        current_description="clear",
+        high=60.0,
+        low=45.0,
+        humidity=50,
+        forecast=[
+            DayForecast(
+                date=date.today() + timedelta(days=1),
+                high=58.0,
+                low=44.0,
+                icon="02d",
+                description="cloudy",
+            )
+        ],
+    )
+    defaults.update(kwargs)
+    return WeatherData(**defaults)
 
 
 def _load(source: str, cache_dir: str):
@@ -825,3 +848,126 @@ class TestEnhancedWeatherFieldsCache:
         assert w.wind_deg is None
         assert w.uv_index is None
         assert w.pressure is None
+
+
+class TestPerSourceCache:
+    def test_save_source_creates_v2_file(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            events = [
+                CalendarEvent(
+                    summary="Evt", start=datetime(2024, 3, 15, 9), end=datetime(2024, 3, 15, 10)
+                )
+            ]
+            save_source("events", events, datetime(2024, 3, 15, 8), tmpdir)
+            cache_path = Path(tmpdir) / "dashboard_cache.json"
+            assert cache_path.exists()
+            with open(cache_path) as f:
+                raw = json.load(f)
+            assert raw["schema_version"] == 2
+            assert "events" in raw
+            assert raw["events"]["fetched_at"] == "2024-03-15T08:00:00"
+
+    def test_load_cached_source_events(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            events = [
+                CalendarEvent(
+                    summary="Evt", start=datetime(2024, 3, 15, 9), end=datetime(2024, 3, 15, 10)
+                )
+            ]
+            ts = datetime(2024, 3, 15, 8)
+            save_source("events", events, ts, tmpdir)
+            result = _load("events", tmpdir)
+            assert result is not None
+            data, fetched_at = result
+            assert len(data) == 1
+            assert data[0].summary == "Evt"
+            # Naive timestamps written to disk are normalised to UTC on read-back.
+            assert fetched_at == ts.replace(tzinfo=timezone.utc)
+
+    def test_load_cached_source_weather(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            weather = _make_weather(alerts=[WeatherAlert(event="Storm")])
+            ts = datetime(2024, 3, 15, 9)
+            save_source("weather", weather, ts, tmpdir)
+            result = _load("weather", tmpdir)
+            assert result is not None
+            w, fetched_at = result
+            assert w.current_temp == weather.current_temp
+            assert len(w.alerts) == 1
+            assert w.alerts[0].event == "Storm"
+
+    def test_save_source_preserves_other_sources(self):
+        """Saving one source should not wipe out other sources already in the file."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            weather = _make_weather()
+            save_source("weather", weather, datetime(2024, 3, 15, 9), tmpdir)
+            events = [
+                CalendarEvent(
+                    summary="Evt", start=datetime(2024, 3, 15, 9), end=datetime(2024, 3, 15, 10)
+                )
+            ]
+            save_source("events", events, datetime(2024, 3, 15, 9, 30), tmpdir)
+
+            w_result = _load("weather", tmpdir)
+            e_result = _load("events", tmpdir)
+            assert w_result is not None
+            assert e_result is not None
+
+    def test_load_cached_source_returns_none_when_absent(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            assert _load("events", tmpdir) is None
+
+    def test_load_cached_source_v1_fallback(self):
+        """Legacy v1 cache files still decode per source."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Write a v1 format cache manually
+            v1 = {
+                "fetched_at": "2024-03-15T08:00:00",
+                "events": [
+                    {
+                        "summary": "Old Evt",
+                        "start": "2024-03-15T09:00:00",
+                        "end": "2024-03-15T10:00:00",
+                        "is_all_day": False,
+                        "location": None,
+                        "calendar_name": None,
+                    }
+                ],
+                "weather": None,
+                "birthdays": [],
+            }
+            cache_path = Path(tmpdir) / "dashboard_cache.json"
+            with open(cache_path, "w") as f:
+                json.dump(v1, f)
+
+            result = _load("events", tmpdir)
+            assert result is not None
+            data, fetched_at = result
+            assert data[0].summary == "Old Evt"
+
+    def test_stale_sources_populated_on_partial_failure(self):
+        """fetch_live_data should populate stale_sources for each failed source."""
+        from src.config import Config
+        from src.data_pipeline import DataPipeline
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Pre-populate cache for weather (recent enough to be within TTL)
+            from datetime import timedelta
+
+            save_source(
+                "weather",
+                _make_weather(),
+                datetime.now(timezone.utc) - timedelta(hours=3),
+                tmpdir,
+            )
+
+            with (
+                patch("src.fetchers.calendar.fetch_events", return_value=[]),
+                patch("src.fetchers.weather.fetch_weather", side_effect=RuntimeError("down")),
+                patch("src.fetchers.calendar.fetch_birthdays", return_value=[]),
+            ):
+                data = DataPipeline(Config(), cache_dir=tmpdir).fetch()
+
+        assert "weather" in data.stale_sources
+        assert "events" not in data.stale_sources
+        assert data.is_stale is True

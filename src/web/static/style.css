@@ -784,7 +784,7 @@ input[readonly], input[disabled] { background: var(--bg); color: var(--text-mute
   .cfg-jump-nav a:hover { background: var(--border); }
 }
 
-/* Last failed run (#263) — the renderer's error marker, in the health card */
+/* Last failed run — the renderer's error marker, in the health card */
 .last-error {
   margin-top: .75rem;
   padding: .6rem .8rem;

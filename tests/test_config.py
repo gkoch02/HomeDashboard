@@ -1,5 +1,7 @@
 """Tests for src/config.py — load_config() and default values."""
 
+from unittest.mock import MagicMock, patch
+
 import pytest
 import yaml
 
@@ -388,7 +390,6 @@ class TestResolveTz:
         import logging
         import zoneinfo
         from datetime import datetime as real_datetime
-        from unittest.mock import MagicMock, patch
 
         from src.config import resolve_tz
 
@@ -495,3 +496,18 @@ class TestPurpleAirSensorId:
         cfg = load_config(str(p))
         assert cfg.purpleair.sensor_id == sensor_id
         assert cfg.purpleair.sensor_id_invalid == invalid
+
+
+class TestMaxPartialsDefault:
+    def test_dataclass_default_is_twenty(self):
+        d = DisplayConfig()
+        assert d.max_partials_before_full == 20
+
+    def test_load_config_default_matches_dataclass(self, tmp_path):
+        """load_config() with a display section but no max_partials should
+        produce the same default as the dataclass."""
+        p = tmp_path / "config.yaml"
+        p.write_text(yaml.dump({"display": {"model": "epd7in5_V2"}}))
+        cfg = load_config(str(p))
+        assert cfg.display.max_partials_before_full == DisplayConfig().max_partials_before_full
+        assert cfg.display.max_partials_before_full == 20

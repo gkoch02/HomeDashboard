@@ -61,3 +61,17 @@ def test_l_and_one_bit_inputs_are_accepted():
     assert set(flatten_pixels(quantize_to_palette_nearest(grey, PALETTE))) == {(255, 255, 255)}
     bilevel = Image.new("1", (4, 1), 0)
     assert set(flatten_pixels(quantize_to_palette_nearest(bilevel, PALETTE))) == {(0, 0, 0)}
+
+
+class TestNearestQuantizerMatchesBruteForce:
+    def test_matches_a_brute_force_argmin(self):
+        import numpy as np
+
+        rng = np.random.default_rng(7)
+        arr = rng.integers(0, 256, size=(40, 60, 3), dtype=np.uint8)
+        img = Image.fromarray(arr, mode="RGB")
+        out = np.asarray(quantize_to_palette_nearest(img, list(WAVESHARE_G_PALETTE)))
+        pal = np.array(WAVESHARE_G_PALETTE, dtype=np.int32)
+        diff = arr.astype(np.int32)[:, :, None, :] - pal[None, None, :, :]
+        expected = pal[np.argmin(np.sum(diff * diff, axis=3), axis=2)].astype(np.uint8)
+        assert (out == expected).all()

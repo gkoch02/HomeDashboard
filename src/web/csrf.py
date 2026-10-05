@@ -8,6 +8,7 @@ pick it up without any framework/session dependency.
 
 from __future__ import annotations
 
+import hmac
 import secrets
 
 from flask import abort, jsonify, make_response, request, session
@@ -33,7 +34,8 @@ def get_csrf_token() -> str:
 def csrf_protect() -> None:
     expected = get_csrf_token()
     provided = request.headers.get("X-CSRF-Token", "")
-    if not provided or provided != expected:
+    # Bytes, because compare_digest raises on a non-ASCII str and a header can carry one.
+    if not provided or not hmac.compare_digest(provided.encode(), expected.encode()):
         body = {
             "ok": False,
             "csrf_expired": True,

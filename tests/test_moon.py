@@ -191,3 +191,42 @@ def moon_illumination_close_to(d: date, target: float, tol: float = 6.0) -> bool
     from src.render.moon import moon_illumination
 
     return abs(moon_illumination(d) - target) <= tol
+
+
+class TestMoonPhase:
+    def test_age_is_positive(self):
+        age = moon_phase_age(date(2024, 3, 15))
+        assert 0 <= age < 29.54
+
+    def test_known_new_moon(self):
+        """2024-01-11 was a known new moon."""
+        age = moon_phase_age(date(2024, 1, 11))
+        assert age < 2.0  # within ~2 days of new moon
+
+    def test_known_full_moon(self):
+        """2024-01-25 was a known full moon."""
+        age = moon_phase_age(date(2024, 1, 25))
+        assert 13.0 < age < 16.5  # near midpoint of cycle
+
+    def test_phase_name_returns_string(self):
+        name = moon_phase_name(date(2024, 3, 15))
+        assert isinstance(name, str)
+        assert len(name) > 0
+
+    def test_glyph_returns_unicode_char(self):
+        glyph = moon_phase_glyph(date(2024, 3, 15))
+        assert isinstance(glyph, str)
+        assert len(glyph) == 1
+
+    def test_phase_name_values_valid(self):
+        """All 8 phase names should be reachable across a full cycle."""
+        names = set()
+        d = date(2024, 1, 1)
+        for i in range(30):
+            names.add(moon_phase_name(d + timedelta(days=i)))
+        assert len(names) >= 4  # at least half the phases hit in 30 days
+
+    def test_deterministic_same_date(self):
+        d = date(2024, 6, 15)
+        assert moon_phase_glyph(d) == moon_phase_glyph(d)
+        assert moon_phase_name(d) == moon_phase_name(d)

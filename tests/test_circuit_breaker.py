@@ -2,6 +2,7 @@
 
 import json
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -179,7 +180,6 @@ class TestCircuitBreaker:
         Triggers an exception inside the atomic-write tempfile path; the failure
         is swallowed by _save() and the existing on-disk state remains intact.
         """
-        from unittest.mock import patch
 
         cb = CircuitBreaker(state_dir=tmp_state_dir)
         # Seed a known-good state on disk first.
@@ -194,7 +194,6 @@ class TestCircuitBreaker:
 
     def test_save_exception_does_not_propagate(self, tmp_state_dir):
         """A failed _save() is swallowed; the in-memory state still records the failure."""
-        from unittest.mock import patch
 
         cb = CircuitBreaker(state_dir=tmp_state_dir)
         with patch("src._io.json.dump", side_effect=OSError("disk full")):
@@ -332,3 +331,47 @@ class TestDirtySourcesDoNotAccumulate:
         breaker.record_failure("birthdays")
 
         assert self._raw(tmp_path)["weather"]["state"] == "open"
+
+
+class TestCircuitBreakerUTC:
+    def test_failure_timestamp_is_utc(self, tmp_path):
+        cb = CircuitBreaker(max_failures=3, state_dir=str(tmp_path))
+        cb.record_failure("weather")
+        ts = cb._states["weather"].last_failure_at
+        # Should contain timezone offset (UTC: +00:00)
+        assert "+00:00" in ts or "Z" in ts
+
+    def test_cooldown_works_with_utc(self, tmp_path):
+        cb = CircuitBreaker(
+            max_failures=1,
+            cooldown_minutes=0,
+            state_dir=str(tmp_path),
+        )
+        cb.record_failure("weather")
+        assert cb._states["weather"].state == "open"
+        # Cooldown=0 so should transition to half_open
+        assert cb.should_attempt("weather") is True
+
+    def test_legacy_naive_timestamp_handled(self, tmp_path):
+        """Old state files with naive timestamps should still work."""
+        import json
+
+        state_file = tmp_path / "dashboard_breaker_state.json"
+        state_file.write_text(
+            json.dumps(
+                {
+                    "weather": {
+                        "consecutive_failures": 3,
+                        "last_failure_at": "2020-01-01T00:00:00",  # naive, old
+                        "state": "open",
+                    }
+                }
+            )
+        )
+        cb = CircuitBreaker(
+            max_failures=3,
+            cooldown_minutes=30,
+            state_dir=str(tmp_path),
+        )
+        # Old timestamp — cooldown should be expired
+        assert cb.should_attempt("weather") is True

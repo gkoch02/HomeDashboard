@@ -116,6 +116,11 @@ class TestCsrfProtect:
         resp = client.post("/api/trigger-refresh", headers={"X-CSRF-Token": "totally-wrong-token"})
         assert resp.status_code == 403
 
+    def test_post_with_non_ascii_token_returns_403(self, client):
+        self._get_token(client)
+        resp = client.post("/api/trigger-refresh", headers={"X-CSRF-Token": "tökén"})
+        assert resp.status_code == 403
+
     def test_get_request_not_protected(self, client):
         # GET /api/status should not require a CSRF token
         resp = client.get("/api/status")

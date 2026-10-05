@@ -5,7 +5,8 @@ to verify thread pool coordination, cache fallback, and circuit breaker
 interaction work together correctly.
 """
 
-from datetime import date, datetime, timedelta
+import tempfile
+from datetime import date, datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -14,10 +15,33 @@ from src.config import Config, PurpleAirConfig
 from src.data.models import (
     Birthday,
     CalendarEvent,
+    DayForecast,
     StalenessLevel,
     WeatherData,
 )
 from src.data_pipeline import DataPipeline, retry_fetch
+
+
+def _make_weather_with_forecast(**kwargs) -> WeatherData:
+    defaults = dict(
+        current_temp=55.0,
+        current_icon="01d",
+        current_description="clear",
+        high=60.0,
+        low=45.0,
+        humidity=50,
+        forecast=[
+            DayForecast(
+                date=date.today() + timedelta(days=1),
+                high=58.0,
+                low=44.0,
+                icon="02d",
+                description="cloudy",
+            )
+        ],
+    )
+    defaults.update(kwargs)
+    return WeatherData(**defaults)
 
 
 def _make_weather():
@@ -710,3 +734,53 @@ def test_attach_tolerates_a_missing_session():
     with request_counter.counting() as tally:
         pass
     assert tally.count == 0
+
+
+class TestParallelFetchers:
+    def test_fetch_live_data_runs_fetchers_concurrently(self):
+        """All three fetchers should be submitted to the thread pool."""
+        from src.config import Config
+        from src.data_pipeline import DataPipeline
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with (
+                patch("src.fetchers.calendar.fetch_events", return_value=[]) as mock_cal,
+                patch(
+                    "src.fetchers.weather.fetch_weather", return_value=_make_weather_with_forecast()
+                ) as mock_wx,
+                patch("src.fetchers.calendar.fetch_birthdays", return_value=[]) as mock_bd,
+            ):
+                data = DataPipeline(Config(), cache_dir=tmpdir).fetch()
+
+            assert mock_cal.called
+            assert mock_wx.called
+            assert mock_bd.called
+            assert data.weather is not None
+            assert data.events == []
+
+    def test_parallel_failure_falls_back_to_cache(self):
+        """A single fetcher failure should not block the others."""
+        from src.config import Config
+        from src.data_pipeline import DataPipeline
+        from src.fetchers.cache import save_source
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Pre-populate weather cache (recent enough to be within TTL)
+            from datetime import timedelta
+
+            save_source(
+                "weather",
+                _make_weather_with_forecast(),
+                datetime.now(timezone.utc) - timedelta(hours=3),
+                tmpdir,
+            )
+
+            with (
+                patch("src.fetchers.calendar.fetch_events", return_value=[]),
+                patch("src.fetchers.weather.fetch_weather", side_effect=RuntimeError("down")),
+                patch("src.fetchers.calendar.fetch_birthdays", return_value=[]),
+            ):
+                data = DataPipeline(Config(), cache_dir=tmpdir).fetch()
+
+            assert "weather" in data.stale_sources
+            assert data.weather is not None  # from cache
