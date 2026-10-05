@@ -3,8 +3,14 @@ name: CI
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - "*.md"
+      - "**/*.md"
   pull_request:
     branches: [main]
+    paths-ignore:
+      - "*.md"
+      - "**/*.md"
 
 permissions:
   contents: read
@@ -28,11 +34,6 @@ jobs:
       - run: ruff format --check src/ tests/ scripts/ tools/ setup.py
       # Dead code in src/ (vulture); exclusions live in the script itself.
       - run: python tools/check_dead_code.py
-      # Validates markdown links and the canonical theme inventories in
-      # docs/themes.md, docs/inky-previews.md and docs/previews.md. CONTRIBUTING
-      # asks contributors to run this, but nothing enforced it — which is how
-      # themes drifted out of the preview batch loop unnoticed.
-      - run: python scripts/check_docs.py
 
   test:
     runs-on: ubuntu-latest

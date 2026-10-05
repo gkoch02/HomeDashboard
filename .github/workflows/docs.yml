@@ -1,0 +1,29 @@
+name: Docs
+
+# Run on code changes too: theme or config changes can invalidate the
+# documentation inventories even when no Markdown file changed.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docs-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  check-docs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+      # check_docs.py imports src.config for the example-config inventory.
+      - run: pip install PyYAML
+      - run: python scripts/check_docs.py
