@@ -32,9 +32,8 @@ logger = logging.getLogger(__name__)
 # Per-request ceiling for every CalDAV call, matching the ICS path. Without it
 # ``caldav`` leaves the underlying requests session with no timeout at all, so
 # an unresponsive server blocks the fetch thread forever — and the pipeline's
-# ``future.result(timeout=120)`` bounds only the *render*, not the process:
-# ``concurrent.futures`` joins its worker threads at interpreter exit, so the
-# renderer stays alive holding the systemd unit active.
+# fetch deadline bounds only the *render*: the thread keeps running, holding a
+# socket and a request against the server until the process exits.
 _TIMEOUT_SECONDS = 30
 
 

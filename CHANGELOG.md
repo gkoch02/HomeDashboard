@@ -8,6 +8,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Fixed
 
+- A fetch thread stuck past the pipeline bound no longer keeps the renderer
+  alive after the run: Python joined it at exit, holding the oneshot active and
+  blocking every later timer run and Refresh Now. The run now exits without
+  waiting for it. The fetch bound is one 120 s deadline for all sources, where
+  hung sources used to stack 120 s each.
+- `dashboard.service` has a run deadline (`TimeoutStartSec=270`,
+  `TimeoutStopSec=30`; budget in `docs/setup.md`). Its SIGTERM sleeps the panel
+  and writes `last_error.txt` (`RunTerminated`) before exiting.
+
 - Cut the panoramic and dithered-art entries in `docs/themes.md` to what each
   theme shows, the data it needs and the config it reads; `make docs-check` now
   caps each entry at 200 words.

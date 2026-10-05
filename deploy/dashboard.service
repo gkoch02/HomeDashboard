@@ -31,6 +31,17 @@ ExecStartPre=-/bin/rm -f __INSTALL_DIR__/state/web_trigger
 # all. The "-" prefix ignores a timeout or a system without the helper.
 ExecStartPre=-/usr/bin/timeout 45 /lib/systemd/systemd-time-wait-sync
 ExecStart=__INSTALL_DIR__/venv/bin/python -m src.main --config config/config.yaml
+# Total deadline for the run, ExecStartPre= included. Type=oneshot has none by
+# default, so a stuck run would hold the unit active and no timer tick or
+# "Refresh Now" could start another. (A fetch thread stuck past the pipeline's
+# 120 s bound is handled in src.main, which exits without waiting for it.)
+# 270 s covers the worst case of every phase (budget in docs/setup.md) and
+# still ends before the next five-minute tick. SIGTERM lets src.main sleep the
+# panel and write output/last_error.txt; SIGKILL follows after TimeoutStopSec=
+# if the main thread is wedged in C. Change it with a drop-in
+# (sudo systemctl edit dashboard.service) so `make pi-enable` keeps it.
+TimeoutStartSec=270
+TimeoutStopSec=30
 # No Restart=: the timer runs again in five minutes and the path unit re-fires
 # on the next trigger, so an immediate retry only burned the start limit.
 StandardOutput=append:__INSTALL_DIR__/output/dashboard.log

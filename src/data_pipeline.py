@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import time
 from concurrent.futures import Future, ThreadPoolExecutor
 from datetime import date, datetime
 from typing import cast
@@ -30,6 +31,9 @@ from src.fetchers.quota_tracker import QuotaTracker
 from src.fetchers.registry import FetchContext, all_fetchers, get_fetcher
 
 logger = logging.getLogger(__name__)
+
+# Upper bound on the whole resolve phase of one fetch(), shared by every source.
+FETCH_DEADLINE_SECONDS = 120
 
 
 def _merge_air_quality_with_weather_fallback(
@@ -204,7 +208,11 @@ class DataPipeline:
         # Phase 2: launch concurrent fetches for the non-skipped sources.
         futures = self._launch_fetches({name: skip for name, (_, skip) in skip_decisions.items()})
 
-        # Phase 3: resolve each source, falling back to cache on failure.
+        # Phase 3: resolve each source, falling back to cache on failure. One
+        # deadline for the whole phase: a per-wait timeout would let N hung
+        # sources stack to N times the bound, which the service deadline in
+        # deploy/dashboard.service budgets for once.
+        deadline = time.monotonic() + FETCH_DEADLINE_SECONDS
         results: dict[str, object] = {}
         for f in enabled:
             current = cached_values.get(f.name)
@@ -212,7 +220,7 @@ class DataPipeline:
                 current = []
             success_log_fn = self._make_success_log(f)
             results[f.name] = self._resolve_source(
-                f.name, futures.get(f.name), current, success_log_fn
+                f.name, futures.get(f.name), current, success_log_fn, deadline=deadline
             )
 
         # Post-processing: fill missing PurpleAir ambient readings from OWM.
@@ -366,10 +374,11 @@ class DataPipeline:
         # NOTE: deliberately *not* using ``with ThreadPoolExecutor(...) as pool``.
         # The context-manager exit calls ``shutdown(wait=True)`` with no timeout,
         # which would block until every fetch finishes before this method even
-        # returns — defeating the per-source ``future.result(timeout=120)`` bound
-        # applied in ``_resolve_source``. ``wait=False`` lets rendering continue
-        # after a source times out; it does not stop the worker. Python joins
-        # these threads at exit, so fetchers must also set HTTP timeouts.
+        # returns — defeating the fetch deadline applied in ``_resolve_source``.
+        # ``wait=False`` lets rendering continue after a source times out; it
+        # does not stop the worker. Python joins these threads at exit, so
+        # fetchers must also set HTTP timeouts, and the service's
+        # TimeoutStartSec= is what ends a process a stuck worker holds open.
         pool = ThreadPoolExecutor(max_workers=max_workers)
         try:
             for f in runnable:
@@ -399,7 +408,14 @@ class DataPipeline:
                 except Exception as exc:
                     logger.warning("%s quota update failed: %s", source.capitalize(), exc)
 
-    def _resolve_source(self, source: str, future: Future | None, current, success_log_fn=None):
+    def _resolve_source(
+        self,
+        source: str,
+        future: Future | None,
+        current,
+        success_log_fn=None,
+        deadline: float | None = None,
+    ):
         """Resolve a single data source from its future, falling back to cache.
 
         Args:
@@ -407,11 +423,17 @@ class DataPipeline:
             future: Future from the thread pool, or None if the fetch was skipped.
             current: Current value to return if both fetch and cache fail.
             success_log_fn: Optional callable(data) to log on successful fetch.
+            deadline: ``time.monotonic()`` value the wait may not pass; ``None``
+                allows ``FETCH_DEADLINE_SECONDS`` from now.
         """
         if future is None:
             return current
         try:
-            data = future.result(timeout=120)
+            if deadline is None:
+                timeout = FETCH_DEADLINE_SECONDS
+            else:
+                timeout = max(0.0, deadline - time.monotonic())
+            data = future.result(timeout=timeout)
         except Exception as exc:
             logger.error("%s fetch failed: %s", source.capitalize(), exc)
             self.breaker.record_failure(source)

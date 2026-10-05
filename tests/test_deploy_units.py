@@ -35,3 +35,13 @@ def test_pi_enable_does_not_enable_the_unbounded_wait():
     makefile = (ROOT / "Makefile").read_text()
     recipe = re.search(r"^pi-enable:.*?(?=^\S)", makefile, re.M | re.S)
     assert recipe and "systemd-time-wait-sync" not in recipe.group(0)
+
+
+def test_renderer_has_a_bounded_lifetime():
+    # Type=oneshot has no start timeout by default; the deadline must outlast
+    # the 45 s clock-sync wait plus the 120 s fetch bound, and end before the
+    # next five-minute tick.
+    (start,) = _values("TimeoutStartSec")
+    assert 45 + 120 < int(start) < 300
+    (stop,) = _values("TimeoutStopSec")
+    assert int(stop) > 0

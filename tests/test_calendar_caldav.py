@@ -246,9 +246,8 @@ class TestFetchFromCalDAV:
         """`caldav` leaves its requests session with no timeout unless told.
 
         An unresponsive server then blocks the fetch thread forever, and the
-        pipeline's `future.result(timeout=120)` bounds only the render — the
-        worker thread is joined at interpreter exit, so the renderer process
-        stays alive holding the systemd unit active (#235).
+        pipeline's fetch deadline bounds only the render — the worker thread
+        keeps running until the process exits (#235).
         """
         pw = tmp_path / "pw.txt"
         pw.write_text("secret\n")
