@@ -38,10 +38,26 @@ def test_pi_enable_does_not_enable_the_unbounded_wait():
 
 
 def test_renderer_has_a_bounded_lifetime():
-    # Type=oneshot has no start timeout by default; the deadline must outlast
-    # the 45 s clock-sync wait plus the 120 s fetch bound, and end before the
-    # next five-minute tick.
+    # Type=oneshot has no start timeout by default. The deadline must outlast
+    # the 45 s clock-sync wait plus the 120 s fetch bound, and a run killed
+    # only after the stop grace must still be gone before the next tick: a
+    # unit still active when the timer elapses swallows that tick.
     (start,) = _values("TimeoutStartSec")
-    assert 45 + 120 < int(start) < 300
     (stop,) = _values("TimeoutStopSec")
+    assert 45 + 120 < int(start)
     assert int(stop) > 0
+    assert int(start) + int(stop) + _timer_accuracy() < _timer_interval()
+
+
+def _timer_accuracy() -> int:
+    timer = (ROOT / "deploy" / "dashboard.timer").read_text()
+    (accuracy,) = re.findall(r"^AccuracySec=(\d+)s$", timer, re.M)
+    return int(accuracy)
+
+
+def _timer_interval() -> int:
+    timer = (ROOT / "deploy" / "dashboard.timer").read_text()
+    minutes = sorted(int(m) for m in re.findall(r"^OnCalendar=\*-\*-\* \*:(\d\d):00$", timer, re.M))
+    gaps = {(b - a) % 60 for a, b in zip(minutes, minutes[1:] + minutes[:1])}
+    (gap,) = gaps
+    return gap * 60

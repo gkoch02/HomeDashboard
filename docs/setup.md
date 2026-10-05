@@ -408,14 +408,15 @@ when the run ends, and Python would wait for it at exit. The dashboard checks fo
 threads once the run is over and exits without waiting, so a stuck fetch costs at most
 120 s of one run.
 
-Each run also has a hard deadline: `TimeoutStartSec=270` in `deploy/dashboard.service`,
+Each run also has a hard deadline: `TimeoutStartSec=260` in `deploy/dashboard.service`,
 which counts the clock-sync wait. It covers a run stuck anywhere else; while a run is
 active systemd starts no other one, timer or **Refresh Now**. At the deadline systemd
 sends SIGTERM. A run past the clock-sync wait then puts a Waveshare panel to sleep, writes
 `output/last_error.txt` (`RunTerminated`), and exits. If it cannot, systemd sends SIGKILL
-30 s later (`TimeoutStopSec=30`). The next timer tick then runs normally.
+20 s later (`TimeoutStopSec=20`). Together with the timer's 10 s accuracy window that is
+290 s, under the five-minute interval, so even a killed run does not swallow the next tick.
 
-The 270 s is a worst case added up phase by phase, not a measurement:
+The 260 s is a worst case added up phase by phase, not a measurement:
 
 | Phase | Worst case |
 |---|---|
@@ -425,8 +426,8 @@ The 270 s is a worst case added up phase by phase, not a measurement:
 | Render (heaviest themes) | ~20 s |
 | Panel write (Spectra 6 / 10.85" G full refresh) | ~60 s |
 
-That totals ~265 s. The first two rows and a full 120 s hang should not coincide: an
-offline Pi's fetches fail at once. A normal run takes well under a minute. To see your own
+Summed, that is ~265 s, but the clock-sync wait and a full 120 s hang should not coincide:
+an offline Pi's fetches fail at once. Without the wait the worst case is ~220 s. A normal run takes well under a minute. To see your own
 times, compare the start and finish lines:
 
 ```bash
