@@ -416,19 +416,31 @@ sends SIGTERM. A run past the clock-sync wait then puts a Waveshare panel to sle
 20 s later (`TimeoutStopSec=20`). Together with the timer's 10 s accuracy window that is
 290 s, under the five-minute interval, so even a killed run does not swallow the next tick.
 
-The 260 s is a worst case added up phase by phase, not a measurement:
+Hardware measurements on 2026-10-05 (Waveshare 7.5" V2 and 10.85" G Pi
+deployments) replace the original phase estimates below. The reserved budget
+still accounts for an offline boot and a fetch that uses its entire deadline:
 
-| Phase | Worst case |
-|---|---|
-| Clock-sync wait (offline boot only) | 45 s |
-| Python start-up (Pi Zero 2 W) | ~20 s |
-| Fetch (all sources together) | 120 s |
-| Render (heaviest themes) | ~20 s |
-| Panel write (Spectra 6 / 10.85" G full refresh) | ~60 s |
+| Phase | Observed on hardware | Reserved in 260 s deadline |
+|---|---|---|
+| Clock-sync wait | Cold-boot service run: 37.5 s total on 7.5"; 6.9 s on 10.85" | 45 s |
+| Python start-up | Included in whole-run figures; not timed separately | 20 s |
+| Fetch (all sources together) | Normal full-refresh fetch: about 4 s on 7.5"; under 5 s on 10.85" | 120 s shared deadline |
+| Render | Three forced-theme RGB dry runs: 3.6–4.5 s on 7.5"; 5.5–9.1 s on 10.85" (includes startup and dummy fetch) | 20 s |
+| Panel write | Forced full-refresh run: 17 s total on 7.5" (about 6.7 s after render began); 33 s total on 10.85" (about 26 s after render began) | 60 s |
 
-Summed, that is ~265 s, but the clock-sync wait and a full 120 s hang should not coincide:
-an offline Pi's fetches fail at once. Without the wait the worst case is ~220 s. A normal run takes well under a minute. To see your own
-times, compare the start and finish lines:
+In the preceding 24-hour journal sample (mostly before this deployment), the
+7.5" Pi had 293 completed runs: median 3.4 s, 95th percentile 12.1 s, slowest
+28.0 s. The 10.85" Pi had 292: median 4.9 s, 95th percentile 26.4 s,
+slowest 52.6 s (first run after quiet hours). Both booted and completed a run
+under the 260 s limit after deploying the deadline. A 120 s injected weather
+fetch hang was also tested on the 7.5" Pi; it rendered from cache and exited
+without waiting for the worker thread. The 260 s deadline remains conservative
+without risking the next five-minute timer tick.
+
+The reserved phase maxima total 265 s, but the clock-sync wait and a full
+120 s fetch hang are not expected together: an offline Pi's fetches fail at
+once. Without the wait the reserve is 220 s. To see your own times, compare
+the start and finish lines:
 
 ```bash
 journalctl -u dashboard.service -o short-precise | grep -E "Starting|Finished|timed out"
