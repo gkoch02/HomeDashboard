@@ -1,6 +1,6 @@
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.15.8  # keep equal to the ruff pin in pyproject.toml [dev]
+    rev: v0.16.10  # keep equal to the ruff pin in pyproject.toml [dev]
     hooks:
       - id: ruff
         args: [--fix]
