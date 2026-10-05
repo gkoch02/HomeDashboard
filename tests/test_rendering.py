@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import date, datetime, timedelta
 
+import pytest
 from PIL import Image
 
 from src.config import DisplayConfig
@@ -99,30 +100,15 @@ class TestRenderDashboard:
         result = render_dashboard(data, cfg)
         assert result.mode == "1"
 
-    def test_renders_without_weather(self):
+    @pytest.mark.parametrize(
+        ("attr", "value"),
+        [("weather", None), ("events", []), ("birthdays", []), ("is_stale", True)],
+        ids=["without_weather", "without_events", "without_birthdays", "stale_flag"],
+    )
+    def test_renders_degraded_data(self, attr, value):
+        """Missing sources and the stale flag still render a full-size plate."""
         data = _make_data()
-        data.weather = None
-        cfg = DisplayConfig()
-        result = render_dashboard(data, cfg)
-        assert result.size == (800, 480)
-
-    def test_renders_without_events(self):
-        data = _make_data()
-        data.events = []
-        cfg = DisplayConfig()
-        result = render_dashboard(data, cfg)
-        assert result.size == (800, 480)
-
-    def test_renders_without_birthdays(self):
-        data = _make_data()
-        data.birthdays = []
-        cfg = DisplayConfig()
-        result = render_dashboard(data, cfg)
-        assert result.size == (800, 480)
-
-    def test_stale_flag_does_not_crash(self):
-        data = _make_data()
-        data.is_stale = True
+        setattr(data, attr, value)
         cfg = DisplayConfig()
         result = render_dashboard(data, cfg)
         assert result.size == (800, 480)
@@ -140,20 +126,18 @@ class TestRenderDashboard:
         result = render_dashboard(data, cfg)
         assert ink(result) > 0, "Expected black pixels but image is all white"
 
-    def test_scales_to_larger_display(self):
-        """When width/height differ from 800×480, the image should be scaled."""
+    @pytest.mark.parametrize(
+        "size",
+        [(1200, 825), (640, 384)],
+        ids=["larger_epd9in7", "smaller_epd7in5_v1"],
+    )
+    def test_scales_to_display_size(self, size):
+        """When width/height differ from 800×480, the 1-bit image is scaled
+        up or down to the panel."""
         data = _make_data()
-        cfg = DisplayConfig(width=1200, height=825)  # epd9in7 resolution
+        cfg = DisplayConfig(width=size[0], height=size[1])
         result = render_dashboard(data, cfg)
-        assert result.size == (1200, 825)
-        assert result.mode == "1"
-
-    def test_scales_to_smaller_display(self):
-        """Downscaling to a smaller display resolution should also work."""
-        data = _make_data()
-        cfg = DisplayConfig(width=640, height=384)  # epd7in5 V1
-        result = render_dashboard(data, cfg)
-        assert result.size == (640, 384)
+        assert result.size == size
         assert result.mode == "1"
 
     def test_inky_target_returns_rgb_image(self):

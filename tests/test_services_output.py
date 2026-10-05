@@ -109,32 +109,27 @@ class TestPublishHardware:
 
         mock_build.assert_not_called()
 
-    def test_image_changed_calls_waveshare(self, tmp_path):
+    @pytest.mark.parametrize(
+        ("changed", "force_full"),
+        [(True, False), (False, True)],
+        ids=["image_changed", "force_full_bypasses_change_check"],
+    )
+    def test_display_written(self, tmp_path, changed, force_full):
+        """A changed image is written; force_full writes even an unchanged one,
+        and the force_full flag is passed through to the driver."""
         svc = OutputService(_make_cfg(tmp_path), _make_tz())
         image = _make_image()
         mock_display = MagicMock()
 
         with (
-            patch("src.services.output.image_changed", return_value=True),
+            patch("src.services.output.image_changed", return_value=changed),
             patch("src.services.output.build_display_driver", return_value=mock_display),
         ):
-            svc.publish(image, dry_run=False, force_full=False, now=_now(), theme_name="default")
+            svc.publish(
+                image, dry_run=False, force_full=force_full, now=_now(), theme_name="default"
+            )
 
-        mock_display.show.assert_called_once_with(image, force_full=False)
-
-    def test_force_full_bypasses_change_check(self, tmp_path):
-        """force_full=True should call WaveshareDisplay even when image is unchanged."""
-        svc = OutputService(_make_cfg(tmp_path), _make_tz())
-        image = _make_image()
-        mock_display = MagicMock()
-
-        with (
-            patch("src.services.output.image_changed", return_value=False),
-            patch("src.services.output.build_display_driver", return_value=mock_display),
-        ):
-            svc.publish(image, dry_run=False, force_full=True, now=_now(), theme_name="default")
-
-        mock_display.show.assert_called_once_with(image, force_full=True)
+        mock_display.show.assert_called_once_with(image, force_full=force_full)
 
     def test_waveshare_constructed_with_config_values(self, tmp_path):
         cfg = _make_cfg(tmp_path)
@@ -445,45 +440,35 @@ class TestThemePartialRefreshOptOut:
             )
         return mock_build
 
-    def test_theme_opt_out_forces_full_waveform(self, tmp_path):
+    @pytest.mark.parametrize(
+        ("config_partial", "theme_name", "theme_supports", "expected"),
+        [
+            (True, "halftone_agenda", False, False),
+            (True, "default", True, True),
+            (False, "default", True, False),
+        ],
+        ids=[
+            "theme_opt_out_forces_full_waveform",
+            "supporting_theme_keeps_config_value",
+            "theme_flag_never_switches_partials_on",
+        ],
+    )
+    def test_enable_partial_combines_config_and_theme(
+        self, tmp_path, config_partial, theme_name, theme_supports, expected
+    ):
+        """Partial refresh needs both the config and the theme; the theme flag
+        can only remove it, never add it."""
         cfg = _make_cfg(tmp_path)
-        cfg.display.enable_partial_refresh = True
+        cfg.display.enable_partial_refresh = config_partial
 
         mock_build = self._publish(
             cfg,
             tmp_path,
-            theme_name="halftone_agenda",
-            theme_supports_partial=False,
+            theme_name=theme_name,
+            theme_supports_partial=theme_supports,
         )
 
-        assert mock_build.call_args.kwargs["enable_partial"] is False
-
-    def test_theme_that_supports_partials_keeps_the_config_value(self, tmp_path):
-        cfg = _make_cfg(tmp_path)
-        cfg.display.enable_partial_refresh = True
-
-        mock_build = self._publish(
-            cfg,
-            tmp_path,
-            theme_name="default",
-            theme_supports_partial=True,
-        )
-
-        assert mock_build.call_args.kwargs["enable_partial"] is True
-
-    def test_opt_out_does_not_switch_partials_on(self, tmp_path):
-        """The theme flag can only remove partial refresh, never add it."""
-        cfg = _make_cfg(tmp_path)
-        cfg.display.enable_partial_refresh = False
-
-        mock_build = self._publish(
-            cfg,
-            tmp_path,
-            theme_name="default",
-            theme_supports_partial=True,
-        )
-
-        assert mock_build.call_args.kwargs["enable_partial"] is False
+        assert mock_build.call_args.kwargs["enable_partial"] is expected
 
     def test_default_is_partial_capable(self, tmp_path):
         """Callers that don't pass the flag are unaffected."""
@@ -525,49 +510,34 @@ class TestThemePartialRefreshOptOut:
 
 
 class TestThrottleHelper:
-    def test_zero_min_interval_never_throttles(self, tmp_path):
+    @pytest.mark.parametrize(
+        ("last_refresh", "provider", "force_full", "interval", "expected"),
+        [
+            ("2026-04-08T11:59:59", "waveshare", False, 0, False),
+            ("2026-04-08T11:59:59", "inky", True, 60, False),
+            ("2026-04-08T11:59:30", "inky", False, 60, True),
+        ],
+        ids=[
+            "zero_min_interval_never_throttles",
+            "force_full_never_throttles",
+            "throttles_when_under_cooldown",
+        ],
+    )
+    def test_recent_refresh(self, tmp_path, last_refresh, provider, force_full, interval, expected):
+        """A refresh inside the cooldown throttles unless the interval is zero
+        or the run forces a full refresh."""
         (tmp_path / "refresh_throttle_state.json").write_text(
-            '{"last_refresh_at":"2026-04-08T11:59:59"}'
+            json.dumps({"last_refresh_at": last_refresh})
         )
         assert (
             should_throttle_display_refresh(
-                provider="waveshare",
+                provider=provider,
                 now=_now(),
                 state_dir=str(tmp_path),
-                force_full=False,
-                min_interval_seconds=0,
+                force_full=force_full,
+                min_interval_seconds=interval,
             )
-            is False
-        )
-
-    def test_force_full_never_throttles(self, tmp_path):
-        (tmp_path / "refresh_throttle_state.json").write_text(
-            '{"last_refresh_at":"2026-04-08T11:59:59"}'
-        )
-        assert (
-            should_throttle_display_refresh(
-                provider="inky",
-                now=_now(),
-                state_dir=str(tmp_path),
-                force_full=True,
-                min_interval_seconds=60,
-            )
-            is False
-        )
-
-    def test_throttles_when_under_cooldown(self, tmp_path):
-        (tmp_path / "refresh_throttle_state.json").write_text(
-            '{"last_refresh_at":"2026-04-08T11:59:30"}'
-        )
-        assert (
-            should_throttle_display_refresh(
-                provider="inky",
-                now=_now(),
-                state_dir=str(tmp_path),
-                force_full=False,
-                min_interval_seconds=60,
-            )
-            is True
+            is expected
         )
 
     def test_passes_after_cooldown(self, tmp_path):
@@ -586,21 +556,29 @@ class TestThrottleHelper:
 
 
 class TestResolveMinRefreshSeconds:
-    def test_explicit_value_passes_through(self):
-        assert _resolve_min_refresh_seconds("inky", 3600) == 3600
-        assert _resolve_min_refresh_seconds("waveshare", 30) == 30
-
-    def test_negative_clamped_to_zero(self):
-        assert _resolve_min_refresh_seconds("inky", -10) == 0
-
-    def test_inky_default_60(self):
-        assert _resolve_min_refresh_seconds("inky", None) == 60
-
-    def test_waveshare_default_0(self):
-        assert _resolve_min_refresh_seconds("waveshare", None) == 0
-
-    def test_unknown_provider_default_0(self):
-        assert _resolve_min_refresh_seconds("unknown", None) == 0
+    @pytest.mark.parametrize(
+        ("provider", "configured", "expected"),
+        [
+            ("inky", 3600, 3600),
+            ("waveshare", 30, 30),
+            ("inky", -10, 0),
+            ("inky", None, 60),
+            ("waveshare", None, 0),
+            ("unknown", None, 0),
+        ],
+        ids=[
+            "explicit_inky_passes_through",
+            "explicit_waveshare_passes_through",
+            "negative_clamped_to_zero",
+            "inky_default_60",
+            "waveshare_default_0",
+            "unknown_provider_default_0",
+        ],
+    )
+    def test_resolves(self, provider, configured, expected):
+        """An explicit interval passes through (negatives clamp to zero); unset
+        defaults to 60s on Inky and 0s elsewhere."""
+        assert _resolve_min_refresh_seconds(provider, configured) == expected
 
 
 # ---------------------------------------------------------------------------
@@ -654,30 +632,29 @@ class TestLoadLastRefreshDefensive:
     def test_returns_none_when_state_file_missing(self, tmp_path):
         assert _load_last_refresh(str(tmp_path)) is None
 
-    def test_returns_none_when_value_is_not_a_string(self, tmp_path):
-        (tmp_path / "refresh_throttle_state.json").write_text(
-            json.dumps({"last_refresh_at": 12345})
-        )
-        assert _load_last_refresh(str(tmp_path)) is None
-
-    def test_returns_none_when_value_key_missing(self, tmp_path):
-        (tmp_path / "refresh_throttle_state.json").write_text(json.dumps({}))
-        assert _load_last_refresh(str(tmp_path)) is None
-
-    def test_returns_none_on_unparseable_json(self, tmp_path):
-        (tmp_path / "refresh_throttle_state.json").write_text("not-json{{{")
-        assert _load_last_refresh(str(tmp_path)) is None
-
-    def test_returns_none_on_invalid_iso_timestamp(self, tmp_path):
-        (tmp_path / "refresh_throttle_state.json").write_text(
-            json.dumps({"last_refresh_at": "totally-not-a-date"})
-        )
-        assert _load_last_refresh(str(tmp_path)) is None
-
-    def test_returns_none_when_json_root_is_not_an_object(self, tmp_path):
-        (tmp_path / "refresh_throttle_state.json").write_text(json.dumps([]))
-        assert _load_last_refresh(str(tmp_path)) is None
-        (tmp_path / "refresh_throttle_state.json").write_text(json.dumps("x"))
+    @pytest.mark.parametrize(
+        "content",
+        [
+            json.dumps({"last_refresh_at": 12345}),
+            json.dumps({}),
+            "not-json{{{",
+            json.dumps({"last_refresh_at": "totally-not-a-date"}),
+            json.dumps([]),
+            json.dumps("x"),
+        ],
+        ids=[
+            "value_not_a_string",
+            "value_key_missing",
+            "unparseable_json",
+            "invalid_iso_timestamp",
+            "json_root_is_a_list",
+            "json_root_is_a_string",
+        ],
+    )
+    def test_returns_none_on_unreadable_state(self, tmp_path, content):
+        """Any state file that does not hold an ISO timestamp string reads as
+        never refreshed."""
+        (tmp_path / "refresh_throttle_state.json").write_text(content)
         assert _load_last_refresh(str(tmp_path)) is None
 
 
@@ -703,18 +680,14 @@ class TestLegacyInkyMigration:
         assert not legacy.exists()
         assert (tmp_path / "refresh_throttle_state.json").exists()
 
-    def test_legacy_file_with_garbage_json_returns_none(self, tmp_path):
-        (tmp_path / "inky_refresh_state.json").write_text("not-json")
-        assert _load_last_refresh(str(tmp_path)) is None
-
-    def test_legacy_file_with_missing_key_returns_none(self, tmp_path):
-        (tmp_path / "inky_refresh_state.json").write_text("{}")
-        assert _load_last_refresh(str(tmp_path)) is None
-
-    def test_legacy_file_with_invalid_iso_returns_none(self, tmp_path):
-        (tmp_path / "inky_refresh_state.json").write_text(
-            json.dumps({"last_refresh_at": "totally-not-a-date"})
-        )
+    @pytest.mark.parametrize(
+        "content",
+        ["not-json", "{}", json.dumps({"last_refresh_at": "totally-not-a-date"})],
+        ids=["garbage_json", "missing_key", "invalid_iso"],
+    )
+    def test_unreadable_legacy_file_returns_none(self, tmp_path, content):
+        """An unreadable legacy v4 state file reads as never refreshed."""
+        (tmp_path / "inky_refresh_state.json").write_text(content)
         assert _load_last_refresh(str(tmp_path)) is None
 
     def test_legacy_rename_oserror_still_returns_timestamp(self, tmp_path):
@@ -967,20 +940,33 @@ class TestRepaintSlot:
             )
         return mock_display.show.called
 
-    def test_second_change_in_the_same_slot_is_deferred(self, tmp_path):
+    @pytest.mark.parametrize(
+        ("first", "second", "first_kw", "second_kw", "paints"),
+        [
+            ((8, 12, 5), (8, 14, 55), {}, {}, False),
+            ((8, 14, 55), (8, 15, 0), {}, {}, True),
+            ((8, 12, 5), (9, 12, 5), {}, {}, True),
+            ((8, 12, 5), (8, 12, 30), {"theme": "today"}, {}, True),
+            ((8, 12, 5), (8, 12, 30), {}, {"force_full": True}, True),
+            ((8, 12, 5), (8, 12, 30), {"slot": None}, {"slot": None}, True),
+        ],
+        ids=[
+            "second_change_in_same_slot_is_deferred",
+            "first_tick_of_next_slot_paints",
+            "same_hour_on_another_day_is_another_slot",
+            "switching_to_the_theme_mid_slot_paints",
+            "force_full_bypasses_the_slot",
+            "themes_without_a_slot_are_unaffected",
+        ],
+    )
+    def test_second_publish(self, tmp_path, first, second, first_kw, second_kw, paints):
+        """After a first paint (day, hour, minute in April 2026 UTC), a second
+        changed image paints only in a new slot, after a theme switch, under
+        force_full, or for a theme without a slot."""
         svc = OutputService(_make_cfg(tmp_path), _make_tz())
-        assert self._publish(svc, datetime(2026, 4, 8, 12, 5, tzinfo=timezone.utc))
-        assert not self._publish(svc, datetime(2026, 4, 8, 14, 55, tzinfo=timezone.utc))
-
-    def test_first_tick_of_the_next_slot_paints(self, tmp_path):
-        svc = OutputService(_make_cfg(tmp_path), _make_tz())
-        assert self._publish(svc, datetime(2026, 4, 8, 14, 55, tzinfo=timezone.utc))
-        assert self._publish(svc, datetime(2026, 4, 8, 15, 0, tzinfo=timezone.utc))
-
-    def test_same_hour_on_another_day_is_another_slot(self, tmp_path):
-        svc = OutputService(_make_cfg(tmp_path), _make_tz())
-        assert self._publish(svc, datetime(2026, 4, 8, 12, 5, tzinfo=timezone.utc))
-        assert self._publish(svc, datetime(2026, 4, 9, 12, 5, tzinfo=timezone.utc))
+        assert self._publish(svc, datetime(2026, 4, *first, tzinfo=timezone.utc), **first_kw)
+        painted = self._publish(svc, datetime(2026, 4, *second, tzinfo=timezone.utc), **second_kw)
+        assert painted is paints
 
     def test_slots_follow_the_local_clock(self, tmp_path):
         # 13:30 and 14:30 UTC share the 12–15 UTC slot, but in +01:00 they
@@ -1001,23 +987,6 @@ class TestRepaintSlot:
         assert first.hour == second.hour == 1
         assert self._publish(svc, first, slot=1)
         assert self._publish(svc, second, slot=1)
-
-    def test_switching_to_the_theme_mid_slot_paints(self, tmp_path):
-        svc = OutputService(_make_cfg(tmp_path), _make_tz())
-        assert self._publish(svc, datetime(2026, 4, 8, 12, 5, tzinfo=timezone.utc), theme="today")
-        assert self._publish(svc, datetime(2026, 4, 8, 12, 30, tzinfo=timezone.utc))
-
-    def test_force_full_bypasses_the_slot(self, tmp_path):
-        svc = OutputService(_make_cfg(tmp_path), _make_tz())
-        assert self._publish(svc, datetime(2026, 4, 8, 12, 5, tzinfo=timezone.utc))
-        assert self._publish(
-            svc, datetime(2026, 4, 8, 12, 30, tzinfo=timezone.utc), force_full=True
-        )
-
-    def test_themes_without_a_slot_are_unaffected(self, tmp_path):
-        svc = OutputService(_make_cfg(tmp_path), _make_tz())
-        assert self._publish(svc, datetime(2026, 4, 8, 12, 5, tzinfo=timezone.utc), slot=None)
-        assert self._publish(svc, datetime(2026, 4, 8, 12, 30, tzinfo=timezone.utc), slot=None)
 
     def test_deferred_frame_still_reaches_latest_png(self, tmp_path):
         svc = OutputService(_make_cfg(tmp_path), _make_tz())
