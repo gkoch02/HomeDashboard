@@ -396,32 +396,30 @@ class TestDeserialiseV1Fallback:
             assert events[0].summary == "Old Meeting"
 
 
-class TestLoadCachedSourceUnknownSourcePaths:
-    def test_unknown_source_in_v2_block_returns_none(self):
-        """A v2 file with a matching key but non-standard source name returns None."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            # Manually write a v2 file that has a 'custom' key
-            v2 = {
-                "schema_version": 2,
-                "custom": {"fetched_at": "2024-03-15T08:00:00", "data": []},
-            }
-            (Path(tmpdir) / "dashboard_cache.json").write_text(json.dumps(v2))
-            # Querying "custom" goes through the v2 path: block exists but hits else→return None
-            result = _load("custom", tmpdir)
-            assert result is None
+_V2_CUSTOM_BLOCK = {
+    "schema_version": 2,
+    "custom": {"fetched_at": "2024-03-15T08:00:00", "data": []},
+}
+_V1_EMPTY = {
+    "fetched_at": "2024-03-15T08:00:00",
+    "events": [],
+    "weather": None,
+    "birthdays": [],
+}
 
-    def test_unknown_source_in_v1_fallback_returns_none(self):
-        """In v1 fallback, querying a non-standard source name returns None."""
+
+class TestLoadCachedSourceUnknownSourcePaths:
+    @pytest.mark.parametrize(
+        ("payload", "source"),
+        [(_V2_CUSTOM_BLOCK, "custom"), (_V1_EMPTY, "custom_source")],
+        ids=["v2_block_present", "v1_fallback"],
+    )
+    def test_unknown_source_returns_none(self, payload, source):
+        """A non-standard source name returns None, both when a v2 file holds a
+        block under that key and through the v1 fallback."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            v1 = {
-                "fetched_at": "2024-03-15T08:00:00",
-                "events": [],
-                "weather": None,
-                "birthdays": [],
-            }
-            (Path(tmpdir) / "dashboard_cache.json").write_text(json.dumps(v1))
-            result = _load("custom_source", tmpdir)
-            assert result is None
+            (Path(tmpdir) / "dashboard_cache.json").write_text(json.dumps(payload))
+            assert _load(source, tmpdir) is None
 
 
 class TestLoadCachedSourceWithMetadata:
@@ -461,15 +459,16 @@ class TestLoadCachedSourceWithMetadata:
         assert fetched_at == datetime(2024, 3, 15, 8, 0, 0, tzinfo=timezone.utc)
         assert metadata == {"sync_token": "token-abc"}
 
-    def test_weather_empty_block_returns_none_metadata(self):
-        """A v2 weather block with no data → (None, ...) with empty metadata."""
+    @pytest.mark.parametrize("source", ["weather", "air_quality"])
+    def test_empty_data_block_returns_none_data(self, source):
+        """A v2 block whose data is null → (None, fetched_at, {})."""
         with tempfile.TemporaryDirectory() as tmpdir:
             v2 = {
                 "schema_version": 2,
-                "weather": {"fetched_at": "2024-03-15T08:00:00", "data": None},
+                source: {"fetched_at": "2024-03-15T08:00:00", "data": None},
             }
             (Path(tmpdir) / "dashboard_cache.json").write_text(json.dumps(v2))
-            result = _load_with_metadata("weather", tmpdir)
+            result = _load_with_metadata(source, tmpdir)
         assert result is not None
         data, _, metadata = result
         assert data is None
@@ -488,28 +487,29 @@ class TestLoadCachedSourceWithMetadata:
         assert loaded.aqi == 42
         assert loaded.category == "Good"
 
-    def test_air_quality_empty_data_branch(self):
-        """The ``if block.get('data') else None`` branch for air_quality."""
+    @pytest.mark.parametrize(
+        ("payload", "source"),
+        [
+            (_V2_CUSTOM_BLOCK, "custom"),
+            (_V1_EMPTY, "air_quality"),
+            (
+                {
+                    "fetched_at": "totally-broken",
+                    "events": "not-a-list",
+                    "weather": None,
+                    "birthdays": [],
+                },
+                "events",
+            ),
+        ],
+        ids=["unknown_source_in_v2", "v1_fallback_unknown_source", "v1_fallback_parse_error"],
+    )
+    def test_unloadable_source_returns_none(self, payload, source):
+        """An unknown v2 source, a source v1 files never held, and a v1 file the
+        legacy decoder cannot parse all return None."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            v2 = {
-                "schema_version": 2,
-                "air_quality": {"fetched_at": "2024-03-15T08:00:00", "data": None},
-            }
-            (Path(tmpdir) / "dashboard_cache.json").write_text(json.dumps(v2))
-            result = _load_with_metadata("air_quality", tmpdir)
-        assert result is not None
-        data, _, _ = result
-        assert data is None
-
-    def test_unknown_source_in_v2_returns_none(self):
-        with tempfile.TemporaryDirectory() as tmpdir:
-            v2 = {
-                "schema_version": 2,
-                "custom": {"fetched_at": "2024-03-15T08:00:00", "data": []},
-            }
-            (Path(tmpdir) / "dashboard_cache.json").write_text(json.dumps(v2))
-            result = _load_with_metadata("custom", tmpdir)
-        assert result is None
+            (Path(tmpdir) / "dashboard_cache.json").write_text(json.dumps(payload))
+            assert _load_with_metadata(source, tmpdir) is None
 
     def test_block_with_bad_timestamp_logs_and_returns_none(self, caplog):
         import logging
@@ -549,32 +549,6 @@ class TestLoadCachedSourceWithMetadata:
         events, _, metadata = result
         assert len(events) == 1
         assert metadata == {}
-
-    def test_v1_fallback_returns_none_for_unknown_source(self):
-        with tempfile.TemporaryDirectory() as tmpdir:
-            v1 = {
-                "fetched_at": "2024-03-15T08:00:00",
-                "events": [],
-                "weather": None,
-                "birthdays": [],
-            }
-            (Path(tmpdir) / "dashboard_cache.json").write_text(json.dumps(v1))
-            result = _load_with_metadata("air_quality", tmpdir)
-        assert result is None
-
-    def test_v1_fallback_parse_error_returns_none(self):
-        """If _deserialise_v1 raises, with-metadata loader returns None."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            # v1 with an unparseable timestamp — _deserialise_v1 will blow up.
-            v1 = {
-                "fetched_at": "totally-broken",
-                "events": "not-a-list",
-                "weather": None,
-                "birthdays": [],
-            }
-            (Path(tmpdir) / "dashboard_cache.json").write_text(json.dumps(v1))
-            result = _load_with_metadata("events", tmpdir)
-        assert result is None
 
 
 class TestAtomicWriteCleanup:
@@ -741,36 +715,35 @@ class TestCheckStaleness:
         fetched_at = self._BASE - timedelta(minutes=age_minutes)
         return check_staleness(fetched_at, self._TTL, now=self._BASE)
 
-    # --- FRESH boundary ---
-    def test_fresh_at_zero_age(self):
-        assert self._stale(0) == StalenessLevel.FRESH
-
-    def test_fresh_within_ttl(self):
-        assert self._stale(30) == StalenessLevel.FRESH
-
-    def test_fresh_at_exact_ttl(self):
-        assert self._stale(60) == StalenessLevel.FRESH
-
-    # --- AGING boundary ---
-    def test_aging_just_over_ttl(self):
-        assert self._stale(61) == StalenessLevel.AGING
-
-    def test_aging_at_2x_ttl(self):
-        assert self._stale(120) == StalenessLevel.AGING
-
-    # --- STALE boundary ---
-    def test_stale_just_over_2x_ttl(self):
-        assert self._stale(121) == StalenessLevel.STALE
-
-    def test_stale_at_4x_ttl(self):
-        assert self._stale(240) == StalenessLevel.STALE
-
-    # --- EXPIRED boundary ---
-    def test_expired_just_over_4x_ttl(self):
-        assert self._stale(241) == StalenessLevel.EXPIRED
-
-    def test_expired_very_old(self):
-        assert self._stale(10000) == StalenessLevel.EXPIRED
+    @pytest.mark.parametrize(
+        ("age_minutes", "level"),
+        [
+            (0, StalenessLevel.FRESH),
+            (30, StalenessLevel.FRESH),
+            (60, StalenessLevel.FRESH),
+            (61, StalenessLevel.AGING),
+            (120, StalenessLevel.AGING),
+            (121, StalenessLevel.STALE),
+            (240, StalenessLevel.STALE),
+            (241, StalenessLevel.EXPIRED),
+            (10000, StalenessLevel.EXPIRED),
+        ],
+        ids=[
+            "fresh_at_zero_age",
+            "fresh_within_ttl",
+            "fresh_at_exact_ttl",
+            "aging_just_over_ttl",
+            "aging_at_2x_ttl",
+            "stale_just_over_2x_ttl",
+            "stale_at_4x_ttl",
+            "expired_just_over_4x_ttl",
+            "expired_very_old",
+        ],
+    )
+    def test_level_by_age(self, age_minutes, level):
+        """FRESH up to the TTL, AGING to 2x, STALE to 4x, EXPIRED beyond;
+        each boundary is inclusive of the lower level."""
+        assert self._stale(age_minutes) == level
 
     # --- Uses datetime.now() when now=None ---
     def test_defaults_to_now(self):
@@ -780,13 +753,15 @@ class TestCheckStaleness:
         assert result == StalenessLevel.FRESH
 
     # --- Different TTL values ---
-    def test_five_minute_ttl_fresh(self):
-        fetched_at = self._BASE - timedelta(minutes=3)
-        assert check_staleness(fetched_at, 5, now=self._BASE) == StalenessLevel.FRESH
-
-    def test_five_minute_ttl_expired(self):
-        fetched_at = self._BASE - timedelta(minutes=25)
-        assert check_staleness(fetched_at, 5, now=self._BASE) == StalenessLevel.EXPIRED
+    @pytest.mark.parametrize(
+        ("age_minutes", "level"),
+        [(3, StalenessLevel.FRESH), (25, StalenessLevel.EXPIRED)],
+        ids=["fresh", "expired"],
+    )
+    def test_five_minute_ttl(self, age_minutes, level):
+        """The gradation scales with the TTL passed in, not the class default."""
+        fetched_at = self._BASE - timedelta(minutes=age_minutes)
+        assert check_staleness(fetched_at, 5, now=self._BASE) == level
 
 
 # ---------------------------------------------------------------------------
@@ -808,32 +783,19 @@ class TestEnhancedWeatherFieldsCache:
             pressure=1015.0,
         )
 
-    def test_wind_deg_round_trips_via_save_source(self):
+    @pytest.mark.parametrize(
+        ("field", "expected"),
+        [("wind_deg", 270.0), ("uv_index", 7.5), ("pressure", 1015.0)],
+    )
+    def test_field_round_trips_via_save_source(self, field, expected):
+        """Each enhanced weather field survives save_source and reload."""
         weather = self._make_full_weather()
         with tempfile.TemporaryDirectory() as tmpdir:
             save_source("weather", weather, datetime(2024, 3, 15, 8), tmpdir)
             result = _load("weather", tmpdir)
         assert result is not None
         w, _ = result
-        assert w.wind_deg == 270.0
-
-    def test_uv_index_round_trips_via_save_source(self):
-        weather = self._make_full_weather()
-        with tempfile.TemporaryDirectory() as tmpdir:
-            save_source("weather", weather, datetime(2024, 3, 15, 8), tmpdir)
-            result = _load("weather", tmpdir)
-        assert result is not None
-        w, _ = result
-        assert w.uv_index == 7.5
-
-    def test_pressure_round_trips_via_save_source(self):
-        weather = self._make_full_weather()
-        with tempfile.TemporaryDirectory() as tmpdir:
-            save_source("weather", weather, datetime(2024, 3, 15, 8), tmpdir)
-            result = _load("weather", tmpdir)
-        assert result is not None
-        w, _ = result
-        assert w.pressure == 1015.0
+        assert getattr(w, field) == expected
 
     def test_none_enhanced_fields_deserialise_as_none(self):
         """Fields absent in the cache file deserialise to None (backward compat)."""
