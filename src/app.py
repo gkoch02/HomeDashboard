@@ -26,6 +26,15 @@ from src.services.theme import resolve_theme_name
 
 logger = logging.getLogger(__name__)
 
+
+class RunTerminated(BaseException):
+    """Raised in the main thread when the run is stopped by SIGTERM.
+
+    A ``BaseException`` so the ``except Exception`` fallbacks along the way (a
+    failed fetch falls back to cache) cannot absorb it and carry on rendering.
+    """
+
+
 # Themes whose view can extend past the end of the standard Monday-anchored
 # week and therefore need one extra day of calendar events fetched. Both
 # themes here roll their agenda over to tomorrow after dark.
@@ -89,7 +98,7 @@ class DashboardApp:
         self._run_outcome = None
         try:
             self._run()
-        except Exception as exc:
+        except (Exception, RunTerminated) as exc:
             logger.exception("Dashboard run failed")
             self.output.write_error_marker(exc)
             self._record_run_event("run_failed", started, exc=exc)

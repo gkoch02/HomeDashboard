@@ -403,6 +403,48 @@ and cache ages. The wait is bounded on purpose: an offline boot still renders fr
 Don't enable `systemd-time-wait-sync.service` for this — its wait has no limit, and the
 timer would then never fire on a Pi that boots without network.
 
+The fetch phase is bounded at 120 s, but a fetch thread stuck past that is still running
+when the run ends, and Python would wait for it at exit. The dashboard checks for such
+threads once the run is over and exits without waiting, so a stuck fetch costs at most
+120 s of one run.
+
+Each run also has a hard deadline: `TimeoutStartSec=260` in `deploy/dashboard.service`,
+which counts the clock-sync wait. It covers a run stuck anywhere else; while a run is
+active systemd starts no other one, timer or **Refresh Now**. At the deadline systemd
+sends SIGTERM. A run past the clock-sync wait then puts a Waveshare panel to sleep, writes
+`output/last_error.txt` (`RunTerminated`), and exits. If it cannot, systemd sends SIGKILL
+20 s later (`TimeoutStopSec=20`). Together with the timer's 10 s accuracy window that is
+290 s, under the five-minute interval, so even a killed run does not swallow the next tick.
+
+The 260 s is a worst case added up phase by phase, not a measurement:
+
+| Phase | Worst case |
+|---|---|
+| Clock-sync wait (offline boot only) | 45 s |
+| Python start-up (Pi Zero 2 W) | ~20 s |
+| Fetch (all sources together) | 120 s |
+| Render (heaviest themes) | ~20 s |
+| Panel write (Spectra 6 / 10.85" G full refresh) | ~60 s |
+
+Summed, that is ~265 s, but the clock-sync wait and a full 120 s hang should not coincide:
+an offline Pi's fetches fail at once. Without the wait the worst case is ~220 s. A normal run takes well under a minute. To see your own
+times, compare the start and finish lines:
+
+```bash
+journalctl -u dashboard.service -o short-precise | grep -E "Starting|Finished|timed out"
+```
+
+To change the deadline, use a drop-in so `make pi-enable` does not overwrite it:
+
+```bash
+sudo systemctl edit dashboard.service   # add: [Service] / TimeoutStartSec=360
+```
+
+To check recovery after a change, stop a run mid-flight with the same signal the deadline
+sends (`sudo systemctl kill --signal=SIGTERM dashboard.service` while it is active), confirm
+`output/last_error.txt` names `RunTerminated`, then `sudo systemctl start dashboard.service`
+and confirm it finishes.
+
 The timer fires every 5 minutes. The app handles scheduling internally:
 
 | Time window | Behaviour |

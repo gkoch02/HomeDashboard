@@ -131,7 +131,7 @@ The cooldown is `display.min_refresh_interval_seconds` (config), defaulting to 6
 - **Graceful degradation**: fetch failure → load cached → use stale data → staleness indicator in header
 - **Error boundaries**: credential loading failures, malformed API responses, and cache write errors are caught and logged without crashing the app. A top-level `try/except` in `DashboardApp.run()` writes `output/last_error.txt` (read by the web UI for "is the last run current?") and re-raises so the failure propagates to systemd
 - **Atomic state writes**: every JSON state file (`dashboard_cache.json`, `dashboard_breaker_state.json`, `api_quota_state.json`, `calendar_sync_state.json`, refresh-tracker state) is written via the shared `atomic_write_json()` helper in `src/_io.py` (tempfile in the same dir + `os.replace`) so a kill mid-write can't truncate the file
-- **API timeout**: `ThreadPoolExecutor` in `DataPipeline` enforces a 120-second upper bound per source via `future.result(timeout=120)`. Google Calendar API calls additionally use a 30-second per-request HTTP timeout (`_HTTP_TIMEOUT_SECONDS` in `calendar_google.py`) so a stalled DNS lookup can't waste the full 120-second slot
+- **API timeout**: `ThreadPoolExecutor` in `DataPipeline` enforces one 120-second deadline (`FETCH_DEADLINE_SECONDS`) shared by every source's `future.result()` wait. Google Calendar API calls additionally use a 30-second per-request HTTP timeout (`_HTTP_TIMEOUT_SECONDS` in `calendar_google.py`) so a stalled DNS lookup can't waste the full 120-second slot
 
 ## CLI Flags
 
@@ -269,7 +269,7 @@ art themes, in the panel's module docstring. Keep new entries to that shape.
 - Morning startup: the first run within 30 min after `quiet_hours_end` forces a full refresh once per day, recorded in the morning marker. Dry runs never write the marker; `--force-full-refresh` bypasses it and does not update it. A missing or malformed marker reads as "never".
 - The daily quota counts HTTP requests, not fetches: `DataPipeline._counted_fetch` runs each fetch inside `request_counter.counting()`. A new fetcher must call `request_counter.attach(session)` or `count_request()` or its requests go uncounted. `google.daily_quota_warning` applies to every source; the day rolls over on the configured timezone.
 - `retry_fetch()` retries only likely transient failures: not `RuntimeError` / `ValueError` / `TypeError` / `KeyError`, and not an HTTP 4xx other than 408/429. The status comes from `fetchers.errors.http_status()`, which follows `__cause__`, so wrap a library failure with `raise ... from exc`.
-- `DataPipeline` bounds each source at 120 s via `future.result(timeout=120)`. That bounds the render, not the worker thread, so every fetcher sets its own HTTP timeout (Google 30 s, ICS 30 s, CalDAV `DAVClient(timeout=30)`).
+- `DataPipeline` bounds the resolve phase at one shared 120 s deadline (`FETCH_DEADLINE_SECONDS`). That bounds the render, not the worker thread, so every fetcher sets its own HTTP timeout (Google 30 s, ICS 30 s, CalDAV `DAVClient(timeout=30)`); `src.main` exits via `os._exit` when a non-daemon thread is still alive after the run, since the interpreter would join it forever. `TimeoutStartSec=260` in `deploy/dashboard.service` bounds the rest; its SIGTERM raises `RunTerminated` (a `BaseException`) so the panel sleeps and the error marker is written.
 
 ### Display and refresh
 
