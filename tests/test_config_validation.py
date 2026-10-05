@@ -141,13 +141,14 @@ class TestValidateConfigWarnings:
         _, warnings = validate_config(cfg)
         assert any(w.field == "display.model" for w in warnings)
 
-    def test_known_display_model_no_warning(self):
-        cfg = Config(display=DisplayConfig(model="epd7in5_V2"))
-        _, warnings = validate_config(cfg)
-        assert not any(w.field == "display.model" for w in warnings)
-
-    def test_known_inky_model_no_warning(self):
-        cfg = Config(display=DisplayConfig(provider="inky", model="impression_7_3_2025"))
+    @pytest.mark.parametrize(
+        "provider,model",
+        [("waveshare", "epd7in5_V2"), ("inky", "impression_7_3_2025")],
+        ids=["waveshare", "inky"],
+    )
+    def test_known_display_model_no_warning(self, provider, model):
+        """A model known to its provider raises no display.model warning."""
+        cfg = Config(display=DisplayConfig(provider=provider, model=model))
         _, warnings = validate_config(cfg)
         assert not any(w.field == "display.model" for w in warnings)
 
@@ -273,19 +274,14 @@ class TestIcalUrlValidation:
 
 
 class TestRandomThemeValidation:
-    def test_invalid_theme_in_include_warns(self):
+    @pytest.mark.parametrize("list_name", ["include", "exclude"])
+    def test_invalid_theme_in_list_warns(self, list_name):
+        """An unknown theme name in either rotation list warns on that list's field."""
         cfg = Config()
         cfg.theme = "random"
-        cfg.random_theme.include = ["nonexistent_xyz"]
+        setattr(cfg.random_theme, list_name, ["nonexistent_xyz"])
         _, warnings = validate_config(cfg)
-        assert any(w.field == "random_theme.include" for w in warnings)
-
-    def test_invalid_theme_in_exclude_warns(self):
-        cfg = Config()
-        cfg.theme = "random"
-        cfg.random_theme.exclude = ["nonexistent_xyz"]
-        _, warnings = validate_config(cfg)
-        assert any(w.field == "random_theme.exclude" for w in warnings)
+        assert any(w.field == f"random_theme.{list_name}" for w in warnings)
 
     def test_empty_pool_warns(self):
         from src.render.theme import AVAILABLE_THEMES

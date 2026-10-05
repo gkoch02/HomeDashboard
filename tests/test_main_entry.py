@@ -26,48 +26,28 @@ def _write_minimal_config(path: Path) -> None:
 class TestMainDryRunDummy:
     """main() with --dry-run --dummy should render and write latest.png."""
 
-    def test_dry_run_dummy_produces_image(self, tmp_path):
+    @pytest.mark.parametrize(
+        ("extra_args", "artifact"),
+        [
+            ([], "latest.png"),
+            ([], "last_success.txt"),
+            (["--force-full-refresh"], "latest.png"),
+            (["--date", "2025-12-25"], "latest.png"),
+        ],
+        ids=["image", "last_success_marker", "force_full_refresh", "date_override"],
+    )
+    def test_dry_run_dummy_writes_artifact(self, tmp_path, extra_args, artifact):
+        """Each dry-run flag combination completes and leaves its output file."""
         config_path = tmp_path / "config.yaml"
         _write_minimal_config(config_path)
 
-        with patch("sys.argv", ["main", "--dry-run", "--dummy", "--config", str(config_path)]):
+        argv = ["main", "--dry-run", "--dummy", *extra_args, "--config", str(config_path)]
+        with patch("sys.argv", argv):
             from src.main import main
 
             main()
 
-        assert (tmp_path / "latest.png").exists()
-
-    def test_dry_run_dummy_writes_last_success(self, tmp_path):
-        config_path = tmp_path / "config.yaml"
-        _write_minimal_config(config_path)
-
-        with patch("sys.argv", ["main", "--dry-run", "--dummy", "--config", str(config_path)]):
-            from src.main import main
-
-            main()
-
-        assert (tmp_path / "last_success.txt").exists()
-
-    def test_dry_run_dummy_with_force_full_refresh(self, tmp_path):
-        config_path = tmp_path / "config.yaml"
-        _write_minimal_config(config_path)
-
-        with patch(
-            "sys.argv",
-            [
-                "main",
-                "--dry-run",
-                "--dummy",
-                "--force-full-refresh",
-                "--config",
-                str(config_path),
-            ],
-        ):
-            from src.main import main
-
-            main()
-
-        assert (tmp_path / "latest.png").exists()
+        assert (tmp_path / artifact).exists()
 
     def test_dry_run_dummy_with_event_filters(self, tmp_path):
         config_path = tmp_path / "config.yaml"
@@ -219,28 +199,6 @@ class TestMainModule:
 class TestMainDateFlag:
     """--date should override 'today' in dry-run mode."""
 
-    def test_date_flag_renders_image(self, tmp_path):
-        config_path = tmp_path / "config.yaml"
-        _write_minimal_config(config_path)
-
-        with patch(
-            "sys.argv",
-            [
-                "main",
-                "--dry-run",
-                "--dummy",
-                "--date",
-                "2025-12-25",
-                "--config",
-                str(config_path),
-            ],
-        ):
-            from src.main import main
-
-            main()
-
-        assert (tmp_path / "latest.png").exists()
-
     def test_date_flag_overrides_now(self, tmp_path):
         config_path = tmp_path / "config.yaml"
         _write_minimal_config(config_path)
@@ -274,43 +232,20 @@ class TestMainDateFlag:
         assert passed_now is not None
         assert passed_now.date() == date(2025, 7, 4)
 
-    def test_date_without_dry_run_errors(self, tmp_path):
+    @pytest.mark.parametrize(
+        "argv_flags",
+        [
+            ["--dummy", "--date", "2025-12-25"],
+            ["--dry-run", "--dummy", "--date", "not-a-date"],
+        ],
+        ids=["date_without_dry_run", "malformed_date"],
+    )
+    def test_bad_date_usage_errors(self, tmp_path, argv_flags):
+        """--date outside a dry run, or not in YYYY-MM-DD form, exits non-zero."""
         config_path = tmp_path / "config.yaml"
         _write_minimal_config(config_path)
 
-        with patch(
-            "sys.argv",
-            [
-                "main",
-                "--dummy",
-                "--date",
-                "2025-12-25",
-                "--config",
-                str(config_path),
-            ],
-        ):
-            from src.main import main
-
-            with pytest.raises(SystemExit) as exc_info:
-                main()
-        assert exc_info.value.code != 0
-
-    def test_invalid_date_format_errors(self, tmp_path):
-        config_path = tmp_path / "config.yaml"
-        _write_minimal_config(config_path)
-
-        with patch(
-            "sys.argv",
-            [
-                "main",
-                "--dry-run",
-                "--dummy",
-                "--date",
-                "not-a-date",
-                "--config",
-                str(config_path),
-            ],
-        ):
+        with patch("sys.argv", ["main", *argv_flags, "--config", str(config_path)]):
             from src.main import main
 
             with pytest.raises(SystemExit) as exc_info:
@@ -466,33 +401,16 @@ class TestMainLiveDataPath:
 class TestLogLevelFromConfig:
     """A user-typed ``logging.level`` must never take the run down."""
 
-    def test_lowercase_level_does_not_crash_the_run(self, tmp_path):
+    @pytest.mark.parametrize("level", ["info", "verbose"], ids=["lowercase", "unknown"])
+    def test_odd_level_still_renders(self, tmp_path, level):
+        """A lowercase or unrecognised level neither crashes the run nor stops the render."""
         config_path = tmp_path / "config.yaml"
         config_path.write_text(
             yaml.dump(
                 {
                     "weather": {"api_key": "test", "latitude": 37.0, "longitude": -122.0},
                     "output": {"dry_run_dir": str(tmp_path)},
-                    "logging": {"level": "info"},
-                }
-            )
-        )
-
-        with patch("sys.argv", ["main", "--dry-run", "--dummy", "--config", str(config_path)]):
-            from src.main import main
-
-            main()
-
-        assert (tmp_path / "latest.png").exists()
-
-    def test_unknown_level_still_renders(self, tmp_path):
-        config_path = tmp_path / "config.yaml"
-        config_path.write_text(
-            yaml.dump(
-                {
-                    "weather": {"api_key": "test", "latitude": 37.0, "longitude": -122.0},
-                    "output": {"dry_run_dir": str(tmp_path)},
-                    "logging": {"level": "verbose"},
+                    "logging": {"level": level},
                 }
             )
         )

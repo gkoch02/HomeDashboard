@@ -162,23 +162,31 @@ class TestLoadConfig:
         assert cfg.display.show_birthdays is False
         assert cfg.display.show_info_panel is False
 
-    def test_model_auto_derives_dimensions(self, tmp_path):
+    @pytest.mark.parametrize(
+        "display,provider,model,width,height",
+        [
+            ({"model": "epd7in5_HD"}, "waveshare", "epd7in5_HD", 880, 528),
+            ({"model": "epd13in3k"}, "waveshare", "epd13in3k", 960, 680),
+            (
+                {"provider": "inky", "model": "impression_7_3_2025"},
+                "inky",
+                "impression_7_3_2025",
+                800,
+                480,
+            ),
+            ({"model": "epd_future_model"}, "waveshare", "epd_future_model", 800, 480),
+        ],
+        ids=["waveshare_hd", "waveshare_13in3k", "inky", "unknown_model"],
+    )
+    def test_model_derives_dimensions(self, display, provider, model, width, height, tmp_path):
+        """A known model sets the panel's width and height; an unknown model name is
+        stored as given and keeps 800x480, leaving the driver to raise at runtime."""
         p = tmp_path / "config.yaml"
-        p.write_text(yaml.dump({"display": {"model": "epd7in5_HD"}}))
+        p.write_text(yaml.dump({"display": display}))
         cfg = load_config(str(p))
-        assert cfg.display.provider == "waveshare"
-        assert cfg.display.model == "epd7in5_HD"
-        assert cfg.display.width == 880
-        assert cfg.display.height == 528
-
-    def test_inky_model_auto_derives_dimensions(self, tmp_path):
-        p = tmp_path / "config.yaml"
-        p.write_text(yaml.dump({"display": {"provider": "inky", "model": "impression_7_3_2025"}}))
-        cfg = load_config(str(p))
-        assert cfg.display.provider == "inky"
-        assert cfg.display.model == "impression_7_3_2025"
-        assert cfg.display.width == 800
-        assert cfg.display.height == 480
+        assert cfg.display.provider == provider
+        assert cfg.display.model == model
+        assert (cfg.display.width, cfg.display.height) == (width, height)
 
     def test_model_explicit_dimensions_override(self, tmp_path):
         """Explicit width/height in YAML take precedence over model defaults."""
@@ -188,60 +196,44 @@ class TestLoadConfig:
         assert cfg.display.width == 600
         assert cfg.display.height == 400
 
-    def test_unknown_model_falls_back_to_defaults(self, tmp_path):
-        """An unknown model name keeps 800×480 and lets the driver raise at runtime."""
+    @pytest.mark.parametrize("mode", ["floyd_steinberg", "ordered"])
+    def test_quantization_mode_from_yaml(self, mode, tmp_path):
         p = tmp_path / "config.yaml"
-        p.write_text(yaml.dump({"display": {"model": "epd_future_model"}}))
+        p.write_text(yaml.dump({"display": {"quantization_mode": mode}}))
         cfg = load_config(str(p))
-        assert cfg.display.model == "epd_future_model"
-        assert cfg.display.width == 800
-        assert cfg.display.height == 480
+        assert cfg.display.quantization_mode == mode
 
-    def test_model_field_stored_in_config(self, tmp_path):
+    @pytest.mark.parametrize(
+        "doc,attr,expected",
+        [
+            ({"timezone": "America/Los_Angeles"}, "timezone", "America/Los_Angeles"),
+            ({"weather": {"api_key": "x"}}, "timezone", "local"),
+            ({"title": "My Custom Dashboard"}, "title", "My Custom Dashboard"),
+        ],
+        ids=["timezone_set", "timezone_absent", "title_set"],
+    )
+    def test_top_level_scalar_loaded(self, doc, attr, expected, tmp_path):
+        """A top-level scalar key is stored as written, and keeps its default when absent."""
         p = tmp_path / "config.yaml"
-        p.write_text(yaml.dump({"display": {"model": "epd13in3k"}}))
+        p.write_text(yaml.dump(doc))
         cfg = load_config(str(p))
-        assert cfg.display.model == "epd13in3k"
-        assert cfg.display.width == 960
-        assert cfg.display.height == 680
+        assert getattr(cfg, attr) == expected
 
-    def test_quantization_mode_from_yaml(self, tmp_path):
+    @pytest.mark.parametrize(
+        "doc,start,end",
+        [
+            ({"schedule": {"quiet_hours_start": 22, "quiet_hours_end": 7}}, 22, 7),
+            ({"weather": {"api_key": "x"}}, 23, 6),
+        ],
+        ids=["set", "absent"],
+    )
+    def test_schedule_quiet_hours(self, doc, start, end, tmp_path):
+        """The schedule section sets quiet hours; without it they default to 23-6."""
         p = tmp_path / "config.yaml"
-        p.write_text(yaml.dump({"display": {"quantization_mode": "floyd_steinberg"}}))
+        p.write_text(yaml.dump(doc))
         cfg = load_config(str(p))
-        assert cfg.display.quantization_mode == "floyd_steinberg"
-
-    def test_quantization_mode_ordered_from_yaml(self, tmp_path):
-        p = tmp_path / "config.yaml"
-        p.write_text(yaml.dump({"display": {"quantization_mode": "ordered"}}))
-        cfg = load_config(str(p))
-        assert cfg.display.quantization_mode == "ordered"
-
-    def test_timezone_loaded_from_config(self, tmp_path):
-        p = tmp_path / "config.yaml"
-        p.write_text(yaml.dump({"timezone": "America/Los_Angeles"}))
-        cfg = load_config(str(p))
-        assert cfg.timezone == "America/Los_Angeles"
-
-    def test_timezone_defaults_when_absent(self, tmp_path):
-        p = tmp_path / "config.yaml"
-        p.write_text(yaml.dump({"weather": {"api_key": "x"}}))
-        cfg = load_config(str(p))
-        assert cfg.timezone == "local"
-
-    def test_schedule_loaded_from_config(self, tmp_path):
-        p = tmp_path / "config.yaml"
-        p.write_text(yaml.dump({"schedule": {"quiet_hours_start": 22, "quiet_hours_end": 7}}))
-        cfg = load_config(str(p))
-        assert cfg.schedule.quiet_hours_start == 22
-        assert cfg.schedule.quiet_hours_end == 7
-
-    def test_schedule_defaults_when_absent(self, tmp_path):
-        p = tmp_path / "config.yaml"
-        p.write_text(yaml.dump({"weather": {"api_key": "x"}}))
-        cfg = load_config(str(p))
-        assert cfg.schedule.quiet_hours_start == 23
-        assert cfg.schedule.quiet_hours_end == 6
+        assert cfg.schedule.quiet_hours_start == start
+        assert cfg.schedule.quiet_hours_end == end
 
     def test_cache_section_loaded(self, tmp_path):
         """load_config() parses the cache: section into CacheConfig."""
@@ -286,13 +278,6 @@ class TestLoadConfig:
         assert cfg.filters.exclude_calendars == ["Holidays"]
         assert cfg.filters.exclude_keywords == ["standup"]
         assert cfg.filters.exclude_all_day is True
-
-    def test_title_loaded_from_config(self, tmp_path):
-        """load_config() stores the top-level title field."""
-        p = tmp_path / "config.yaml"
-        p.write_text(yaml.dump({"title": "My Custom Dashboard"}))
-        cfg = load_config(str(p))
-        assert cfg.title == "My Custom Dashboard"
 
     def test_purpleair_section_parsed(self, tmp_path):
         """load_config() parses the purpleair: section into PurpleAirConfig."""
@@ -352,19 +337,18 @@ class TestLoadConfig:
 class TestLoadConfigOptionalSections:
     """Cover the optional top-level sections (photo, state_dir) in load_config."""
 
-    def test_photo_section_sets_path(self, tmp_path):
+    @pytest.mark.parametrize(
+        "photo,expected",
+        [({"path": "/home/pi/family.jpg"}, "/home/pi/family.jpg"), ({}, "")],
+        ids=["path_set", "empty_keeps_default"],
+    )
+    def test_photo_section_path(self, photo, expected, tmp_path):
+        """``photo.path`` is stored as given; a ``photo:`` key with no fields keeps
+        the PhotoConfig default of an empty path."""
         p = tmp_path / "config.yaml"
-        p.write_text(yaml.dump({"photo": {"path": "/home/pi/family.jpg"}}))
+        p.write_text(yaml.dump({"photo": photo}))
         cfg = load_config(str(p))
-        assert cfg.photo.path == "/home/pi/family.jpg"
-
-    def test_photo_section_empty_keeps_default(self, tmp_path):
-        """A ``photo:`` key with no fields preserves the PhotoConfig default."""
-        p = tmp_path / "config.yaml"
-        p.write_text(yaml.dump({"photo": {}}))
-        cfg = load_config(str(p))
-        # Default PhotoConfig.path is ""; no crash and default preserved.
-        assert cfg.photo.path == ""
+        assert cfg.photo.path == expected
 
     def test_state_dir_override(self, tmp_path):
         p = tmp_path / "config.yaml"
@@ -449,17 +433,12 @@ class TestEmptySections:
         "theme_rules",
     ]
 
+    @pytest.mark.parametrize("value", ["", " nonsense"], ids=["empty", "non_mapping"])
     @pytest.mark.parametrize("section", SECTIONS)
-    def test_empty_section_falls_back_to_defaults(self, section, tmp_path):
+    def test_unusable_section_falls_back_to_defaults(self, section, value, tmp_path):
+        """A section that is empty or not a mapping parses as all defaults."""
         p = tmp_path / "config.yaml"
-        p.write_text(f"{section}:\n")
-        cfg = load_config(str(p))
-        assert cfg == Config()
-
-    @pytest.mark.parametrize("section", SECTIONS)
-    def test_non_mapping_section_falls_back_to_defaults(self, section, tmp_path):
-        p = tmp_path / "config.yaml"
-        p.write_text(f"{section}: nonsense\n")
+        p.write_text(f"{section}:{value}\n")
         cfg = load_config(str(p))
         assert cfg == Config()
 
@@ -497,31 +476,22 @@ class TestEmptySections:
 
 
 class TestPurpleAirSensorId:
-    def test_empty_sensor_id_reads_as_unset(self, tmp_path):
+    @pytest.mark.parametrize(
+        "raw,sensor_id,invalid",
+        [
+            ("", 0, ""),
+            (" abc", 0, "'abc'"),
+            (" on", 0, "True"),
+            (" 12345", 12345, ""),
+        ],
+        ids=["empty_reads_as_unset", "non_numeric_recorded", "boolean_rejected", "valid"],
+    )
+    def test_sensor_id_parsing(self, raw, sensor_id, invalid, tmp_path):
+        """An empty sensor_id reads as unset; an unreadable one keeps 0 and records the
+        raw value instead of raising. YAML 1.1 reads ``on`` as True, and int(True) is a
+        plausible 1, so a boolean is rejected too."""
         p = tmp_path / "config.yaml"
-        p.write_text("purpleair:\n  api_key: k\n  sensor_id:\n")
+        p.write_text(f"purpleair:\n  api_key: k\n  sensor_id:{raw}\n")
         cfg = load_config(str(p))
-        assert cfg.purpleair.sensor_id == 0
-        assert cfg.purpleair.sensor_id_invalid == ""
-
-    def test_non_numeric_sensor_id_is_recorded_not_raised(self, tmp_path):
-        p = tmp_path / "config.yaml"
-        p.write_text("purpleair:\n  api_key: k\n  sensor_id: abc\n")
-        cfg = load_config(str(p))
-        assert cfg.purpleair.sensor_id == 0
-        assert cfg.purpleair.sensor_id_invalid == "'abc'"
-
-    def test_boolean_sensor_id_is_rejected(self, tmp_path):
-        """YAML 1.1 reads ``on`` as True, and int(True) is a plausible 1."""
-        p = tmp_path / "config.yaml"
-        p.write_text("purpleair:\n  api_key: k\n  sensor_id: on\n")
-        cfg = load_config(str(p))
-        assert cfg.purpleair.sensor_id == 0
-        assert cfg.purpleair.sensor_id_invalid == "True"
-
-    def test_valid_sensor_id_parses(self, tmp_path):
-        p = tmp_path / "config.yaml"
-        p.write_text("purpleair:\n  api_key: k\n  sensor_id: 12345\n")
-        cfg = load_config(str(p))
-        assert cfg.purpleair.sensor_id == 12345
-        assert cfg.purpleair.sensor_id_invalid == ""
+        assert cfg.purpleair.sensor_id == sensor_id
+        assert cfg.purpleair.sensor_id_invalid == invalid

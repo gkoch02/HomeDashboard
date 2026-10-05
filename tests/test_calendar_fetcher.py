@@ -164,44 +164,26 @@ class TestParseEvent:
 
 
 class TestFetchBirthdaysFromFile:
-    def test_loads_valid_file(self):
-        today = date.today()
-        upcoming = today + timedelta(days=5)
-        entries = [{"name": "Alice", "date": upcoming.strftime("%m-%d")}]
-
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
-            json.dump(entries, f)
-            tmp_path = f.name
-
-        cfg_google = GoogleConfig()
-        cfg_bday = BirthdayConfig(source="file", file_path=tmp_path, lookahead_days=30)
-        results = fetch_birthdays(cfg_google, cfg_bday)
-
-        assert len(results) == 1
-        assert results[0].name == "Alice"
+    @pytest.mark.parametrize(
+        ("entries", "expected_names"),
+        [
+            ([{"name": "Alice", "date": "{upcoming}"}], ["Alice"]),
+            ([{"name": "Good", "date": "{upcoming}"}, {"name": "Bad"}], ["Good"]),
+        ],
+        ids=["valid_entry", "skips_entry_missing_date"],
+    )
+    def test_loads_entries(self, entries, expected_names):
+        """Well-formed entries load; an entry without a date is skipped, not fatal."""
+        upcoming = (date.today() + timedelta(days=5)).strftime("%m-%d")
+        entries = [{k: v.format(upcoming=upcoming) for k, v in entry.items()} for entry in entries]
+        results = self._read_back(entries)
+        assert [b.name for b in results] == expected_names
 
     def test_missing_file_returns_empty(self):
         cfg_google = GoogleConfig()
         cfg_bday = BirthdayConfig(source="file", file_path="/nonexistent/path.json")
         results = fetch_birthdays(cfg_google, cfg_bday)
         assert results == []
-
-    def test_skips_malformed_entries(self):
-        today = date.today()
-        upcoming = today + timedelta(days=5)
-        entries = [
-            {"name": "Good", "date": upcoming.strftime("%m-%d")},
-            {"name": "Bad"},  # missing date key
-        ]
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
-            json.dump(entries, f)
-            tmp_path = f.name
-
-        cfg_google = GoogleConfig()
-        cfg_bday = BirthdayConfig(source="file", file_path=tmp_path, lookahead_days=30)
-        results = fetch_birthdays(cfg_google, cfg_bday)
-        assert len(results) == 1
-        assert results[0].name == "Good"
 
     def _read_back(self, document):
         """Write *document* as the birthday file and fetch from it."""
@@ -314,12 +296,12 @@ class TestParseContactBirthday:
         assert result is not None
         assert result.age == 24
 
-    def test_birthday_missing_month_returns_none(self):
-        person = {"names": [{"displayName": "Alice"}], "birthdays": [{"date": {"day": 15}}]}
-        assert _parse_contact_birthday(person, self.today, self.lookahead) is None
-
-    def test_birthday_missing_day_returns_none(self):
-        person = {"names": [{"displayName": "Alice"}], "birthdays": [{"date": {"month": 3}}]}
+    @pytest.mark.parametrize(
+        "bday_date", [{"day": 15}, {"month": 3}], ids=["missing_month", "missing_day"]
+    )
+    def test_birthday_missing_part_returns_none(self, bday_date):
+        """A contact birthday without both month and day yields no birthday."""
+        person = {"names": [{"displayName": "Alice"}], "birthdays": [{"date": bday_date}]}
         assert _parse_contact_birthday(person, self.today, self.lookahead) is None
 
     def test_year_zero_treated_as_no_year(self):
@@ -651,43 +633,28 @@ class TestFilterToWindowExtended:
         result = _filter_to_window(stored, week_start, week_end)
         assert len(result) == 1
 
-    def test_all_day_event_at_window_boundary(self):
-        """All-day event that ends exactly at window start should be excluded."""
-        week_start = datetime(2024, 3, 11, 0, 0, tzinfo=timezone.utc)
-        week_end = week_start + timedelta(days=7)
-
-        from src.data.models import CalendarEvent
-
-        # All-day event ending on the window start date is outside
-        event = CalendarEvent(
-            summary="Ends at window start",
-            start=datetime(2024, 3, 9, 0, 0),
-            end=datetime(2024, 3, 11, 0, 0),
-            is_all_day=True,
-            event_id="e1",
-        )
-        stored = [_ser_sync_event(event)]
-        result = _filter_to_window(stored, week_start, week_end)
-        assert len(result) == 0
-
-    def test_all_day_event_inside_window_is_included(self):
-        """All-day event fully inside the window should be included."""
+    @pytest.mark.parametrize(
+        ("start_day", "end_day", "expected"),
+        [(9, 11, []), (13, 15, ["All Day"])],
+        ids=["ends_at_window_start_excluded", "inside_window_included"],
+    )
+    def test_all_day_event_window_membership(self, start_day, end_day, expected):
+        """An all-day event ending exactly at the window start is outside; one inside is kept."""
         week_start = datetime(2024, 3, 11, 0, 0, tzinfo=timezone.utc)
         week_end = week_start + timedelta(days=7)
 
         from src.data.models import CalendarEvent
 
         event = CalendarEvent(
-            summary="Conference",
-            start=datetime(2024, 3, 13, 0, 0),
-            end=datetime(2024, 3, 15, 0, 0),
+            summary="All Day",
+            start=datetime(2024, 3, start_day, 0, 0),
+            end=datetime(2024, 3, end_day, 0, 0),
             is_all_day=True,
             event_id="e1",
         )
         stored = [_ser_sync_event(event)]
         result = _filter_to_window(stored, week_start, week_end)
-        assert len(result) == 1
-        assert result[0].summary == "Conference"
+        assert [e.summary for e in result] == expected
 
 
 # ---------------------------------------------------------------------------
@@ -843,29 +810,37 @@ class TestBirthdaysFromFileCorrupt:
 
 
 class TestBirthdaysFromCalendar:
+    @pytest.mark.parametrize(
+        ("summary", "timed", "expected_names"),
+        [
+            ("Alice's Birthday", False, ["Alice"]),
+            ("Team Lunch", False, []),
+            ("Alice Birthday Party", True, []),
+        ],
+        ids=["keyword_match", "keyword_mismatch_skipped", "timed_event_skipped"],
+    )
     @patch("src.fetchers.calendar._build_service")
-    def test_returns_matching_birthday_events(self, mock_build):
-        today = date.today()
-        upcoming = today + timedelta(days=5)
+    def test_keyword_and_all_day_filtering(self, mock_build, summary, timed, expected_names):
+        """Only all-day events whose summary contains the keyword become birthdays."""
+        upcoming = date.today() + timedelta(days=5)
+        if timed:
+            start = {"dateTime": upcoming.isoformat() + "T09:00:00"}
+            end = {"dateTime": upcoming.isoformat() + "T10:00:00"}
+        else:
+            start = {"date": upcoming.isoformat()}
+            end = {"date": (upcoming + timedelta(days=1)).isoformat()}
 
         mock_service = MagicMock()
         mock_build.return_value = mock_service
         mock_service.events().list().execute.return_value = {
-            "items": [
-                {
-                    "summary": "Alice's Birthday",
-                    "start": {"date": upcoming.isoformat()},
-                    "end": {"date": (upcoming + timedelta(days=1)).isoformat()},
-                }
-            ]
+            "items": [{"summary": summary, "start": start, "end": end}]
         }
 
         cfg_google = GoogleConfig()
         cfg_bday = BirthdayConfig(source="calendar", calendar_keyword="Birthday", lookahead_days=30)
         results = fetch_birthdays(cfg_google, cfg_bday)
 
-        assert len(results) == 1
-        assert results[0].name == "Alice"
+        assert [b.name for b in results] == expected_names
 
     @patch("src.fetchers.calendar._build_service")
     def test_api_failure_propagates(self, mock_build):
@@ -880,53 +855,6 @@ class TestBirthdaysFromCalendar:
         cfg_bday = BirthdayConfig(source="calendar", lookahead_days=30)
         with pytest.raises(Exception, match="API down"):
             fetch_birthdays(cfg_google, cfg_bday)
-
-    @patch("src.fetchers.calendar._build_service")
-    def test_skips_non_matching_events(self, mock_build):
-        """Events not matching the keyword are skipped (continue branch)."""
-        today = date.today()
-        upcoming = today + timedelta(days=5)
-
-        mock_service = MagicMock()
-        mock_build.return_value = mock_service
-        mock_service.events().list().execute.return_value = {
-            "items": [
-                {
-                    "summary": "Team Lunch",  # does NOT contain "Birthday"
-                    "start": {"date": upcoming.isoformat()},
-                    "end": {"date": (upcoming + timedelta(days=1)).isoformat()},
-                }
-            ]
-        }
-
-        cfg_google = GoogleConfig()
-        cfg_bday = BirthdayConfig(source="calendar", calendar_keyword="Birthday", lookahead_days=30)
-        results = fetch_birthdays(cfg_google, cfg_bday)
-        assert results == []
-
-    @patch("src.fetchers.calendar._build_service")
-    def test_skips_events_without_date(self, mock_build):
-        """Events matching keyword but without a date field are ignored."""
-        today = date.today()
-        upcoming = today + timedelta(days=5)
-
-        mock_service = MagicMock()
-        mock_build.return_value = mock_service
-        mock_service.events().list().execute.return_value = {
-            "items": [
-                {
-                    # keyword matches but start is a dateTime, not a date
-                    "summary": "Alice Birthday Party",
-                    "start": {"dateTime": upcoming.isoformat() + "T09:00:00"},
-                    "end": {"dateTime": upcoming.isoformat() + "T10:00:00"},
-                }
-            ]
-        }
-
-        cfg_google = GoogleConfig()
-        cfg_bday = BirthdayConfig(source="calendar", calendar_keyword="Birthday", lookahead_days=30)
-        results = fetch_birthdays(cfg_google, cfg_bday)
-        assert results == []
 
 
 # ---------------------------------------------------------------------------
@@ -1226,13 +1154,23 @@ class TestICalFetcher:
         assert len(events) == 1
         assert events[0].summary == "Monthly Window Event"
 
-    # --- X-WR-CALNAME used as calendar_name ---
-
+    @pytest.mark.parametrize(
+        ("cal_name", "url", "expected"),
+        [
+            ("My Personal Calendar", "https://example.com/cal.ics", "My Personal Calendar"),
+            (
+                None,
+                "https://calendar.google.com/calendar/ical/abc/basic.ics",
+                "calendar.google.com",
+            ),
+        ],
+        ids=["x_wr_calname", "hostname_fallback"],
+    )
     @patch("src.fetchers.calendar_ical.requests.get")
-    def test_cal_name_from_xwrcalname(self, mock_get):
+    def test_calendar_name(self, mock_get, cal_name, url, expected):
+        """The calendar name is X-WR-CALNAME, else the feed URL's hostname."""
         tz = zoneinfo.ZoneInfo("America/New_York")
-        monday = self._this_monday(tz)
-        thursday = monday + timedelta(days=3)
+        thursday = self._this_monday(tz) + timedelta(days=3)
 
         dtstart = datetime.combine(thursday, datetime.min.time().replace(hour=14)).replace(
             tzinfo=tz
@@ -1241,48 +1179,19 @@ class TestICalFetcher:
         dtstart_str = dtstart.astimezone(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
         dtend_str = dtend.astimezone(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 
-        ics = _make_ics(
-            _timed_vevent("uid4", "Planning", dtstart_str, dtend_str),
-            cal_name="My Personal Calendar",
-        )
+        vevent = _timed_vevent("uid4", "Planning", dtstart_str, dtend_str)
+        if cal_name is None:
+            ics = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\n" + vevent + "END:VCALENDAR\r\n"
+        else:
+            ics = _make_ics(vevent, cal_name=cal_name)
         mock_get.return_value = self._make_response(ics)
 
-        cfg = GoogleConfig(ical_url="https://example.com/cal.ics")
         from src.fetchers.calendar import fetch_events
 
-        events = fetch_events(cfg, tz=tz)
+        events = fetch_events(GoogleConfig(ical_url=url), tz=tz)
 
         assert len(events) == 1
-        assert events[0].calendar_name == "My Personal Calendar"
-
-    # --- Hostname fallback when no X-WR-CALNAME ---
-
-    @patch("src.fetchers.calendar_ical.requests.get")
-    def test_cal_name_hostname_fallback(self, mock_get):
-        tz = zoneinfo.ZoneInfo("America/New_York")
-        monday = self._this_monday(tz)
-        friday = monday + timedelta(days=4)
-
-        dtstart = datetime.combine(friday, datetime.min.time().replace(hour=11)).replace(tzinfo=tz)
-        dtend = dtstart + timedelta(hours=1)
-        dtstart_str = dtstart.astimezone(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-        dtend_str = dtend.astimezone(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-
-        ics = (
-            "BEGIN:VCALENDAR\r\n"
-            "VERSION:2.0\r\n"
-            + _timed_vevent("uid5", "Meeting", dtstart_str, dtend_str)
-            + "END:VCALENDAR\r\n"
-        )
-        mock_get.return_value = self._make_response(ics)
-
-        cfg = GoogleConfig(ical_url="https://calendar.google.com/calendar/ical/abc/basic.ics")
-        from src.fetchers.calendar import fetch_events
-
-        events = fetch_events(cfg, tz=tz)
-
-        assert len(events) == 1
-        assert events[0].calendar_name == "calendar.google.com"
+        assert events[0].calendar_name == expected
 
     # --- Multiple URLs merged and sorted ---
 
