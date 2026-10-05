@@ -33,7 +33,7 @@ from src.fetchers.registry import FetchContext, all_fetchers, get_fetcher
 logger = logging.getLogger(__name__)
 
 # Upper bound on the whole resolve phase of one fetch(), shared by every source.
-FETCH_DEADLINE_SECONDS = 120
+FETCH_DEADLINE_SECONDS = 120.0
 
 
 def _merge_air_quality_with_weather_fallback(
