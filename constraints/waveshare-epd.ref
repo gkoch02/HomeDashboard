@@ -1,4 +1,4 @@
 # Tested waveshare/e-Paper commit, installed by `make install-display-drivers`.
 # Refresh with `scripts/lock_deps.py --waveshare <ref>` (docs/setup.md).
-# Verified: pending -- run the hardware checklist in docs/setup.md
+# Verified: 2026-10-05 Pi Zero 2 W, Pi OS Trixie 64-bit: library and epd10in85g demo driver installed, live four-ink full refresh inspected on the panel (#352).
 a794fbc39656b0f93938d1ffb3fdc77eaed9e9fc

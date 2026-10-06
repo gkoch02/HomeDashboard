@@ -15,6 +15,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   `make pi-install` installs through them (`LOCKED=0` opts out); `make lock`
   refreshes them, and a `locked-install` CI job installs them on arm64. See
   `docs/setup.md`, "Reproducible installs".
+  The Trixie snapshot and the Waveshare commit are verified on hardware
+  (Pi Zero 2 W, 10.85" G and Inky); the Bookworm snapshot is still pending.
 
 ### Changed
 

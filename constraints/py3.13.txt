@@ -1,7 +1,7 @@
 # Tested dependency snapshot: Raspberry Pi OS Trixie, Python 3.13, 64-bit (aarch64).
 # Resolved by scripts/lock_deps.py from requirements.txt, requirements-web.txt, requirements-pi.txt.
 # Installed by `make pi-install`; refresh procedure in docs/setup.md.
-# Verified: pending -- run the hardware checklist in docs/setup.md
+# Verified: 2026-10-05 two Pi Zero 2 W, Pi OS Trixie 64-bit, Python 3.13.5: pi-install, check, dry, live full refresh on epd10in85g and Inky impression_7_3_2025 (#352). Web extras not reinstalled.
 blinker==1.9.0
 caldav==3.3.1
 certifi==2026.7.22
