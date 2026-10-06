@@ -41,17 +41,20 @@ install-waveshare-driver: _check-venv
 # Installs $(REQS) through the tested snapshot for the venv's Python on 64-bit
 # Pi OS (docs/setup.md, "Reproducible installs"). LOCKED=0, another
 # architecture or a Python with no snapshot installs the newest allowed versions.
+# The interpreter's pointer size decides 64-bit: 32-bit Pi OS on a Pi 4 or 5
+# boots a 64-bit kernel, so `uname -m` alone says aarch64 there.
 _pip-locked: _check-venv
 	@PYV="$$($(VENV) -c 'import sys; print("%d.%d" % sys.version_info[:2])')"; \
+	BITS="$$($(VENV) -c 'import struct; print(struct.calcsize("P") * 8)')"; \
 	LOCK="constraints/py$$PYV.txt"; \
 	if [ "$(LOCKED)" != "1" ]; then \
 		echo "  LOCKED=$(LOCKED): installing the newest allowed versions"; \
 		venv/bin/pip install $(REQS); \
-	elif [ "$$(uname -m)" = "aarch64" ] && [ -f "$$LOCK" ]; then \
+	elif [ "$$(uname -m)" = "aarch64" ] && [ "$$BITS" = 64 ] && [ -f "$$LOCK" ]; then \
 		echo "  Installing the tested snapshot $$LOCK"; \
 		venv/bin/pip install -c "$$LOCK" $(REQS); \
 	else \
-		echo "  WARNING: no tested snapshot for Python $$PYV on $$(uname -m);"; \
+		echo "  WARNING: no tested snapshot for $$BITS-bit Python $$PYV on $$(uname -m);"; \
 		echo "  installing the newest allowed versions"; \
 		venv/bin/pip install $(REQS); \
 	fi
@@ -267,8 +270,8 @@ setup:
 	venv/bin/pip install -r requirements.txt
 	@if [ -f /proc/device-tree/model ] && grep -q "Raspberry Pi" /proc/device-tree/model 2>/dev/null; then \
 		echo "Raspberry Pi detected — installing Pi-specific dependencies..."; \
-		$(MAKE) _pip-locked REQS="-r requirements.txt -r requirements-pi.txt"; \
-		$(MAKE) install-display-drivers; \
+		$(MAKE) _pip-locked REQS="-r requirements.txt -r requirements-pi.txt" && \
+		$(MAKE) install-display-drivers || exit 1; \
 	fi
 	@mkdir -p credentials output state
 	@if [ ! -f config/config.yaml ]; then \

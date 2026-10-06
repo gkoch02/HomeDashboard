@@ -144,3 +144,16 @@ def test_waveshare_sha_is_recorded_as_given(isolated):
     sha = "a" * 40
     assert lock_deps.write_waveshare(sha) == sha
     assert (tmp_path / "waveshare-epd.ref").read_text().splitlines()[-1] == sha
+
+
+def test_waveshare_verification_survives_only_an_unchanged_commit(isolated):
+    tmp_path, _resolved = isolated
+    path = tmp_path / "waveshare-epd.ref"
+    lock_deps.write_waveshare("a" * 40)
+    verified = "# Verified: 2026-10-06 Pi Zero 2 W, epd10in85g refresh OK"
+    path.write_text(path.read_text().replace(lock_deps.PENDING, verified))
+
+    lock_deps.write_waveshare("a" * 40)
+    assert verified in path.read_text()
+    lock_deps.write_waveshare("b" * 40)
+    assert lock_deps.PENDING in path.read_text()

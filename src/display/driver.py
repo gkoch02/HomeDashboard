@@ -16,7 +16,8 @@ logger = logging.getLogger(__name__)
 # Maps model name → (waveshare_epd module path, native width px, native height px).
 # Every entry must name a module that exists in waveshare/e-Paper's
 # ``RaspberryPi_JetsonNano/python/lib/waveshare_epd`` (``epd10in85g`` is
-# added from the panel's demo code; see below), and its dimensions must be the driver's own ``EPD_WIDTH`` /
+# added from the panel's demo code; see below), and its dimensions must be
+# the driver's own ``EPD_WIDTH`` /
 # ``EPD_HEIGHT``: a driver's ``getbuffer()`` compares the image against those
 # constants and returns a blank buffer on a mismatch, so a wrong size here is a
 # white panel with no error. Check the vendor repo before adding a model:

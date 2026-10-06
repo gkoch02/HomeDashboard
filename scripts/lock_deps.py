@@ -125,11 +125,16 @@ def resolve_waveshare(ref: str) -> str:
 
 
 def write_waveshare(ref: str) -> str:
+    """Record the commit *ref* names; an unchanged commit keeps its Verified line."""
     sha = resolve_waveshare(ref)
+    old = WAVESHARE_REF_FILE.read_text() if WAVESHARE_REF_FILE.exists() else ""
+    match = VERIFIED_RE.search(old)
+    unchanged = sha in old.splitlines() and match is not None
+    verified = match.group(0) if unchanged else PENDING
     WAVESHARE_REF_FILE.write_text(
         "# Tested waveshare/e-Paper commit, installed by `make install-display-drivers`.\n"
         "# Refresh with `scripts/lock_deps.py --waveshare <ref>` (docs/setup.md).\n"
-        f"{PENDING}\n"
+        f"{verified}\n"
         f"{sha}\n"
     )
     return sha

@@ -523,11 +523,12 @@ resolve different libraries. `constraints/` records one tested resolution:
 Each file's `# Verified:` line says what it was checked against. The Python
 snapshots pin every transitive dependency of `requirements.txt`,
 `requirements-pi.txt` and `requirements-web.txt`, resolved for aarch64 at that
-Python version. All of them install from wheels except `RPi.GPIO`, `spidev` and
-`lgpio`, which build from source against the Step 2 packages.
+Python version. All of them install from wheels except `RPi.GPIO` and `spidev`
+(and `lgpio` on Trixie), which build from source against the Step 2 packages.
 
 `make pi-install` (and `make setup` on a Pi) installs through the snapshot that
-matches the venv's Python. On 32-bit Pi OS or a Python with no snapshot it warns
+matches the venv's Python. On 32-bit Pi OS (even under a 64-bit kernel) or a
+Python with no snapshot it warns
 and installs the newest allowed versions, as does `make pi-install LOCKED=0`.
 The 32-bit images are not covered because their wheels come from piwheels, which
 the snapshot was not checked against. The web UI's packages are pinned too:
