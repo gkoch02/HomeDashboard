@@ -116,11 +116,16 @@ def test_pi_deps_repins_the_web_ui_when_it_is_installed():
     with_web, without_web = deps.split("else", 1)
     assert "import flask" in with_web and "-r requirements-web.txt" in with_web
     assert '_pip-locked REQS="-r requirements.txt -r requirements-pi.txt"' in without_web
+    # A running web service would keep the replaced modules loaded.
+    assert "sudo systemctl restart dashboard-web.service" in with_web
 
 
 def test_web_enable_installs_the_web_ui_through_the_snapshot():
     block = _recipe((ROOT / "Makefile").read_text(), "web-enable")
     assert '$(MAKE) _pip-locked REQS="-r requirements-web.txt"' in block
+    # `enable --now` leaves an already-running service on the old packages.
+    assert "sudo systemctl restart dashboard-web.service" in block
+    assert "enable --now" not in block
 
 
 @pytest.fixture

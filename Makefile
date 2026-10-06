@@ -60,12 +60,18 @@ _pip-locked: _check-venv
 	fi
 
 # The core and Pi requirements, plus the web UI's when it is already in the venv,
-# so a reinstall brings every package the Pi runs back to the snapshot.
+# so a reinstall brings every package the Pi runs back to the snapshot. A running
+# web service is restarted so it does not keep serving the replaced versions.
 _pi-deps: _check-venv
 	@if $(VENV) -c "import flask" 2>/dev/null; then \
 		echo "  Web UI packages found; installing them through the snapshot too"; \
 		$(MAKE) _pip-locked \
-		    REQS="-r requirements.txt -r requirements-pi.txt -r requirements-web.txt"; \
+		    REQS="-r requirements.txt -r requirements-pi.txt -r requirements-web.txt" \
+		    || exit 1; \
+		if systemctl is-active --quiet dashboard-web.service 2>/dev/null; then \
+			echo "  Restarting dashboard-web.service on the re-pinned packages"; \
+			sudo systemctl restart dashboard-web.service; \
+		fi; \
 	else \
 		$(MAKE) _pip-locked REQS="-r requirements.txt -r requirements-pi.txt"; \
 	fi
@@ -262,7 +268,9 @@ web-enable:
 	sed -e "s|__INSTALL_DIR__|$$INSTALL_DIR|g" \
 	    deploy/dashboard-trigger.path | sudo tee /etc/systemd/system/dashboard-trigger.path > /dev/null; \
 	sudo systemctl daemon-reload; \
-	sudo systemctl enable --now dashboard-web.service dashboard-trigger.path
+	sudo systemctl enable dashboard-web.service dashboard-trigger.path; \
+	sudo systemctl restart dashboard-web.service; \
+	sudo systemctl start dashboard-trigger.path
 	@echo ""
 	@$(MAKE) web-status
 
