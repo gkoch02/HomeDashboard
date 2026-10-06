@@ -432,9 +432,13 @@ final image snapped to its four inks. It has no partial refresh, so
 `enable_partial_refresh` is ignored, and a full refresh takes about twenty seconds.
 The panoramic `wide_week`, `wide_day`, `wide_forecast`, `wide_horizon`,
 `wide_night`, `wide_night_invert`, `wide_diags` and `halftone_agenda_wide` themes draw at its native size; every other theme reaches it per [`display.scaling`](#scaling). The driver
-module is `waveshare_epd.epd10in85g`, installed with the rest of the Waveshare
-library by `make install-display-drivers` (or from the demo code on the panel's wiki
-page if the library you have predates the model).
+module is `waveshare_epd.epd10in85g`. Waveshare ships it as demo code rather than in
+the library, so `make install-display-drivers` copies it from the same pinned commit
+into `waveshare_epd`, beside its own `epdconfig_10in85g` and the prebuilt
+`DEV_Config` objects it drives the panel's two chip selects through. On a Pi 5 that
+object needs `libwiringPi.so`, which Raspberry Pi OS does not ship; install
+[WiringPi](https://github.com/WiringPi/WiringPi/releases) first. Earlier Pis need
+nothing extra.
 
 ---
 

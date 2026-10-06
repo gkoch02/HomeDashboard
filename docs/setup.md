@@ -345,8 +345,12 @@ sudo apt-get install -y python3-dev python3-venv libopenjp2-7 $TIFF_PKG git swig
 
 ```bash
 python3 -m venv venv
-venv/bin/pip install -r requirements.txt -r requirements-pi.txt
+venv/bin/pip install -c constraints/py3.11.txt -r requirements.txt -r requirements-pi.txt
 ```
+
+Use the snapshot for your Python (`python3 --version`: 3.11 on Bookworm, 3.13 on
+Trixie), or drop `-c ...` for the newest allowed versions. See
+[Reproducible installs](#reproducible-installs).
 
 ### Step 4 -- Display drivers
 
@@ -355,16 +359,29 @@ Install the package that matches your `display.provider`:
 #### Waveshare
 
 ```bash
-git clone --depth=1 https://github.com/waveshare/e-Paper /tmp/waveshare-epd
-venv/bin/pip install /tmp/waveshare-epd/RaspberryPi_JetsonNano/python/
+make install-waveshare-driver
+```
+
+That installs the library at the commit recorded in `constraints/waveshare-epd.ref`,
+plus the 10.85" (G) driver from the same commit's demo code
+(`scripts/install_epd10in85g.py`; see
+[Configuration](configuration.md#display-providers-and-models) for the Pi 5 caveat). By hand, for
+the library alone:
+
+```bash
+REF=$(grep -E '^[0-9a-f]{40}$' constraints/waveshare-epd.ref)
+git init -q /tmp/waveshare-epd
+git -C /tmp/waveshare-epd remote add origin https://github.com/waveshare/e-Paper
+git -C /tmp/waveshare-epd sparse-checkout set RaspberryPi_JetsonNano/python
+git -C /tmp/waveshare-epd fetch --depth=1 --filter=blob:none origin "$REF"
+git -C /tmp/waveshare-epd checkout -q FETCH_HEAD
+venv/bin/pip install --no-deps /tmp/waveshare-epd/RaspberryPi_JetsonNano/python/
 venv/bin/python -c "import waveshare_epd; print('OK')"
 ```
 
 #### Pimoroni Inky Impression
 
-```bash
-venv/bin/pip install inky
-```
+`inky` is in `requirements-pi.txt`, so Step 3 already installed it.
 
 On Raspberry Pi OS Bookworm (and later), the kernel SPI driver claims the chip-select
 pin (GPIO8) which conflicts with the Inky library's lgpio usage.  Release it with:
@@ -491,6 +508,55 @@ and the config backups, `credentials/`, the virtualenv, `state/` (cache, breaker
 sync tokens) and `output/` (renders, logs, health markers). Everything else in
 the checkout is mirrored, so a customised `config/quotes.json` needs
 `QUOTES_FILE=config/quotes.json` or a `quotes.path` outside the tree.
+
+### Reproducible installs
+
+`requirements*.txt` give minimum versions, so two installs of the same commit can
+resolve different libraries. `constraints/` records one tested resolution:
+
+| File | Covers |
+|---|---|
+| `constraints/py3.11.txt` | Raspberry Pi OS Bookworm, 64-bit |
+| `constraints/py3.13.txt` | Raspberry Pi OS Trixie, 64-bit |
+| `constraints/waveshare-epd.ref` | the `waveshare/e-Paper` commit `make install-waveshare-driver` installs |
+
+Each file's `# Verified:` line says what it was checked against. The Python
+snapshots pin every transitive dependency of `requirements.txt`,
+`requirements-pi.txt` and `requirements-web.txt`, resolved for aarch64 at that
+Python version. All of them install from wheels except `RPi.GPIO` and `spidev`
+(and `lgpio` on Trixie), which build from source against the Step 2 packages.
+
+`make pi-install` (and `make setup` on a Pi) installs through the snapshot that
+matches the venv's Python. On 32-bit Pi OS (even under a 64-bit kernel) or a
+Python with no snapshot it warns
+and installs the newest allowed versions, as does `make pi-install LOCKED=0`.
+The 32-bit images are not covered because their wheels come from piwheels, which
+the snapshot was not checked against. The web UI's packages are pinned too:
+
+```bash
+venv/bin/pip install -c constraints/py3.11.txt -r requirements-web.txt
+```
+
+The Waveshare commit is used on every architecture. To try another one without
+recording it: `make install-waveshare-driver WAVESHARE_EPD_REF=<sha-or-branch>`.
+
+#### Refreshing the snapshot
+
+1. On a development machine with [uv](https://docs.astral.sh/uv/) installed, run
+   `make lock` (re-resolves `constraints/py*.txt`) and/or
+   `python3 scripts/lock_deps.py --waveshare master` (or a specific commit).
+   A file whose pins changed gets `# Verified: pending`.
+2. Push the branch, and let CI's `locked-install` job install the snapshot on
+   arm64, run the test suite and a dummy render, and check the driver commit
+   for every Waveshare model module, including a real import of the 10.85" (G)
+   driver.
+3. On a Pi, from a fresh clone of that branch:
+   `make pi-install`, `make check`, `make dry`, the import of your panel's
+   module (`venv/bin/python -c "import waveshare_epd.epd7in5_V2"`, or
+   `import inky` for Inky), and one live run
+   (`venv/bin/python -m src.main --force-full-refresh`).
+4. Replace `pending` on each file's `# Verified:` line with the date, Pi
+   model, OS and panel, and note the refresh in `CHANGELOG.md`.
 
 ---
 

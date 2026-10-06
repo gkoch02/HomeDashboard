@@ -149,6 +149,89 @@ jobs:
           PY
       - run: python -m pytest tests/ --ignore-glob='tests/test_web_*.py' --tb=short --no-cov
 
+  locked-install:
+    needs: changes
+    if: needs.changes.outputs.docs_only != 'true'
+    # Installs the tested dependency snapshot (constraints/py<X.Y>.txt) through
+    # the same Makefile targets `make pi-install` uses, on aarch64 so the pinned
+    # wheels are the ones a 64-bit Pi gets. The GPIO packages from
+    # requirements-pi.txt need Pi headers and hardware, so they stay out; the
+    # Waveshare driver (and the 10.85" G demo driver) is installed at its pinned
+    # commit and checked for every model module the dashboard names.
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.13"]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: python -m venv venv
+      - run: make _pip-locked REQS="-r requirements.txt -r requirements-web.txt"
+      - name: Every installed package is the pinned version
+        run: |
+          venv/bin/python - <<'PY'
+          import sys
+          from importlib.metadata import distributions
+          from pathlib import Path
+
+          lock = Path(f"constraints/py{sys.version_info[0]}.{sys.version_info[1]}.txt")
+          pins = dict(
+              line.split("==", 1)
+              for line in lock.read_text().splitlines()
+              if line and not line.startswith("#")
+          )
+          wrong = []
+          for dist in distributions():
+              name = dist.metadata["Name"].lower().replace("_", "-").replace(".", "-")
+              if name in {"pip", "setuptools"}:  # the venv's own bootstrap
+                  continue
+              if pins.get(name) != dist.version:
+                  wrong.append(f"{name} {dist.version} (pinned: {pins.get(name)})")
+          assert not wrong, wrong
+          print(f"{lock}: every installed package matches")
+          PY
+      - run: venv/bin/pip install --no-deps -e . && venv/bin/pip install pytest pytest-cov
+      - run: venv/bin/python -m pytest tests/ --tb=short --no-cov -q
+      - run: venv/bin/python -m src.main --config config/config.example.yaml --dry-run --dummy
+      - run: make install-waveshare-driver
+      - name: Pinned driver carries every Waveshare model module
+        working-directory: /tmp
+        run: |
+          "$GITHUB_WORKSPACE/venv/bin/python" - <<'PY'
+          import importlib
+          import os
+          import sys
+          from pathlib import Path
+
+          import waveshare_epd
+
+          sys.path.insert(0, os.environ["GITHUB_WORKSPACE"])
+          from src.display.driver import WAVESHARE_MODELS
+
+          lib = Path(waveshare_epd.__file__).parent
+          missing = [
+              module
+              for module, _w, _h in WAVESHARE_MODELS.values()
+              if not (lib / f"{module.rsplit('.', 1)[1]}.py").is_file()
+          ]
+          assert not missing, missing
+
+          # The G driver's config loads its DEV_Config .so at import, which an
+          # arm64 host can do without the panel, so drive the real import and
+          # pack one full frame.
+          from PIL import Image
+
+          g = importlib.import_module("waveshare_epd.epd10in85g")
+          epd = g.EPD()
+          buf = epd.getbuffer(Image.new("RGB", (1360, 480), (255, 255, 0)))
+          assert len(buf) == 1360 // 4 * 480 and set(buf) == {0xAA}, len(buf)
+          print("waveshare_epd has", sorted(WAVESHARE_MODELS))
+          PY
+
   snapshot-tests:
     needs: changes
     if: needs.changes.outputs.docs_only != 'true'

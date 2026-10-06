@@ -28,6 +28,8 @@ make version        # Print current version (e.g. main.py 6.0.0)
 make release-dry    # Show the next release (inferred from the CHANGELOG) — writes nothing
 make release        # Bump src/_version.py, date the CHANGELOG, commit, tag vX.Y.Z
                     #   (scripts/release.py; RELEASE_ARGS="--major" forces a bump size)
+make lock           # Re-resolve the Pi dependency snapshot constraints/py*.txt (needs uv;
+                    #   scripts/lock_deps.py --waveshare REF pins the vendor driver)
 make deploy         # Rsync to Pi (configurable: PI_USER, PI_HOST, PI_DIR)
 make install        # Install systemd timer on remote Pi (via ssh/scp)
 make pi-install     # Full Pi setup: apt deps, venv, Inky + Waveshare drivers (run ON Pi)
@@ -252,6 +254,7 @@ art themes, in the panel's module docstring. Keep new entries to that shape.
 ### Version and release
 
 - The version has one home, `src/_version.py`. `pyproject.toml` reads it via `dynamic = ["version"]`; never restate a literal there. `tests/test_version_consistency.py` also requires the newest CHANGELOG entry to match `__version__`.
+- Reproducible Pi installs: `constraints/py3.11.txt` / `py3.13.txt` pin every dependency for 64-bit Pi OS, and `constraints/waveshare-epd.ref` the vendor driver commit. `make pi-install` installs through them via `_pip-locked`. Regenerate with `make lock`, never by hand; a changed file resets its `# Verified:` line to pending until the hardware checklist in `docs/setup.md` is run. `tests/test_dependency_snapshot.py` holds each pin inside its `requirements*.txt` range.
 - `make release` (`scripts/release.py`) bumps, dates the `## [Unreleased]` block, commits and tags in one step, rolling back on failure. Bump size is inferred from the Unreleased headings (Added/Changed/Deprecated/Removed → minor; Fixed/Security only → patch). Major is never inferred: `RELEASE_ARGS="--major"`.
 
 ### State files
@@ -274,7 +277,7 @@ art themes, in the panel's module docstring. Keep new entries to that shape.
 ### Display and refresh
 
 - Partial refresh is a per-model fact: `WAVESHARE_FAST_INIT` in `src/display/driver.py` names the fast init for the models that have one; the others drop `enable_partial` with a warning. `enable_partial_refresh` defaults to `False`. The fast waveform does not drive black as deeply as `init()`, which is the source of "blacks look grey" reports. The tri-colour `epd7in5b_V2` sends an all-zero red plane because the vendor `getbuffer()` XORs with 0xFF.
-- Every Waveshare model entry must name a real `waveshare_epd` module and carry that driver's `EPD_WIDTH` / `EPD_HEIGHT`; `getbuffer()` returns a blank buffer on a size mismatch with no error. Check the vendor repo before adding one. Supported: `epd7in5`, `epd7in5_V2` (default), `epd7in5b_V2`, `epd7in5_HD`, `epd13in3k`, `epd10in85g`; `inky` → `impression_7_3_2025`.
+- Every Waveshare model entry must name a real `waveshare_epd` module and carry that driver's `EPD_WIDTH` / `EPD_HEIGHT`; `getbuffer()` returns a blank buffer on a size mismatch with no error. Check the vendor repo before adding one. `epd10in85g` is vendor demo code, copied in by `scripts/install_epd10in85g.py`. Supported: `epd7in5`, `epd7in5_V2` (default), `epd7in5b_V2`, `epd7in5_HD`, `epd13in3k`, `epd10in85g`; `inky` → `impression_7_3_2025`.
 - `Theme.allows_partial_refresh` is derived from the plate by `plate_needs_full_waveform()`: a plate declines when it dithers (`preferred_quantization_mode` of `floyd_steinberg` / `ordered`, or a dithered `background_fn`) or when `bg` is ink. `canvas_mode == "L"` is not the criterion. `ThemeLayout.supports_partial_refresh` defaults to `None` (derive) and exists only to overrule; `tests/test_theme_partial_refresh.py` lists the overrides in `OVERRIDES` and rejects a declaration that merely agrees with the derivation. The derivation can only remove partial refresh, never add it, and never reads `display.quantization_mode`.
 - Refresh suppression (see Architecture Patterns): the hash is checked before the cooldown. `output/latest.png` is the current render, not a mirror of the panel: it is written after a hardware write and on the cooldown-deferred path, and a deferred run does not persist the image hash, so the next eligible run paints the pending change. Inky has no partial refresh; `display.min_refresh_interval_seconds: 3600` gives once-an-hour behaviour.
 - `ThemeLayout.repaint_slot_hours` adds a per-theme write limit: a changed image is deferred when the same theme already wrote in the current clock-aligned slot (`in_same_repaint_slot`). The state file records `theme`, so rotating to a theme mid-slot paints at once. `wide_horizon` and `wide_night` set 1.

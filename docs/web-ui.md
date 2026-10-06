@@ -42,8 +42,12 @@ The web server is a **separate process** from the dashboard renderer. It reads r
 On the Pi (inside the project directory):
 
 ```bash
-venv/bin/pip install -r requirements-web.txt
+venv/bin/pip install -c constraints/py3.11.txt -r requirements-web.txt
 ```
+
+Use the snapshot for your Python (3.11 on Bookworm, 3.13 on Trixie), or drop
+`-c ...` for the newest allowed versions; see
+[Reproducible installs](setup.md#reproducible-installs).
 
 Or equivalently:
 

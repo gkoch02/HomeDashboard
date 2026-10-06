@@ -15,8 +15,9 @@ logger = logging.getLogger(__name__)
 # Registry of supported Waveshare eInk display models.
 # Maps model name → (waveshare_epd module path, native width px, native height px).
 # Every entry must name a module that exists in waveshare/e-Paper's
-# ``RaspberryPi_JetsonNano/python/lib/waveshare_epd`` (except ``epd10in85g``,
-# see below), and its dimensions must be the driver's own ``EPD_WIDTH`` /
+# ``RaspberryPi_JetsonNano/python/lib/waveshare_epd`` (``epd10in85g`` is
+# added from the panel's demo code; see below), and its dimensions must be
+# the driver's own ``EPD_WIDTH`` /
 # ``EPD_HEIGHT``: a driver's ``getbuffer()`` compares the image against those
 # constants and returns a blank buffer on a mismatch, so a wrong size here is a
 # white panel with no error. Check the vendor repo before adding a model:
@@ -28,10 +29,9 @@ WAVESHARE_MODELS: dict[str, tuple[str, int, int]] = {
     "epd7in5b_V2": ("waveshare_epd.epd7in5b_V2", 800, 480),
     "epd7in5_HD": ("waveshare_epd.epd7in5_HD", 880, 528),
     "epd13in3k": ("waveshare_epd.epd13in3k", 960, 680),
-    # 10.85" e-Paper (G): a 1360x480 panoramic strip with four inks. Module
-    # name follows Waveshare's convention for the "G" family (epd7in3g,
-    # epd4in37g): the demo code that ships with the panel installs it as
-    # ``waveshare_epd.epd10in85g``.
+    # 10.85" e-Paper (G): a 1360x480 panoramic strip with four inks. Its driver
+    # lives only in the vendor's demo code, which `scripts/install_epd10in85g.py`
+    # copies into ``waveshare_epd`` with its own ``epdconfig_10in85g``.
     "epd10in85g": ("waveshare_epd.epd10in85g", 1360, 480),
 }
 
@@ -306,6 +306,13 @@ class WaveshareDisplay(DisplayDriver):
         else:
             epd.display(black)
 
+    @staticmethod
+    def _full_init(epd):
+        """Return the driver's full-waveform init: ``init``, or ``Init`` as the
+        10.85" G demo driver spells it."""
+        init = getattr(epd, "init", None)
+        return init if callable(init) else epd.Init
+
     def _fast_init(self, epd):
         """Return the driver's fast full-frame init, or ``None`` if it has none.
 
@@ -365,7 +372,7 @@ class WaveshareDisplay(DisplayDriver):
                 or fast_init is None
                 or tracker.needs_full_refresh()
             ):
-                epd.init()
+                self._full_init(epd)()
                 self._write_frame(epd, image)
                 tracker.record_full()
             else:
@@ -388,7 +395,7 @@ class WaveshareDisplay(DisplayDriver):
 
     def clear(self) -> None:
         epd = self._get_epd()
-        epd.init()
+        self._full_init(epd)()
         epd.Clear()
         epd.sleep()
 
