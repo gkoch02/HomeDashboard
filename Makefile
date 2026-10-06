@@ -59,6 +59,17 @@ _pip-locked: _check-venv
 		venv/bin/pip install $(REQS); \
 	fi
 
+# The core and Pi requirements, plus the web UI's when it is already in the venv,
+# so a reinstall brings every package the Pi runs back to the snapshot.
+_pi-deps: _check-venv
+	@if $(VENV) -c "import flask" 2>/dev/null; then \
+		echo "  Web UI packages found; installing them through the snapshot too"; \
+		$(MAKE) _pip-locked \
+		    REQS="-r requirements.txt -r requirements-pi.txt -r requirements-web.txt"; \
+	else \
+		$(MAKE) _pip-locked REQS="-r requirements.txt -r requirements-pi.txt"; \
+	fi
+
 version: _check-venv
 	@$(VENV) -m src.main --version
 
@@ -183,7 +194,7 @@ pi-install:
 	@echo "==> Creating Python virtual environment..."
 	python3 -m venv venv
 	venv/bin/pip install --quiet --upgrade pip
-	@$(MAKE) _pip-locked REQS="-r requirements.txt -r requirements-pi.txt"
+	@$(MAKE) _pi-deps
 	@echo ""
 	@$(MAKE) install-display-drivers
 	@echo ""
@@ -241,6 +252,8 @@ configure: _check-venv
 	@deploy/configure.sh
 
 web-enable:
+	@echo "==> Installing web UI packages..."
+	@$(MAKE) _pip-locked REQS="-r requirements-web.txt"
 	@echo "==> Installing web UI systemd service with current paths..."
 	@INSTALL_DIR="$$(pwd)"; USER_NAME="$$(whoami)"; \
 	sed -e "s|__INSTALL_DIR__|$$INSTALL_DIR|g" \
@@ -270,7 +283,7 @@ setup:
 	venv/bin/pip install -r requirements.txt
 	@if [ -f /proc/device-tree/model ] && grep -q "Raspberry Pi" /proc/device-tree/model 2>/dev/null; then \
 		echo "Raspberry Pi detected — installing Pi-specific dependencies..."; \
-		$(MAKE) _pip-locked REQS="-r requirements.txt -r requirements-pi.txt" && \
+		$(MAKE) _pi-deps && \
 		$(MAKE) install-display-drivers || exit 1; \
 	fi
 	@mkdir -p credentials output state

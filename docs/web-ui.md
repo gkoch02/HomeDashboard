@@ -39,7 +39,9 @@ The web server is a **separate process** from the dashboard renderer. It reads r
 
 ### Step 1 — Install web dependencies
 
-On the Pi (inside the project directory):
+`make web-enable` (Step 4) installs these through the tested snapshot for you,
+and `make pi-install` keeps them pinned afterwards. To install them by hand on
+the Pi (inside the project directory):
 
 ```bash
 venv/bin/pip install -c constraints/py3.11.txt -r requirements-web.txt

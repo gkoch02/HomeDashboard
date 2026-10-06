@@ -25,6 +25,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   host-probing `setup.py` no longer adds GPIO packages `requirements-pi.txt`
   does not list. The Waveshare half is its own target,
   `make install-waveshare-driver`.
+- `make web-enable` installs the web UI's packages through the snapshot, and
+  `make pi-install` re-pins them when Flask is already in the venv; before,
+  they stayed at whatever version was first installed.
 - The Waveshare 10.85" (G) driver is installed by `make install-display-drivers`
   from the pinned commit's demo code, where it used to need copying and patching
   by hand. The display driver accepts the demo driver's `Init()` spelling.

@@ -98,12 +98,29 @@ def test_makefile_installs_the_g_driver_from_the_same_commit():
     assert "scripts/install_epd10in85g.py /tmp/waveshare-epd/$(WAVESHARE_EPD_G_LIB)" in block
 
 
+def _recipe(makefile: str, target: str) -> str:
+    start = makefile.index(f"\n{target}:")
+    return makefile[start : makefile.index("\n\n", start)]
+
+
 def test_pi_install_goes_through_the_snapshot():
     makefile = (ROOT / "Makefile").read_text()
     block = makefile[makefile.index("\npi-install:") : makefile.index("\npi-enable:")]
-    assert '_pip-locked REQS="-r requirements.txt -r requirements-pi.txt"' in block
+    assert "$(MAKE) _pi-deps" in block
     assert "pip install -r requirements" not in block
     assert 'pip install -c "$$LOCK" $(REQS)' in makefile
+
+
+def test_pi_deps_repins_the_web_ui_when_it_is_installed():
+    deps = _recipe((ROOT / "Makefile").read_text(), "_pi-deps")
+    with_web, without_web = deps.split("else", 1)
+    assert "import flask" in with_web and "-r requirements-web.txt" in with_web
+    assert '_pip-locked REQS="-r requirements.txt -r requirements-pi.txt"' in without_web
+
+
+def test_web_enable_installs_the_web_ui_through_the_snapshot():
+    block = _recipe((ROOT / "Makefile").read_text(), "web-enable")
+    assert '$(MAKE) _pip-locked REQS="-r requirements-web.txt"' in block
 
 
 @pytest.fixture

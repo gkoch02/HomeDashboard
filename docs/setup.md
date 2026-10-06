@@ -531,11 +531,9 @@ matches the venv's Python. On 32-bit Pi OS (even under a 64-bit kernel) or a
 Python with no snapshot it warns
 and installs the newest allowed versions, as does `make pi-install LOCKED=0`.
 The 32-bit images are not covered because their wheels come from piwheels, which
-the snapshot was not checked against. The web UI's packages are pinned too:
-
-```bash
-venv/bin/pip install -c constraints/py3.11.txt -r requirements-web.txt
-```
+the snapshot was not checked against. The web UI's packages go through the
+same snapshot: `make web-enable` installs them, and `make pi-install` re-pins
+them whenever Flask is already in the venv.
 
 The Waveshare commit is used on every architecture. To try another one without
 recording it: `make install-waveshare-driver WAVESHARE_EPD_REF=<sha-or-branch>`.
