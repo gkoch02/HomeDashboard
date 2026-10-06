@@ -8,6 +8,7 @@ VENV = venv/bin/python
 LOCKED ?= 1
 WAVESHARE_EPD_REPO = https://github.com/waveshare/e-Paper
 WAVESHARE_EPD_REF_FILE = constraints/waveshare-epd.ref
+WAVESHARE_EPD_G_LIB = E-paper_Separate_Program/10.85inch_e-Paper_G/RaspberryPi/python/lib
 WAVESHARE_EPD_REF ?= $(shell sed -n '/^[0-9a-f]\{40\}$$/p' $(WAVESHARE_EPD_REF_FILE))
 
 _check-venv:
@@ -21,16 +22,19 @@ install-display-drivers: _check-venv
 
 # The vendor library at the commit in $(WAVESHARE_EPD_REF_FILE). --no-deps because its
 # setup.py picks GPIO packages by probing the host; requirements-pi.txt owns those.
+# The 10.85" (G) driver comes from the same commit's demo code.
 install-waveshare-driver: _check-venv
 	@test -n "$(WAVESHARE_EPD_REF)" || { echo "ERROR: no commit in $(WAVESHARE_EPD_REF_FILE)"; exit 1; }
 	@echo "  Installing Waveshare EPD library at $(WAVESHARE_EPD_REF)..."
 	rm -rf /tmp/waveshare-epd
 	git init -q /tmp/waveshare-epd
 	git -C /tmp/waveshare-epd remote add origin $(WAVESHARE_EPD_REPO)
-	git -C /tmp/waveshare-epd sparse-checkout set RaspberryPi_JetsonNano/python
+	git -C /tmp/waveshare-epd sparse-checkout set RaspberryPi_JetsonNano/python \
+	    $(WAVESHARE_EPD_G_LIB)
 	git -C /tmp/waveshare-epd fetch -q --depth=1 --filter=blob:none origin $(WAVESHARE_EPD_REF)
 	git -C /tmp/waveshare-epd checkout -q FETCH_HEAD
 	venv/bin/pip install --quiet --no-deps /tmp/waveshare-epd/RaspberryPi_JetsonNano/python/
+	$(VENV) scripts/install_epd10in85g.py /tmp/waveshare-epd/$(WAVESHARE_EPD_G_LIB)
 	rm -rf /tmp/waveshare-epd
 	@$(VENV) -c "import waveshare_epd; print('  Waveshare EPD: OK')"
 

@@ -61,9 +61,14 @@ weather:
   longitude: -74.0060      # without them it falls back to sunrise/sunset times
 ```
 
-The driver module is `waveshare_epd.epd10in85g`. It is not in the Waveshare
-library `make install-display-drivers` installs; it comes from the demo code on the
-panel's wiki page. The panel has no partial
+The driver module is `waveshare_epd.epd10in85g`. Waveshare ships it as demo code rather than in
+the library, so `make install-display-drivers` copies it from the same pinned commit
+into `waveshare_epd`, beside its own `epdconfig_10in85g` and the prebuilt
+`DEV_Config` objects it drives the panel's two chip selects through. On a Pi 5 that
+object needs `libwiringPi.so`, which Raspberry Pi OS does not ship; install
+[WiringPi](https://github.com/WiringPi/WiringPi/releases) first. Earlier Pis need
+nothing extra.
+The panel has no partial
 refresh, so `display.enable_partial_refresh` is ignored for it.
 
 With `scaling: auto` (the default), the panoramic themes draw at the panel's

@@ -362,8 +362,11 @@ Install the package that matches your `display.provider`:
 make install-waveshare-driver
 ```
 
-That installs the library at the commit recorded in `constraints/waveshare-epd.ref`.
-By hand:
+That installs the library at the commit recorded in `constraints/waveshare-epd.ref`,
+plus the 10.85" (G) driver from the same commit's demo code
+(`scripts/install_epd10in85g.py`; see
+[Configuration](configuration.md#display-providers-and-models) for the Pi 5 caveat). By hand, for
+the library alone:
 
 ```bash
 REF=$(grep -E '^[0-9a-f]{40}$' constraints/waveshare-epd.ref)
@@ -544,7 +547,8 @@ recording it: `make install-waveshare-driver WAVESHARE_EPD_REF=<sha-or-branch>`.
    A file whose pins changed gets `# Verified: pending`.
 2. Push the branch, and let CI's `locked-install` job install the snapshot on
    arm64, run the test suite and a dummy render, and check the driver commit
-   for every Waveshare model module.
+   for every Waveshare model module, including a real import of the 10.85" (G)
+   driver.
 3. On a Pi, from a fresh clone of that branch:
    `make pi-install`, `make check`, `make dry`, the import of your panel's
    module (`venv/bin/python -c "import waveshare_epd.epd7in5_V2"`, or

@@ -466,6 +466,21 @@ class TestWaveshareDisplayHardware:
         epd.Clear.assert_called_once()
         epd.sleep.assert_called_once()
 
+    def test_capitalised_init_drives_the_g_demo_driver(self):
+        # The 10.85" G demo driver names its full init ``Init``.
+        epd = self._make_mock_epd(methods=("Init", "display", "getbuffer", "sleep", "Clear"))
+        tracker = MagicMock()
+        d = WaveshareDisplay(model="epd10in85g")
+        with (
+            patch.object(d, "_get_epd", return_value=epd),
+            patch("src.display.refresh_tracker.RefreshTracker.load", return_value=tracker),
+        ):
+            d.show(Image.new("RGB", (1360, 480), "white"))
+            d.clear()
+        assert epd.Init.call_count == 2
+        epd.display.assert_called_once()
+        epd.Clear.assert_called_once()
+
 
 class TestInkyDisplayInit:
     def test_valid_model_accepted(self):

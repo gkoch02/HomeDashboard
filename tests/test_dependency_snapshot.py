@@ -88,6 +88,16 @@ def test_makefile_installs_the_pinned_driver_commit():
     assert "git clone" not in makefile
 
 
+def test_makefile_installs_the_g_driver_from_the_same_commit():
+    makefile = (ROOT / "Makefile").read_text()
+    lib = "E-paper_Separate_Program/10.85inch_e-Paper_G/RaspberryPi/python/lib"
+    assert f"WAVESHARE_EPD_G_LIB = {lib}" in makefile
+    block = makefile[makefile.index("\ninstall-waveshare-driver:") :]
+    block = block[: block.index("\n\n")]
+    assert "$(WAVESHARE_EPD_G_LIB)" in block.split("sparse-checkout set", 1)[1].split("fetch")[0]
+    assert "scripts/install_epd10in85g.py /tmp/waveshare-epd/$(WAVESHARE_EPD_G_LIB)" in block
+
+
 def test_pi_install_goes_through_the_snapshot():
     makefile = (ROOT / "Makefile").read_text()
     block = makefile[makefile.index("\npi-install:") : makefile.index("\npi-enable:")]
