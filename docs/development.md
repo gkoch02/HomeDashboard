@@ -51,6 +51,7 @@ venv/bin/pip install -e ".[dev]"
 | `make version` | print the app version |
 | `make release-dry` | show what the next release would be — writes nothing |
 | `make release` | cut a release: bump the version, date the changelog, commit, tag |
+| `make lock` | re-resolve the tested Pi dependency snapshot in `constraints/` (needs `uv`; see [Reproducible installs](setup.md#reproducible-installs)) |
 
 Pi/operator commands such as `make pi-install`, `make pi-enable`, and `make web-enable` are documented for operators in [Setup Guide](setup.md) and [Web UI](web-ui.md).
 

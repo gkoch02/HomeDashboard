@@ -6,6 +6,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added
+
+- A tested dependency snapshot for reproducible Pi installs:
+  `constraints/py3.11.txt` (Bookworm) and `constraints/py3.13.txt` (Trixie) pin
+  every transitive dependency for 64-bit Pi OS, and
+  `constraints/waveshare-epd.ref` pins the Waveshare driver commit.
+  `make pi-install` installs through them (`LOCKED=0` opts out); `make lock`
+  refreshes them, and a `locked-install` CI job installs them on arm64. See
+  `docs/setup.md`, "Reproducible installs".
+
+### Changed
+
+- `make install-display-drivers` installs the Waveshare library at the recorded
+  commit instead of the vendor's default branch, and with `--no-deps`, so its
+  host-probing `setup.py` no longer adds GPIO packages `requirements-pi.txt`
+  does not list. The Waveshare half is its own target,
+  `make install-waveshare-driver`.
+
 ### Fixed
 
 - The web UI compares CSRF tokens in constant time, and a non-ASCII token is

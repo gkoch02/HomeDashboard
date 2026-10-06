@@ -28,6 +28,8 @@ make version        # Print current version (e.g. main.py 6.0.0)
 make release-dry    # Show the next release (inferred from the CHANGELOG) — writes nothing
 make release        # Bump src/_version.py, date the CHANGELOG, commit, tag vX.Y.Z
                     #   (scripts/release.py; RELEASE_ARGS="--major" forces a bump size)
+make lock           # Re-resolve the Pi dependency snapshot constraints/py*.txt (needs uv;
+                    #   scripts/lock_deps.py --waveshare REF pins the vendor driver)
 make deploy         # Rsync to Pi (configurable: PI_USER, PI_HOST, PI_DIR)
 make install        # Install systemd timer on remote Pi (via ssh/scp)
 make pi-install     # Full Pi setup: apt deps, venv, Inky + Waveshare drivers (run ON Pi)
@@ -252,6 +254,7 @@ art themes, in the panel's module docstring. Keep new entries to that shape.
 ### Version and release
 
 - The version has one home, `src/_version.py`. `pyproject.toml` reads it via `dynamic = ["version"]`; never restate a literal there. `tests/test_version_consistency.py` also requires the newest CHANGELOG entry to match `__version__`.
+- Reproducible Pi installs: `constraints/py3.11.txt` / `py3.13.txt` pin every dependency for 64-bit Pi OS, and `constraints/waveshare-epd.ref` the vendor driver commit. `make pi-install` installs through them via `_pip-locked`. Regenerate with `make lock`, never by hand; a changed file resets its `# Verified:` line to pending until the hardware checklist in `docs/setup.md` is run. `tests/test_dependency_snapshot.py` holds each pin inside its `requirements*.txt` range.
 - `make release` (`scripts/release.py`) bumps, dates the `## [Unreleased]` block, commits and tags in one step, rolling back on failure. Bump size is inferred from the Unreleased headings (Added/Changed/Deprecated/Removed → minor; Fixed/Security only → patch). Major is never inferred: `RELEASE_ARGS="--major"`.
 
 ### State files

@@ -432,9 +432,9 @@ final image snapped to its four inks. It has no partial refresh, so
 `enable_partial_refresh` is ignored, and a full refresh takes about twenty seconds.
 The panoramic `wide_week`, `wide_day`, `wide_forecast`, `wide_horizon`,
 `wide_night`, `wide_night_invert`, `wide_diags` and `halftone_agenda_wide` themes draw at its native size; every other theme reaches it per [`display.scaling`](#scaling). The driver
-module is `waveshare_epd.epd10in85g`, installed with the rest of the Waveshare
-library by `make install-display-drivers` (or from the demo code on the panel's wiki
-page if the library you have predates the model).
+module is `waveshare_epd.epd10in85g`. It is not in the Waveshare library
+`make install-display-drivers` installs; it comes from the demo code on the panel's
+wiki page.
 
 ---
 

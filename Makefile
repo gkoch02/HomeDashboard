@@ -1,8 +1,14 @@
-.PHONY: dry test coverage deploy setup install check previews previews-inky banner version release release-dry lint fmt docs-check \
-        pi-install install-display-drivers pi-enable pi-status pi-logs configure \
+.PHONY: dry test coverage deploy setup install check previews previews-inky banner version release release-dry lint fmt docs-check lock \
+        pi-install install-display-drivers install-waveshare-driver pi-enable pi-status pi-logs configure \
         web-enable web-status web-logs
 
 VENV = venv/bin/python
+
+# Tested dependency snapshot (constraints/, docs/setup.md "Reproducible installs").
+LOCKED ?= 1
+WAVESHARE_EPD_REPO = https://github.com/waveshare/e-Paper
+WAVESHARE_EPD_REF_FILE = constraints/waveshare-epd.ref
+WAVESHARE_EPD_REF ?= $(shell sed -n '/^[0-9a-f]\{40\}$$/p' $(WAVESHARE_EPD_REF_FILE))
 
 _check-venv:
 	@test -f $(VENV) || { echo "ERROR: venv not found. Run 'make setup' first."; exit 1; }
@@ -11,13 +17,40 @@ install-display-drivers: _check-venv
 	@echo "==> Installing display driver libraries..."
 	@echo "  Installing Inky Python package from requirements-pi.txt..."
 	@$(VENV) -c "import inky; print('  Inky: OK')"
-	@echo "  Installing Waveshare EPD library..."
+	@$(MAKE) install-waveshare-driver
+
+# The vendor library at the commit in $(WAVESHARE_EPD_REF_FILE). --no-deps because its
+# setup.py picks GPIO packages by probing the host; requirements-pi.txt owns those.
+install-waveshare-driver: _check-venv
+	@test -n "$(WAVESHARE_EPD_REF)" || { echo "ERROR: no commit in $(WAVESHARE_EPD_REF_FILE)"; exit 1; }
+	@echo "  Installing Waveshare EPD library at $(WAVESHARE_EPD_REF)..."
 	rm -rf /tmp/waveshare-epd
-	git clone --depth=1 --filter=blob:none --sparse https://github.com/waveshare/e-Paper /tmp/waveshare-epd
+	git init -q /tmp/waveshare-epd
+	git -C /tmp/waveshare-epd remote add origin $(WAVESHARE_EPD_REPO)
 	git -C /tmp/waveshare-epd sparse-checkout set RaspberryPi_JetsonNano/python
-	venv/bin/pip install --quiet /tmp/waveshare-epd/RaspberryPi_JetsonNano/python/
+	git -C /tmp/waveshare-epd fetch -q --depth=1 --filter=blob:none origin $(WAVESHARE_EPD_REF)
+	git -C /tmp/waveshare-epd checkout -q FETCH_HEAD
+	venv/bin/pip install --quiet --no-deps /tmp/waveshare-epd/RaspberryPi_JetsonNano/python/
 	rm -rf /tmp/waveshare-epd
 	@$(VENV) -c "import waveshare_epd; print('  Waveshare EPD: OK')"
+
+# Installs $(REQS) through the tested snapshot for the venv's Python on 64-bit
+# Pi OS (docs/setup.md, "Reproducible installs"). LOCKED=0, another
+# architecture or a Python with no snapshot installs the newest allowed versions.
+_pip-locked: _check-venv
+	@PYV="$$($(VENV) -c 'import sys; print("%d.%d" % sys.version_info[:2])')"; \
+	LOCK="constraints/py$$PYV.txt"; \
+	if [ "$(LOCKED)" != "1" ]; then \
+		echo "  LOCKED=$(LOCKED): installing the newest allowed versions"; \
+		venv/bin/pip install $(REQS); \
+	elif [ "$$(uname -m)" = "aarch64" ] && [ -f "$$LOCK" ]; then \
+		echo "  Installing the tested snapshot $$LOCK"; \
+		venv/bin/pip install -c "$$LOCK" $(REQS); \
+	else \
+		echo "  WARNING: no tested snapshot for Python $$PYV on $$(uname -m);"; \
+		echo "  installing the newest allowed versions"; \
+		venv/bin/pip install $(REQS); \
+	fi
 
 version: _check-venv
 	@$(VENV) -m src.main --version
@@ -29,6 +62,10 @@ release-dry:
 
 release:
 	@python3 scripts/release.py $(RELEASE_ARGS)
+
+# Re-resolves constraints/py*.txt for 64-bit Pi OS; needs uv on PATH.
+lock:
+	@python3 scripts/lock_deps.py
 
 dry: _check-venv
 	$(VENV) -m src.main --dry-run --dummy
@@ -139,7 +176,7 @@ pi-install:
 	@echo "==> Creating Python virtual environment..."
 	python3 -m venv venv
 	venv/bin/pip install --quiet --upgrade pip
-	venv/bin/pip install -r requirements.txt -r requirements-pi.txt
+	@$(MAKE) _pip-locked REQS="-r requirements.txt -r requirements-pi.txt"
 	@echo ""
 	@$(MAKE) install-display-drivers
 	@echo ""
@@ -226,7 +263,7 @@ setup:
 	venv/bin/pip install -r requirements.txt
 	@if [ -f /proc/device-tree/model ] && grep -q "Raspberry Pi" /proc/device-tree/model 2>/dev/null; then \
 		echo "Raspberry Pi detected — installing Pi-specific dependencies..."; \
-		venv/bin/pip install -r requirements-pi.txt; \
+		$(MAKE) _pip-locked REQS="-r requirements.txt -r requirements-pi.txt"; \
 		$(MAKE) install-display-drivers; \
 	fi
 	@mkdir -p credentials output state

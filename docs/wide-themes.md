@@ -61,8 +61,9 @@ weather:
   longitude: -74.0060      # without them it falls back to sunrise/sunset times
 ```
 
-The driver module is `waveshare_epd.epd10in85g`, installed with the rest of the
-Waveshare library by `make install-display-drivers`. The panel has no partial
+The driver module is `waveshare_epd.epd10in85g`. It is not in the Waveshare
+library `make install-display-drivers` installs; it comes from the demo code on the
+panel's wiki page. The panel has no partial
 refresh, so `display.enable_partial_refresh` is ignored for it.
 
 With `scaling: auto` (the default), the panoramic themes draw at the panel's
