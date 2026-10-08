@@ -28,10 +28,10 @@ def moonphase_photo_theme() -> Theme:
 
 
 def _register() -> None:
-    from src.render.theme import INKY_BLUE, INKY_YELLOW
+    from src.render.theme import INKY_WHITE, INKY_YELLOW
     from src.render.themes.registry import register_theme
 
-    register_theme("moonphase_photo", moonphase_photo_theme, inky_palette=(INKY_BLUE, INKY_YELLOW))
+    register_theme("moonphase_photo", moonphase_photo_theme, inky_palette=(INKY_YELLOW, INKY_WHITE))
 
 
 _register()
