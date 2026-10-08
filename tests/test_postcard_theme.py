@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 
+import numpy as np
 import pytest
+from PIL import ImageStat
 
 from src.config import DisplayConfig
 from src.data.models import (
@@ -16,13 +18,13 @@ from src.data.models import (
 )
 from src.dummy_data import generate_dummy_data
 from src.render.canvas import render_dashboard
-from src.render.components.postcard_panel import (
-    _daypart_palette,
-    _events_today,
-    _fmt_event_time,
-    _moon_disc,
-    _radial_gradient_disc,
-    _scene_kind,
+from src.render.components.postcard_panel import _events_today, _fmt_event_time
+from src.render.components.postcard_scene import (
+    Light,
+    light_for,
+    moon_disc,
+    render_scene,
+    scene_kind,
 )
 from src.render.quantize import flatten_pixels
 from src.render.theme import AVAILABLE_THEMES, load_theme
@@ -104,37 +106,128 @@ class TestSceneKind:
         ],
     )
     def test_maps_icon_to_kind(self, icon, kind, is_night):
-        assert _scene_kind(icon) == (kind, is_night)
+        assert scene_kind(icon) == (kind, is_night)
 
 
 # ---------------------------------------------------------------------------
-# Daypart palette — icon's night flag must dominate the local hour.
+# Light — the sun follows the clock; the icon's night flag wins.
 # ---------------------------------------------------------------------------
 
+RISE = datetime(2026, 4, 6, 6, 30)
+SET = datetime(2026, 4, 6, 19, 30)
 
-class TestDaypartPalette:
-    def test_night_icon_uses_night_palette_regardless_of_hour(self):
-        # Even at noon, icon=night → dark sky.
-        top, bottom = _daypart_palette("clear", True, datetime(2026, 4, 6, 12, 0))
-        assert top < 100
-        assert bottom < 130
 
-    def test_day_icon_at_3am_still_renders_as_day(self):
-        """Regression: previously fell through to a 'late night' branch
-        for hours outside dawn/day/dusk windows even when the icon said day."""
-        top, bottom = _daypart_palette("clear", False, datetime(2026, 4, 6, 3, 0))
-        # 3am with day icon → should NOT be the dark night palette.
-        assert top > 150
-        assert bottom > 200
+class TestLightFor:
+    def test_night_icon_wins_over_the_clock(self):
+        assert light_for(datetime(2026, 4, 6, 12, 0), True, RISE, SET).phase == "night"
 
-    def test_overcast_compresses_range(self):
-        # Heavy sky reads as mid-grey across the whole strip.
-        top, bottom = _daypart_palette("overcast", False, datetime(2026, 4, 6, 12, 0))
-        assert top >= 150
+    def test_midday_sun_is_high_and_central(self):
+        light = light_for(datetime(2026, 4, 6, 12, 40), False, RISE, SET)
+        assert light.phase == "day"
+        assert light.sun_alt > 0.9
+        assert 0.4 < light.sun_x < 0.6
 
-    def test_storm_palette_is_dark(self):
-        top, _bot = _daypart_palette("storm", False, datetime(2026, 4, 6, 12, 0))
-        assert top < 130
+    def test_sun_crosses_from_left_to_right(self):
+        morning = light_for(datetime(2026, 4, 6, 9, 0), False, RISE, SET)
+        evening = light_for(datetime(2026, 4, 6, 17, 0), False, RISE, SET)
+        assert morning.sun_x < 0.5 < evening.sun_x
+
+    def test_dawn_and_dusk_are_golden(self):
+        assert light_for(datetime(2026, 4, 6, 6, 10), False, RISE, SET).phase == "golden"
+        assert light_for(datetime(2026, 4, 6, 19, 5), False, RISE, SET).phase == "golden"
+
+    def test_day_icon_at_3am_is_not_night(self):
+        """The clock never turns a day icon into a night sky."""
+        assert light_for(datetime(2026, 4, 6, 3, 0), False, RISE, SET).phase == "golden"
+
+    def test_light_is_constant_within_the_hour(self):
+        """The plate may change at most once an hour."""
+        a = light_for(datetime(2026, 4, 6, 14, 1), False, RISE, SET)
+        b = light_for(datetime(2026, 4, 6, 14, 59), False, RISE, SET)
+        assert a == b
+
+    def test_missing_sun_times_fall_back(self):
+        light = light_for(datetime(2026, 4, 6, 13, 0), False, None, None)
+        assert light.phase == "day"
+
+    def test_degenerate_sun_times_fall_back(self):
+        light = light_for(datetime(2026, 4, 6, 13, 0), False, SET, RISE)
+        assert light.phase == "day"
+
+
+# ---------------------------------------------------------------------------
+# Scene — differential checks on the greyscale plate before the dither.
+# ---------------------------------------------------------------------------
+
+DAY = Light("day", 0.5, 1.0)
+SCENE_DATE = date(2026, 4, 6)
+
+
+def _scene(kind="clear", light=DAY):
+    return render_scene(480, 480, kind=kind, light=light, today=SCENE_DATE)
+
+
+def _mean(img, box):
+    return ImageStat.Stat(img.crop(box)).mean[0]
+
+
+SKY = (0, 0, 480, 100)
+FOREGROUND = (0, 440, 480, 480)
+
+
+class TestScene:
+    def test_is_deterministic(self):
+        assert _scene().tobytes() == _scene().tobytes()
+
+    def test_landscape_changes_from_day_to_day(self):
+        other = render_scene(480, 480, kind="clear", light=DAY, today=date(2026, 4, 7))
+        assert other.tobytes() != _scene().tobytes()
+
+    def test_landscape_holds_still_when_the_conditions_change(self):
+        """Weather and light restyle the day's landscape; they never move it.
+
+        The ink silhouettes (pines, banks) may shift only where lighting tips a
+        tone across the threshold, a few percent at most.
+        """
+
+        def ink(kind, light):
+            return np.asarray(_scene(kind, light)) < 12
+
+        base = ink("clear", DAY)
+        for kind, light in [
+            ("partly", DAY),
+            ("overcast", DAY),
+            ("clear", Light("golden", 0.86, 0.05)),
+        ]:
+            moved = int((ink(kind, light) ^ base).sum())
+            assert moved < 0.05 * base.sum(), (kind, light.phase, moved)
+
+    def test_night_sky_is_dark(self):
+        assert _mean(_scene(light=Light("night", 0.7, 0.0)), SKY) < 70
+        assert _mean(_scene(), SKY) > 170
+
+    def test_storm_sky_is_darker_than_rain(self):
+        assert _mean(_scene("storm"), SKY) < _mean(_scene("rain"), SKY) < _mean(_scene(), SKY)
+
+    def test_snow_lies_on_the_ground(self):
+        assert _mean(_scene("snow"), FOREGROUND) > 150
+        assert _mean(_scene(), FOREGROUND) < 80
+
+    def test_fog_lifts_the_whole_scene(self):
+        whole = (0, 0, 480, 480)
+        assert _mean(_scene("fog"), whole) > _mean(_scene("overcast"), whole)
+
+    def test_sky_brightens_toward_a_low_sun(self):
+        dusk = _scene(light=Light("golden", 0.86, 0.02))
+        # Open sky well above the disc, so only the glow can differ.
+        left, right = (0, 20, 120, 100), (360, 20, 480, 100)
+        assert _mean(dusk, right) > _mean(dusk, left) + 10
+
+    def test_lightning_only_in_a_storm(self):
+        """The bolt is the one pure-white stroke in the storm sky."""
+        storm = _scene("storm").crop((0, 0, 480, 280))
+        rain = _scene("rain").crop((0, 0, 480, 280))
+        assert storm.histogram()[255] > rain.histogram()[255] + 50
 
 
 # ---------------------------------------------------------------------------
@@ -142,34 +235,21 @@ class TestDaypartPalette:
 # ---------------------------------------------------------------------------
 
 
-class TestRadialGradientDisc:
-    def test_centre_is_brightest(self):
-        disc = _radial_gradient_disc(41, inner_v=255, outer_v=100)
-        cv, ca = disc.getpixel((20, 20))
-        assert cv == 255
-        assert ca == 255
-
-    def test_outside_alpha_zero(self):
-        disc = _radial_gradient_disc(41, inner_v=255, outer_v=100)
-        _v, a = disc.getpixel((0, 0))
-        assert a == 0
-
-
 class TestMoonDisc:
     def test_new_moon_is_all_dark(self):
-        disc = _moon_disc(41, illumination_pct=0.0, waxing=True)
+        disc = moon_disc(41, illumination_pct=0.0, waxing=True)
         cv, ca = disc.getpixel((20, 20))
         assert ca == 255
         assert cv < 100
 
     def test_full_moon_is_all_lit(self):
-        disc = _moon_disc(41, illumination_pct=100.0, waxing=True)
+        disc = moon_disc(41, illumination_pct=100.0, waxing=True)
         cv, ca = disc.getpixel((20, 20))
         assert ca == 255
         assert cv > 230
 
     def test_waxing_lights_right_limb(self):
-        disc = _moon_disc(81, illumination_pct=50.0, waxing=True)
+        disc = moon_disc(81, illumination_pct=50.0, waxing=True)
         left = disc.getpixel((25, 40))[0]
         right = disc.getpixel((55, 40))[0]
         assert right > left
