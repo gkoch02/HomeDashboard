@@ -19,6 +19,12 @@ today.
 
 Two days past today are fetched for it (``EXTRA_EVENT_DAYS``): the agenda
 rolls to tomorrow after dark, and the rail then shows the day after that.
+
+Editing notes: Imports the private band and time-cell helpers from
+``halftone_agenda_panel`` on purpose. Draws no event-state treatments, so the plate
+repaints once a day (``tests/test_halftone_agenda_wide_theme.py`` pins before / during /
+after byte-identity). Marks and type use ``artkit.accent_yellow_solid``, not
+``skyart.accent_yellow``, whose L-mode grey ``harden_typeset`` snaps to paper.
 """
 
 from __future__ import annotations
@@ -48,12 +54,6 @@ def halftone_agenda_wide_theme() -> Theme:
             preferred_quantization_mode="floyd_steinberg",
             prefer_color_on_inky=True,
             halftone_agenda_wide=ComponentRegion(0, 0, CANVAS_W, CANVAS_H),
-            header=ComponentRegion(0, 0, 0, 0, visible=False),
-            week_view=ComponentRegion(0, 0, 0, 0, visible=False),
-            weather=ComponentRegion(0, 0, 0, 0, visible=False),
-            birthdays=ComponentRegion(0, 0, 0, 0, visible=False),
-            info=ComponentRegion(0, 0, 0, 0, visible=False),
-            today_view=ComponentRegion(0, 0, 0, 0, visible=False),
             draw_order=["halftone_agenda_wide"],
         ),
         style=ThemeStyle(

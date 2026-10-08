@@ -47,13 +47,6 @@ def qotd_theme() -> Theme:
         layout=ThemeLayout(
             canvas_w=800,
             canvas_h=480,
-            # Unused regions are hidden but kept with sensible defaults
-            # so that the layout dataclass remains fully populated.
-            header=ComponentRegion(0, 0, 800, 40, visible=False),
-            week_view=ComponentRegion(0, 0, 800, quote_h, visible=False),
-            birthdays=ComponentRegion(0, 0, 800, 40, visible=False),
-            info=ComponentRegion(0, 0, 800, 40, visible=False),
-            today_view=ComponentRegion(0, 0, 800, quote_h, visible=False),
             # QOTD main area: full canvas above the weather banner
             qotd=ComponentRegion(0, 0, 800, quote_h),
             # Weather banner: full width at the bottom

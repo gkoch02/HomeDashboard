@@ -15,54 +15,10 @@ from src.config import Config, PurpleAirConfig
 from src.data.models import (
     Birthday,
     CalendarEvent,
-    DayForecast,
     StalenessLevel,
-    WeatherData,
 )
 from src.data_pipeline import DataPipeline, retry_fetch
-
-
-def _make_weather_with_forecast(**kwargs) -> WeatherData:
-    defaults = dict(
-        current_temp=55.0,
-        current_icon="01d",
-        current_description="clear",
-        high=60.0,
-        low=45.0,
-        humidity=50,
-        forecast=[
-            DayForecast(
-                date=date.today() + timedelta(days=1),
-                high=58.0,
-                low=44.0,
-                icon="02d",
-                description="cloudy",
-            )
-        ],
-    )
-    defaults.update(kwargs)
-    return WeatherData(**defaults)
-
-
-def _make_weather():
-    return WeatherData(
-        current_temp=68.0,
-        current_icon="01d",
-        current_description="clear",
-        high=75.0,
-        low=55.0,
-        humidity=40,
-    )
-
-
-def _make_events():
-    return [
-        CalendarEvent(
-            summary="Meeting",
-            start=datetime(2024, 3, 15, 10, 0),
-            end=datetime(2024, 3, 15, 11, 0),
-        )
-    ]
+from tests.conftest import make_clear_weather, make_meeting_events, make_weather
 
 
 def _make_birthdays():
@@ -83,8 +39,8 @@ class TestDataPipelineE2E:
     def test_successful_fetch_all_sources(self, tmp_path):
         """All sources fetch successfully → DashboardData has fresh data."""
         pipeline = _make_pipeline(tmp_path, force_refresh=True)
-        events = _make_events()
-        weather = _make_weather()
+        events = make_meeting_events()
+        weather = make_clear_weather()
         birthdays = _make_birthdays()
 
         with (
@@ -107,8 +63,8 @@ class TestDataPipelineE2E:
     def test_content_at_is_the_fetch_time_on_a_live_fetch(self, tmp_path):
         pipeline = _make_pipeline(tmp_path, force_refresh=True)
         with (
-            patch("src.fetchers.calendar.fetch_events", return_value=_make_events()),
-            patch("src.fetchers.weather.fetch_weather", return_value=_make_weather()),
+            patch("src.fetchers.calendar.fetch_events", return_value=make_meeting_events()),
+            patch("src.fetchers.weather.fetch_weather", return_value=make_clear_weather()),
             patch("src.fetchers.calendar.fetch_birthdays", return_value=_make_birthdays()),
             patch("src.data_pipeline.fetch_host_data", return_value=None),
         ):
@@ -125,8 +81,8 @@ class TestDataPipelineE2E:
         """
         first = _make_pipeline(tmp_path, force_refresh=True)
         with (
-            patch("src.fetchers.calendar.fetch_events", return_value=_make_events()),
-            patch("src.fetchers.weather.fetch_weather", return_value=_make_weather()),
+            patch("src.fetchers.calendar.fetch_events", return_value=make_meeting_events()),
+            patch("src.fetchers.weather.fetch_weather", return_value=make_clear_weather()),
             patch("src.fetchers.calendar.fetch_birthdays", return_value=_make_birthdays()),
             patch("src.data_pipeline.fetch_host_data", return_value=None),
         ):
@@ -146,8 +102,8 @@ class TestDataPipelineE2E:
         # track the newer weather fetch, not the older cached calendar.
         first = _make_pipeline(tmp_path, force_refresh=True)
         with (
-            patch("src.fetchers.calendar.fetch_events", return_value=_make_events()),
-            patch("src.fetchers.weather.fetch_weather", return_value=_make_weather()),
+            patch("src.fetchers.calendar.fetch_events", return_value=make_meeting_events()),
+            patch("src.fetchers.weather.fetch_weather", return_value=make_clear_weather()),
             patch("src.fetchers.calendar.fetch_birthdays", return_value=_make_birthdays()),
             patch("src.data_pipeline.fetch_host_data", return_value=None),
         ):
@@ -156,7 +112,7 @@ class TestDataPipelineE2E:
         second = _make_pipeline(tmp_path)
         second.interval_map["weather"] = 0  # weather is due again
         with (
-            patch("src.fetchers.weather.fetch_weather", return_value=_make_weather()),
+            patch("src.fetchers.weather.fetch_weather", return_value=make_clear_weather()),
             patch("src.data_pipeline.fetch_host_data", return_value=None),
         ):
             second_data = second.fetch()
@@ -183,8 +139,8 @@ class TestDataPipelineE2E:
         """When a fetcher fails, pipeline falls back to cached data."""
         # First run: populate cache
         pipeline1 = _make_pipeline(tmp_path, force_refresh=True)
-        events = _make_events()
-        weather = _make_weather()
+        events = make_meeting_events()
+        weather = make_clear_weather()
         birthdays = _make_birthdays()
 
         with (
@@ -217,8 +173,8 @@ class TestDataPipelineE2E:
         returned — NOT overwritten with an empty list that blanks the
         rendered calendar panel."""
         # First run populates the cache with real events.
-        events = _make_events()
-        weather = _make_weather()
+        events = make_meeting_events()
+        weather = make_clear_weather()
         birthdays = _make_birthdays()
 
         pipeline1 = _make_pipeline(tmp_path, force_refresh=True)
@@ -259,8 +215,8 @@ class TestDataPipelineE2E:
         (e.g. DNS/auth/network failure in the calendar or contacts path),
         previously-cached birthdays must be returned — NOT overwritten with
         an empty list that blanks the birthday panel on the dashboard."""
-        events = _make_events()
-        weather = _make_weather()
+        events = make_meeting_events()
+        weather = make_clear_weather()
         birthdays = _make_birthdays()
 
         # First run populates the cache with a known birthday list.
@@ -313,8 +269,8 @@ class TestDataPipelineE2E:
         """When cache is recent, fetchers are not called."""
         # Populate cache
         pipeline1 = _make_pipeline(tmp_path, force_refresh=True)
-        events = _make_events()
-        weather = _make_weather()
+        events = make_meeting_events()
+        weather = make_clear_weather()
         birthdays = _make_birthdays()
 
         with (
@@ -353,11 +309,11 @@ class TestDataPipelineE2E:
             event_window_start=date(2026, 4, 6),
             event_window_days=7,
         )
-        weekly_events = _make_events()
+        weekly_events = make_meeting_events()
 
         with (
             patch("src.fetchers.calendar.fetch_events", return_value=weekly_events),
-            patch("src.fetchers.weather.fetch_weather", return_value=_make_weather()),
+            patch("src.fetchers.weather.fetch_weather", return_value=make_clear_weather()),
             patch("src.fetchers.calendar.fetch_birthdays", return_value=_make_birthdays()),
             patch("src.data_pipeline.fetch_host_data", return_value=None),
         ):
@@ -522,7 +478,7 @@ class TestCalendarOutageKeepsTheCache:
         )
         with (
             patch("src.fetchers.calendar.fetch_events", **kwargs),
-            patch("src.fetchers.weather.fetch_weather", return_value=_make_weather()),
+            patch("src.fetchers.weather.fetch_weather", return_value=make_clear_weather()),
             patch("src.fetchers.calendar.fetch_birthdays", return_value=[]),
         ):
             cfg = Config()
@@ -533,7 +489,7 @@ class TestCalendarOutageKeepsTheCache:
     def test_outage_serves_the_cached_calendar_and_flags_it(self, tmp_path):
         from src.fetchers.errors import CalendarFetchError
 
-        first = self._run(tmp_path, _make_events())
+        first = self._run(tmp_path, make_meeting_events())
         assert [e.summary for e in first.events] == ["Meeting"]
 
         during_outage = self._run(tmp_path, CalendarFetchError("all feeds down"))
@@ -548,7 +504,7 @@ class TestCalendarOutageKeepsTheCache:
 
         from src.fetchers.errors import CalendarFetchError
 
-        self._run(tmp_path, _make_events())
+        self._run(tmp_path, make_meeting_events())
         self._run(tmp_path, CalendarFetchError("all feeds down"))
 
         cached = json.loads((tmp_path / "dashboard_cache.json").read_text())
@@ -559,7 +515,7 @@ class TestCalendarOutageKeepsTheCache:
 
         from src.fetchers.errors import CalendarFetchError
 
-        self._run(tmp_path, _make_events())
+        self._run(tmp_path, make_meeting_events())
         self._run(tmp_path, CalendarFetchError("all feeds down"))
 
         breakers = json.loads((tmp_path / "dashboard_breaker_state.json").read_text())
@@ -571,7 +527,7 @@ class TestCalendarOutageKeepsTheCache:
         failed *fetch* is a failure."""
         import json
 
-        self._run(tmp_path, _make_events())
+        self._run(tmp_path, make_meeting_events())
         empty = self._run(tmp_path, [])
 
         assert empty.events == []
@@ -616,7 +572,7 @@ class TestCalendarOutageKeepsTheCache:
             cfg.cache.events_fetch_interval = 0
             with (
                 patch("src.fetchers.calendar_ical.requests.get", return_value=response),
-                patch("src.fetchers.weather.fetch_weather", return_value=_make_weather()),
+                patch("src.fetchers.weather.fetch_weather", return_value=make_clear_weather()),
                 patch("src.fetchers.calendar.fetch_birthdays", return_value=[]),
             ):
                 return DataPipeline(cfg, cache_dir=str(tmp_path)).fetch()
@@ -645,14 +601,14 @@ class TestQuotaCountsRequests:
 
         def fetch(*_a, **_kw):
             request_counter.count_request(n)
-            return _make_weather()
+            return make_clear_weather()
 
         return fetch
 
     def test_counts_every_request_a_fetch_makes(self, tmp_path):
         pipeline = _make_pipeline(tmp_path, force_refresh=True)
         with (
-            patch("src.fetchers.calendar.fetch_events", return_value=_make_events()),
+            patch("src.fetchers.calendar.fetch_events", return_value=make_meeting_events()),
             patch("src.fetchers.weather.fetch_weather", side_effect=self._requests(3)),
             patch("src.fetchers.calendar.fetch_birthdays", return_value=_make_birthdays()),
             patch("src.data_pipeline.fetch_host_data", return_value=None),
@@ -673,7 +629,7 @@ class TestQuotaCountsRequests:
 
         pipeline = _make_pipeline(tmp_path, force_refresh=True)
         with (
-            patch("src.fetchers.calendar.fetch_events", return_value=_make_events()),
+            patch("src.fetchers.calendar.fetch_events", return_value=make_meeting_events()),
             patch("src.fetchers.weather.fetch_weather", side_effect=failing),
             patch("src.fetchers.calendar.fetch_birthdays", return_value=_make_birthdays()),
             patch("src.data_pipeline.fetch_host_data", return_value=None),
@@ -686,8 +642,8 @@ class TestQuotaCountsRequests:
         pipeline = _make_pipeline(tmp_path, force_refresh=True)
         pipeline.cfg.purpleair = PurpleAirConfig(api_key="k", sensor_id=1)
         with (
-            patch("src.fetchers.calendar.fetch_events", return_value=_make_events()),
-            patch("src.fetchers.weather.fetch_weather", return_value=_make_weather()),
+            patch("src.fetchers.calendar.fetch_events", return_value=make_meeting_events()),
+            patch("src.fetchers.weather.fetch_weather", return_value=make_clear_weather()),
             patch("src.fetchers.calendar.fetch_birthdays", return_value=_make_birthdays()),
             patch("src.fetchers.purpleair.fetch_air_quality", return_value=None),
             patch("src.data_pipeline.fetch_host_data", return_value=None),
@@ -745,9 +701,7 @@ class TestParallelFetchers:
         with tempfile.TemporaryDirectory() as tmpdir:
             with (
                 patch("src.fetchers.calendar.fetch_events", return_value=[]) as mock_cal,
-                patch(
-                    "src.fetchers.weather.fetch_weather", return_value=_make_weather_with_forecast()
-                ) as mock_wx,
+                patch("src.fetchers.weather.fetch_weather", return_value=make_weather()) as mock_wx,
                 patch("src.fetchers.calendar.fetch_birthdays", return_value=[]) as mock_bd,
             ):
                 data = DataPipeline(Config(), cache_dir=tmpdir).fetch()
@@ -770,7 +724,7 @@ class TestParallelFetchers:
 
             save_source(
                 "weather",
-                _make_weather_with_forecast(),
+                make_weather(),
                 datetime.now(timezone.utc) - timedelta(hours=3),
                 tmpdir,
             )

@@ -146,7 +146,7 @@ Each registry's package `__init__.py` runs side-effect imports of its members so
 `canvas.render_dashboard` no longer branches on `config.provider`; it hands the post-component image straight to `build_display_backend(config).resize_and_finalize(...)`.
 
 ### Refresh throttle (content-hash + cooldown)
-`OutputService.publish` skips hardware writes when the SHA-256 of the rendered image matches `output/last_image_hash.txt` OR a cooldown window has not yet elapsed since the last refresh. The cooldown is `display.min_refresh_interval_seconds` — defaults: 60s on Inky, 0s on Waveshare. Setting 3600 on Inky restores the v4 "exactly once an hour" behaviour. State persists in `state/refresh_throttle_state.json`; the legacy `inky_refresh_state.json` is migrated transparently on first read. The fuzzyclock allowlist v4 carried is gone — content-hash equality already short-circuits identical-content refreshes for any theme.
+`OutputService.publish` skips a hardware write when any of these holds, checked in this order: the SHA-256 of the rendered image matches `output/last_image_hash.txt`; the theme sets `ThemeLayout.repaint_slot_hours` and already painted in the current clock-aligned slot; or the cooldown since the last refresh has not elapsed. The cooldown is `display.min_refresh_interval_seconds`, defaulting to 60s on any colour display (Inky and the four-ink Waveshare `epd10in85g`) and 0s on monochrome Waveshare. Setting 3600 on Inky restores the v4 "exactly once an hour" behaviour. State persists in `state/refresh_throttle_state.json`; the legacy `inky_refresh_state.json` is migrated transparently on first read. The fuzzyclock allowlist v4 carried is gone — content-hash equality already short-circuits identical-content refreshes for any theme.
 
 ### Config schema framework
 `src/config_schema.py` defines `FieldSpec` / `SectionSpec` and a hand-curated `schema()` that mirrors the dataclasses in `src.config` with extra metadata the web UI needs (label, description, secret/editable flags, enum choices). The schema is the single source of truth for:
@@ -185,8 +185,8 @@ Three-layer design:
 Themes are frozen dataclasses. Components are pure functions that receive `(draw, data, region, style)` and draw within bounds.
 
 **Canvas mode** (`ThemeLayout.canvas_mode`) controls the internal rendering surface:
-- `"1"` (default) — strict 1-bit bilevel. Every built-in theme except `constellation_map` uses this. `fg=0` (black), `bg=1` (white in 1-bit mode).
-- `"L"` (opt-in) — 8-bit greyscale. New themes that need intermediate grey values (gradients, photo backgrounds) set this explicitly. **Must use `fg=0, bg=255`** in `ThemeStyle` (in L mode, `1` is near-black, not white).
+- `"1"` (default) — strict 1-bit bilevel. `fg=0` (black), `bg=1` (white in 1-bit mode).
+- `"L"` (opt-in) — 8-bit greyscale, for themes that need intermediate grey values (halftones, illustrations, gradients). A light plate **must use `fg=0, bg=255`** in `ThemeStyle` (in L mode, `1` is near-black, not white); a dark plate such as `constellation_map` uses `fg=255, bg=0`. Which themes opt in is read from their `ThemeLayout`, not listed here.
 
 The final quantization step (`quantize_for_display()` in `render/quantize.py`) is applied whenever the canvas is `"L"` or a resize occurred, converting the greyscale image to the 1-bit output expected by the display drivers. The algorithm is controlled by `display.quantization_mode` in `config.yaml`.
 

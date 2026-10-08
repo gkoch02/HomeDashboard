@@ -90,7 +90,7 @@ def _normalise_fetched_at(value: datetime) -> datetime:
 
     Older versions wrote naive ``fetched_at`` values when no tz was set
     (dummy mode, tests, manual edits). DataPipeline now always uses an aware
-    UTC ``self.fetched_at``; subtracting a naive value would raise TypeError
+    ``self.fetched_at`` (``now_local(tz)``); subtracting a naive value would raise TypeError
     and abort fetch() before the cache/breaker fallback could engage.
     """
     if value.tzinfo is None:

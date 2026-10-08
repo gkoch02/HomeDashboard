@@ -20,7 +20,7 @@ from src.render.primitives import (
     truncate_to_width,
     vline,
 )
-from tests.inkutils import ink, ink_x_extent
+from tests.inkutils import ink, ink_x_extent, record_text
 
 
 # Use a default bitmap font so tests don't require bundled TTF files
@@ -104,9 +104,10 @@ class TestDrawTextTruncated:
         """When max_width is 0, even a 1-char text can't fit with ellipsis;
         the function falls through to draw just the ellipsis."""
         _, draw = canvas
-        # max_width=0 forces the while loop to strip all chars, leaving only the ellipsis
+        calls = record_text(draw)
         w = draw_text_truncated(draw, (0, 0), "Hello World", font, max_width=0)
-        assert isinstance(w, int)
+        assert [text for text, _box in calls] == ["..."]
+        assert w == text_width(draw, "...", font)
 
 
 class TestTruncateToWidth:

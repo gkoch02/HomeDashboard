@@ -9,6 +9,9 @@ altitude / azimuth.
 Typography is Cinzel (star and constellation labels) + DM Sans (margin
 data) so the chart reads like a printed sky atlas.  All sky-position
 math runs out of :mod:`src.astronomy` — no API calls.
+
+Editing notes: Pure math from ``src/astronomy.py`` and ``src/render/moon.py``; it has no
+fetcher.
 """
 
 from __future__ import annotations
@@ -33,13 +36,6 @@ def constellation_map_theme() -> Theme:
             canvas_h=480,
             canvas_mode="L",
             constellation_map=ComponentRegion(0, 0, 800, 480),
-            # Hide standard regions — full-canvas view.
-            header=ComponentRegion(0, 0, 800, 40, visible=False),
-            week_view=ComponentRegion(0, 40, 800, 320, visible=False),
-            weather=ComponentRegion(0, 360, 300, 120, visible=False),
-            birthdays=ComponentRegion(300, 360, 250, 120, visible=False),
-            info=ComponentRegion(550, 360, 250, 120, visible=False),
-            today_view=ComponentRegion(0, 60, 800, 280, visible=False),
             draw_order=["constellation_map"],
             # Light up on Inky as a real colour piece (yellow accents on
             # black, blue constellation lines) — Waveshare stays bilevel.

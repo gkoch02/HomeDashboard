@@ -22,18 +22,6 @@ def moonphase_invert_theme() -> Theme:
         layout=ThemeLayout(
             canvas_w=800,
             canvas_h=480,
-            # All standard regions hidden
-            header=ComponentRegion(0, 0, 800, 40, visible=False),
-            week_view=ComponentRegion(0, 40, 800, 320, visible=False),
-            weather=ComponentRegion(0, 360, 300, 120, visible=False),
-            birthdays=ComponentRegion(300, 360, 250, 120, visible=False),
-            info=ComponentRegion(550, 360, 250, 120, visible=False),
-            today_view=ComponentRegion(0, 60, 800, 280, visible=False),
-            qotd=ComponentRegion(0, 0, 800, 400, visible=False),
-            weather_full=ComponentRegion(0, 0, 800, 480, visible=False),
-            fuzzyclock=ComponentRegion(0, 0, 800, 400, visible=False),
-            diags=ComponentRegion(0, 0, 800, 480, visible=False),
-            air_quality_full=ComponentRegion(0, 0, 800, 480, visible=False),
             # Full-canvas moonphase region
             moonphase_full=ComponentRegion(0, 0, 800, 480),
             draw_order=["moonphase_full"],

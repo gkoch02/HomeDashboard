@@ -53,7 +53,8 @@ from src.render.theme import (
     ThemeStyle,
     load_theme,
 )
-from tests.inkutils import marks
+from tests.conftest import agenda_data, agenda_event
+from tests.inkutils import ink, marks
 
 FIXED_NOW = datetime(2026, 4, 6, 10, 30)
 TODAY = FIXED_NOW.date()
@@ -68,11 +69,6 @@ CIVIL_DUSK = SUNSET + timedelta(minutes=30)
 NYC = (40.7128, -74.006)
 
 
-def _event(hour: int, minute: int = 0, *, mins: int = 45, name: str = "Meeting", **kw):
-    start = MIDNIGHT + timedelta(hours=hour, minutes=minute)
-    return CalendarEvent(summary=name, start=start, end=start + timedelta(minutes=mins), **kw)
-
-
 def _axis(events=None, sunrise=SUNRISE, sunset=SUNSET, now=FIXED_NOW, x1=799):
     return build_time_axis(TODAY, now, events or [], sunrise, sunset, CIVIL_DAWN, CIVIL_DUSK, 0, x1)
 
@@ -83,21 +79,6 @@ def _render(**kwargs):
     kwargs.setdefault("latitude", NYC[0])
     kwargs.setdefault("longitude", NYC[1])
     return render_dashboard(data, cfg, theme=load_theme("day_arc"), **kwargs)
-
-
-def _data_for(*, icon: str | None = "01d", events=None, weather: bool = True, now=FIXED_NOW):
-    data = generate_dummy_data(now=now)
-    if not weather:
-        data.weather = None
-    elif icon is not None and data.weather is not None:
-        data.weather.current_icon = icon
-    if events is not None:
-        data.events = events
-    return data
-
-
-def _ink_count(img: Image.Image) -> int:
-    return sum(1 for p in flatten_pixels(img) if p == 0)
 
 
 # ---------------------------------------------------------------------------
@@ -119,11 +100,6 @@ class TestDayArcRegistration:
 
     def test_draw_order_only_day_arc(self):
         assert load_theme("day_arc").layout.draw_order == ["day_arc"]
-
-    def test_standard_regions_hidden(self):
-        layout = load_theme("day_arc").layout
-        for name in ("header", "week_view", "weather", "birthdays", "info", "today_view"):
-            assert getattr(layout, name).visible is False, name
 
     def test_greyscale_canvas_with_floyd_steinberg(self):
         layout = load_theme("day_arc").layout
@@ -184,7 +160,7 @@ class TestTimeAxis:
 
     def test_bounds_expand_to_cover_events(self):
         # A 21:00 dinner sits past sunset+1h; the axis must still reach it.
-        axis = _axis(events=[_event(21, name="Dinner")])
+        axis = _axis(events=[agenda_event(21, name="Dinner")])
         assert axis.end >= MIDNIGHT + timedelta(hours=21, minutes=45)
         assert axis.x_for(MIDNIGHT + timedelta(hours=21)) < axis.x1
 
@@ -245,20 +221,20 @@ class TestTimeAxis:
 
 class TestResolveDayBounds:
     def test_prefers_computed_sun_times_when_located(self):
-        data = _data_for()
+        data = agenda_data()
         _, sunrise, sunset, _ = _resolve_day_bounds(TODAY, data.weather, *NYC, timezone.utc)
         assert sunrise is not None and sunset is not None
         # Computed, not the dummy feed's 06:24 / 19:51.
         assert (sunrise.hour, sunrise.minute) != (6, 24)
 
     def test_falls_back_to_weather_when_no_location(self):
-        data = _data_for()
+        data = agenda_data()
         _, sunrise, sunset, _ = _resolve_day_bounds(TODAY, data.weather, None, None, None)
         assert sunrise is not None and sunrise.hour == 6 and sunrise.minute == 24
         assert sunset is not None and sunset.hour == 19 and sunset.minute == 51
 
     def test_zero_zero_counts_as_unset(self):
-        data = _data_for()
+        data = agenda_data()
         _, sunrise, _, _ = _resolve_day_bounds(TODAY, data.weather, 0.0, 0.0, None)
         assert sunrise is not None and sunrise.hour == 6
 
@@ -311,14 +287,14 @@ class TestSkyTone:
 
 class TestEventState:
     def test_past_now_next(self):
-        assert event_state(_event(8), FIXED_NOW) == "past"
-        assert event_state(_event(10, 15), FIXED_NOW) == "now"
-        assert event_state(_event(14), FIXED_NOW) == "next"
+        assert event_state(agenda_event(8), FIXED_NOW) == "past"
+        assert event_state(agenda_event(10, 15), FIXED_NOW) == "now"
+        assert event_state(agenda_event(14), FIXED_NOW) == "next"
 
     def test_boundaries(self):
         # end == now is over; start == now has begun.
-        assert event_state(_event(9, 45, mins=45), FIXED_NOW) == "past"
-        assert event_state(_event(10, 30), FIXED_NOW) == "now"
+        assert event_state(agenda_event(9, 45, mins=45), FIXED_NOW) == "past"
+        assert event_state(agenda_event(10, 30), FIXED_NOW) == "now"
 
     def test_all_day_is_never_past_or_now(self):
         all_day = CalendarEvent(
@@ -340,16 +316,16 @@ class TestEventState:
 
 class TestAgendaDay:
     def test_midday_stays_on_today_even_when_all_events_ended(self):
-        assert agenda_day([_event(8)], TODAY, FIXED_NOW, SUNSET) == (TODAY, False)
+        assert agenda_day([agenda_event(8)], TODAY, FIXED_NOW, SUNSET) == (TODAY, False)
 
     def test_rolls_over_after_sunset_when_everything_ended(self):
         evening = MIDNIGHT + timedelta(hours=21)
-        day, is_tomorrow = agenda_day([_event(8)], TODAY, evening, SUNSET)
+        day, is_tomorrow = agenda_day([agenda_event(8)], TODAY, evening, SUNSET)
         assert (day, is_tomorrow) == (TODAY + timedelta(days=1), True)
 
     def test_stays_on_today_while_an_evening_event_runs(self):
         evening = MIDNIGHT + timedelta(hours=20)
-        assert agenda_day([_event(19, 30, mins=90)], TODAY, evening, SUNSET) == (TODAY, False)
+        assert agenda_day([agenda_event(19, 30, mins=90)], TODAY, evening, SUNSET) == (TODAY, False)
 
     def test_empty_day_rolls_over_after_sunset(self):
         evening = MIDNIGHT + timedelta(hours=21)
@@ -369,11 +345,11 @@ class TestAgendaDay:
         assert agenda_day([all_day], TODAY, evening, SUNSET)[1] is True
 
     def test_no_sunset_uses_the_fallback_hour(self):
-        assert agenda_day([_event(8)], TODAY, MIDNIGHT + timedelta(hours=17), None) == (
+        assert agenda_day([agenda_event(8)], TODAY, MIDNIGHT + timedelta(hours=17), None) == (
             TODAY,
             False,
         )
-        assert agenda_day([_event(8)], TODAY, MIDNIGHT + timedelta(hours=19), None)[1] is True
+        assert agenda_day([agenda_event(8)], TODAY, MIDNIGHT + timedelta(hours=19), None)[1] is True
 
 
 class TestRibbonAgendaAgreement:
@@ -390,7 +366,7 @@ class TestRibbonAgendaAgreement:
     def test_rollover_never_happens_while_the_ribbon_is_lit(self, hour):
         now = MIDNIGHT + timedelta(hours=hour)
         for sunrise, sunset in ((SUNRISE, SUNSET), (None, None)):
-            _, is_tomorrow = agenda_day([_event(8)], TODAY, now, sunset)
+            _, is_tomorrow = agenda_day([agenda_event(8)], TODAY, now, sunset)
             if is_tomorrow:
                 assert is_after_dark(TODAY, now, sunrise, sunset), (
                     f"agenda rolled over at {hour}:00 but the ribbon is still lit "
@@ -404,8 +380,8 @@ class TestRibbonAgendaAgreement:
         at = MIDNIGHT + timedelta(hours=_FALLBACK_DUSK_HOUR)
         assert is_after_dark(TODAY, before, None, None) is False
         assert is_after_dark(TODAY, at, None, None) is True
-        assert agenda_day([_event(8)], TODAY, before, None)[1] is False
-        assert agenda_day([_event(8)], TODAY, at, None)[1] is True
+        assert agenda_day([agenda_event(8)], TODAY, before, None)[1] is False
+        assert agenda_day([agenda_event(8)], TODAY, at, None)[1] is True
 
     def test_fallback_dawn_keeps_the_small_hours_dark(self):
         assert is_after_dark(TODAY, MIDNIGHT + timedelta(hours=3), None, None) is True
@@ -419,9 +395,9 @@ class TestRibbonAgendaAgreement:
     def test_renders_without_any_sun_data(self):
         # No location and no weather: the panel must still produce a night
         # plate rather than a sunny one, and not crash getting there.
-        data = _data_for(weather=False, now=MIDNIGHT + timedelta(hours=21))
+        data = agenda_data(weather=False, now=MIDNIGHT + timedelta(hours=21))
         img = _render(data=data, latitude=None, longitude=None)
-        assert _ink_count(img) > 1000
+        assert ink(img) > 1000
 
 
 class TestAxisStripBands:
@@ -469,16 +445,16 @@ class TestAxisStripBands:
     def test_on_the_hour_events_do_not_collide_with_hour_labels(self):
         # The reported regression, end to end: a 9a/12p/3p/6p day renders with
         # the pip band and the label band both inked and no shared rows.
-        events = [_event(h, name=f"Meeting {h}") for h in (9, 12, 15, 18)]
-        img = _render(data=_data_for(events=events)).convert("L")
+        events = [agenda_event(h, name=f"Meeting {h}") for h in (9, 12, 15, 18)]
+        img = _render(data=agenda_data(events=events)).convert("L")
         pip_band = img.crop((0, SKY_H + _AXIS_PIP_Y, 800, SKY_H + _AXIS_PIP_Y + _AXIS_PIP_H))
         label_band = img.crop((0, SKY_H + _AXIS_LABEL_Y, 800, SKY_H + AXIS_H))
-        assert _ink_count(pip_band) > 0, "no event pips drawn"
-        assert _ink_count(label_band) > 0, "no hour labels drawn"
+        assert ink(pip_band) > 0, "no event pips drawn"
+        assert ink(label_band) > 0, "no hour labels drawn"
         # The rows between the two bands are the separator — they must be clear
         # of everything except the (optional) in-progress duration bar.
         gap = img.crop((0, SKY_H + _AXIS_PIP_Y + _AXIS_PIP_H, 800, SKY_H + _AXIS_DUR_Y))
-        assert _ink_count(gap) == 0
+        assert ink(gap) == 0
 
 
 class TestAgendaMetrics:
@@ -612,20 +588,20 @@ class TestRenderEachIcon:
         ],
     )
     def test_renders_without_crashing(self, icon):
-        img = _render(data=_data_for(icon=icon))
+        img = _render(data=agenda_data(icon=icon))
         assert img.mode == "1"
         assert img.size == (800, 480)
-        assert _ink_count(img) > 1000
+        assert ink(img) > 1000
 
 
 class TestRenderStates:
     def test_empty_day(self):
-        img = _render(data=_data_for(events=[]))
-        assert _ink_count(img) > 1000
+        img = _render(data=agenda_data(events=[]))
+        assert ink(img) > 1000
 
     def test_busy_day_overflows_gracefully(self):
-        events = [_event(8 + i, name=f"Event {i}") for i in range(12)]
-        assert _ink_count(_render(data=_data_for(events=events))) > 1000
+        events = [agenda_event(8 + i, name=f"Event {i}") for i in range(12)]
+        assert ink(_render(data=agenda_data(events=events))) > 1000
 
     def test_all_day_event(self):
         all_day = CalendarEvent(
@@ -634,39 +610,39 @@ class TestRenderStates:
             end=MIDNIGHT + timedelta(days=1),
             is_all_day=True,
         )
-        assert _ink_count(_render(data=_data_for(events=[all_day, _event(14)]))) > 1000
+        assert ink(_render(data=agenda_data(events=[all_day, agenda_event(14)]))) > 1000
 
     def test_event_with_location(self):
-        ev = _event(14, name="Standup", location="Conference Room B, Floor 3")
-        assert _ink_count(_render(data=_data_for(events=[ev]))) > 1000
+        ev = agenda_event(14, name="Standup", location="Conference Room B, Floor 3")
+        assert ink(_render(data=agenda_data(events=[ev]))) > 1000
 
     def test_location_row_is_the_first_line_only(self):
         from src.render.components.day_arc_panel import _location_text
 
-        ev = _event(14, name="Gym", location="Ultimate Condition Fitness\n535 W Hamilton Ave")
+        ev = agenda_event(14, name="Gym", location="Ultimate Condition Fitness\n535 W Hamilton Ave")
         assert _location_text(ev) == "Ultimate Condition Fitness"
 
     def test_no_weather_still_renders(self):
         # Unlike halftone, the ribbon's subject is time, not weather — it must
         # still draw a full plate with the weather source missing.
-        assert _ink_count(_render(data=_data_for(weather=False))) > 1000
+        assert ink(_render(data=agenda_data(weather=False))) > 1000
 
     def test_no_location_falls_back_to_weather_sun_times(self):
-        img = _render(data=_data_for(), latitude=None, longitude=None)
-        assert _ink_count(img) > 1000
+        img = _render(data=agenda_data(), latitude=None, longitude=None)
+        assert ink(img) > 1000
 
     def test_no_birthdays(self):
-        data = _data_for()
+        data = agenda_data()
         data.birthdays = []
-        assert _ink_count(_render(data=data)) > 1000
+        assert ink(_render(data=data)) > 1000
 
     def test_empty_dashboard_data(self):
-        assert _ink_count(_render(data=DashboardData(fetched_at=FIXED_NOW))) > 1000
+        assert ink(_render(data=DashboardData(fetched_at=FIXED_NOW))) > 1000
 
     def test_night_rollover_renders(self):
         night = datetime(2026, 4, 6, 22, 30)
-        img = _render(data=_data_for(icon="01n", events=[_event(8)], now=night))
-        assert _ink_count(img) > 1000
+        img = _render(data=agenda_data(icon="01n", events=[agenda_event(8)], now=night))
+        assert ink(img) > 1000
 
 
 class TestRenderInkyPath:
@@ -675,38 +651,38 @@ class TestRenderInkyPath:
         return _render(config=cfg, **kw)
 
     def test_renders_rgb(self):
-        img = self._inky(data=_data_for())
+        img = self._inky(data=agenda_data())
         assert img.mode == "RGB"
         assert img.size == (800, 480)
 
     def test_uses_the_registered_palette(self):
-        pixels = set(flatten_pixels(self._inky(data=_data_for())))
+        pixels = set(flatten_pixels(self._inky(data=agenda_data())))
         assert INKY_SPECTRA6_PALETTE[INKY_YELLOW] in pixels  # sun ring / daylight bar
         assert INKY_SPECTRA6_PALETTE[INKY_RED] in pixels  # NOW caret
 
     def test_night_path_renders(self):
         night = datetime(2026, 4, 6, 22, 30)
-        assert self._inky(data=_data_for(icon="01n", now=night)).mode == "RGB"
+        assert self._inky(data=agenda_data(icon="01n", now=night)).mode == "RGB"
 
 
 class TestDeterminism:
     def test_two_renders_are_byte_identical(self):
         # Star fields and jitter are seeded from today.toordinal(); an unseeded
         # RNG here would make the theme's pixel snapshot flap.
-        first = _render(data=_data_for(icon="01n"))
-        second = _render(data=_data_for(icon="01n"))
+        first = _render(data=agenda_data(icon="01n"))
+        second = _render(data=agenda_data(icon="01n"))
         assert first.tobytes() == second.tobytes()
 
 
 class TestInkCoverage:
     def test_ribbon_band_has_ink_in_every_column(self):
-        img = _render(data=_data_for(icon="01d"))
+        img = _render(data=agenda_data(icon="01d"))
         px = img.convert("L").load()
         for x in range(0, 800, 20):
             assert any(px[x, y] == 0 for y in range(0, 168)), f"no ink in ribbon column {x}"
 
     def test_agenda_band_is_neither_blank_nor_solid(self):
-        img = _render(data=_data_for(events=[_event(9), _event(14)]))
+        img = _render(data=agenda_data(events=[agenda_event(9), agenda_event(14)]))
         band = img.convert("L").crop((0, 240, 548, 450))
         vals = set(flatten_pixels(band))
         assert 0 in vals and 255 in vals
@@ -714,10 +690,10 @@ class TestInkCoverage:
     def test_past_events_carry_less_ink_than_upcoming_ones(self):
         # The Bayer screen is the theme's way of saying "this already happened";
         # if the two treatments rendered alike the encoding would be invisible.
-        past = _render(data=_data_for(events=[_event(8, name="Aaaaaaaaaaaa")]))
-        future = _render(data=_data_for(events=[_event(15, name="Aaaaaaaaaaaa")]))
+        past = _render(data=agenda_data(events=[agenda_event(8, name="Aaaaaaaaaaaa")]))
+        future = _render(data=agenda_data(events=[agenda_event(15, name="Aaaaaaaaaaaa")]))
         band = (0, 240, 548, 330)
-        assert _ink_count(past.convert("L").crop(band)) < _ink_count(future.convert("L").crop(band))
+        assert ink(past.convert("L").crop(band)) < ink(future.convert("L").crop(band))
 
 
 # ---------------------------------------------------------------------------
@@ -729,7 +705,7 @@ def test_draw_day_arc_default_style_does_not_crash():
     # No region, no style, and no image kwarg — the panel falls back to the
     # draw handle's backing image.
     image = Image.new("L", (800, 480), 255)
-    draw_day_arc(ImageDraw.Draw(image), _data_for(), TODAY, FIXED_NOW)
+    draw_day_arc(ImageDraw.Draw(image), agenda_data(), TODAY, FIXED_NOW)
     assert marks(image) > 0, "the default-style plate rendered blank"
 
 
@@ -737,7 +713,7 @@ def test_draw_day_arc_accepts_an_explicit_style():
     image = Image.new("L", (800, 480), 255)
     draw_day_arc(
         ImageDraw.Draw(image),
-        _data_for(),
+        agenda_data(),
         TODAY,
         FIXED_NOW,
         image=image,
@@ -753,10 +729,10 @@ def test_draw_day_arc_with_aware_now():
     # rather than against the host machine's.
     image = Image.new("L", (800, 480), 255)
     aware = FIXED_NOW.replace(tzinfo=timezone.utc)
-    draw_day_arc(ImageDraw.Draw(image), _data_for(), TODAY, aware, image=image)
+    draw_day_arc(ImageDraw.Draw(image), agenda_data(), TODAY, aware, image=image)
     assert marks(image) > 0, "the aware-now path rendered blank"
     # An aware `now` must resolve against its own zone, not the host's, so the
     # plate is stable regardless of where the suite runs.
     again = Image.new("L", (800, 480), 255)
-    draw_day_arc(ImageDraw.Draw(again), _data_for(), TODAY, aware, image=again)
+    draw_day_arc(ImageDraw.Draw(again), agenda_data(), TODAY, aware, image=again)
     assert image.tobytes() == again.tobytes()

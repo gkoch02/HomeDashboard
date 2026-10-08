@@ -20,6 +20,11 @@ Registered with a red-and-black accent pair. The 10.85" panel has four inks —
 black, white, yellow and red — and names only the two a light plate can carry
 type in: red for the rail's section labels, the alert bar and the grid's
 accents, black for everything else. On a monochrome panel both are ink.
+
+Editing notes: The rail sets ``draw.fontmode = "1"`` (``TestBilevelType``) and pins the
+quote stem width (``TestQuoteWeight``). Yellow is only ever a fill behind ink type, and
+the grid's ``secondary_accent_fill()`` colours weekend-header *text*, so the theme's
+secondary accent must never be yellow.
 """
 
 from __future__ import annotations
@@ -48,11 +53,6 @@ def wide_week_theme() -> Theme:
             canvas_h=CANVAS_H,
             wide_week_rail=ComponentRegion(0, 0, RAIL_W, CANVAS_H),
             week_view=ComponentRegion(RAIL_W, 0, week_w, CANVAS_H),
-            header=ComponentRegion(0, 0, 0, 0, visible=False),
-            weather=ComponentRegion(0, 0, 0, 0, visible=False),
-            birthdays=ComponentRegion(0, 0, 0, 0, visible=False),
-            info=ComponentRegion(0, 0, 0, 0, visible=False),
-            today_view=ComponentRegion(0, 0, 0, 0, visible=False),
             draw_order=["week_view", "wide_week_rail"],
         ),
         style=ThemeStyle(

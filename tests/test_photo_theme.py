@@ -272,9 +272,6 @@ class TestPhotoThemeFactory:
     def test_draw_order_is_empty(self):
         assert photo_theme().layout.draw_order == []
 
-    def test_no_header_region(self):
-        assert photo_theme().layout.header is None
-
     def test_show_borders_false(self):
         assert photo_theme().style.show_borders is False
 

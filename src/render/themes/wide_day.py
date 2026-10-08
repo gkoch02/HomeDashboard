@@ -22,6 +22,8 @@ so the image changes every tick; on a colour panel, whose full refresh
 flashes for twenty seconds, set ``display.min_refresh_interval_seconds`` to
 space the writes out. The theme is listed in ``EXTRA_EVENT_DAYS``
 because the UP NEXT rail reaches into tomorrow once today's events are done.
+
+Editing notes: ``pack_lanes()`` packs by bar-plus-label pixel extent, not time span.
 """
 
 from __future__ import annotations
@@ -48,13 +50,6 @@ def wide_day_theme() -> Theme:
             canvas_w=CANVAS_W,
             canvas_h=CANVAS_H,
             wide_day=ComponentRegion(0, 0, CANVAS_W, CANVAS_H),
-            # Hide the standard regions — this theme is full-canvas.
-            header=ComponentRegion(0, 0, 0, 0, visible=False),
-            week_view=ComponentRegion(0, 0, 0, 0, visible=False),
-            weather=ComponentRegion(0, 0, 0, 0, visible=False),
-            birthdays=ComponentRegion(0, 0, 0, 0, visible=False),
-            info=ComponentRegion(0, 0, 0, 0, visible=False),
-            today_view=ComponentRegion(0, 0, 0, 0, visible=False),
             draw_order=["wide_day"],
         ),
         style=ThemeStyle(

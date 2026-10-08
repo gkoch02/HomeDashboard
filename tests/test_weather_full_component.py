@@ -4,7 +4,7 @@ measured per zone with ``tests.inkutils`` and the local ``_card_count``.
 
 from datetime import date, datetime, timedelta
 
-from PIL import Image, ImageDraw
+from PIL import Image
 
 from src.data.models import (
     AirQualityData,
@@ -15,37 +15,22 @@ from src.data.models import (
 from src.render.components.weather_full import draw_weather_full
 from src.render.quantize import flatten_pixels
 from src.render.theme import ComponentRegion, ThemeStyle
+from tests.conftest import make_draw
 from tests.inkutils import ink, ink_clusters, ink_x_extent
+from tests.weather_full_zones import (
+    ALERT,
+    CANVAS_H,
+    CANVAS_W,
+    CARDS,
+    DETAIL,
+    HERO,
+    HERO_H,
+    forecast_band,
+)
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
-CANVAS_W, CANVAS_H = 800, 480
-
-# Zone geometry, mirrored from draw_weather_full's own proportions so a band
-# follows the component if its layout moves rather than pointing at blank plate.
-_HERO_H = int(CANVAS_H * 0.44)
-_CARDS_H = int(CANVAS_H * 0.155)
-_DETAIL_H = int(CANVAS_H * 0.06)
-_ALERT_H = int(CANVAS_H * 0.055)
-
-HERO = (0, 0, CANVAS_W, _HERO_H)
-CARDS = (0, _HERO_H, CANVAS_W, _HERO_H + _CARDS_H)
-# The thin rule above the forecast lands on the detail zone's last row, and it
-# is drawn whether or not the strip has any content — so it is excluded here.
-DETAIL = (0, _HERO_H + _CARDS_H, CANVAS_W, _HERO_H + _CARDS_H + _DETAIL_H - 1)
-ALERT = (0, _HERO_H + _CARDS_H + _DETAIL_H, CANVAS_W, _HERO_H + _CARDS_H + _DETAIL_H + _ALERT_H)
-
-
-def _forecast_band(has_alerts: bool = False) -> tuple[int, int, int, int]:
-    top = _HERO_H + _CARDS_H + _DETAIL_H + (_ALERT_H if has_alerts else 0)
-    return (0, top, CANVAS_W, CANVAS_H)
-
-
-def _make_draw(w: int = CANVAS_W, h: int = CANVAS_H):
-    img = Image.new("1", (w, h), 1)
-    return img, ImageDraw.Draw(img)
 
 
 def _card_count(img: Image.Image) -> int:
@@ -56,7 +41,7 @@ def _card_count(img: Image.Image) -> int:
     """
     px = flatten_pixels(img)
     width = img.width
-    y = _HERO_H + 10
+    y = HERO_H + 10
     runs = 0
     prev = False
     for x in range(CANVAS_W):
@@ -116,7 +101,7 @@ def _render(weather=_UNSET, today=TODAY, *, air_quality=None, region=None, style
     """
     if weather is _UNSET:
         weather = _make_weather(**overrides)
-    img, draw = _make_draw()
+    img, draw = make_draw()
     draw_weather_full(draw, weather, today, air_quality=air_quality, region=region, style=style)
     return img
 
@@ -133,10 +118,10 @@ class TestDrawWeatherFullSmoke:
         assert ink(img, HERO) > 0, "hero zone empty"
         assert ink(img, CARDS) > 0, "metric cards zone empty"
         assert ink(img, DETAIL) > 0, "detail strip empty"
-        assert ink(img, _forecast_band()) > 0, "forecast grid empty"
+        assert ink(img, forecast_band()) > 0, "forecast grid empty"
 
     def test_returns_none(self):
-        _, draw = _make_draw()
+        _, draw = make_draw()
         assert draw_weather_full(draw, _make_weather(), TODAY) is None
 
     def test_produces_non_blank_image(self):
@@ -171,7 +156,7 @@ class TestDrawWeatherFullUnavailable:
         img = _render(weather=None)
         assert ink(img) > 0, "no fallback message drawn"
         assert _card_count(img) == 0, "metric cards drawn for None weather"
-        assert ink(img, _forecast_band()) == 0, "forecast grid drawn for None weather"
+        assert ink(img, forecast_band()) == 0, "forecast grid drawn for None weather"
 
     def test_unavailable_message_is_centred(self):
         """_draw_unavailable centres its message on the region."""
@@ -404,8 +389,8 @@ class TestAlertBanner:
     def test_alerts_push_the_forecast_grid_down(self):
         """The banner takes its own zone rather than overlaying the forecast."""
         with_alert = _render(alerts=[WeatherAlert(event="Flood Watch")])
-        assert ink(with_alert, _forecast_band(has_alerts=True)) > 0, "forecast lost to the banner"
-        assert ink_clusters(with_alert, _forecast_band(has_alerts=True)) == 5
+        assert ink(with_alert, forecast_band(has_alerts=True)) > 0, "forecast lost to the banner"
+        assert ink_clusters(with_alert, forecast_band(has_alerts=True)) == 5
 
 
 # ---------------------------------------------------------------------------
@@ -415,25 +400,25 @@ class TestAlertBanner:
 
 class TestForecastGrid:
     def test_renders_five_day_forecast(self):
-        assert ink_clusters(_render(), _forecast_band()) == 5
+        assert ink_clusters(_render(), forecast_band()) == 5
 
     def test_renders_one_day_forecast(self):
-        assert ink_clusters(_render(forecast=_make_forecast(1)), _forecast_band()) == 1
+        assert ink_clusters(_render(forecast=_make_forecast(1)), forecast_band()) == 1
 
     def test_forecast_column_count_tracks_the_data(self):
         """Two, three and four days each get their own column count."""
         for n in (2, 3, 4):
             img = _render(forecast=_make_forecast(n))
-            assert ink_clusters(img, _forecast_band()) == n, f"{n} days did not draw {n} columns"
+            assert ink_clusters(img, forecast_band()) == n, f"{n} days did not draw {n} columns"
 
     def test_caps_at_five_columns(self):
         """More than five days are truncated to five."""
-        assert ink_clusters(_render(forecast=_make_forecast(8)), _forecast_band()) == 5
+        assert ink_clusters(_render(forecast=_make_forecast(8)), forecast_band()) == 5
 
     def test_renders_empty_forecast_shows_fallback(self):
         """No forecast draws the single centred fallback message."""
         img = _render(forecast=[])
-        band = _forecast_band()
+        band = forecast_band()
         assert ink(img, band) > 0, "no fallback message drawn"
         assert ink_clusters(img, band) == 1, "fallback should be one centred run, not columns"
         assert ink(img, band) < ink(_render(), band)
@@ -442,12 +427,12 @@ class TestForecastGrid:
         """precip_chance=None omits the percentage row."""
         none_precip = _render(forecast=_make_forecast(5, precip=None))
         with_precip = _render(forecast=_make_forecast(5, precip=0.20))
-        band = _forecast_band()
+        band = forecast_band()
         assert ink(none_precip, band) < ink(with_precip, band)
 
     def test_renders_forecast_with_low_precip_chance_excluded(self):
         """Below the 5% threshold the percentage row is suppressed."""
-        band = _forecast_band()
+        band = forecast_band()
         low = ink(_render(forecast=_make_forecast(5, precip=0.02)), band)
         none = ink(_render(forecast=_make_forecast(5, precip=None)), band)
         high = ink(_render(forecast=_make_forecast(5, precip=0.20)), band)
@@ -456,7 +441,7 @@ class TestForecastGrid:
 
     def test_renders_forecast_with_unknown_icon(self):
         """Unknown forecast icons fall back like the hero icon does."""
-        band = _forecast_band()
+        band = forecast_band()
         unknown_a = ink(_render(forecast=_make_forecast(5, icon="invalid_xyz")), band)
         unknown_b = ink(_render(forecast=_make_forecast(5, icon="also_bogus")), band)
         known = ink(_render(forecast=_make_forecast(5, icon="02d")), band)
@@ -523,4 +508,4 @@ class TestEdgeCases:
         assert ink(img, DETAIL) == 0, "the strip drew something with no segments to draw"
         # The rest of the plate is unaffected.
         assert ink(img, HERO) > 0
-        assert ink(img, _forecast_band()) > 0
+        assert ink(img, forecast_band()) > 0

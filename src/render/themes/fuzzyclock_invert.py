@@ -37,13 +37,6 @@ def fuzzyclock_invert_theme() -> Theme:
         layout=ThemeLayout(
             canvas_w=800,
             canvas_h=480,
-            # Standard regions are hidden — not used by this theme
-            header=ComponentRegion(0, 0, 800, 40, visible=False),
-            week_view=ComponentRegion(0, 0, 800, clock_h, visible=False),
-            birthdays=ComponentRegion(0, 0, 800, 40, visible=False),
-            info=ComponentRegion(0, 0, 800, 40, visible=False),
-            today_view=ComponentRegion(0, 0, 800, clock_h, visible=False),
-            qotd=ComponentRegion(0, 0, 800, clock_h, visible=False),
             # Fuzzyclock main area: full canvas above the weather banner
             fuzzyclock=ComponentRegion(0, 0, 800, clock_h),
             # Weather banner: full width at the bottom

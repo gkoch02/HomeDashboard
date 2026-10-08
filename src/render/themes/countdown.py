@@ -15,6 +15,9 @@ so there is no fetcher, cache, or breaker involvement.
   │                    PARIS TRIP                                │
   │                    June 4, 2026                              │
   └──────────────────────────────────────────────────────────────┘
+
+Editing notes: Offline: reads ``cfg.countdown.events``, caps them at 5, and receives
+them through the ``countdown_events`` kwarg.
 """
 
 from __future__ import annotations
@@ -31,12 +34,6 @@ def countdown_theme() -> Theme:
             canvas_w=800,
             canvas_h=480,
             countdown=ComponentRegion(0, 0, 800, 480),
-            header=ComponentRegion(0, 0, 800, 40, visible=False),
-            week_view=ComponentRegion(0, 40, 800, 320, visible=False),
-            weather=ComponentRegion(0, 360, 300, 120, visible=False),
-            birthdays=ComponentRegion(300, 360, 250, 120, visible=False),
-            info=ComponentRegion(550, 360, 250, 120, visible=False),
-            today_view=ComponentRegion(0, 60, 800, 280, visible=False),
             draw_order=["countdown"],
         ),
         style=ThemeStyle(

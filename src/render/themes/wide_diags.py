@@ -14,6 +14,9 @@ quantization makes a scaled monochrome panel re-screen the dithers rather than
 threshold a blurred checkerboard to flat ink, and — like any dithered plate —
 derives the theme out of partial refresh. Excluded from the random rotation,
 like ``diags``.
+
+Editing notes: Reads the ink set from the resolved style (``panel_inks()``). The
+DIFFUSED row is its one art region. Listed in ``ALWAYS_LIVE`` in the idle-tick test.
 """
 
 from __future__ import annotations
@@ -43,12 +46,6 @@ def wide_diags_theme() -> Theme:
             preferred_quantization_mode="ordered",
             diags=ComponentRegion(0, 0, DIAGS_W, CANVAS_H),
             wide_diags=ComponentRegion(DIAGS_W, 0, CANVAS_W - DIAGS_W, CANVAS_H),
-            header=ComponentRegion(0, 0, 0, 0, visible=False),
-            week_view=ComponentRegion(0, 0, 0, 0, visible=False),
-            weather=ComponentRegion(0, 0, 0, 0, visible=False),
-            birthdays=ComponentRegion(0, 0, 0, 0, visible=False),
-            info=ComponentRegion(0, 0, 0, 0, visible=False),
-            today_view=ComponentRegion(0, 0, 0, 0, visible=False),
             draw_order=["diags", "wide_diags"],
         ),
         style=ThemeStyle(

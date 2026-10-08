@@ -3,21 +3,17 @@
 from datetime import date, datetime, timedelta
 
 import pytest
-from PIL import Image, ImageDraw
+from PIL import Image
 
 from src.data.models import AirQualityData, DayForecast, WeatherData
 from src.render.components.weather_full import draw_weather_full
 from src.render.theme import ComponentRegion, ThemeStyle
+from tests.conftest import make_draw
 from tests.inkutils import ink
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
-
-def _make_draw(w: int = 800, h: int = 480):
-    img = Image.new("1", (w, h), 1)
-    return img, ImageDraw.Draw(img)
 
 
 def _make_weather() -> WeatherData:
@@ -66,7 +62,7 @@ CARDS = (0, _CARDS_Y0, 800, _CARDS_Y0 + int(480 * 0.155))
 
 
 def _render(weather, air_quality, **kwargs) -> Image.Image:
-    img, draw = _make_draw()
+    img, draw = make_draw()
     draw_weather_full(draw, weather, TODAY, air_quality=air_quality, **kwargs)
     return img
 
@@ -105,7 +101,7 @@ class TestDrawWeatherFullAqi:
 
     def test_renders_without_a_date(self):
         """``today`` is optional: the moon-phase line is skipped, the rest still draws."""
-        img, draw = _make_draw()
+        img, draw = make_draw()
         draw_weather_full(draw, _make_weather(), None, air_quality=_make_aqi())
         assert ink(img) > 0
 

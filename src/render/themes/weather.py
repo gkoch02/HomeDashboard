@@ -39,14 +39,6 @@ def weather_theme() -> Theme:
         layout=ThemeLayout(
             canvas_w=800,
             canvas_h=480,
-            # Hide all standard components
-            header=ComponentRegion(0, 0, 800, 40, visible=False),
-            week_view=ComponentRegion(0, 0, 800, 320, visible=False),
-            weather=ComponentRegion(0, 0, 300, 120, visible=False),
-            birthdays=ComponentRegion(0, 0, 250, 120, visible=False),
-            info=ComponentRegion(0, 0, 250, 120, visible=False),
-            today_view=ComponentRegion(0, 0, 800, 280, visible=False),
-            qotd=ComponentRegion(0, 0, 800, 400, visible=False),
             # Full-screen weather region
             weather_full=ComponentRegion(0, 0, 800, 480),
             draw_order=["weather_full"],

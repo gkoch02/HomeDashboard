@@ -18,38 +18,8 @@ from src.data.models import (
 from src.render.canvas import _resolve_style, render_dashboard
 from src.render.theme import Theme, ThemeLayout, ThemeStyle
 from src.render.themes.qotd import qotd_theme
+from tests.conftest import all_day_event, make_weather
 from tests.inkutils import ink, marks
-
-
-def _all_day(start: date, end: date, summary: str = "All Day"):
-    return CalendarEvent(
-        summary=summary,
-        start=datetime.combine(start, datetime.min.time()),
-        end=datetime.combine(end, datetime.min.time()),
-        is_all_day=True,
-    )
-
-
-def _make_weather(**kwargs) -> WeatherData:
-    defaults = dict(
-        current_temp=55.0,
-        current_icon="01d",
-        current_description="clear",
-        high=60.0,
-        low=45.0,
-        humidity=50,
-        forecast=[
-            DayForecast(
-                date=date.today() + timedelta(days=1),
-                high=58.0,
-                low=44.0,
-                icon="02d",
-                description="cloudy",
-            )
-        ],
-    )
-    defaults.update(kwargs)
-    return WeatherData(**defaults)
 
 
 def _timed(day: date, h_start: int, h_end: int, summary: str = "Evt"):
@@ -277,7 +247,7 @@ class TestRenderWithSpanningEventsAndForecast:
         week_start = today - timedelta(days=today.weekday())
 
         events = [
-            _all_day(week_start, week_start + timedelta(days=3), "Multi-day Conf"),
+            all_day_event(week_start, week_start + timedelta(days=3), "Multi-day Conf"),
             _timed(today, 9, 10, "Standup"),
         ]
         forecast = [
@@ -290,7 +260,7 @@ class TestRenderWithSpanningEventsAndForecast:
             )
             for i in range(1, 6)
         ]
-        weather = _make_weather(forecast=forecast)
+        weather = make_weather(forecast=forecast)
 
         data = DashboardData(
             events=events,

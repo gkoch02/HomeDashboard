@@ -8,8 +8,8 @@ over it as one line, rain hangs beneath it, and the calendar's events sit
 below on the same hours. See ``src/render/components/wide_horizon_panel.py``.
 
 Type is **Big Shoulders Display** (condensed Chicago-signage grotesque) for
-day names, temperatures and the hero reading, DM Sans for event titles and
-small labels. On a colour panel the twilights are ordered dithers between
+day names, temperatures and the hero reading, Figtree ExtraBold for event
+titles, and DM Sans for small labels. On a colour panel the twilights are ordered dithers between
 pairs of inks — pale yellow, orange, maroon — the temperature line and
 today's name are red, and the sun and moon yellow; the registered Inky pair is
 red and yellow.
@@ -22,6 +22,12 @@ fades dithered ink. ``EXTRA_EVENT_DAYS`` fetches the days the window reaches
 past the Monday-anchored week. ``repaint_slot_hours=1`` limits the panel to
 one write per clock hour; the hero's "now" reading can therefore be up to an
 hour old.
+
+Editing notes: The window starts at the 3-hour slot holding now, so the theme stays out
+of ``TIME_DRIVEN``. Take slot ends from ``slot_spans()`` (DST). Stand-in lead-in slots
+are excluded from extremes via ``real_from``. The sky is exact inks and must never be
+declared an art region. Figtree is Latin-only, so ``title_font()`` falls back to
+Literata via ``fonts.has_glyphs()``.
 """
 
 from __future__ import annotations
@@ -64,12 +70,6 @@ def wide_horizon_theme() -> Theme:
             # land on an hour boundary, so they are never delayed by it.
             repaint_slot_hours=1,
             wide_horizon=ComponentRegion(0, 0, CANVAS_W, CANVAS_H),
-            header=ComponentRegion(0, 0, 0, 0, visible=False),
-            week_view=ComponentRegion(0, 0, 0, 0, visible=False),
-            weather=ComponentRegion(0, 0, 0, 0, visible=False),
-            birthdays=ComponentRegion(0, 0, 0, 0, visible=False),
-            info=ComponentRegion(0, 0, 0, 0, visible=False),
-            today_view=ComponentRegion(0, 0, 0, 0, visible=False),
             draw_order=["wide_horizon"],
         ),
         style=ThemeStyle(

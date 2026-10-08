@@ -410,8 +410,8 @@ def validate_config(
                 )
             )
 
-    # A theme whose plate is dithered greyscale or large solid ink declares
-    # ThemeLayout.supports_partial_refresh = False, and OutputService renders it
+    # A theme whose Theme.allows_partial_refresh resolves False (a dithered or
+    # large-solid-ink plate) is rendered by OutputService
     # with the full waveform whatever this setting says. Say so here
     # rather than leave the user reading a config value their runs ignore.
     if cfg.display.enable_partial_refresh and cfg.display.provider == "waveshare":

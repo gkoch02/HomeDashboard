@@ -13,7 +13,8 @@ Two backends share the same phase geometry:
 
 Both backends are mode-aware:
 
-* ``"L"`` (Waveshare greyscale path) — shading the backend later dithers to 1-bit.
+* ``"L"`` (Waveshare greyscale path) — the disc is Floyd-Steinberg-dithered to
+  bilevel here, so the theme can quantize with ``threshold``.
 * ``"RGB"`` (Inky colour path) — the procedural disc uses a warm-yellow lit limb
   and a cool earthshine; the photo renders as realistic greyscale.
 * ``"1"`` (unit-test / bilevel canvases) — drawn flat at 1× with no supersample.
@@ -33,7 +34,8 @@ from PIL import Image, ImageDraw, ImageOps
 from src._assets import asset_root
 
 # Bundled real-moon photograph, occluded per phase when ``use_photo`` is set.
-# Absent in a bare checkout, so the photo theme falls back to the procedural disc.
+# If it is missing (a broken install), the photo theme falls back to the
+# procedural disc.
 _MOON_PHOTO_PATH = asset_root() / "assets" / "moon_full.png"
 
 # Brightness the earthshine (unlit-side) texture is faded toward the background.

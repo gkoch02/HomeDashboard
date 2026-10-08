@@ -1,15 +1,15 @@
 """Full-screen air quality component for the ``air_quality`` theme.
 
 Renders a rich environmental health dashboard across the entire 800×480 canvas,
-organised into four visual zones:
+organised into four visual zones (band heights are set in ``draw_air_quality_full``):
 
-1. **AQI Hero + Scale** (top, 180px): large AQI number and category on the left;
+1. **AQI Hero + Scale** (top): large AQI number and category on the left;
    a 6-zone health-scale bar with a position indicator on the right.
-2. **Particulate Matter row** (140px): PM1.0 / PM2.5 / PM10 readings with
+2. **Particulate Matter row**: PM1.0 / PM2.5 / PM10 readings with
    µg/m³ units, centred in three equal columns.
-3. **Ambient sensor cards** (100px): up to three rounded-rect cards for
+3. **Ambient sensor cards**: up to three rounded-rect cards for
    temperature, humidity, and pressure from the PurpleAir sensor.
-4. **Weather + forecast strip** (bottom, 140px): current conditions on the left,
+4. **Weather + forecast strip** (bottom): current conditions on the left,
    a 4-day forecast grid on the right.
 
 All zones degrade gracefully: missing optional fields (PM1, temp, humidity …)

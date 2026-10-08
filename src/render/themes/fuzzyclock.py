@@ -22,7 +22,7 @@ legibility at large display sizes on eInk.
 
 Update frequency: time phrases change at 5-minute boundaries, so the cron /
 systemd timer should run every 5 minutes.  The image-hash comparison in
-main.py ensures the eInk panel is only physically refreshed when the phrase
+``OutputService.publish()`` ensures the eInk panel is only physically refreshed when the phrase
 actually changes.
 """
 
@@ -41,13 +41,6 @@ def fuzzyclock_theme() -> Theme:
         layout=ThemeLayout(
             canvas_w=800,
             canvas_h=480,
-            # Standard regions are hidden — not used by this theme
-            header=ComponentRegion(0, 0, 800, 40, visible=False),
-            week_view=ComponentRegion(0, 0, 800, clock_h, visible=False),
-            birthdays=ComponentRegion(0, 0, 800, 40, visible=False),
-            info=ComponentRegion(0, 0, 800, 40, visible=False),
-            today_view=ComponentRegion(0, 0, 800, clock_h, visible=False),
-            qotd=ComponentRegion(0, 0, 800, clock_h, visible=False),
             # Fuzzyclock main area: full canvas above the weather banner
             fuzzyclock=ComponentRegion(0, 0, 800, clock_h),
             # Weather banner: full width at the bottom

@@ -6,7 +6,6 @@ from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import pytest
-from PIL import Image, ImageDraw
 
 from src.config import DisplayConfig
 from src.data.models import Birthday, CalendarEvent, DashboardData, WeatherAlert, WeatherData
@@ -21,29 +20,15 @@ from src.render.components.almanac_panel import (
 )
 from src.render.moon import next_phase_date
 from src.render.primitives import fmt_duration, roman
-from src.render.quantize import flatten_pixels
 from src.render.theme import AVAILABLE_THEMES, ComponentRegion, ThemeStyle, load_theme
+from tests.conftest import make_draw
+from tests.inkutils import ink
 
 NYC_LAT = 40.7128
 NYC_LON = -74.0060
 TZ = ZoneInfo("America/New_York")
 FIXED_NOW = datetime(2026, 4, 23, 9, 30, tzinfo=TZ)
 TODAY = FIXED_NOW.date()
-
-
-def _ink(img, box=None) -> int:
-    """Count ink (value-0) pixels, optionally only inside *box*."""
-    px = flatten_pixels(img)
-    width = img.width
-    if box is None:
-        return sum(1 for v in px if v == 0)
-    x0, y0, x1, y1 = box
-    return sum(1 for y in range(y0, y1) for x in range(x0, x1) if px[y * width + x] == 0)
-
-
-def _make_draw(w: int = 800, h: int = 480):
-    img = Image.new("1", (w, h), 1)
-    return img, ImageDraw.Draw(img)
 
 
 def _render(**kwargs):
@@ -308,7 +293,7 @@ class TestAlmanacRender:
 
 class TestDrawAlmanacDirect:
     def _draw(self, data=None, today=TODAY, now=FIXED_NOW, **kwargs):
-        img, d = _make_draw()
+        img, d = make_draw()
         draw_almanac(
             d,
             data if data is not None else DashboardData(events=[], weather=None),
@@ -321,7 +306,7 @@ class TestDrawAlmanacDirect:
     def test_defaults_region_and_style(self):
         """region=None/style=None fill in the defaults and draw the page."""
         img = self._draw()
-        assert _ink(img) > 0, "nothing drawn at all"
+        assert ink(img) > 0, "nothing drawn at all"
         explicit = self._draw(region=ComponentRegion(0, 0, 800, 480), style=ThemeStyle())
         assert img.tobytes() == explicit.tobytes()
 
@@ -342,13 +327,13 @@ class TestDrawAlmanacDirect:
         )
         full = self._draw(DashboardData(events=[], weather=w), latitude=NYC_LAT, longitude=NYC_LON)
         bare = self._draw(latitude=NYC_LAT, longitude=NYC_LON)
-        assert _ink(full) > _ink(bare), "the weather editorial block is not drawn"
+        assert ink(full) > ink(bare), "the weather editorial block is not drawn"
 
     def test_with_lat_lon(self):
         """Coordinates enable the computed almanac figures."""
         with_coords = self._draw(latitude=NYC_LAT, longitude=NYC_LON)
         without = self._draw()
-        assert _ink(with_coords) > 0
+        assert ink(with_coords) > 0
         assert with_coords.tobytes() != without.tobytes(), (
             "the coordinates make no difference to the page"
         )
@@ -368,7 +353,7 @@ class TestDrawAlmanacDirect:
         data = DashboardData(events=[], weather=w)
         zero = self._draw(data, latitude=0.0, longitude=0.0)
         unset = self._draw(data)
-        assert _ink(zero) > 0
+        assert ink(zero) > 0
         assert zero.tobytes() == unset.tobytes(), (
             "(0,0) was treated as a real location rather than as unset"
         )
@@ -384,8 +369,8 @@ class TestDrawAlmanacDirect:
             humidity=50,
         )
         minimal = self._draw(DashboardData(events=[], weather=w))
-        assert _ink(minimal) > 0
-        assert _ink(minimal) < _ink(
+        assert ink(minimal) > 0
+        assert ink(minimal) < ink(
             self._draw(
                 DashboardData(
                     events=[],
@@ -418,7 +403,7 @@ class TestDrawAlmanacDirect:
             latitude=NYC_LAT,
             longitude=NYC_LON,
         )
-        assert _ink(polar) > 0, "the polar page rendered blank"
+        assert ink(polar) > 0, "the polar page rendered blank"
         assert polar.tobytes() != temperate.tobytes()
 
 

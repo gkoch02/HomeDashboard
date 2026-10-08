@@ -11,6 +11,8 @@ from src.data.models import AirQualityData, DashboardData, DayForecast, WeatherD
 from src.render.components.air_quality_panel import draw_air_quality_full
 from src.render.quantize import flatten_pixels
 from src.render.theme import ComponentRegion, ThemeStyle
+from tests.conftest import make_draw
+from tests.inkutils import ink, ink_x_extent
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -33,28 +35,6 @@ def _weather_band(has_ambient: bool) -> tuple[int, int, int, int]:
     zero height when the sensor reports none of temp/humidity/pressure."""
     top = _HERO_H + _PM_H + (_CARDS_H if has_ambient else 0)
     return (0, top, CANVAS_W, CANVAS_H)
-
-
-def _make_draw(w: int = CANVAS_W, h: int = CANVAS_H):
-    img = Image.new("1", (w, h), 1)
-    return img, ImageDraw.Draw(img)
-
-
-def _ink(img: Image.Image, box: tuple[int, int, int, int] | None = None) -> int:
-    px = flatten_pixels(img)
-    width = img.width
-    if box is None:
-        return sum(1 for v in px if v == 0)
-    x0, y0, x1, y1 = box
-    return sum(1 for y in range(y0, y1) for x in range(x0, x1) if px[y * width + x] == 0)
-
-
-def _ink_x_extent(img: Image.Image, box: tuple[int, int, int, int]):
-    px = flatten_pixels(img)
-    width = img.width
-    x0, y0, x1, y1 = box
-    xs = [x for x in range(x0, x1) if any(px[y * width + x] == 0 for y in range(y0, y1))]
-    return (xs[0], xs[-1] + 1) if xs else None
 
 
 def _card_count(img: Image.Image) -> int:
@@ -114,7 +94,7 @@ def _scale_bar_fill(img: Image.Image) -> int:
     bar_x = split + 8
     bar_w = CANVAS_W - split - 16
     bar_y = int(_HERO_H * 0.28)
-    return _ink(img, (bar_x, bar_y + 2, bar_x + bar_w, bar_y + 38))
+    return ink(img, (bar_x, bar_y + 2, bar_x + bar_w, bar_y + 38))
 
 
 def _scale_bar_crop_greyscale(aqi: int):
@@ -192,7 +172,7 @@ def _render(data=None, *, region=None, style=None, **aq_overrides):
     """Render onto a fresh plate. Leftover kwargs override the AirQualityData."""
     if data is None:
         data = _make_data(air_quality=_make_aq(**aq_overrides)) if aq_overrides else _make_data()
-    img, draw = _make_draw()
+    img, draw = make_draw()
     draw_air_quality_full(draw, data, region=region, style=style)
     return img
 
@@ -206,20 +186,20 @@ class TestDrawAirQualityFullSmoke:
     def test_renders_with_full_data(self):
         """Every zone receives content."""
         img = _render()
-        assert _ink(img, HERO) > 0, "hero zone empty"
-        assert _ink(img, PM) > 0, "PM row empty"
-        assert _ink(img, CARDS) > 0, "ambient cards empty"
-        assert _ink(img, _weather_band(has_ambient=True)) > 0, "weather strip empty"
+        assert ink(img, HERO) > 0, "hero zone empty"
+        assert ink(img, PM) > 0, "PM row empty"
+        assert ink(img, CARDS) > 0, "ambient cards empty"
+        assert ink(img, _weather_band(has_ambient=True)) > 0, "weather strip empty"
 
     def test_returns_none(self):
         """Contract check. A no-op also returns None; verified instead by
         making the component return a value and watching this fail."""
-        _, draw = _make_draw()
+        _, draw = make_draw()
         assert draw_air_quality_full(draw, _make_data()) is None
 
     def test_produces_non_blank_image(self):
         """Something is drawn: the plate carries ink."""
-        assert _ink(_render()) > 0
+        assert ink(_render()) > 0
 
     def test_default_region_and_style(self):
         """region=None/style=None fill in the full-canvas defaults."""
@@ -229,9 +209,9 @@ class TestDrawAirQualityFullSmoke:
     def test_custom_region_offset_moves_the_content(self):
         at_origin = _render(region=ComponentRegion(0, 0, 400, 240))
         offset = _render(region=ComponentRegion(120, 0, 400, 240))
-        assert _ink(at_origin) > 0
-        left_a = _ink_x_extent(at_origin, (0, 0, CANVAS_W, CANVAS_H))
-        left_b = _ink_x_extent(offset, (0, 0, CANVAS_W, CANVAS_H))
+        assert ink(at_origin) > 0
+        left_a = ink_x_extent(at_origin, (0, 0, CANVAS_W, CANVAS_H))
+        left_b = ink_x_extent(offset, (0, 0, CANVAS_W, CANVAS_H))
         assert left_a is not None and left_b is not None
         assert left_b[0] > left_a[0], "region.x offset did not move the content"
 
@@ -255,14 +235,14 @@ class TestDrawAirQualityUnavailable:
     def test_renders_when_air_quality_is_none(self):
         """The fallback message is drawn and none of the zones are."""
         img = _render(_make_data(air_quality=None))
-        assert _ink(img) > 0, "no fallback message drawn"
+        assert ink(img) > 0, "no fallback message drawn"
         assert _card_count(img) == 0, "ambient cards drawn without air quality"
         assert _pm_separator_count(img) == 0, "PM columns drawn without air quality"
         assert _scale_bar_fill(img) == 0, "AQI scale bar drawn without air quality"
 
     def test_unavailable_message_is_centred(self):
         img = _render(_make_data(air_quality=None))
-        extent = _ink_x_extent(img, (0, 0, CANVAS_W, CANVAS_H))
+        extent = ink_x_extent(img, (0, 0, CANVAS_W, CANVAS_H))
         assert extent is not None
         midpoint = (extent[0] + extent[1]) / 2
         assert abs(midpoint - CANVAS_W / 2) < 12, f"message off-centre: midpoint {midpoint}"
@@ -271,7 +251,7 @@ class TestDrawAirQualityUnavailable:
         """Weather is irrelevant once air quality is missing — same plate."""
         no_aq = _render(_make_data(air_quality=None))
         neither = _render(_make_data(air_quality=None, weather=None))
-        assert _ink(neither) > 0
+        assert ink(neither) > 0
         assert neither.tobytes() == no_aq.tobytes()
 
 
@@ -286,13 +266,13 @@ class TestWeatherStrip:
     def test_renders_without_weather(self):
         """No weather leaves the strip nearly bare, but does not break the panel."""
         no_wx = _render(_make_data(weather=None))
-        assert _ink(no_wx, self.BAND) < _ink(_render(), self.BAND)
-        assert _ink(no_wx, HERO) > 0, "losing weather should not cost the AQI hero"
+        assert ink(no_wx, self.BAND) < ink(_render(), self.BAND)
+        assert ink(no_wx, HERO) > 0, "losing weather should not cost the AQI hero"
 
     def test_renders_without_forecast(self):
         """An empty forecast drops the columns but keeps current conditions."""
         no_fc = _render(_make_data(weather=_make_weather(forecast=[])))
-        assert 0 < _ink(no_fc, self.BAND) < _ink(_render(), self.BAND)
+        assert 0 < ink(no_fc, self.BAND) < ink(_render(), self.BAND)
 
     def test_renders_with_empty_precip_chance(self):
         """precip_chance=None omits the percentage from each column."""
@@ -309,9 +289,7 @@ class TestWeatherStrip:
                 for i in range(4)
             ]
         )
-        assert _ink(_render(_make_data(weather=none_precip)), self.BAND) < _ink(
-            _render(), self.BAND
-        )
+        assert ink(_render(_make_data(weather=none_precip)), self.BAND) < ink(_render(), self.BAND)
 
     def test_renders_with_high_precip_chance(self):
         """A high chance draws a wider percentage than a low one."""
@@ -331,8 +309,8 @@ class TestWeatherStrip:
                 ]
             )
 
-        high = _ink(_render(_make_data(weather=_fc(1.0))), self.BAND)
-        low = _ink(_render(_make_data(weather=_fc(0.1))), self.BAND)
+        high = ink(_render(_make_data(weather=_fc(1.0))), self.BAND)
+        low = ink(_render(_make_data(weather=_fc(0.1))), self.BAND)
         assert high != low, "the precipitation chance is not being drawn"
 
 
@@ -346,7 +324,7 @@ class TestPMRow:
         """One reading means one column and no separators."""
         img = _render(pm1=None, pm10=None)
         assert _pm_column_count(img) == 1
-        assert _ink(img, PM) > 0
+        assert ink(img, PM) > 0
 
     def test_pm25_and_pm10_only(self):
         assert _pm_column_count(_render(pm1=None)) == 2
@@ -361,7 +339,7 @@ class TestPMRow:
         """Zero is a real reading, not a missing one — the columns stay."""
         img = _render(pm1=0.0, pm25=0.0, pm10=0.0)
         assert _pm_column_count(img) == 3
-        assert _ink(img, PM) != _ink(_render(), PM), "PM values are not being drawn"
+        assert ink(img, PM) != ink(_render(), PM), "PM values are not being drawn"
 
 
 # ---------------------------------------------------------------------------
@@ -375,7 +353,7 @@ class TestAmbientCards:
         img = _render(temperature=None, humidity=None, pressure=None)
         assert not _has_cards_zone(img), "a cards zone was reserved with nothing to put in it"
         assert _has_cards_zone(_render()), "sanity: the full-data plate does reserve one"
-        assert _ink(img, _weather_band(has_ambient=False)) > 0, "weather strip did not move up"
+        assert ink(img, _weather_band(has_ambient=False)) > 0, "weather strip did not move up"
         assert img.tobytes() != _render().tobytes()
 
     def test_temperature_only(self):
@@ -392,7 +370,7 @@ class TestAmbientCards:
         temp = _render(humidity=None, pressure=None)
         humid = _render(temperature=None, pressure=None)
         press = _render(temperature=None, humidity=None)
-        inks = {_ink(temp, CARDS), _ink(humid, CARDS), _ink(press, CARDS)}
+        inks = {ink(temp, CARDS), ink(humid, CARDS), ink(press, CARDS)}
         assert len(inks) == 3, "two ambient cards rendered identically"
 
     def test_temp_and_humidity_only(self):
@@ -405,7 +383,7 @@ class TestAmbientCards:
         """A metric install labels the card °C, not a hard-coded °F (#297)."""
         f = _render(humidity=None, pressure=None, temperature=22.0)
         c = _render(humidity=None, pressure=None, temperature=22.0, temperature_unit="°C")
-        assert _ink(f, CARDS) != _ink(c, CARDS)
+        assert ink(f, CARDS) != ink(c, CARDS)
 
     def test_temperature_hidden_when_from_fallback(self):
         """A temperature sourced from OWM rather than the sensor is suppressed."""
@@ -422,12 +400,12 @@ class TestAmbientCards:
         fallback = _render(pressure=None, fallback_fields={"temperature"})
         never_had = _render(temperature=None, pressure=None)
         assert _card_count(fallback) == 1
-        assert _ink(fallback, CARDS) == _ink(never_had, CARDS)
+        assert ink(fallback, CARDS) == ink(never_had, CARDS)
 
     def test_humidity_and_pressure_shown_without_temperature(self):
         img = _render(temperature=None)
         assert _card_count(img) == 2
-        assert _ink(img, CARDS) > 0
+        assert ink(img, CARDS) > 0
 
 
 # ---------------------------------------------------------------------------
@@ -453,7 +431,7 @@ class TestAqiHeroAndScaleBar:
     )
     def test_aqi_zones_render_the_reading_and_the_bar(self, aqi, category):
         img = _render(aqi=aqi, category=category)
-        assert _ink(img, HERO) > 0, f"hero empty for AQI {aqi}"
+        assert ink(img, HERO) > 0, f"hero empty for AQI {aqi}"
         # AQI 0 leaves the bar outline only; every other reading fills some of it.
         assert _scale_bar_fill(img) > 0
 
@@ -493,7 +471,7 @@ class TestAqiHeroAndScaleBar:
         split = int(CANVAS_W * 0.28)
         max_w = split - 40  # column width minus 2×pad, per _draw_aqi_hero
         for value in (5, 42, 350, 500):
-            extent = _ink_x_extent(_render(aqi=value), (0, 60, split, _HERO_H - 40))
+            extent = ink_x_extent(_render(aqi=value), (0, 60, split, _HERO_H - 40))
             assert extent is not None, f"nothing drawn for AQI {value}"
             assert extent[1] - extent[0] <= max_w, (
                 f"AQI {value} rendered {extent[1] - extent[0]}px wide, over the {max_w} cap"
@@ -501,7 +479,7 @@ class TestAqiHeroAndScaleBar:
 
     def test_category_text_is_drawn(self):
         """A longer category leaves more ink than a short one."""
-        assert _ink(_render(category="Hazardous"), HERO) > _ink(_render(category="Good"), HERO)
+        assert ink(_render(category="Hazardous"), HERO) > ink(_render(category="Good"), HERO)
 
 
 # ---------------------------------------------------------------------------
@@ -529,14 +507,6 @@ class TestAirQualityTheme:
         from src.render.themes.air_quality import air_quality_theme
 
         assert air_quality_theme().layout.air_quality_full.visible is True
-
-    def test_standard_regions_hidden(self):
-        from src.render.themes.air_quality import air_quality_theme
-
-        layout = air_quality_theme().layout
-        assert layout.header.visible is False
-        assert layout.week_view.visible is False
-        assert layout.weather.visible is False
 
     def test_uses_space_grotesk_fonts(self):
         from src.render.fonts import sg_bold, sg_regular

@@ -545,7 +545,7 @@ A diagnostic, not a daily theme: it changes every tick, always takes a full refr
 
 ## Creating your own theme
 
-Contributor-facing implementation details live in [CONTRIBUTING.md](../CONTRIBUTING.md) and [CLAUDE.md](../CLAUDE.md). The operator-facing rule is simple: custom themes must be registered in the theme registry before they can be referenced from `config.yaml`.
+Contributor-facing implementation details live in [Development → New theme](development.md#new-theme). The operator-facing rule is simple: custom themes must be registered in the theme registry before they can be referenced from `config.yaml`.
 
 If you are authoring a greyscale custom theme, set `ThemeLayout.canvas_mode = "L"` and use `fg=0, bg=255` in `ThemeStyle`.
 

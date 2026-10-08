@@ -6,6 +6,12 @@ night-sky feel.  Whimsical vine border with leaf buds, corner flourishes,
 and scattered stars drawn via the overlay function.
 
 Paired with ``moonphase_invert`` for a light parchment variant.
+
+Editing notes: Pure math from ``src/astronomy.py`` and ``src/render/moon.py``; it has no
+fetcher. Discs come from ``moon_render.py`` (procedural; ``moonphase_photo`` occludes
+``assets/moon_full.png`` via ``ThemeStyle.use_moon_photo``). ``moonphase_photo`` derives
+from ``moonphase_theme()`` with ``dataclasses.replace``; ``moonphase_invert`` is a full
+copy of the layout, so a layout change here must be made there too.
 """
 
 from __future__ import annotations
@@ -168,18 +174,6 @@ def moonphase_theme() -> Theme:
         layout=ThemeLayout(
             canvas_w=800,
             canvas_h=480,
-            # All standard regions hidden
-            header=ComponentRegion(0, 0, 800, 40, visible=False),
-            week_view=ComponentRegion(0, 40, 800, 320, visible=False),
-            weather=ComponentRegion(0, 360, 300, 120, visible=False),
-            birthdays=ComponentRegion(300, 360, 250, 120, visible=False),
-            info=ComponentRegion(550, 360, 250, 120, visible=False),
-            today_view=ComponentRegion(0, 60, 800, 280, visible=False),
-            qotd=ComponentRegion(0, 0, 800, 400, visible=False),
-            weather_full=ComponentRegion(0, 0, 800, 480, visible=False),
-            fuzzyclock=ComponentRegion(0, 0, 800, 400, visible=False),
-            diags=ComponentRegion(0, 0, 800, 480, visible=False),
-            air_quality_full=ComponentRegion(0, 0, 800, 480, visible=False),
             # Full-canvas moonphase region
             moonphase_full=ComponentRegion(0, 0, 800, 480),
             draw_order=["moonphase_full"],
