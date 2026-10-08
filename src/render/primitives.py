@@ -337,6 +337,20 @@ def events_for_day(events: list, day: date) -> list:
     return result
 
 
+def draw_unavailable(draw: ImageDraw.ImageDraw, region, style, message: str, size: int) -> None:
+    """Centre *message* in *region*: a full-canvas panel's no-data fallback."""
+    font = style.font_medium(size)
+    draw.text(
+        (
+            region.x + (region.w - text_width(draw, message, font)) // 2,
+            region.y + (region.h - text_height(font)) // 2,
+        ),
+        message,
+        font=font,
+        fill=style.fg,
+    )
+
+
 def draw_staleness_glyph(draw: ImageDraw.ImageDraw, region, style) -> None:
     """Draw a small inverted '!' badge in the bottom-right corner of *region*.
 

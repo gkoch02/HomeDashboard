@@ -22,47 +22,20 @@ Font choice: Playfair Display — same as ``qotd``.  The high-contrast strokes
 of this transitional serif read especially well reversed out of a dark ground.
 """
 
-from src.render.fonts import (
-    playfair_bold,
-    playfair_medium,
-    playfair_regular,
-    playfair_semibold,
-)
-from src.render.theme import ComponentRegion, Theme, ThemeLayout, ThemeStyle
+from __future__ import annotations
 
-BANNER_H = 80  # height of the bottom weather strip
+import dataclasses
+
+from src.render.theme import Theme
+from src.render.themes.qotd import qotd_theme
 
 
 def qotd_invert_theme() -> Theme:
-    """Return the QOTD Inverted theme."""
-    quote_h = 480 - BANNER_H  # 400 px for the quote
-
-    return Theme(
-        name="qotd_invert",
-        layout=ThemeLayout(
-            canvas_w=800,
-            canvas_h=480,
-            # QOTD main area: full canvas above the weather banner
-            qotd=ComponentRegion(0, 0, 800, quote_h),
-            # Weather banner: full width at the bottom
-            weather=ComponentRegion(0, quote_h, 800, BANNER_H),
-            draw_order=["qotd", "qotd_weather"],
-        ),
-        style=ThemeStyle(
-            fg=1,  # white text on black canvas
-            bg=0,
-            invert_header=False,
-            invert_today_col=False,
-            invert_allday_bars=False,
-            # Playfair Display: high-contrast strokes read beautifully reversed out.
-            font_regular=playfair_regular,
-            font_medium=playfair_medium,
-            font_semibold=playfair_semibold,
-            font_bold=playfair_bold,
-            label_font_size=11,
-            label_font_weight="semibold",
-        ),
-    )
+    """Return the QOTD Inverted theme: ``qotd`` with the plate's polarity flipped."""
+    base = qotd_theme()
+    # The accents are unset: qotd's blue and green are chosen for a white plate.
+    style = dataclasses.replace(base.style, fg=1, bg=0, accent_info=None, accent_primary=None)
+    return dataclasses.replace(base, name="qotd_invert", style=style)
 
 
 def _register() -> None:

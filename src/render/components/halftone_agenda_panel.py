@@ -45,7 +45,7 @@ from src.render.artkit import ink as _ink
 # Calendar semantics are shared with ``day_arc`` rather than re-derived: both
 # themes classify the same events against the same clock, and a second copy of
 # either rule would be free to drift out of agreement with the first.
-from src.render.components.day_arc_panel import agenda_day, event_state
+from src.render.components.day_arc_panel import agenda_day, agenda_metrics, event_state
 from src.render.fonts import weather_icon
 from src.render.primitives import (
     content_time,
@@ -471,19 +471,6 @@ def _draw_hairline(image: Image.Image, x0: int, y: int, w: int, mode: str) -> No
 # Right pane — agenda
 
 
-def agenda_metrics(n_events: int, avail_h: int) -> tuple[int, int, int, int, int, bool]:
-    """Pick the roomiest density tier that shows *n_events* within *avail_h*.
-
-    Capacity is tested against the height actually on hand rather than the
-    tier's nominal ``max_rows``, so a tier whose rows overrun the pane can't
-    collapse a four-event day into two rows plus "+2 more".
-    """
-    for tier in _DENSITY_TIERS:
-        if min(tier[0], avail_h // max(1, tier[1])) >= n_events:
-            return tier
-    return _DENSITY_TIERS[-1]
-
-
 def event_times(event: CalendarEvent) -> tuple[str, str | None]:
     """Return ``(start, end)`` labels for *event*; *end* is None when unusable.
 
@@ -821,7 +808,9 @@ def _draw_agenda_pane(
         )
         return
 
-    max_rows, row_h, time_w, time_pt, title_pt, show_loc = agenda_metrics(len(day_events), rows_h)
+    max_rows, row_h, time_w, time_pt, title_pt, show_loc = agenda_metrics(
+        len(day_events), rows_h, _DENSITY_TIERS
+    )
     # The tier sets the type size; the row count comes from the space actually
     # on hand, so an overrunning tier can't push "+N more" into the footer.
     fits = max(1, min(max_rows, rows_h // row_h))

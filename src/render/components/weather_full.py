@@ -28,6 +28,7 @@ from src.render.moon import moon_phase_glyph, moon_phase_name
 from src.render.primitives import (
     deg_to_compass,
     draw_text_truncated,
+    draw_unavailable,
     filled_rect,
     fmt_deg,
     hline,
@@ -67,7 +68,7 @@ def draw_weather_full(
         style = ThemeStyle()
 
     if weather is None:
-        _draw_unavailable(draw, region, style)
+        draw_unavailable(draw, region, style, "Weather Unavailable", 18)
         return
 
     x0, y0 = region.x, region.y
@@ -473,17 +474,3 @@ def _draw_forecast_grid(draw, weather, x0, y0, W, H, style):
                 font=precip_font,
                 fill=fg,
             )
-
-
-def _draw_unavailable(draw, region, style):
-    """Centred fallback when weather data is None."""
-    font = style.font_medium(18)
-    msg = "Weather Unavailable"
-    mw = text_width(draw, msg, font)
-    mh = text_height(font)
-    draw.text(
-        (region.x + (region.w - mw) // 2, region.y + (region.h - mh) // 2),
-        msg,
-        font=font,
-        fill=style.fg,
-    )

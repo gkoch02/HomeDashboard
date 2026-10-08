@@ -56,7 +56,7 @@ class MoonTones:
     edge: int | tuple[int, int, int]
 
 
-def _tone_luminance(value: int | tuple[int, int, int]) -> float:
+def tone_luminance(value: int | tuple[int, int, int]) -> float:
     """Normalize an ``"L"``/``"1"``/RGB tone to a 0..1 luminance."""
     if isinstance(value, tuple):
         return sum(value) / 3 / 255
@@ -253,7 +253,7 @@ def render_moon_disc(
         photo = _load_moon_photo(str(photo_path or _MOON_PHOTO_PATH))
         if photo is not None:
             if dark_canvas is None:
-                dark_canvas = _tone_luminance(tones.lit) >= _tone_luminance(tones.dark)
+                dark_canvas = tone_luminance(tones.lit) >= tone_luminance(tones.dark)
             _render_photo_disc(image, cx, cy, radius, age, synodic, mode, dark_canvas, photo)
             return
 

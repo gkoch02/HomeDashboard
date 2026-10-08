@@ -9,9 +9,9 @@ Paired with ``moonphase_invert`` for a light parchment variant.
 
 Editing notes: Pure math from ``src/astronomy.py`` and ``src/render/moon.py``; it has no
 fetcher. Discs come from ``moon_render.py`` (procedural; ``moonphase_photo`` occludes
-``assets/moon_full.png`` via ``ThemeStyle.use_moon_photo``). ``moonphase_photo`` derives
-from ``moonphase_theme()`` with ``dataclasses.replace``; ``moonphase_invert`` is a full
-copy of the layout, so a layout change here must be made there too.
+``assets/moon_full.png`` via ``ThemeStyle.use_moon_photo``). ``moonphase_photo`` and
+``moonphase_invert`` derive from ``moonphase_theme()`` with ``dataclasses.replace``, so
+a layout change here reaches both; the invert drops this theme's partial-refresh override.
 """
 
 from __future__ import annotations

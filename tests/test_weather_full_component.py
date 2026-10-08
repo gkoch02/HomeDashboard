@@ -159,7 +159,7 @@ class TestDrawWeatherFullUnavailable:
         assert ink(img, forecast_band()) == 0, "forecast grid drawn for None weather"
 
     def test_unavailable_message_is_centred(self):
-        """_draw_unavailable centres its message on the region."""
+        """The no-data message is centred on the region."""
         img = _render(weather=None)
         extent = ink_x_extent(img, (0, 0, CANVAS_W, CANVAS_H))
         assert extent is not None
