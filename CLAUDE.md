@@ -23,7 +23,7 @@ make docs-check     # scripts/check_docs.py: markdown links, the theme inventori
                     #   Run by the `lint` CI job, so drift blocks a merge.
 make lint           # ruff check + dead-code scan of src/ + mypy src/ (CI runs all three)
 make fmt            # ruff format src/ tests/ scripts/ tools/
-make version        # Print current version (e.g. main.py 6.0.0)
+make version        # Print current version (e.g. main.py 6.1.0)
 make release-dry    # Show the next release (inferred from the CHANGELOG); writes nothing
 make release        # Bump src/_version.py, date the CHANGELOG, commit, tag vX.Y.Z
 make lock           # Re-resolve the Pi dependency snapshot constraints/py*.txt (needs uv)
@@ -111,7 +111,7 @@ Components are pure functions: `draw_*(draw, data, region, style) -> None`, no g
 --force-full-refresh   Force full eInk refresh and bypass fetch intervals
 --ignore-breakers      Ignore OPEN circuit breakers for this run
 --check-config         Validate config and exit
---version              Print version and exit (e.g. "main.py 6.0.0")
+--version              Print version and exit (e.g. "main.py 6.1.0")
 ```
 
 ## Adding New Features
