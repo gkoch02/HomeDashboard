@@ -1,6 +1,6 @@
 {
   "reference_env": {
-    "pillow_version": "12.2.0"
+    "pillow_version": "12.3.0"
   },
   "themes": {
     "air_quality": "d204e9eb6ea23b5a54ca15af196cd7fa7081b15aba6317f032714960084a9134",

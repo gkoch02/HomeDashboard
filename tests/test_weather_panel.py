@@ -4,7 +4,7 @@ where possible.
 
 from datetime import date, datetime, timedelta, timezone
 
-from PIL import Image, ImageDraw
+from PIL import Image
 
 from src.data.models import (
     AirQualityData,
@@ -23,40 +23,13 @@ from src.render.components.weather_panel import (
 from src.render.primitives import aqi_accent
 from src.render.quantize import flatten_pixels
 from src.render.theme import ComponentRegion, ThemeStyle
+from tests.conftest import make_draw, make_weather
 from tests.inkutils import ink, ink_bbox, record_text
-
-
-def _make_weather_with_forecast(**kwargs) -> WeatherData:
-    defaults = dict(
-        current_temp=55.0,
-        current_icon="01d",
-        current_description="clear",
-        high=60.0,
-        low=45.0,
-        humidity=50,
-        forecast=[
-            DayForecast(
-                date=date.today() + timedelta(days=1),
-                high=58.0,
-                low=44.0,
-                icon="02d",
-                description="cloudy",
-            )
-        ],
-    )
-    defaults.update(kwargs)
-    return WeatherData(**defaults)
-
 
 WEATHER_BOX = (L.WEATHER_X, L.WEATHER_Y, L.WEATHER_X + L.WEATHER_W, L.WEATHER_Y + L.WEATHER_H)
 
 
 REGION = ComponentRegion(L.WEATHER_X, L.WEATHER_Y, L.WEATHER_W, L.WEATHER_H)
-
-
-def _make_draw(w: int = 800, h: int = 480):
-    img = Image.new("1", (w, h), 1)
-    return img, ImageDraw.Draw(img)
 
 
 def _make_weather(**kwargs) -> WeatherData:
@@ -143,7 +116,7 @@ def _render(**kwargs) -> Image.Image:
     weather = kwargs.pop("weather", _UNSET)
     if weather is _UNSET:
         weather = _make_weather(**kwargs)
-    img, draw = _make_draw()
+    img, draw = make_draw()
     draw_weather(
         draw,
         weather,
@@ -599,7 +572,7 @@ class TestAQIForecastColumn:
 
     def test_aqi_column_truncates_long_category_label(self):
         """A long category is truncated so the label stays inside its column."""
-        img, draw = _make_draw()
+        img, draw = make_draw()
         col_x, col_w = 100, 100
         _draw_aqi_column(
             draw,
@@ -633,7 +606,7 @@ class TestAQIForecastColumn:
 
     def test_draw_aqi_column_direct(self):
         """Directly exercise _draw_aqi_column: it fills, and stays inside, its column."""
-        img, draw = _make_draw(w=200, h=100)
+        img, draw = make_draw(w=200, h=100)
         _draw_aqi_column(
             draw,
             _make_aqi(aqi=87, category="Moderate"),
@@ -685,27 +658,27 @@ class TestWeatherPanelMoon:
         """today= adds the moon glyph to the weather panel's label row."""
         from src.render.components.weather_panel import draw_weather
 
-        with_today, draw = _make_draw()
-        draw_weather(draw, _make_weather_with_forecast(), today=date(2024, 3, 15))
-        without, draw2 = _make_draw()
-        draw_weather(draw2, _make_weather_with_forecast(), today=None)
+        with_today, draw = make_draw()
+        draw_weather(draw, make_weather(), today=date(2024, 3, 15))
+        without, draw2 = make_draw()
+        draw_weather(draw2, make_weather(), today=None)
         assert ink(with_today, WEATHER_BOX) > ink(without, WEATHER_BOX), "no moon glyph"
 
     def test_draw_weather_without_today_no_crash(self):
         """Backward compat: today=None renders the panel minus the glyph."""
         from src.render.components.weather_panel import draw_weather
 
-        img, draw = _make_draw()
-        draw_weather(draw, _make_weather_with_forecast(), today=None)
+        img, draw = make_draw()
+        draw_weather(draw, make_weather(), today=None)
         assert ink(img, WEATHER_BOX) > 0
 
     def test_draw_weather_none_with_today(self):
         """The moon glyph is drawn even when there is no weather to pair it with."""
         from src.render.components.weather_panel import draw_weather
 
-        with_today, draw = _make_draw()
+        with_today, draw = make_draw()
         draw_weather(draw, None, today=date(2024, 3, 15))
-        without, draw2 = _make_draw()
+        without, draw2 = make_draw()
         draw_weather(draw2, None, today=None)
         assert ink(with_today, WEATHER_BOX) > ink(without, WEATHER_BOX)
 
@@ -714,7 +687,7 @@ class TestAlertColumn:
     COL_W = 100
 
     def _lines(self, event: str) -> list[str]:
-        _img, draw = _make_draw()
+        _img, draw = make_draw()
         calls = record_text(draw)
         _draw_alert_column(draw, event, 0, 0, self.COL_W, 60, ThemeStyle())
         return [t for t, _box in calls]
@@ -727,6 +700,6 @@ class TestAlertColumn:
         lines = self._lines("Winter Weather Advisory and Coastal Flood Warning")
         assert len(lines) == 2
         assert lines[-1].endswith("...")
-        _img, draw = _make_draw()
+        _img, draw = make_draw()
         font = ThemeStyle().font_semibold(10)
         assert all(draw.textlength(line, font=font) <= self.COL_W - L.PAD * 2 for line in lines)

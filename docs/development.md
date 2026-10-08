@@ -164,7 +164,7 @@ home-dashboard/
 ├── config/          # example config, web config template, bundled quotes
 ├── deploy/          # systemd units and setup helpers
 ├── docs/            # operator and contributor docs
-├── fonts/           # bundled fonts (see CLAUDE.md → Bundled fonts for the catalog)
+├── fonts/           # bundled fonts (accessors in src/render/fonts.py)
 ├── output/          # runtime artefacts (latest.png, dry-run scratch capped at the newest
 │                   #   20 dashboard_*.png, logs, image-hash marker)
 ├── state/           # runtime state (cache, breaker, sync tokens, theme state)
@@ -255,8 +255,34 @@ See `src/fetchers/calendar_caldav.py` plus the `_register()` block at the bottom
 
 ### New theme
 
-1. Create `src/render/themes/my_theme.py` exporting a `my_theme() -> Theme` factory.
-2. At the bottom of the module:
+This is the one recipe for adding a theme; CONTRIBUTING.md, CLAUDE.md and
+architecture.md link here. Themes self-register via a `register_theme(...)` call at
+the bottom of their own module — there is no central registry dict to edit.
+
+1. Create `src/render/themes/my_theme.py` returning a `Theme` built from the theme API:
+
+   ```python
+   from src.render.theme import ComponentRegion, Theme, ThemeLayout, ThemeStyle
+
+
+   def my_theme() -> Theme:
+       style = ThemeStyle(fg=0, bg=1, invert_header=True, show_borders=True)
+       layout = ThemeLayout(
+           header=ComponentRegion(0, 0, 800, 40),
+           week_view=ComponentRegion(0, 40, 800, 320),
+           weather=ComponentRegion(0, 360, 300, 120),
+           birthdays=ComponentRegion(300, 360, 250, 120),
+           info=ComponentRegion(550, 360, 250, 120),
+           draw_order=["header", "week_view", "weather", "birthdays", "info"],
+       )
+       return Theme(name="my_theme", style=style, layout=layout)
+   ```
+
+   The fields are documented on the `ThemeLayout` and `ThemeStyle` dataclasses in
+   `src/render/theme.py`; fonts are the accessors in `src/render/fonts.py`. Facts that
+   only matter when editing this theme go in its module docstring.
+
+2. At the bottom of the same module, register the theme and its Inky palette pair:
 
    ```python
    def _register() -> None:
@@ -268,29 +294,55 @@ See `src/fetchers/calendar_caldav.py` plus the `_register()` block at the bottom
    _register()
    ```
 
-3. Add the module to `src/render/themes/__init__.py` so it's imported on package load.
-4. Regenerate the pixel-hash baseline:
+3. Add the module to `src/render/themes/__init__.py` so the side-effect import fires.
+4. New themes join the random rotation pool automatically. To keep one out (utility /
+   diagnostic views), add its name to `_EXCLUDED_FROM_POOL` in
+   `src/render/random_theme.py`.
+5. If its agenda rolls past the Monday-anchored week (to tomorrow or beyond), add it to
+   `EXTRA_EVENT_DAYS` in `src/app.py`.
+6. Regenerate the pixel-hash baseline — the snapshot guard fails on a theme with none —
+   and commit the updated `tests/snapshots/theme_pixel_hashes.json`:
 
    ```bash
    UPDATE_SNAPSHOTS=1 pytest tests/test_theme_pixel_snapshots.py
    ```
 
-   Commit the updated `tests/snapshots/theme_pixel_hashes.json` alongside the source.
+7. Regenerate both preview sets (`make previews`, `make previews-inky`; see
+   [previews.md](previews.md)) and add a `#### <name>` entry under a `### ` group
+   heading in both `docs/themes.md` and `docs/inky-previews.md`. `make docs-check`
+   fails if either catalog page is missing the theme. A `wide_*` theme also needs its
+   `_g` preview and a section in `docs/wide-themes.md`, added by hand. For a quick
+   sanity check first:
 
-New themes are automatically eligible for the random rotation pool. To exclude one
-(utility / diagnostic views), add its name to `_EXCLUDED_FROM_POOL` in
-`src/render/random_theme.py`.
+   ```bash
+   venv/bin/python -m src.main --dry-run --dummy --theme my_theme
+   ```
 
-Partial-refresh capability needs no declaration: `Theme.allows_partial_refresh` derives
-it from the plate, declining when the theme dithers (`preferred_quantization_mode` of
-`floyd_steinberg` / `ordered`, or a dithered `background_fn`) or its `ThemeStyle.bg` is
-ink. `ThemeLayout.supports_partial_refresh` defaults to `None` and exists only to overrule
-that; see [Adding a Theme](../CONTRIBUTING.md#adding-a-theme). To author a greyscale theme, set `canvas_mode="L"` in
-`ThemeLayout` and use `fg=0, bg=255` in `ThemeStyle` (or invert that polarity to
-`fg=255, bg=0` for a dark canvas — see `constellation_map` for the white-on-black
-reference).
+**Greyscale themes.** Set `canvas_mode="L"` in `ThemeLayout` and use `fg=0, bg=255` in
+`ThemeStyle` (or `fg=255, bg=0` for a dark canvas — `bg=1` is near-black in L mode; see
+`constellation_map`). An L-mode theme must also declare `preferred_quantization_mode`:
+the partial-refresh derivation reads the theme, never `display.quantization_mode`, so
+one that declares nothing silently inherits a global `floyd_steinberg`.
 
-If the theme uses an OFL display font that isn't already in `fonts/`, drop the
+**Partial refresh needs no declaration.** Waveshare's fast waveform will not lay down a
+plate built out of dithered ink or large solid fills, so `Theme.allows_partial_refresh`
+derives it from the plate, declining when any of these holds:
+
+- `preferred_quantization_mode` is `"floyd_steinberg"` or `"ordered"` (these diffuse ink
+  across the plate; `"threshold"` is a hard cut, so an `"L"` canvas is *not* on its own
+  a reason)
+- `background_fn` paints a dithered image across the canvas, as `photo` does
+- `ThemeStyle.bg` is ink rather than paper, so the whole plate is one solid fill
+
+`ThemeLayout.supports_partial_refresh` defaults to `None` ("derive") and exists only to
+**overrule** that, when you know something the plate does not show —
+`fuzzyclock_invert` sets `True` on a 95%-ink plate because it redraws every five minutes
+and declining would flash the panel on every tick. Leave a comment saying why, and add
+the theme to `OVERRIDES` in `tests/test_theme_partial_refresh.py`. That module rejects a
+declaration that merely agrees with the derivation: it reads as a decision when it is
+noise, and goes stale silently if the plate later changes.
+
+**Fonts.** If the theme uses an OFL display font that isn't already in `fonts/`, drop the
 `.ttf` and the upstream `OFL.txt` license file into `fonts/` (named
 `<Family>-OFL.txt`, matching the flat layout there), add an accessor to
 `src/render/fonts.py`, and reference it via `style.font_title` /
@@ -334,12 +386,6 @@ runs it, so a dangling reference stays invisible until someone runs
 `make banner`. Grep the whole tree for the filename, not just for its accessor,
 and regenerate `assets/banner.png` if the banner's own faces changed.
 
-If the theme should be embedded in the docs, regenerate both preview sets —
-`make previews` for the Waveshare PNG that `docs/themes.md` embeds, and
-`make previews-inky` for the color PNG that `docs/inky-previews.md` embeds.
-`make docs-check` fails if either page is missing an entry for the new theme.
-All preview PNGs live under `assets/previews/`.
-
 ### New component
 
 1. Create `src/render/components/my_panel.py` with `draw_my_panel(draw, data, region, style, ...)`.
@@ -369,7 +415,7 @@ All preview PNGs live under `assets/previews/`.
 3. Add a `FieldSpec` entry to the appropriate `SectionSpec` in `src/config_schema.py`.
    Mark `secret=True` for credentials. The `editable_field_paths()` allowlist used by
    the web UI regenerates from the schema automatically.
-4. If the field affects validation, extend `validate_config` in `src/config.py`.
+4. If the field affects validation, extend `validate_config` in `src/config_validation.py`.
 
 ### New web endpoint
 

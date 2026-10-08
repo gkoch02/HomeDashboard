@@ -17,6 +17,7 @@ from src.render.components.week_view import (
     draw_week,
 )
 from src.render.quantize import flatten_pixels
+from tests.conftest import all_day_event, make_draw
 from tests.inkutils import ink
 
 
@@ -26,20 +27,6 @@ def _timed(day: date, h_start: int, h_end: int, summary: str = "Evt", location: 
         start=datetime.combine(day, datetime.min.time().replace(hour=h_start)),
         end=datetime.combine(day, datetime.min.time().replace(hour=h_end)),
         location=location,
-    )
-
-
-def _make_draw(w: int = 800, h: int = 480):
-    img = Image.new("1", (w, h), 1)
-    return img, ImageDraw.Draw(img)
-
-
-def _all_day(start: date, end: date, summary: str = "All Day"):
-    return CalendarEvent(
-        summary=summary,
-        start=datetime.combine(start, datetime.min.time()),
-        end=datetime.combine(end, datetime.min.time()),
-        is_all_day=True,
     )
 
 
@@ -707,7 +694,7 @@ class TestDrawDayEvents:
 
 class TestEventLocationDisplay:
     def _week(self, events, today=None):
-        img, draw = _make_draw()
+        img, draw = make_draw()
         draw_week(draw, events, today or date(2024, 3, 15))
         return img
 
@@ -767,20 +754,20 @@ class TestBusynessHeatmap:
     def test_no_crash_with_max_events(self):
         """12 events on one day render, and draw more than a quiet day."""
         today = date(2024, 3, 18)
-        img, draw = _make_draw()
+        img, draw = make_draw()
         draw_week(draw, [_timed(today, 7, 8, f"Evt {i}") for i in range(12)], today)
-        quiet, quiet_draw = _make_draw()
+        quiet, quiet_draw = make_draw()
         draw_week(quiet_draw, [_timed(today, 7, 8, "Only one")], today)
         assert ink(img, WEEK_BOX) > ink(quiet, WEEK_BOX)
 
 
 class TestMultidaySpanning:
     def test_is_multiday_single_day_event(self):
-        e = _all_day(date(2024, 3, 15), date(2024, 3, 16))
+        e = all_day_event(date(2024, 3, 15), date(2024, 3, 16))
         assert not _is_multiday(e)
 
     def test_is_multiday_two_day_event(self):
-        e = _all_day(date(2024, 3, 15), date(2024, 3, 17))
+        e = all_day_event(date(2024, 3, 15), date(2024, 3, 17))
         assert _is_multiday(e)
 
     def test_is_multiday_timed_event(self):
@@ -791,7 +778,7 @@ class TestMultidaySpanning:
         week_start = date(2024, 3, 11)  # Monday
         week_end = date(2024, 3, 18)
         events = [
-            _all_day(date(2024, 3, 12), date(2024, 3, 15), "3-day conf"),
+            all_day_event(date(2024, 3, 12), date(2024, 3, 15), "3-day conf"),
         ]
         spanning = _collect_spanning_events(events, week_start, week_end)
         assert len(spanning) == 1
@@ -805,7 +792,7 @@ class TestMultidaySpanning:
         week_start = date(2024, 3, 11)
         week_end = date(2024, 3, 18)
         events = [
-            _all_day(date(2024, 3, 9), date(2024, 3, 20), "Long trip"),
+            all_day_event(date(2024, 3, 9), date(2024, 3, 20), "Long trip"),
         ]
         spanning = _collect_spanning_events(events, week_start, week_end)
         assert len(spanning) == 1
@@ -817,7 +804,7 @@ class TestMultidaySpanning:
         week_start = date(2024, 3, 11)
         week_end = date(2024, 3, 18)
         events = [
-            _all_day(date(2024, 3, 12), date(2024, 3, 13), "1-day"),
+            all_day_event(date(2024, 3, 12), date(2024, 3, 13), "1-day"),
         ]
         spanning = _collect_spanning_events(events, week_start, week_end)
         assert len(spanning) == 0
@@ -826,7 +813,7 @@ class TestMultidaySpanning:
         week_start = date(2024, 3, 11)
         week_end = date(2024, 3, 18)
         events = [
-            _all_day(date(2024, 3, 1), date(2024, 3, 5), "Last week"),
+            all_day_event(date(2024, 3, 1), date(2024, 3, 5), "Last week"),
         ]
         spanning = _collect_spanning_events(events, week_start, week_end)
         assert len(spanning) == 0
@@ -835,23 +822,23 @@ class TestMultidaySpanning:
         """A spanning bar plus a timed event both reach the grid."""
         today = date(2024, 3, 15)  # Friday
         events = [
-            _all_day(date(2024, 3, 12), date(2024, 3, 15), "Conference"),
+            all_day_event(date(2024, 3, 12), date(2024, 3, 15), "Conference"),
             _timed(date(2024, 3, 15), 9, 10, "Standup"),
         ]
-        img, draw = _make_draw()
+        img, draw = make_draw()
         draw_week(draw, events, today)
-        empty, empty_draw = _make_draw()
+        empty, empty_draw = make_draw()
         draw_week(empty_draw, [], today)
         assert ink(img, WEEK_BOX) > ink(empty, WEEK_BOX), "no events drawn"
 
     def test_draw_week_multiple_spanning_events(self):
         """Two overlapping spanning bars both draw — not just the first."""
         today = date(2024, 3, 15)
-        trip_a = _all_day(date(2024, 3, 11), date(2024, 3, 14), "Trip A")
-        trip_b = _all_day(date(2024, 3, 14), date(2024, 3, 17), "Trip B")
+        trip_a = all_day_event(date(2024, 3, 11), date(2024, 3, 14), "Trip A")
+        trip_b = all_day_event(date(2024, 3, 14), date(2024, 3, 17), "Trip B")
 
         def render(events):
-            img, draw = _make_draw()
+            img, draw = make_draw()
             draw_week(draw, events, today)
             return ink(img, WEEK_BOX)
 
@@ -859,7 +846,7 @@ class TestMultidaySpanning:
 
     def test_spanning_event_excluded_from_per_day_rendering(self):
         """Multi-day events drawn as spanning bars should not also appear as per-day bars."""
-        spanning = _all_day(date(2024, 3, 13), date(2024, 3, 16), "Multi")
+        spanning = all_day_event(date(2024, 3, 13), date(2024, 3, 16), "Multi")
         timed = _timed(date(2024, 3, 13), 9, 10, "Standup")
         # _events_for_day still returns the multi-day event (it's the draw_week
         # function that filters). Just verify both events are visible on the day.

@@ -53,6 +53,8 @@ from src.render.theme import (
     ThemeStyle,
     load_theme,
 )
+from tests.conftest import agenda_data, agenda_event
+from tests.inkutils import ink
 
 AGENDA_X = ART_W + DIVIDER_W  # the right pane's left edge
 
@@ -61,30 +63,10 @@ TODAY = FIXED_NOW.date()
 MIDNIGHT = datetime.combine(TODAY, datetime.min.time())
 
 
-def _event(hour: int, minute: int = 0, *, mins: int = 45, name: str = "Meeting", **kw):
-    start = MIDNIGHT + timedelta(hours=hour, minutes=minute)
-    return CalendarEvent(summary=name, start=start, end=start + timedelta(minutes=mins), **kw)
-
-
-def _data_for(*, icon: str | None = "01d", events=None, weather: bool = True, now=FIXED_NOW):
-    data = generate_dummy_data(now=now)
-    if not weather:
-        data.weather = None
-    elif icon is not None and data.weather is not None:
-        data.weather.current_icon = icon
-    if events is not None:
-        data.events = events
-    return data
-
-
 def _render(**kwargs):
     data = kwargs.pop("data", None) or generate_dummy_data(now=FIXED_NOW)
     cfg = kwargs.pop("config", None) or DisplayConfig()
     return render_dashboard(data, cfg, theme=load_theme("halftone_agenda"), **kwargs)
-
-
-def _ink_count(img: Image.Image) -> int:
-    return sum(1 for p in flatten_pixels(img) if p == 0)
 
 
 # ---------------------------------------------------------------------------
@@ -187,17 +169,17 @@ class TestHelpers:
         assert _clock(datetime(2026, 4, 6, 19, 51)) == "7:51 PM"
 
     def test_location_takes_first_segment(self):
-        event = _event(9, location="Conference Room B, Floor 3, HQ")
+        event = agenda_event(9, location="Conference Room B, Floor 3, HQ")
         assert _location_text(event) == "Conference Room B"
 
     def test_location_takes_first_line_before_first_segment(self):
         # Google separates the business name from the street with a newline;
         # the row shows the name, not the name and the street run together.
-        event = _event(9, location="Ultimate Condition Fitness\n535 W Hamilton Ave, Campbell")
+        event = agenda_event(9, location="Ultimate Condition Fitness\n535 W Hamilton Ave, Campbell")
         assert _location_text(event) == "Ultimate Condition Fitness"
 
     def test_location_empty_when_absent(self):
-        assert _location_text(_event(9)) == ""
+        assert _location_text(agenda_event(9)) == ""
 
     def test_sun_times_none_without_weather(self):
         assert _sun_times(None, None) == (None, None)
@@ -333,19 +315,19 @@ class TestRenderEachIcon:
         ],
     )
     def test_renders_without_crashing(self, icon):
-        img = _render(data=_data_for(icon=icon))
+        img = _render(data=agenda_data(icon=icon))
         assert img.mode == "1"
         assert img.size == (800, 480)
-        assert _ink_count(img) > 1000
+        assert ink(img) > 1000
 
 
 class TestRenderStates:
     def test_empty_day(self):
-        assert _ink_count(_render(data=_data_for(events=[]))) > 1000
+        assert ink(_render(data=agenda_data(events=[]))) > 1000
 
     def test_busy_day_overflows_gracefully(self):
-        events = [_event(7 + i, name=f"Event {i}") for i in range(14)]
-        assert _ink_count(_render(data=_data_for(events=events))) > 1000
+        events = [agenda_event(7 + i, name=f"Event {i}") for i in range(14)]
+        assert ink(_render(data=agenda_data(events=events))) > 1000
 
     def test_all_day_event(self):
         all_day = CalendarEvent(
@@ -354,48 +336,48 @@ class TestRenderStates:
             end=MIDNIGHT + timedelta(days=1),
             is_all_day=True,
         )
-        assert _ink_count(_render(data=_data_for(events=[all_day, _event(14)]))) > 1000
+        assert ink(_render(data=agenda_data(events=[all_day, agenda_event(14)]))) > 1000
 
     def test_event_with_location(self):
-        event = _event(14, name="Standup", location="Conference Room B, Floor 3")
-        assert _ink_count(_render(data=_data_for(events=[event]))) > 1000
+        event = agenda_event(14, name="Standup", location="Conference Room B, Floor 3")
+        assert ink(_render(data=agenda_data(events=[event]))) > 1000
 
     def test_event_in_progress(self):
         # The inverted "now" bar is the one solid field on the plate.
-        event = _event(10, minute=0, mins=120, name="All hands")
-        assert _ink_count(_render(data=_data_for(events=[event]))) > 1000
+        event = agenda_event(10, minute=0, mins=120, name="All hands")
+        assert ink(_render(data=agenda_data(events=[event]))) > 1000
 
     def test_no_weather_still_renders(self):
-        assert _ink_count(_render(data=_data_for(weather=False))) > 1000
+        assert ink(_render(data=agenda_data(weather=False))) > 1000
 
     def test_missing_sun_times_still_render(self):
-        data = _data_for()
+        data = agenda_data()
         assert data.weather is not None
         data.weather.sunrise = None
         data.weather.sunset = None
-        assert _ink_count(_render(data=data)) > 1000
+        assert ink(_render(data=data)) > 1000
 
     def test_three_digit_temperature_keeps_the_condition_column(self):
-        data = _data_for()
+        data = agenda_data()
         assert data.weather is not None
         data.weather.current_temp = 108.4
         data.weather.current_description = "heavy intensity rain"
-        assert _ink_count(_render(data=data)) > 1000
+        assert ink(_render(data=data)) > 1000
 
     def test_empty_dashboard_data(self):
-        assert _ink_count(_render(data=DashboardData(fetched_at=FIXED_NOW))) > 1000
+        assert ink(_render(data=DashboardData(fetched_at=FIXED_NOW))) > 1000
 
     def test_night_rollover_renders(self):
         night = datetime(2026, 4, 6, 22, 30)
-        img = _render(data=_data_for(icon="01n", events=[_event(8)], now=night))
-        assert _ink_count(img) > 1000
+        img = _render(data=agenda_data(icon="01n", events=[agenda_event(8)], now=night))
+        assert ink(img) > 1000
 
     def test_aware_now_does_not_raise(self):
         # RenderContext.now is aware; event and sun times are naive local.
         aware = FIXED_NOW.replace(tzinfo=timezone.utc)
-        data = _data_for(events=[_event(9), _event(15)], now=FIXED_NOW)
+        data = agenda_data(events=[agenda_event(9), agenda_event(15)], now=FIXED_NOW)
         data.fetched_at = aware
-        assert _ink_count(_render(data=data)) > 1000
+        assert ink(_render(data=data)) > 1000
 
 
 class TestRenderInkyPath:
@@ -404,12 +386,12 @@ class TestRenderInkyPath:
         return _render(config=cfg, **kw)
 
     def test_renders_rgb(self):
-        img = self._inky(data=_data_for())
+        img = self._inky(data=agenda_data())
         assert img.mode == "RGB"
         assert img.size == (800, 480)
 
     def test_yellow_rings_the_sun(self):
-        data = _data_for(events=[_event(10, minute=0, mins=120, name="All hands")])
+        data = agenda_data(events=[agenda_event(10, minute=0, mins=120, name="All hands")])
         pixels = set(flatten_pixels(self._inky(data=data)))
         assert INKY_SPECTRA6_PALETTE[INKY_YELLOW] in pixels
 
@@ -420,12 +402,12 @@ class TestRenderInkyPath:
     def test_the_running_event_carries_the_red_accent(self):
         # The state treatments are where the calendar side gets its colour: the
         # inverted bar is red on Inky and solid ink on Waveshare.
-        data = _data_for(events=[_event(10, minute=0, mins=120, name="All hands")])
+        data = agenda_data(events=[agenda_event(10, minute=0, mins=120, name="All hands")])
         assert self._pane_hues(self._inky(data=data))
 
     def test_the_next_up_tick_carries_the_red_accent(self):
         # No event running, one still ahead — the accent moves to its tick.
-        data = _data_for(events=[_event(7, name="Done"), _event(15, name="Later")])
+        data = agenda_data(events=[agenda_event(7, name="Done"), agenda_event(15, name="Later")])
         assert self._pane_hues(self._inky(data=data))
 
     def test_a_spent_day_leaves_the_calendar_side_monochrome(self):
@@ -433,8 +415,8 @@ class TestRenderInkyPath:
         # yellow is the whole colour story again. The Inky backend defers
         # palette mapping to the device, so the pane still holds greys here —
         # what matters is that none of them is a hue.
-        data = _data_for(
-            events=[_event(7, name="Done"), _event(8, name="Also done")],
+        data = agenda_data(
+            events=[agenda_event(7, name="Done"), agenda_event(8, name="Also done")],
             now=MIDNIGHT.replace(hour=12),
         )
         hues = self._pane_hues(self._inky(data=data))
@@ -442,7 +424,7 @@ class TestRenderInkyPath:
 
     def test_night_path_renders(self):
         night = datetime(2026, 4, 6, 22, 30)
-        assert self._inky(data=_data_for(icon="01n", now=night)).mode == "RGB"
+        assert self._inky(data=agenda_data(icon="01n", now=night)).mode == "RGB"
 
 
 class TestPaneSeparation:
@@ -450,25 +432,25 @@ class TestPaneSeparation:
         return _render(**kw).convert("L")
 
     def test_divider_column_is_inked_top_to_bottom(self):
-        px = self._plate(data=_data_for(events=[])).load()
+        px = self._plate(data=agenda_data(events=[])).load()
         assert all(px[ART_W, y] == 0 for y in range(480))
         assert all(px[ART_W + DIVIDER_W - 1, y] == 0 for y in range(480))
 
     def test_agenda_pane_stays_paper_white_beside_the_divider(self):
         # The dithered illustration must never bleed across the divider: the
         # gutter between it and the agenda's left margin stays pure paper.
-        px = self._plate(data=_data_for(icon="01d", events=[])).load()
+        px = self._plate(data=agenda_data(icon="01d", events=[])).load()
         for x in range(AGENDA_X, AGENDA_X + AGENDA_PAD_X - 2):
             assert all(px[x, y] == 255 for y in range(480)), f"ink in the gutter at x={x}"
 
     def test_weather_band_sits_on_clean_paper(self):
-        px = self._plate(data=_data_for(icon="11d")).load()
+        px = self._plate(data=agenda_data(icon="11d")).load()
         # The row just under the hero's Bayer rule belongs to the band, and the
         # band paints its own paper — a storm sky above it must not carry over.
         assert all(px[x, BAND_Y + 1] == 255 for x in range(2, ART_W - 2))
 
     def test_agenda_footer_caption_is_drawn(self):
-        px = self._plate(data=_data_for(events=[])).load()
+        px = self._plate(data=agenda_data(events=[])).load()
         footer_band = [
             (x, y)
             for x in range(AGENDA_X + AGENDA_PAD_X, 800 - AGENDA_PAD_X)
@@ -518,36 +500,36 @@ class TestWeatherBandType:
         # "thunderstorm with light drizzle" wraps to three lines; folding the
         # overflow into line two lets it ellipsize, so it reads as cut off
         # rather than as a complete but wrong "THUNDERSTORM WITH LIGHT".
-        data = _data_for()
+        data = agenda_data()
         assert data.weather is not None
         data.weather.current_description = "thunderstorm with light drizzle"
         band = _render(data=data).convert("L").crop((0, BAND_Y, ART_W, 480))
-        with_long = _ink_count(band)
+        with_long = ink(band)
         data.weather.current_description = "thunderstorm with light"
         band = _render(data=data).convert("L").crop((0, BAND_Y, ART_W, 480))
         # The ellipsized version must differ from the phrase it would otherwise
         # be mistaken for.
-        assert with_long != _ink_count(band)
+        assert with_long != ink(band)
 
 
 class TestEventTimes:
     """Rows show when an event ends, not just when it starts."""
 
     def test_all_day_has_no_range(self):
-        event = _event(0, name="Conference", is_all_day=True)
+        event = agenda_event(0, name="Conference", is_all_day=True)
         assert event_times(event) == ("ALL DAY", None)
 
     def test_timed_event_gives_both_ends(self):
-        start, end = event_times(_event(12, minute=30, mins=90))
+        start, end = event_times(agenda_event(12, minute=30, mins=90))
         assert (start, end) == ("12:30p", "2p")
 
     def test_event_running_past_midnight_shows_only_its_start(self):
         # A range that reads as ending before it starts is worse than no range.
-        event = _event(23, mins=120, name="Night shift")
+        event = agenda_event(23, mins=120, name="Night shift")
         assert event_times(event) == ("11p", None)
 
     def test_zero_length_event_shows_only_its_start(self):
-        assert event_times(_event(9, mins=0))[1] is None
+        assert event_times(agenda_event(9, mins=0))[1] is None
 
     def test_only_the_densest_tier_drops_the_end_time(self):
         # Stacking makes this a question of vertical room alone, so the answer
@@ -639,7 +621,7 @@ class TestEventTimes:
             inline = cell("10p", "11p", time_w, time_pt, row_h)
             alone = cell("10p", None, time_w, time_pt, row_h)
             assert bottom(inline) == bottom(alone), f"{time_pt}pt set a second line"
-            assert _ink_count(inline) > _ink_count(alone), f"{time_pt}pt dropped the end"
+            assert ink(inline) > ink(alone), f"{time_pt}pt dropped the end"
             if two_line_time_fits(time_pt, row_h):
                 stacked = cell("10:30p", "11p", time_w, time_pt, row_h)
                 assert bottom(stacked) > bottom(inline)
@@ -686,18 +668,18 @@ class TestAgendaRowTreatment:
     def test_rows_change_when_an_event_boundary_is_crossed(self):
         # 09:00-09:45 has not started at 08:00 and has ended by 12:00, so the
         # same day rendered at those two times must differ.
-        events = [_event(9, name="Standup"), _event(15, name="Retro")]
-        morning = _render(data=_data_for(events=events, now=MIDNIGHT.replace(hour=8)))
-        midday = _render(data=_data_for(events=events, now=MIDNIGHT.replace(hour=12)))
+        events = [agenda_event(9, name="Standup"), agenda_event(15, name="Retro")]
+        morning = _render(data=agenda_data(events=events, now=MIDNIGHT.replace(hour=8)))
+        midday = _render(data=agenda_data(events=events, now=MIDNIGHT.replace(hour=12)))
         assert self._agenda(morning).tobytes() != self._agenda(midday).tobytes()
 
     def test_a_tick_that_crosses_no_boundary_leaves_the_pane_alone(self):
         # State is the only thing on the pane reading the clock, so an idle
         # tick between two boundaries costs no hardware write. This is what
         # keeps the treatments cheap; see tests/test_idle_tick_no_redraw.py.
-        events = [_event(9, name="Standup"), _event(15, name="Retro")]
-        first = _render(data=_data_for(events=events, now=MIDNIGHT.replace(hour=12)))
-        second = _render(data=_data_for(events=events, now=MIDNIGHT.replace(hour=12, minute=5)))
+        events = [agenda_event(9, name="Standup"), agenda_event(15, name="Retro")]
+        first = _render(data=agenda_data(events=events, now=MIDNIGHT.replace(hour=12)))
+        second = _render(data=agenda_data(events=events, now=MIDNIGHT.replace(hour=12, minute=5)))
         assert self._agenda(first).tobytes() == self._agenda(second).tobytes()
 
     def _widest_ink_streak(self, img):
@@ -721,16 +703,16 @@ class TestAgendaRowTreatment:
         # looks like. Width alone doesn't say it — the header's Bayer rule
         # spans the pane — so this measures the band's height. The rule is
         # 3 px; the bar is tens.
-        events = [_event(7 + i, name=f"Event {i}") for i in range(6)]
-        events.append(_event(10, minute=0, mins=120, name="All hands"))
-        img = _render(data=_data_for(events=sorted(events, key=lambda e: e.start))).convert("L")
+        events = [agenda_event(7 + i, name=f"Event {i}") for i in range(6)]
+        events.append(agenda_event(10, minute=0, mins=120, name="All hands"))
+        img = _render(data=agenda_data(events=sorted(events, key=lambda e: e.start))).convert("L")
         assert self._widest_ink_streak(img) >= 20
 
     def test_nothing_is_filled_when_no_event_is_running(self):
         # Between events the pane holds no large fill at all, so the bar reads
         # as the exception it is.
-        events = [_event(7, name="Done"), _event(15, name="Later")]
-        img = _render(data=_data_for(events=events, now=MIDNIGHT.replace(hour=12))).convert("L")
+        events = [agenda_event(7, name="Done"), agenda_event(15, name="Later")]
+        img = _render(data=agenda_data(events=events, now=MIDNIGHT.replace(hour=12))).convert("L")
         assert self._widest_ink_streak(img) <= 4
 
     def _isolated_ink_fraction(self, img, y_range):
@@ -749,14 +731,14 @@ class TestAgendaRowTreatment:
 
     def test_elapsed_rows_are_screened(self):
         # A screened row is a lattice of isolated pixels; solid type is not.
-        events = [_event(7, name="Long gone")]
-        img = _render(data=_data_for(events=events)).convert("L")
+        events = [agenda_event(7, name="Long gone")]
+        img = _render(data=agenda_data(events=events)).convert("L")
         assert self._isolated_ink_fraction(img, range(80, 200)) > 0.5
 
     def test_upcoming_rows_are_not_screened(self):
         # The same row, before it has happened, is crisp.
-        events = [_event(15, name="Still ahead")]
-        img = _render(data=_data_for(events=events)).convert("L")
+        events = [agenda_event(15, name="Still ahead")]
+        img = _render(data=agenda_data(events=events)).convert("L")
         assert self._isolated_ink_fraction(img, range(80, 200)) < 0.05
 
     def test_the_screen_cut_rises_as_the_type_shrinks(self):
@@ -774,7 +756,7 @@ class TestAgendaRowTreatment:
             end=MIDNIGHT + timedelta(days=1),
             is_all_day=True,
         )
-        img = _render(data=_data_for(events=[allday])).convert("L")
+        img = _render(data=agenda_data(events=[allday])).convert("L")
         assert self._widest_ink_streak(img) <= 4
 
     def test_rows_are_top_justified(self):
@@ -795,14 +777,14 @@ class TestAgendaRowTreatment:
 
             mod._draw_event_row = spy
             try:
-                _render(data=_data_for(events=events))
+                _render(data=agenda_data(events=events))
             finally:
                 mod._draw_event_row = original
             assert seen, "no rows drawn"
             return seen[0]
 
-        light = first_row_y([_event(9), _event(15)])
-        busy = first_row_y([_event(7 + i, name=f"Event {i}") for i in range(8)])
+        light = first_row_y([agenda_event(9), agenda_event(15)])
+        busy = first_row_y([agenda_event(7 + i, name=f"Event {i}") for i in range(8)])
         assert light == busy, f"light starts at {light}, busy at {busy}"
 
     def test_row_pitch_is_sized_to_its_type(self):
@@ -908,18 +890,22 @@ class TestTypesetHardening:
         return sum(image.crop(box).histogram()[8:248])
 
     def test_agenda_pane_has_no_mid_greys(self):
-        events = [_event(9), _event(10, minute=0, mins=120, name="All hands"), _event(15)]
-        canvas = self._pre_quantize(data=_data_for(events=events))
+        events = [
+            agenda_event(9),
+            agenda_event(10, minute=0, mins=120, name="All hands"),
+            agenda_event(15),
+        ]
+        canvas = self._pre_quantize(data=agenda_data(events=events))
         assert self._mid_greys(canvas, (AGENDA_X, 0, 800, 480)) == 0
 
     def test_weather_band_has_no_mid_greys(self):
-        canvas = self._pre_quantize(data=_data_for())
+        canvas = self._pre_quantize(data=agenda_data())
         assert self._mid_greys(canvas, (0, BAND_Y, ART_W, 480)) == 0
 
     def test_illustration_still_dithers(self):
         # The hardening must be confined to the typeset regions — the whole
         # point of the theme is that the art keeps its greyscale gradient.
-        canvas = self._pre_quantize(data=_data_for(icon="01d"))
+        canvas = self._pre_quantize(data=agenda_data(icon="01d"))
         assert self._mid_greys(canvas, (0, 0, ART_W, 280)) > 1000
 
 
@@ -960,8 +946,8 @@ class TestDeterminism:
     def test_two_renders_are_byte_identical(self):
         # Star fields and jitter are seeded from today.toordinal(); an unseeded
         # RNG here would make the theme's pixel snapshot flap.
-        first = _render(data=_data_for(icon="01n"))
-        second = _render(data=_data_for(icon="01n"))
+        first = _render(data=agenda_data(icon="01n"))
+        second = _render(data=agenda_data(icon="01n"))
         assert first.tobytes() == second.tobytes()
 
 
@@ -971,7 +957,7 @@ def test_draw_halftone_agenda_defaults_do_not_crash():
 
     img = Image.new("L", (800, 480), 255)
     draw = ImageDraw.Draw(img)
-    draw_halftone_agenda(draw, _data_for(), TODAY, FIXED_NOW)
+    draw_halftone_agenda(draw, agenda_data(), TODAY, FIXED_NOW)
     assert sum(1 for p in flatten_pixels(img) if p != 255) > 1000
 
 
@@ -982,7 +968,7 @@ def test_draw_halftone_agenda_into_a_sub_region():
     draw = ImageDraw.Draw(img)
     draw_halftone_agenda(
         draw,
-        _data_for(),
+        agenda_data(),
         TODAY,
         FIXED_NOW,
         image=img,

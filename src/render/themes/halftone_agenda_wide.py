@@ -19,6 +19,12 @@ today.
 
 Two days past today are fetched for it (``EXTRA_EVENT_DAYS``): the agenda
 rolls to tomorrow after dark, and the rail then shows the day after that.
+
+Editing notes: Imports the private band and time-cell helpers from
+``halftone_agenda_panel`` on purpose. Draws no event-state treatments, so the plate
+repaints once a day (``tests/test_halftone_agenda_wide_theme.py`` pins before / during /
+after byte-identity). Marks and type use ``artkit.accent_yellow_solid``, not
+``skyart.accent_yellow``, whose L-mode grey ``harden_typeset`` snaps to paper.
 """
 
 from __future__ import annotations

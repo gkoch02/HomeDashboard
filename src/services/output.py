@@ -4,7 +4,8 @@ The v4 "Inky hourly throttle" is replaced in v5 with a backend-agnostic
 **content-hash + minimum-cooldown** throttle: any rendered image whose
 SHA-256 differs from the last persisted hash is allowed to refresh,
 subject to ``DisplayConfig.min_refresh_interval_seconds`` (default 60s on
-Inky, 0s on Waveshare).
+any colour display, 0s on monochrome Waveshare) and to the theme's
+``ThemeLayout.repaint_slot_hours``.
 
 State persists in ``state/refresh_throttle_state.json``. The legacy
 ``inky_refresh_state.json`` is migrated transparently on read.

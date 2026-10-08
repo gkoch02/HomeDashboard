@@ -112,6 +112,7 @@ coverage: _check-venv
 lint: _check-venv
 	$(VENV) -m ruff check src/ tests/ scripts/ tools/ setup.py
 	$(VENV) tools/check_dead_code.py
+	$(VENV) -m mypy src/
 
 fmt: _check-venv
 	$(VENV) -m ruff format src/ tests/ scripts/ tools/ setup.py

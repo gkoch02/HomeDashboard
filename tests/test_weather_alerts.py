@@ -2,47 +2,15 @@
 
 from __future__ import annotations
 
-from datetime import date, timedelta
 from unittest.mock import MagicMock, patch
 
-from PIL import Image, ImageDraw
-
 from src.data.models import (
-    DayForecast,
     WeatherAlert,
-    WeatherData,
 )
 from src.render import layout as L
 from src.render.components.weather_panel import draw_weather
+from tests.conftest import make_draw, make_weather
 from tests.inkutils import ink, ink_x_extent
-
-
-def _make_weather(**kwargs) -> WeatherData:
-    defaults = dict(
-        current_temp=55.0,
-        current_icon="01d",
-        current_description="clear",
-        high=60.0,
-        low=45.0,
-        humidity=50,
-        forecast=[
-            DayForecast(
-                date=date.today() + timedelta(days=1),
-                high=58.0,
-                low=44.0,
-                icon="02d",
-                description="cloudy",
-            )
-        ],
-    )
-    defaults.update(kwargs)
-    return WeatherData(**defaults)
-
-
-def _make_draw(w: int = 800, h: int = 480):
-    img = Image.new("1", (w, h), 1)
-    return img, ImageDraw.Draw(img)
-
 
 WEATHER_BOX = (L.WEATHER_X, L.WEATHER_Y, L.WEATHER_X + L.WEATHER_W, L.WEATHER_Y + L.WEATHER_H)
 
@@ -50,25 +18,25 @@ WEATHER_BOX = (L.WEATHER_X, L.WEATHER_Y, L.WEATHER_X + L.WEATHER_W, L.WEATHER_Y 
 class TestWeatherAlerts:
     def test_alert_renders_without_crash(self):
         """An alert takes a forecast column as a filled (inverted) bar."""
-        img, draw = _make_draw()
-        draw_weather(draw, _make_weather(alerts=[WeatherAlert(event="Flood Watch")]))
-        plain, plain_draw = _make_draw()
-        draw_weather(plain_draw, _make_weather(alerts=[]))
+        img, draw = make_draw()
+        draw_weather(draw, make_weather(alerts=[WeatherAlert(event="Flood Watch")]))
+        plain, plain_draw = make_draw()
+        draw_weather(plain_draw, make_weather(alerts=[]))
         assert ink(img, WEATHER_BOX) > ink(plain, WEATHER_BOX) * 2, (
             "the alert column is not inverted"
         )
 
     def test_no_alerts_renders_normally(self):
         """No alerts draws the panel with no inverted column."""
-        img, draw = _make_draw()
-        draw_weather(draw, _make_weather(alerts=[]))
+        img, draw = make_draw()
+        draw_weather(draw, make_weather(alerts=[]))
         area = L.WEATHER_W * L.WEATHER_H
         assert 0 < ink(img, WEATHER_BOX) < area * 0.5
 
     def test_long_alert_name_truncated(self):
         """A 200-char alert stays inside the panel rather than overflowing."""
-        img, draw = _make_draw()
-        draw_weather(draw, _make_weather(alerts=[WeatherAlert(event="A" * 200)]))
+        img, draw = make_draw()
+        draw_weather(draw, make_weather(alerts=[WeatherAlert(event="A" * 200)]))
         extent = ink_x_extent(img, WEATHER_BOX)
         assert extent is not None, "nothing drawn"
         assert extent[1] <= L.WEATHER_X + L.WEATHER_W, "the alert text left the panel"
@@ -82,7 +50,7 @@ class TestWeatherAlerts:
         assert a.event == "Tornado Warning"
 
     def test_weather_data_has_alerts_field(self):
-        w = _make_weather()
+        w = make_weather()
         assert w.alerts == []
 
     def test_fetch_alerts_returns_empty_on_failure(self):

@@ -6,33 +6,10 @@ from unittest.mock import patch
 
 from src.config import Config
 from src.data.models import (
-    CalendarEvent,
     StalenessLevel,
-    WeatherData,
 )
 from src.data_pipeline import DataPipeline
-
-
-def _make_weather():
-    return WeatherData(
-        current_temp=68.0,
-        current_icon="01d",
-        current_description="clear",
-        high=75.0,
-        low=55.0,
-        humidity=40,
-    )
-
-
-def _make_events():
-    return [
-        CalendarEvent(
-            summary="Meeting",
-            start=datetime(2024, 3, 15, 10, 0),
-            end=datetime(2024, 3, 15, 11, 0),
-        )
-    ]
-
+from tests.conftest import make_clear_weather, make_meeting_events
 
 # ---------------------------------------------------------------------------
 # Stale cache + breaker OPEN scenarios
@@ -51,8 +28,8 @@ class TestStaleCacheBreakerOpen:
         cache_dir = str(tmp_path)
 
         # Seed cache with stale data
-        weather = _make_weather()
-        events = _make_events()
+        weather = make_clear_weather()
+        events = make_meeting_events()
         stale_time = datetime.now(timezone.utc) - timedelta(hours=3)
         _write_cache(cache_dir, events, weather, stale_time)
 
@@ -103,7 +80,7 @@ class TestBreakerHalfOpen:
     ):
         """When breaker is HALF_OPEN and fetch succeeds, breaker resets to CLOSED."""
         cache_dir = str(tmp_path)
-        weather = _make_weather()
+        weather = make_clear_weather()
         mock_weather.return_value = weather
 
         # Set breaker to open with 0 cooldown (immediately half_open)
@@ -129,7 +106,7 @@ class TestBreakerHalfOpen:
 
         # Seed cache
         stale_time = datetime.now(timezone.utc) - timedelta(hours=1)
-        _write_cache(cache_dir, [], _make_weather(), stale_time)
+        _write_cache(cache_dir, [], make_clear_weather(), stale_time)
 
         cfg = Config()
         pipeline = DataPipeline(cfg, cache_dir=cache_dir, force_refresh=True)
@@ -158,7 +135,7 @@ class TestExpiredCache:
 
         # Seed cache with very old data (>4x TTL)
         very_old = datetime.now(timezone.utc) - timedelta(hours=24)
-        _write_cache(cache_dir, [], _make_weather(), very_old)
+        _write_cache(cache_dir, [], make_clear_weather(), very_old)
 
         # Breaker open for weather
         _write_breaker_open(cache_dir, "weather")

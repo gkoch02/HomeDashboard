@@ -18,6 +18,11 @@ tints that survive that step.  On Inky the canvas opts into
 RGB so the brass rims pick up yellow, the mercury column + alert text
 pick up red, the cold scale + falling-pressure trend needle pick up blue,
 and the comfort band + rising-pressure trend needle pick up green.
+
+Editing notes: Pure math from ``src/astronomy.py`` and ``src/render/moon.py``; it has no
+fetcher. Supersampled 2× and quantized with ``threshold``, so shaded zones use
+``_ruled_fill`` (rules on even rows), never grey. Pressure history persists in
+``state/weatherglass_pressure_history.json`` (``state_dir=None`` on dry and dummy runs).
 """
 
 from __future__ import annotations

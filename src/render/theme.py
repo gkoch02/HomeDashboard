@@ -13,9 +13,8 @@ Usage::
     theme = load_theme("default")
     image = render_dashboard(data, config, theme=theme)
 
-Adding a new theme requires only two steps:
-1. Create ``src/render/themes/<name>.py`` with a ``<name>_theme() -> Theme`` factory.
-2. Register the name in ``load_theme()`` below.
+Themes self-register via ``register_theme`` in ``src/render/themes/registry.py``;
+the steps for adding one are in ``docs/development.md``.
 """
 
 from __future__ import annotations
@@ -61,9 +60,10 @@ class ThemeLayout:
 
     canvas_w: int = 800
     canvas_h: int = 480
-    # "1" = 1-bit bilevel (default, all existing themes)
-    # "L" = 8-bit grayscale (opt-in for new themes that want greyscale rendering)
-    # L-mode themes must use fg=0, bg=255 in their ThemeStyle (not 0/1).
+    # "1" = 1-bit bilevel (default)
+    # "L" = 8-bit greyscale (opt-in for themes that want greyscale rendering)
+    # L-mode themes use fg=0, bg=255 in their ThemeStyle (fg=255, bg=0 for a
+    # dark plate), never 0/1: bg=1 is near-black in L.
     canvas_mode: str = "1"
     header: ComponentRegion | None = field(default_factory=lambda: ComponentRegion(0, 0, 800, 40))
     week_view: ComponentRegion = field(default_factory=lambda: ComponentRegion(0, 40, 800, 320))
@@ -225,8 +225,8 @@ class ThemeLayout:
     # Write the panel at most once per clock-aligned block of this many local
     # hours (``None`` = no limit beyond the content hash and the cooldown).
     # For a plate whose content only meaningfully moves on a slow grid, where
-    # every repaint is a long colour flash: ``wide_horizon`` sets 3, the
-    # forecast's own slot. Content that changes mid-slot is painted on the
+    # every repaint is a long colour flash (``wide_horizon`` and ``wide_night``
+    # set 1). Content that changes mid-slot is painted on the
     # first tick of the next one; ``--force-full-refresh`` bypasses it.
     repaint_slot_hours: int | None = None
 
@@ -293,7 +293,7 @@ class ThemeStyle:
     # the panel is too short to accommodate the forecast without overlap.
     show_forecast_strip: bool = True
 
-    # Photo path for the ``photo`` theme.  Set by app.py from cfg.photo.path.
+    # Photo path for the ``photo`` theme.  Set by services/render_args.py from cfg.photo.path.
     # Ignored by all other themes (defaults to empty string).
     photo_path: str = ""
 
@@ -519,7 +519,7 @@ def load_theme(name: str) -> Theme:
 
     Note: ``"random"`` is not handled here — it must be resolved to a concrete
     theme name via ``src.render.random_theme.pick_random_theme`` before calling
-    this function (see ``main.py``).
+    this function (see ``src/services/theme.py``).
     """
     if name == "default":
         return default_theme()

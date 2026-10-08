@@ -33,6 +33,17 @@ from src.render.theme import (
     load_theme,
 )
 from tests.inkutils import ink, ink_clusters
+from tests.weather_full_zones import (
+    ALERT,
+    ALERT_H,
+    CANVAS_H,
+    CANVAS_W,
+    CARDS,
+    DETAIL,
+    HERO,
+    HERO_H,
+    forecast_band,
+)
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -128,33 +139,15 @@ class TestWeatherThemeRegistration:
 
 
 # ---------------------------------------------------------------------------
-# Ink measurement — zones mirrored from draw_weather_full's proportions
+# Ink measurement (zones in tests/weather_full_zones.py)
 # ---------------------------------------------------------------------------
-
-CANVAS_W, CANVAS_H = 800, 480
-_HERO_H = int(CANVAS_H * 0.44)
-_CARDS_H = int(CANVAS_H * 0.155)
-_DETAIL_H = int(CANVAS_H * 0.06)
-_ALERT_H = int(CANVAS_H * 0.055)
-
-HERO = (0, 0, CANVAS_W, _HERO_H)
-CARDS = (0, _HERO_H, CANVAS_W, _HERO_H + _CARDS_H)
-# The rule above the forecast lands on the detail zone's last row and is drawn
-# either way, so it is excluded here.
-DETAIL = (0, _HERO_H + _CARDS_H, CANVAS_W, _HERO_H + _CARDS_H + _DETAIL_H - 1)
-ALERT = (0, _HERO_H + _CARDS_H + _DETAIL_H, CANVAS_W, _HERO_H + _CARDS_H + _DETAIL_H + _ALERT_H)
-
-
-def _forecast_band(has_alerts: bool = False) -> tuple[int, int, int, int]:
-    top = _HERO_H + _CARDS_H + _DETAIL_H + (_ALERT_H if has_alerts else 0)
-    return (0, top, CANVAS_W, CANVAS_H)
 
 
 def _card_count(img) -> int:
     """Metric cards, counted from their rounded-rect outlines (two edges each)."""
     px = flatten_pixels(img)
     width = img.width
-    y = _HERO_H + 10
+    y = HERO_H + 10
     runs = 0
     prev = False
     for x in range(CANVAS_W):
@@ -185,22 +178,22 @@ class TestWeatherThemeRendering:
         assert img.size == (CANVAS_W, CANVAS_H)
         assert ink(img, HERO) > 0, "hero zone empty"
         assert ink(img, CARDS) > 0, "metric cards empty"
-        assert ink(img, _forecast_band()) > 0, "forecast grid empty"
+        assert ink(img, forecast_band()) > 0, "forecast grid empty"
 
     def test_renders_with_none_weather(self):
         """No weather draws the fallback and none of the furniture."""
         img = self._render(None)
         assert ink(img) > 0, "no fallback message"
         assert _card_count(img) == 0, "metric cards drawn without weather"
-        assert ink(img, _forecast_band()) == 0, "forecast grid drawn without weather"
+        assert ink(img, forecast_band()) == 0, "forecast grid drawn without weather"
 
     def test_renders_with_alerts(self):
         """Alerts invert their own banner band and push the forecast down."""
         alerts = [WeatherAlert(event="Flood Watch"), WeatherAlert(event="Wind Advisory")]
         img = self._render(_make_weather(alerts=alerts))
-        area = CANVAS_W * _ALERT_H
+        area = CANVAS_W * ALERT_H
         assert ink(img, ALERT) > area * 0.5, "alert banner is not inverted"
-        assert ink(img, _forecast_band(has_alerts=True)) > 0, "forecast lost to the banner"
+        assert ink(img, forecast_band(has_alerts=True)) > 0, "forecast lost to the banner"
 
     def test_renders_with_minimal_data(self):
         """Only the required fields still fills all four cards, with less in them."""
@@ -265,12 +258,12 @@ class TestDrawWeatherFull:
 
     def test_with_alerts(self):
         img = _component(_make_weather(alerts=[WeatherAlert(event="Tornado Warning")]))
-        assert ink(img, ALERT) > CANVAS_W * _ALERT_H * 0.5
+        assert ink(img, ALERT) > CANVAS_W * ALERT_H * 0.5
 
     def test_empty_forecast(self):
         """No days draws the single centred fallback, not five columns."""
         img = _component(_make_weather(forecast=[]))
-        band = _forecast_band()
+        band = forecast_band()
         assert ink(img, band) > 0, "no fallback message"
         assert ink_clusters(img, band) == 1, "columns drawn for an empty forecast"
 
@@ -294,7 +287,7 @@ class TestDrawWeatherFull:
             )
 
         five = with_days(5)
-        assert ink_clusters(with_days(10), _forecast_band()) == 5
+        assert ink_clusters(with_days(10), forecast_band()) == 5
         assert with_days(10).tobytes() == five.tobytes(), "a sixth forecast day reached the plate"
 
     def test_wind_without_direction(self):

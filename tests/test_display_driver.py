@@ -111,23 +111,16 @@ class TestWaveshareModels:
         assert "epd9in7" not in WAVESHARE_MODELS
         assert "epd7in5_V3" not in WAVESHARE_MODELS
 
-    def test_default_model_dimensions(self):
-        _, w, h = WAVESHARE_MODELS["epd7in5_V2"]
-        assert w == 800
-        assert h == 480
-
-    def test_epd7in5_hd_dimensions(self):
-        _, w, h = WAVESHARE_MODELS["epd7in5_HD"]
-        assert w == 880
-        assert h == 528
-
-    def test_epd13in3k_dimensions(self):
-        # The vendor driver's EPD_WIDTH / EPD_HEIGHT. It used to be registered
-        # as 1600x1200, and getbuffer() answers a mismatched image with a blank
-        # buffer — a white panel with no error (#266).
-        _, w, h = WAVESHARE_MODELS["epd13in3k"]
-        assert w == 960
-        assert h == 680
+    # Each is the vendor driver's EPD_WIDTH / EPD_HEIGHT: getbuffer() answers a
+    # mismatched image with a blank buffer, a white panel with no error
+    # (epd13in3k was once registered as 1600x1200).
+    @pytest.mark.parametrize(
+        "model, size",
+        [("epd7in5_V2", (800, 480)), ("epd7in5_HD", (880, 528)), ("epd13in3k", (960, 680))],
+    )
+    def test_model_dimensions(self, model, size):
+        _, w, h = WAVESHARE_MODELS[model]
+        assert (w, h) == size
 
     def test_fast_init_and_tricolor_tables_name_registered_models(self):
         assert set(WAVESHARE_FAST_INIT) <= set(WAVESHARE_MODELS)

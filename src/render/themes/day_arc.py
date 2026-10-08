@@ -23,6 +23,11 @@ bundled screen-optimised cut that survives at 18 px.
 On Inky the canvas is RGB (``prefer_color_on_inky=True``): yellow marks the
 sun, the moon's limb and the daylight bar; red marks the NOW caret, the
 in-progress event and birthday bullets. Everything else stays black on paper.
+
+Editing notes: Pure math from ``src/astronomy.py`` and ``src/render/moon.py``; it has no
+fetcher. Axis-strip elements have disjoint row bands (``TestAxisStripBands``);
+``build_time_axis()`` needs events already filtered to the day; ``agenda_day()`` rolls
+over only after sunset and after every timed event has ended.
 """
 
 from __future__ import annotations

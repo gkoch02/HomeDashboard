@@ -237,8 +237,8 @@ jobs:
     if: needs.changes.outputs.docs_only != 'true'
     # Runs the pixel-hash snapshot assertions against the exact Pillow version
     # recorded in tests/snapshots/theme_pixel_hashes.json. The normal test
-    # matrix skips these assertions when Pillow differs from the baseline, so
-    # this is the one job where a snapshot regression actually fails CI.
+    # matrix compares hashes too, but xfails a mismatch when its Pillow differs
+    # from the baseline's; here the versions match, so any mismatch fails.
     #
     # To intentionally update baselines: bump Pillow locally, run
     # UPDATE_SNAPSHOTS=1 pytest tests/test_theme_pixel_snapshots.py, and

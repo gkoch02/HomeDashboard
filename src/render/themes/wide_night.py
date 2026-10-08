@@ -20,6 +20,9 @@ to be put up at night on purpose, through ``theme_schedule`` or a
 ``repaint_slot_hours=1`` holds the panel to one write per clock hour, so a
 temperature or AQI change does not set off a twenty-second red flash in a
 dark room every fetch.
+
+Editing notes: Red comes from ``primary_accent_fill()``, not ``bg``. Measure icon glyphs
+with ``ink_box()``, not ``textbbox()``.
 """
 
 from __future__ import annotations

@@ -1,7 +1,7 @@
 """Photo theme — displays a dithered user photo as the full-canvas background.
 
 The photo path is set at runtime via ``ThemeStyle.photo_path``, which is
-populated in ``app.py`` from ``cfg.photo.path``.  If no path is configured or
+populated in ``services/render_args.py`` from ``cfg.photo.path``.  If no path is configured or
 the file is missing the canvas falls back to a plain background.
 
 No components are drawn (``draw_order`` is empty): the photo fills the canvas
@@ -22,12 +22,15 @@ LANCZOS, and dithered to 1-bit via Floyd-Steinberg.
 
 **Inky Spectra 6 / RGB path** — photo is cropped with LANCZOS and quantized to
 the 6-color Spectra 6 palette using Floyd-Steinberg error diffusion against a
-*blended* reference palette (50/50 mix of the physical SATURATED colors and
-pure ideal hues, mirroring ``InkyE673._palette_blend(saturation=0.5)``).  The
+*blended* reference palette, ``blend_inky_palette(0.25)``: 25 % of the way from
+the pure ideal hues toward the physical SATURATED colors.  The
 blended palette forms correct hue decision boundaries — e.g. sky blue maps to
 blue rather than white — while still being close enough to the physical colors
 that ``InkyDisplay.show()`` can unambiguously recover the correct hardware index
 for each quantized pixel.
+
+Editing notes: ``background_fn`` pastes the dithered ``photo.path``; ``draw_order`` is
+empty.
 """
 
 from __future__ import annotations
@@ -59,9 +62,9 @@ def _draw_photo_background(
     try:
         if image.mode == "RGB":
             # Inky Spectra 6 color path: crop then quantize to 6-color palette
-            # using the blended reference palette (50/50 SATURATED + DESATURATED),
-            # which mirrors InkyE673._palette_blend(saturation=0.5) and gives each
-            # hue a vibrant enough reference for correct nearest-color decisions.
+            # using the blended reference palette (see the module docstring),
+            # which gives each hue a vibrant enough reference for correct
+            # nearest-color decisions.
             #
             # Dithering: try PIL's native Floyd-Steinberg first (C implementation,
             # fast on Pi) since FS produces more organic results than Bayer for

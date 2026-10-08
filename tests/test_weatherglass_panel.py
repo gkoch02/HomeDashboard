@@ -57,9 +57,8 @@ from src.render.components.weatherglass_panel import (
     _wind_unit_label,
     draw_weatherglass,
 )
-from src.render.quantize import flatten_pixels
 from src.render.theme import AVAILABLE_THEMES, ComponentRegion, ThemeStyle, load_theme
-from tests.inkutils import ink, record_text
+from tests.inkutils import ink, marks, record_text
 
 FIXED_NOW = datetime(2026, 4, 6, 10, 30)
 TODAY = FIXED_NOW.date()
@@ -101,17 +100,6 @@ def _style(mode: str = "L") -> ThemeStyle:
     if mode == "RGB":
         return ThemeStyle(fg=(0, 0, 0), bg=(255, 255, 255))
     return ThemeStyle(fg=0, bg=255)
-
-
-def _marks(img, box=None) -> int:
-    """Pixels differing from the canvas background, optionally only inside *box*."""
-    px = flatten_pixels(img)
-    width = img.width
-    background = px[0]
-    if box is None:
-        return sum(1 for v in px if v != background)
-    x0, y0, x1, y1 = box
-    return sum(1 for y in range(y0, y1) for x in range(x0, x1) if px[y * width + x] != background)
 
 
 def _history(path) -> list[dict]:
@@ -580,7 +568,7 @@ class TestDrawWeatherglass:
         temps = {"imperial": 64.0, "metric": 18.0, "standard": 291.0}[units]
         data = DashboardData(weather=_weather(units=units, current_temp=temps))
         img = self._draw(data)
-        assert _marks(img) > 0
+        assert marks(img) > 0
 
     def test_unit_systems_produce_distinct_plates(self):
         """The scale, comfort band and wind label all change with units — if
@@ -599,7 +587,7 @@ class TestDrawWeatherglass:
         assert imperial.tobytes() != metric.tobytes()
 
     def test_renders_without_weather(self):
-        assert _marks(self._draw(DashboardData())) > 0
+        assert marks(self._draw(DashboardData())) > 0
 
     def test_renders_with_every_optional_field_missing(self):
         data = DashboardData(
@@ -613,14 +601,14 @@ class TestDrawWeatherglass:
                 units=None,
             )
         )
-        assert _marks(self._draw(data)) > 0
+        assert marks(self._draw(data)) > 0
 
     def test_renders_with_air_quality(self):
         data = DashboardData(
             weather=_weather(),
             air_quality=AirQualityData(aqi=142, category="Unhealthy", pm25=52.3),
         )
-        assert _marks(self._draw(data)) > 0
+        assert marks(self._draw(data)) > 0
 
     @pytest.mark.parametrize("aqi", [0, 25, 75, 125, 175, 250, 400, 500])
     def test_renders_across_the_aqi_scale(self, aqi):
@@ -629,7 +617,7 @@ class TestDrawWeatherglass:
             weather=_weather(),
             air_quality=AirQualityData(aqi=aqi, category="X", pm25=float(aqi) / 4),
         )
-        assert _marks(self._draw(data)) > 0
+        assert marks(self._draw(data)) > 0
 
     def test_alert_cartouche_overlays_the_plate(self):
         plain = self._draw(DashboardData(weather=_weather()))
@@ -643,26 +631,26 @@ class TestDrawWeatherglass:
     @pytest.mark.parametrize("temp", [-40.0, 0.0, 32.0, 64.0, 85.0, 110.0, 130.0])
     def test_temperatures_beyond_the_scale_clamp(self, temp):
         data = DashboardData(weather=_weather(current_temp=temp))
-        assert _marks(self._draw(data)) > 0
+        assert marks(self._draw(data)) > 0
 
     @pytest.mark.parametrize("deg", [0.0, 45.0, 90.0, 180.0, 270.0, 359.0])
     def test_wind_compass_across_the_rose(self, deg):
         data = DashboardData(weather=_weather(wind_deg=deg))
-        assert _marks(self._draw(data)) > 0
+        assert marks(self._draw(data)) > 0
 
     @pytest.mark.parametrize("uv", [0.0, 2.0, 5.5, 8.0, 11.0, 15.0])
     def test_uv_bar_across_the_scale(self, uv):
         data = DashboardData(weather=_weather(uv_index=uv))
-        assert _marks(self._draw(data)) > 0
+        assert marks(self._draw(data)) > 0
 
     def test_renders_on_rgb_for_inky(self):
         data = DashboardData(weather=_weather())
-        assert _marks(self._draw(data, mode="RGB")) > 0
+        assert marks(self._draw(data, mode="RGB")) > 0
 
     def test_polar_latitude_renders(self):
         """Svalbard in April has no sunset — the sun arc must still draw."""
         data = DashboardData(weather=_weather())
-        assert _marks(self._draw(data, latitude=78.2, longitude=15.6)) > 0
+        assert marks(self._draw(data, latitude=78.2, longitude=15.6)) > 0
 
     def test_unset_coordinates_fall_back_to_owm_times(self):
         data = DashboardData(
@@ -672,7 +660,7 @@ class TestDrawWeatherglass:
             )
         )
         # Exact (0.0, 0.0) is the project-wide "unset" convention.
-        assert _marks(self._draw(data, latitude=0.0, longitude=0.0)) > 0
+        assert marks(self._draw(data, latitude=0.0, longitude=0.0)) > 0
 
     # The parametrized sweeps above are deliberate smoke tests (#229 calls
     # them out as such) — they check that every value in a range renders.
@@ -716,7 +704,7 @@ class TestDrawWeatherglass:
     def test_defaults_are_supplied_when_region_and_style_are_omitted(self):
         img, draw = _canvas("L", (800, 480))
         draw_weatherglass(draw, DashboardData(weather=_weather()), TODAY, FIXED_NOW)
-        assert _marks(img) > 0
+        assert marks(img) > 0
 
 
 # ---------------------------------------------------------------------------
@@ -840,7 +828,7 @@ class TestWeatherglassTheme:
     def test_renders_end_to_end(self):
         img = _render()
         assert img.size == (800, 480)
-        assert _marks(img) > 0
+        assert marks(img) > 0
 
     def test_render_is_deterministic(self):
         assert _render().tobytes() == _render().tobytes()

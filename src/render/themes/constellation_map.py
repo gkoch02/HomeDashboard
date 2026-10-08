@@ -9,6 +9,9 @@ altitude / azimuth.
 Typography is Cinzel (star and constellation labels) + DM Sans (margin
 data) so the chart reads like a printed sky atlas.  All sky-position
 math runs out of :mod:`src.astronomy` — no API calls.
+
+Editing notes: Pure math from ``src/astronomy.py`` and ``src/render/moon.py``; it has no
+fetcher.
 """
 
 from __future__ import annotations

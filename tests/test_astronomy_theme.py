@@ -5,8 +5,6 @@ from __future__ import annotations
 from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
-from PIL import Image, ImageDraw
-
 from src.config import DisplayConfig
 from src.data.models import DashboardData, WeatherData
 from src.dummy_data import generate_dummy_data
@@ -19,6 +17,7 @@ from src.render.components.astronomy_panel import (
 from src.render.moon import next_phase_date
 from src.render.primitives import fmt_duration
 from src.render.theme import AVAILABLE_THEMES, load_theme
+from tests.conftest import make_draw
 from tests.inkutils import ink
 
 NYC_LAT = 40.7128
@@ -26,11 +25,6 @@ NYC_LON = -74.0060
 TZ = ZoneInfo("America/New_York")
 FIXED_NOW = datetime(2026, 4, 23, 12, 0, tzinfo=TZ)
 TODAY = FIXED_NOW.date()
-
-
-def _make_draw(w: int = 800, h: int = 480):
-    img = Image.new("1", (w, h), 1)
-    return img, ImageDraw.Draw(img)
 
 
 def _render(**kwargs):
@@ -158,14 +152,14 @@ class TestAstronomyRender:
 
 class TestDrawAstronomyDirect:
     def test_defaults_region_and_style(self):
-        img, d = _make_draw()
+        img, d = make_draw()
         data = DashboardData(events=[], weather=None)
         draw_astronomy(d, data, TODAY, FIXED_NOW)
         assert ink(img) > 0, "the default-style panel drew nothing"
 
     def test_with_weather_supplied_sun_times(self):
         """With weather data providing sunrise/sunset, no coords needed."""
-        img, d = _make_draw()
+        img, d = make_draw()
         w = WeatherData(
             current_temp=60.0,
             current_icon="01d",
@@ -178,13 +172,13 @@ class TestDrawAstronomyDirect:
         )
         data = DashboardData(events=[], weather=w)
         draw_astronomy(d, data, TODAY, FIXED_NOW)
-        bare, bd = _make_draw()
+        bare, bd = make_draw()
         draw_astronomy(bd, DashboardData(events=[], weather=None), TODAY, FIXED_NOW)
         assert ink(img) != ink(bare), "the weather block is not drawn"
 
     def test_polar_day_gracefully_handled(self):
         """At very high latitudes the sun never sets — panel still renders."""
-        img, d = _make_draw()
+        img, d = make_draw()
         data = DashboardData(events=[], weather=None)
         draw_astronomy(
             d,

@@ -15,6 +15,9 @@ so there is no fetcher, cache, or breaker involvement.
   │                    PARIS TRIP                                │
   │                    June 4, 2026                              │
   └──────────────────────────────────────────────────────────────┘
+
+Editing notes: Offline: reads ``cfg.countdown.events``, caps them at 5, and receives
+them through the ``countdown_events`` kwarg.
 """
 
 from __future__ import annotations

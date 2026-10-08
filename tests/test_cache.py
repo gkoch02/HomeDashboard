@@ -20,36 +20,10 @@ from src.data.models import (
 from src.fetchers.cache import (
     check_staleness,
     load_cache_blob,
-    load_cached_source_from_blob,
     load_cached_source_with_metadata_from_blob,
     save_source,
 )
-
-
-def _make_weather(**kwargs) -> WeatherData:
-    defaults = dict(
-        current_temp=55.0,
-        current_icon="01d",
-        current_description="clear",
-        high=60.0,
-        low=45.0,
-        humidity=50,
-        forecast=[
-            DayForecast(
-                date=date.today() + timedelta(days=1),
-                high=58.0,
-                low=44.0,
-                icon="02d",
-                description="cloudy",
-            )
-        ],
-    )
-    defaults.update(kwargs)
-    return WeatherData(**defaults)
-
-
-def _load(source: str, cache_dir: str):
-    return load_cached_source_from_blob(source, load_cache_blob(cache_dir))
+from tests.conftest import load_source, make_weather
 
 
 def _load_with_metadata(source: str, cache_dir: str):
@@ -101,9 +75,9 @@ class TestCacheRoundtrip:
         with tempfile.TemporaryDirectory() as tmpdir:
             for source in ("events", "weather", "birthdays"):
                 save_source(source, getattr(data, source), data.fetched_at, tmpdir)
-            events, fetched_at = _load("events", tmpdir)
-            weather, _ = _load("weather", tmpdir)
-            birthdays, _ = _load("birthdays", tmpdir)
+            events, fetched_at = load_source("events", tmpdir)
+            weather, _ = load_source("weather", tmpdir)
+            birthdays, _ = load_source("birthdays", tmpdir)
 
         assert fetched_at == data.fetched_at.replace(tzinfo=timezone.utc)
 
@@ -125,7 +99,7 @@ class TestCacheRoundtrip:
         data = _make_data()
         with tempfile.TemporaryDirectory() as tmpdir:
             save_source("weather", data.weather, data.fetched_at, tmpdir)
-            result = _load("weather", tmpdir)
+            result = load_source("weather", tmpdir)
 
         assert result is not None
         w, _ = result
@@ -175,7 +149,7 @@ class TestCacheRoundtrip:
         )
         with tempfile.TemporaryDirectory() as tmpdir:
             save_source("weather", weather, datetime(2024, 3, 15, 8, 0), tmpdir)
-            result = _load("weather", tmpdir)
+            result = load_source("weather", tmpdir)
 
         assert result is not None
         w, _ = result
@@ -198,7 +172,7 @@ class TestCacheRoundtrip:
         )
         with tempfile.TemporaryDirectory() as tmpdir:
             save_source("weather", weather, datetime(2024, 3, 15, 8, 0), tmpdir)
-            result = _load("weather", tmpdir)
+            result = load_source("weather", tmpdir)
 
         assert result is not None
         w, _ = result
@@ -228,7 +202,7 @@ class TestCacheRoundtrip:
         with tempfile.TemporaryDirectory() as tmpdir:
             cache_path = Path(tmpdir) / "dashboard_cache.json"
             cache_path.write_text(json.dumps(raw_cache))
-            result = _load("weather", tmpdir)
+            result = load_source("weather", tmpdir)
 
         assert result is not None
         w, _ = result
@@ -237,15 +211,15 @@ class TestCacheRoundtrip:
     def test_save_handles_none_weather(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             save_source("weather", None, datetime(2024, 3, 15, 8), tmpdir)
-            weather, _ = _load("weather", tmpdir)
+            weather, _ = load_source("weather", tmpdir)
         assert weather is None
 
     def test_save_handles_empty_collections(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             save_source("events", [], datetime(2024, 3, 15, 8), tmpdir)
             save_source("birthdays", [], datetime(2024, 3, 15, 8), tmpdir)
-            assert _load("events", tmpdir)[0] == []
-            assert _load("birthdays", tmpdir)[0] == []
+            assert load_source("events", tmpdir)[0] == []
+            assert load_source("birthdays", tmpdir)[0] == []
 
 
 class TestLoadCachedSourceEdgeCases:
@@ -261,26 +235,26 @@ class TestLoadCachedSourceEdgeCases:
 
     def test_returns_none_when_file_missing(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            assert _load("events", tmpdir) is None
+            assert load_source("events", tmpdir) is None
 
     def test_returns_none_on_corrupt_json(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             cache_path = Path(tmpdir) / "dashboard_cache.json"
             cache_path.write_text("{ not json }")
-            assert _load("events", tmpdir) is None
+            assert load_source("events", tmpdir) is None
 
     def test_returns_none_when_source_block_missing(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             save_source("weather", self._make_weather(), datetime(2024, 3, 15, 9), tmpdir)
             # 'birthdays' key not yet written
-            assert _load("birthdays", tmpdir) is None
+            assert load_source("birthdays", tmpdir) is None
 
     def test_loads_birthdays_source(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             bdays = [Birthday(name="Eve", date=date(2024, 5, 1), age=28)]
             ts = datetime(2024, 3, 15, 9)
             save_source("birthdays", bdays, ts, tmpdir)
-            result = _load("birthdays", tmpdir)
+            result = load_source("birthdays", tmpdir)
             assert result is not None
             data, fetched_at = result
             assert len(data) == 1
@@ -290,7 +264,7 @@ class TestLoadCachedSourceEdgeCases:
         """Unknown source name should return None even in a valid v2 file."""
         with tempfile.TemporaryDirectory() as tmpdir:
             save_source("events", [], datetime(2024, 3, 15, 9), tmpdir)
-            assert _load("unknown_source", tmpdir) is None
+            assert load_source("unknown_source", tmpdir) is None
 
     def test_returns_none_on_source_decode_failure(self):
         """Corrupt data in a source block should return None."""
@@ -307,7 +281,7 @@ class TestLoadCachedSourceEdgeCases:
             }
             cache_path = Path(tmpdir) / "dashboard_cache.json"
             cache_path.write_text(json.dumps(bad_data))
-            assert _load("events", tmpdir) is None
+            assert load_source("events", tmpdir) is None
 
     def test_v1_fallback_returns_weather(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -327,7 +301,7 @@ class TestLoadCachedSourceEdgeCases:
                 "birthdays": [],
             }
             (Path(tmpdir) / "dashboard_cache.json").write_text(json.dumps(v1))
-            result = _load("weather", tmpdir)
+            result = load_source("weather", tmpdir)
             assert result is not None
             w, _ = result
             assert w.current_temp == 50.0
@@ -341,7 +315,7 @@ class TestLoadCachedSourceEdgeCases:
                 "birthdays": [{"name": "Bob", "date": "2024-06-01", "age": None}],
             }
             (Path(tmpdir) / "dashboard_cache.json").write_text(json.dumps(v1))
-            result = _load("birthdays", tmpdir)
+            result = load_source("birthdays", tmpdir)
             assert result is not None
             data, _ = result
             assert data[0].name == "Bob"
@@ -351,7 +325,7 @@ class TestLoadCachedSourceEdgeCases:
         with tempfile.TemporaryDirectory() as tmpdir:
             bad = {"some_random": "garbage"}
             (Path(tmpdir) / "dashboard_cache.json").write_text(json.dumps(bad))
-            assert _load("events", tmpdir) is None
+            assert load_source("events", tmpdir) is None
 
 
 class TestSaveSourceEdgeCases:
@@ -379,7 +353,7 @@ class TestSaveSourceEdgeCases:
             weather = self._make_weather()
             save_source("weather", weather, datetime(2024, 3, 15, 9), tmpdir)
             # Should have written a valid new file
-            result = _load("weather", tmpdir)
+            result = load_source("weather", tmpdir)
             assert result is not None
 
     def test_write_failure_logs_warning(self, caplog):
@@ -415,7 +389,7 @@ class TestDeserialiseV1Fallback:
                 "birthdays": [],
             }
             (Path(tmpdir) / "dashboard_cache.json").write_text(json.dumps(v1))
-            events, _ = _load("events", tmpdir)
+            events, _ = load_source("events", tmpdir)
             assert events[0].summary == "Old Meeting"
 
 
@@ -442,7 +416,7 @@ class TestLoadCachedSourceUnknownSourcePaths:
         block under that key and through the v1 fallback."""
         with tempfile.TemporaryDirectory() as tmpdir:
             (Path(tmpdir) / "dashboard_cache.json").write_text(json.dumps(payload))
-            assert _load(source, tmpdir) is None
+            assert load_source(source, tmpdir) is None
 
 
 class TestLoadCachedSourceWithMetadata:
@@ -644,7 +618,7 @@ class TestLoadCachedSourceAirQuality:
         with tempfile.TemporaryDirectory() as tmpdir:
             aq = AirQualityData(aqi=58, category="Moderate", pm25=15.0, pm10=20.0, sensor_id=9)
             save_source("air_quality", aq, datetime(2024, 3, 15, 9), tmpdir)
-            result = _load("air_quality", tmpdir)
+            result = load_source("air_quality", tmpdir)
         assert result is not None
         data, fetched_at = result
         assert data.aqi == 58
@@ -658,7 +632,7 @@ class TestLoadCachedSourceAirQuality:
                 "air_quality": {"fetched_at": "2024-03-15T08:00:00", "data": None},
             }
             (Path(tmpdir) / "dashboard_cache.json").write_text(json.dumps(v2))
-            result = _load("air_quality", tmpdir)
+            result = load_source("air_quality", tmpdir)
         assert result is not None
         data, _ = result
         assert data is None
@@ -815,7 +789,7 @@ class TestEnhancedWeatherFieldsCache:
         weather = self._make_full_weather()
         with tempfile.TemporaryDirectory() as tmpdir:
             save_source("weather", weather, datetime(2024, 3, 15, 8), tmpdir)
-            result = _load("weather", tmpdir)
+            result = load_source("weather", tmpdir)
         assert result is not None
         w, _ = result
         assert getattr(w, field) == expected
@@ -842,7 +816,7 @@ class TestEnhancedWeatherFieldsCache:
                 },
             }
             (Path(tmpdir) / "dashboard_cache.json").write_text(json.dumps(raw))
-            result = _load("weather", tmpdir)
+            result = load_source("weather", tmpdir)
         assert result is not None
         w, _ = result
         assert w.wind_deg is None
@@ -876,7 +850,7 @@ class TestPerSourceCache:
             ]
             ts = datetime(2024, 3, 15, 8)
             save_source("events", events, ts, tmpdir)
-            result = _load("events", tmpdir)
+            result = load_source("events", tmpdir)
             assert result is not None
             data, fetched_at = result
             assert len(data) == 1
@@ -886,10 +860,10 @@ class TestPerSourceCache:
 
     def test_load_cached_source_weather(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            weather = _make_weather(alerts=[WeatherAlert(event="Storm")])
+            weather = make_weather(alerts=[WeatherAlert(event="Storm")])
             ts = datetime(2024, 3, 15, 9)
             save_source("weather", weather, ts, tmpdir)
-            result = _load("weather", tmpdir)
+            result = load_source("weather", tmpdir)
             assert result is not None
             w, fetched_at = result
             assert w.current_temp == weather.current_temp
@@ -899,7 +873,7 @@ class TestPerSourceCache:
     def test_save_source_preserves_other_sources(self):
         """Saving one source should not wipe out other sources already in the file."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            weather = _make_weather()
+            weather = make_weather()
             save_source("weather", weather, datetime(2024, 3, 15, 9), tmpdir)
             events = [
                 CalendarEvent(
@@ -908,14 +882,14 @@ class TestPerSourceCache:
             ]
             save_source("events", events, datetime(2024, 3, 15, 9, 30), tmpdir)
 
-            w_result = _load("weather", tmpdir)
-            e_result = _load("events", tmpdir)
+            w_result = load_source("weather", tmpdir)
+            e_result = load_source("events", tmpdir)
             assert w_result is not None
             assert e_result is not None
 
     def test_load_cached_source_returns_none_when_absent(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            assert _load("events", tmpdir) is None
+            assert load_source("events", tmpdir) is None
 
     def test_load_cached_source_v1_fallback(self):
         """Legacy v1 cache files still decode per source."""
@@ -940,7 +914,7 @@ class TestPerSourceCache:
             with open(cache_path, "w") as f:
                 json.dump(v1, f)
 
-            result = _load("events", tmpdir)
+            result = load_source("events", tmpdir)
             assert result is not None
             data, fetched_at = result
             assert data[0].summary == "Old Evt"
@@ -956,7 +930,7 @@ class TestPerSourceCache:
 
             save_source(
                 "weather",
-                _make_weather(),
+                make_weather(),
                 datetime.now(timezone.utc) - timedelta(hours=3),
                 tmpdir,
             )
