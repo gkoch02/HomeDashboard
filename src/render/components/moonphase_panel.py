@@ -10,8 +10,8 @@ badge when the full moon falls near perigee.  A daily quote anchors the bottom.
 The hero and flanking discs are rendered by :mod:`src.render.moon_render`,
 which adapts to the canvas mode: solid white-on-black on Waveshare ("L"), a
 warm yellow lit limb / cool earthshine on Inky ("RGB"), and a flat bilevel
-fallback on "1".  The hero keeps a full-disc outline ring; the flanking moons
-are drawn bare (lit shape only).
+fallback on "1".  Every disc, hero included, is drawn bare (lit shape only,
+no limb ring).
 
 Used by the ``moonphase`` and ``moonphase_invert`` themes.
 """
@@ -105,9 +105,8 @@ def _moon_tones(style: ThemeStyle, mode: str, dark_canvas: bool) -> MoonTones:
         fg = 1 if dark_canvas else 0
         bg = 0 if dark_canvas else 1
         return MoonTones(lit=fg, dark=bg, edge=fg)
-    # "L" greyscale — solid high-contrast moon: pure-white lit side, the unlit
-    # side drops to the background, and a solid full-disc ring keeps the sphere
-    # readable on partial phases.
+    # "L" greyscale — solid high-contrast moon: pure-white lit side, and the
+    # unlit side drops to the background.
     if dark_canvas:
         return MoonTones(lit=255, dark=0, edge=255)
     return MoonTones(lit=0, dark=255, edge=0)
@@ -204,6 +203,7 @@ def _draw_moon_row(
         hero_r,
         moon_phase_age(today),
         tones,
+        show_edge=False,
         use_photo=use_photo,
         dark_canvas=dark_canvas,
     )
