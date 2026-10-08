@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import math
 import random
+import zlib
 from dataclasses import dataclass
 from datetime import date, datetime
 from functools import lru_cache
@@ -223,6 +224,21 @@ def _over(field: np.ndarray, tone: float | np.ndarray, alpha: np.ndarray) -> Non
 # Scene
 
 
+def _streams(today: date, layer: str) -> tuple[np.random.Generator, random.Random]:
+    """Date-seeded random streams private to one layer.
+
+    Weather and light decide which layers draw at all, so layers sharing one
+    stream would see the terrain behind them reshuffle whenever the forecast
+    or the hour changed.  Keying each layer's stream on its name keeps the
+    day's landscape fixed under any conditions.
+    """
+    tag = zlib.crc32(layer.encode())
+    return (
+        np.random.default_rng((today.toordinal(), tag)),
+        random.Random(today.toordinal() * 2**32 + tag),
+    )
+
+
 def render_scene(
     w: int,
     h: int,
@@ -232,8 +248,6 @@ def render_scene(
     today: date,
 ) -> Image.Image:
     """Paint the view and return it as an ``"L"`` image of ``(w, h)``."""
-    rng = np.random.default_rng(today.toordinal())
-    prng = random.Random(today.toordinal())
     hz = int(h * HORIZON_FRAC)
     night = light.phase == "night"
     tones = _SKY_TONES.get(kind, _SKY_TONES["clear"])[light.phase]
@@ -246,34 +260,35 @@ def render_scene(
 
     field = _sky(w, h, hz, tones, yy, xx, kind, light, sun, moon)
     if sky_lit and night:
-        _stars(field, rng, prng, w, hz, yy, xx)
+        _stars(field, *_streams(today, "stars"), w, hz, yy, xx)
     if sky_lit and not night:
         _sun_disc(field, sun, w, h, ring=light.phase == "day")
     elif sky_lit and night:
-        _moon(field, rng, moon, today)
-    _clouds(field, rng, w, hz, yy, kind, light, sun)
+        _moon(field, _streams(today, "moon")[0], moon, today)
+    _clouds(field, _streams(today, "clouds")[0], w, hz, yy, kind, light, sun)
 
     horizon_tone = tones[1]
     ridge_ink = 12.0 if night or light.phase == "golden" else 34.0
-    profiles = _mountains(field, rng, prng, w, hz, yy, xx, kind, light, horizon_tone, ridge_ink)
+    profiles = _mountains(field, today, w, hz, yy, xx, kind, light, horizon_tone, ridge_ink)
     if kind == "fog" or (light.phase == "golden" and kind in ("clear", "partly")):
-        _valley_mist(field, rng, w, hz, yy, profiles, kind, horizon_tone)
+        _valley_mist(field, _streams(today, "mist")[0], w, hz, yy, profiles, kind, horizon_tone)
 
-    _lake(field, rng, prng, w, h, hz, yy, xx, kind, light, sun, moon)
+    _lake(field, _streams(today, "lake")[0], w, h, hz, yy, xx, kind, light, sun, moon)
     if sky_lit and not night:
-        _sailboat(field, prng, w, hz, h)
+        _sailboat(field, _streams(today, "sailboat")[1], w, hz, h)
     if kind == "storm":
-        _lightning(field, prng, w, hz, profiles[1])
-    _foreground(field, rng, prng, w, h, hz, kind, light)
+        _lightning(field, _streams(today, "lightning")[1], w, hz, profiles[1])
+    _foreground(field, *_streams(today, "foreground"), w, h, hz, kind, light)
     if kind in ("rain", "storm"):
-        _rain(field, prng, w, h, heavy=kind == "storm")
+        _rain(field, _streams(today, "rain")[1], w, h, heavy=kind == "storm")
     if kind == "snow":
-        _snowfall(field, prng, w, h)
+        _snowfall(field, _streams(today, "snowfall")[1], w, h)
     if sky_lit and not night:
-        _birds(field, prng, w, hz, sun)
+        _birds(field, _streams(today, "birds")[1], w, hz, sun)
 
     # Paper grain breaks Floyd-Steinberg's worm patterns on smooth gradients.
-    field += rng.normal(0.0, 2.5, size=field.shape).astype(np.float32)
+    grain = _streams(today, "grain")[0]
+    field += grain.normal(0.0, 2.5, size=field.shape).astype(np.float32)
     # A soft vignette, like an old print's darkened corners.
     r2 = ((xx / w - 0.5) ** 2 + (yy / h - 0.5) ** 2) * 2.0
     field *= 1.0 - 0.10 * r2
@@ -484,8 +499,7 @@ def _cumulus(rng: np.random.Generator, w: int, hz: int) -> tuple[np.ndarray, np.
 
 def _mountains(
     field: np.ndarray,
-    rng: np.random.Generator,
-    prng: random.Random,
+    today: date,
     w: int,
     hz: int,
     yy: np.ndarray,
@@ -509,6 +523,7 @@ def _mountains(
     ]
     profiles: list[np.ndarray] = []
     for i, (peak, knots, depth, rocky) in enumerate(layers):
+        rng, prng = _streams(today, f"ridge{i}")
         if knots:
             # A low gain keeps the fine octaves from sawing the crest into teeth.
             n = (_noise_1d(rng, w, knots, gain=0.38) + 1.0) * 0.5
@@ -548,7 +563,7 @@ def _mountains(
             if i == 0 and kind != "fog":
                 # Snow holds only above a fixed altitude, so only the summits
                 # carry it; the couloirs drag fingers of it down the faces.
-                couloirs = np.abs(_noise_1d(rng, w, 48, 3)) * 18 * SS
+                couloirs = np.abs(_noise_1d(_streams(today, "snowcap")[0], w, 48, 3)) * 18 * SS
                 snowline = hz - _SNOWLINE * hz + couloirs
                 snow = (yy[:hz] < snowline[None, :]) & inside
                 snow_v = 104.0 if light.phase == "night" else (196.0 if backlit else 250.0)
@@ -632,7 +647,6 @@ def _valley_mist(
 def _lake(
     field: np.ndarray,
     rng: np.random.Generator,
-    prng: random.Random,
     w: int,
     h: int,
     hz: int,

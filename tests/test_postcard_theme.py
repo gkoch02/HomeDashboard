@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from datetime import date, datetime, timedelta
 
+import numpy as np
 import pytest
 from PIL import ImageStat
 
@@ -181,6 +182,25 @@ class TestScene:
     def test_landscape_changes_from_day_to_day(self):
         other = render_scene(480, 480, kind="clear", light=DAY, today=date(2026, 4, 7))
         assert other.tobytes() != _scene().tobytes()
+
+    def test_landscape_holds_still_when_the_conditions_change(self):
+        """Weather and light restyle the day's landscape; they never move it.
+
+        The ink silhouettes (pines, banks) may shift only where lighting tips a
+        tone across the threshold, a few percent at most.
+        """
+
+        def ink(kind, light):
+            return np.asarray(_scene(kind, light)) < 12
+
+        base = ink("clear", DAY)
+        for kind, light in [
+            ("partly", DAY),
+            ("overcast", DAY),
+            ("clear", Light("golden", 0.86, 0.05)),
+        ]:
+            moved = int((ink(kind, light) ^ base).sum())
+            assert moved < 0.05 * base.sum(), (kind, light.phase, moved)
 
     def test_night_sky_is_dark(self):
         assert _mean(_scene(light=Light("night", 0.7, 0.0)), SKY) < 70
