@@ -97,10 +97,6 @@ def _load_last_refresh(state_dir: str) -> datetime | None:
             legacy.replace(path)
         except OSError as exc:
             logger.debug("Could not migrate legacy inky refresh state: %s", exc)
-        # Legacy v4 files were written via datetime.utcnow().isoformat() —
-        # naive. Readers treat naive ISO timestamps as UTC (repo convention);
-        # returned raw, the aware-now subtraction in
-        # should_throttle_display_refresh would raise TypeError.
         return to_aware(ts)
 
     try:
@@ -113,8 +109,6 @@ def _load_last_refresh(state_dir: str) -> datetime | None:
     if not isinstance(value, str):
         return None
     try:
-        # Naive timestamps (legacy writers) are treated as UTC — see the
-        # migration branch above.
         return to_aware(datetime.fromisoformat(value))
     except ValueError:
         return None
