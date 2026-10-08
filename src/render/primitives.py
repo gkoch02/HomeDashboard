@@ -360,6 +360,16 @@ def draw_staleness_glyph(draw: ImageDraw.ImageDraw, region, style) -> None:
     draw.text((tx, ty), "!", font=warn_font, fill=style.bg)
 
 
+def round_temp(value: float) -> str:
+    """A temperature as a whole number; never ``-0`` (``f"{-0.3:.0f}"`` is ``-0``)."""
+    return str(int(round(value)))
+
+
+def fmt_deg(value: float) -> str:
+    """A temperature with a degree sign: ``-0.3`` → ``0°``, ``-0.6`` → ``-1°``."""
+    return f"{round_temp(value)}°"
+
+
 def wind_unit(weather) -> str:
     """Return the wind-speed unit label for the units *weather* was fetched in.
 

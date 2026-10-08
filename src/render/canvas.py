@@ -212,8 +212,9 @@ def render_dashboard(
     style = _resolve_style(theme, render_mode, config)
 
     image = Image.new(render_mode, (layout.canvas_w, layout.canvas_h), style.bg)
+    background_art = None
     if layout.background_fn is not None:
-        layout.background_fn(image, layout, style)
+        background_art = layout.background_fn(image, layout, style, config)
     draw = ImageDraw.Draw(image)
 
     now = data.fetched_at
@@ -270,6 +271,7 @@ def render_dashboard(
         layout=layout,
         background=style.bg,
         dither_regions=ctx.dither_regions,
+        image_regions=background_art,
     )
 
     return image

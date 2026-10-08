@@ -38,6 +38,7 @@ from src.render.moon import (
 )
 from src.render.moon_render import MoonTones, render_moon_disc
 from src.render.primitives import (
+    fmt_deg,
     fmt_time,
     text_height,
     text_width,
@@ -307,7 +308,7 @@ def _draw_sun_weather_line(
     if weather.sunset:
         parts.append(f"sunset {fmt_time(weather.sunset)}")
     if weather.current_temp is not None:
-        parts.append(f"{weather.current_temp:.0f}° {weather.current_description.title()}")
+        parts.append(f"{fmt_deg(weather.current_temp)} {weather.current_description.title()}")
     if not parts:
         return y
     text = truncate_to_width(draw, "  ~  ".join(parts), font, max_w)

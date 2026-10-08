@@ -18,6 +18,7 @@ from __future__ import annotations
 
 from datetime import date, datetime, tzinfo
 
+from src.render.primitives import fmt_deg
 from src.render.quantize import INKY_SPECTRA6_PALETTE
 from src.render.theme import INKY_RED, INKY_YELLOW
 
@@ -107,4 +108,4 @@ def hours_of_day(dt: datetime | None, today: date, tz: tzinfo | None) -> float |
 
 def fmt_temp(value: float | None) -> str:
     """``42°`` for a reading, an em dash for none; shared by the art themes."""
-    return "—" if value is None else f"{int(round(value))}°"
+    return "—" if value is None else fmt_deg(value)

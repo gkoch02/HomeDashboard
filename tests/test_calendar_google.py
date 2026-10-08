@@ -197,6 +197,36 @@ class TestSyncEventSerialization:
         assert event.calendar_name is None
         assert event.event_id is None
 
+    def test_existing_sync_state_file_round_trips(self, tmp_path):
+        """A calendar_sync_state.json in the shape earlier releases wrote still loads.
+
+        The stored events share the cache's event serialiser; its key names are
+        the on-disk format, so a rename here would strand every Pi's sync state.
+        """
+        stored = {
+            "event_id": "evt001",
+            "summary": "Team Lunch",
+            "start": "2024-03-15T12:00:00",
+            "end": "2024-03-15T13:00:00",
+            "is_all_day": False,
+            "location": "Cafe",
+            "calendar_name": "Work",
+        }
+        state = {
+            "primary": {
+                "sync_token": "tok",
+                "events": [stored],
+                "window_start": "2024-03-11T00:00:00+00:00",
+                "window_end": "2024-03-18T00:00:00+00:00",
+            }
+        }
+        (tmp_path / "calendar_sync_state.json").write_text(json.dumps(state))
+
+        loaded = _load_sync_state(str(tmp_path))["primary"]["events"]
+        event = _deser_sync_event(loaded[0])
+        assert event == self._make_event()
+        assert _ser_sync_event(event) == stored
+
 
 # ---------------------------------------------------------------------------
 # _load_sync_state / _save_sync_state

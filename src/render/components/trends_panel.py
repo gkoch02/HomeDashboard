@@ -25,10 +25,11 @@ from datetime import date, datetime, timedelta
 from PIL import Image, ImageDraw
 
 from src.data.models import CalendarEvent, DashboardData, WeatherData
+from src.render.artkit import fmt_temp
 from src.render.components.air_quality_panel import _AQI_MAX, _AQI_ZONES
 from src.render.fonts import cyber_mono, weather_icon
 from src.render.moon import moon_illumination, moon_phase_glyph
-from src.render.primitives import events_for_day
+from src.render.primitives import events_for_day, round_temp
 from src.render.quantize import _BAYER_4X4
 from src.render.theme import ComponentRegion, ThemeStyle
 
@@ -389,7 +390,7 @@ def _draw_temp_row(
     big_font = cyber_mono(26)
     label_font = style.font_medium(12)
     value = weather.current_temp
-    txt = "—" if value is None else f"{int(round(value))}°"
+    txt = fmt_temp(value)
     _, th = _draw_text_right(draw, txt, right=annot_right, top=y0 + 8, font=big_font, fill=style.fg)
     sub_lines = [
         f"NOW  ·  H {_round_temp(weather.high)}°",
@@ -404,7 +405,7 @@ def _draw_temp_row(
 
 
 def _round_temp(v: float | None) -> str:
-    return "—" if v is None else str(int(round(v)))
+    return "—" if v is None else round_temp(v)
 
 
 def _build_temp_series(weather: WeatherData) -> tuple[list[float | None], int]:

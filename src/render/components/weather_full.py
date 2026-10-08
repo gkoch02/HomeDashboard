@@ -29,6 +29,7 @@ from src.render.primitives import (
     deg_to_compass,
     draw_text_truncated,
     filled_rect,
+    fmt_deg,
     hline,
     text_height,
     text_width,
@@ -126,7 +127,7 @@ def _draw_hero(draw, weather, x0, y0, W, H, style):
     icon_y = y0 + 8 - glyph_bbox[1]
     draw.text((icon_x, icon_y), glyph, font=icon_font, fill=style.primary_accent_fill())
 
-    temp_str = f"{weather.current_temp:.0f}°"
+    temp_str = fmt_deg(weather.current_temp)
     temp_size = 64
     temp_font = style.font_bold(temp_size)
     # Auto-scale down if temp string is too wide (e.g. "-100°")
@@ -154,7 +155,7 @@ def _draw_hero(draw, weather, x0, y0, W, H, style):
 
     # Hi / Lo
     hilo_font = style.font_regular(13)
-    hilo_str = f"H: {weather.high:.0f}°  ·  L: {weather.low:.0f}°"
+    hilo_str = f"H: {fmt_deg(weather.high)}  ·  L: {fmt_deg(weather.low)}"
     hilo_w = text_width(draw, hilo_str, hilo_font)
     hilo_x = cx - hilo_w // 2
     hilo_y = desc_y + text_height(desc_font) + 2
@@ -181,9 +182,9 @@ def _draw_metric_cards(draw, weather, x0, y0, W, H, style, *, air_quality=None):
     cards = []
 
     if weather.feels_like is not None:
-        cards.append((_GLYPH_THERMOMETER, f"{weather.feels_like:.0f}°", "Feels like"))
+        cards.append((_GLYPH_THERMOMETER, fmt_deg(weather.feels_like), "Feels like"))
     else:
-        cards.append((_GLYPH_THERMOMETER, f"{weather.current_temp:.0f}°", "Temp"))
+        cards.append((_GLYPH_THERMOMETER, fmt_deg(weather.current_temp), "Temp"))
 
     if weather.wind_speed is not None:
         wind_val = f"{weather.wind_speed:.0f}"
@@ -456,7 +457,7 @@ def _draw_forecast_grid(draw, weather, x0, y0, W, H, style):
         )
 
         # Hi / Lo
-        hilo_str = f"{fc.high:.0f}°/{fc.low:.0f}°"
+        hilo_str = f"{fmt_deg(fc.high)}/{fmt_deg(fc.low)}"
         hw = text_width(draw, hilo_str, hilo_font)
         hilo_y = icon_y + icon_size + 6
         draw.text((col_cx - hw // 2, hilo_y), hilo_str, font=hilo_font, fill=fg)

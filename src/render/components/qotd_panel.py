@@ -30,7 +30,7 @@ from src.render.fonts import (
 )
 from src.render.icons import FALLBACK_ICON, OWM_ICON_MAP, draw_weather_icon
 from src.render.moon import moon_phase_glyph
-from src.render.primitives import text_height
+from src.render.primitives import fmt_deg, text_height
 from src.render.primitives import wrap_lines as _wrap_lines
 from src.render.theme import ComponentRegion, ThemeStyle
 
@@ -222,7 +222,7 @@ def draw_qotd_weather(
     icon_right = Z1_X + _icon_width(draw, weather.current_icon, icon_size)
 
     temp_font = jakarta_bold(34)
-    temp_str = f"{weather.current_temp:.0f}°"
+    temp_str = fmt_deg(weather.current_temp)
     temp_bbox = draw.textbbox((0, 0), temp_str, font=temp_font)
     temp_h = temp_bbox[3] - temp_bbox[1]
     temp_x = icon_right + 6
@@ -238,11 +238,11 @@ def draw_qotd_weather(
     detail_font = jakarta_regular(12)
 
     desc = weather.current_description.title()
-    hilo_str = f"H:{weather.high:.0f}°  L:{weather.low:.0f}°"
+    hilo_str = f"H:{fmt_deg(weather.high)}  L:{fmt_deg(weather.low)}"
 
     detail_parts: list[str] = []
     if weather.feels_like is not None:
-        detail_parts.append(f"Feels {weather.feels_like:.0f}°")
+        detail_parts.append(f"Feels {fmt_deg(weather.feels_like)}")
     if weather.wind_speed is not None:
         from src.render.primitives import deg_to_compass, wind_unit
 
@@ -295,7 +295,7 @@ def draw_qotd_weather(
             draw.text((tx, fc_y), fc.date.strftime("%a"), font=day_font, fill=style.fg)
             draw.text(
                 (tx, fc_y + row_lh + 3),
-                f"{fc.high:.0f}°/{fc.low:.0f}°",
+                f"{fmt_deg(fc.high)}/{fmt_deg(fc.low)}",
                 font=sm_font,
                 fill=style.fg,
             )

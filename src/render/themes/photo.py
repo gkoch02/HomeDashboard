@@ -14,8 +14,8 @@ Configuration::
     photo:
       path: /home/pi/wallpaper.jpg
 
-Both paths turn the photo upright per its EXIF orientation and crop it to fill
-the canvas (scaled to cover, centre-cropped), so it is never stretched.
+Every path turns the photo upright per its EXIF orientation and crops it to
+fill the canvas (scaled to cover, centre-cropped), so it is never stretched.
 
 **Waveshare / 1-bit path** — photo is converted to grayscale, cropped with
 LANCZOS, and dithered to 1-bit via Floyd-Steinberg.
@@ -28,6 +28,12 @@ blended palette forms correct hue decision boundaries — e.g. sky blue maps to
 blue rather than white — while still being close enough to the physical colors
 that ``InkyDisplay.show()`` can unambiguously recover the correct hardware index
 for each quantized pixel.
+
+**Waveshare colour (four-ink G) path** — the cropped photo is pasted undithered
+and the whole canvas is returned as an art region, so the backend
+Floyd-Steinbergs it onto the panel's own inks. Pre-dithering against the
+Spectra 6 palette here would spend the error diffusion on blue and green, which
+the G panel lacks and snaps to black.
 
 Editing notes: ``background_fn`` pastes the dithered ``photo.path``; ``draw_order`` is
 empty.
@@ -44,6 +50,8 @@ from src.render.theme import Theme, ThemeLayout, ThemeStyle
 if TYPE_CHECKING:
     from PIL import Image
 
+    from src.config import DisplayConfig
+
 logger = logging.getLogger(__name__)
 
 
@@ -51,15 +59,30 @@ def _draw_photo_background(
     image: Image.Image,
     layout: ThemeLayout,
     style: ThemeStyle,
-) -> None:
-    """Load, dither, and paste the configured photo onto *image*."""
+    config: DisplayConfig,
+) -> list[tuple[int, int, int, int]] | None:
+    """Paste the configured photo onto *image*; return the art region, if any.
+
+    The photo is dithered here for Inky and mono panels. On a four-ink colour
+    Waveshare it is pasted as-is and the full canvas returned, for the backend
+    to dither onto that panel's inks.
+    """
     path = style.photo_path
     if not path:
-        return
+        return None
     if not Path(path).exists():
         logger.warning("photo theme: image not found: %s", path)
-        return
+        return None
     try:
+        if image.mode == "RGB" and config.provider != "inky":
+            from PIL import Image as _Image
+            from PIL import ImageOps
+
+            img = ImageOps.exif_transpose(_Image.open(path)).convert("RGB")
+            image.paste(
+                ImageOps.fit(img, (layout.canvas_w, layout.canvas_h), _Image.Resampling.LANCZOS)
+            )
+            return [(0, 0, layout.canvas_w, layout.canvas_h)]
         if image.mode == "RGB":
             # Inky Spectra 6 color path: crop then quantize to 6-color palette
             # using the blended reference palette (see the module docstring),
@@ -113,6 +136,7 @@ def _draw_photo_background(
             image.paste(dithered)
     except Exception as exc:
         logger.warning("photo theme: failed to load image %s: %s", path, exc)
+    return None
 
 
 def photo_theme() -> Theme:

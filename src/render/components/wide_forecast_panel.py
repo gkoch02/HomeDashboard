@@ -42,6 +42,7 @@ from src.render.primitives import (
     draw_text_truncated,
     draw_text_wrapped,
     filled_rect,
+    fmt_deg,
     fmt_time,
     hline,
     text_height,
@@ -147,7 +148,7 @@ def _draw_hero(
     icon_top = y0 + 52
     draw_weather_icon(draw, (hx, icon_top), weather.current_icon, size=112, fill=style.fg)
     temp_font = style.font_bold(104)
-    temp = f"{weather.current_temp:.0f}°"
+    temp = fmt_deg(weather.current_temp)
     tb = draw.textbbox((0, 0), temp, font=temp_font)
     draw.text((hx + 150 - tb[0], icon_top + 4 - tb[1]), temp, font=temp_font, fill=style.fg)
 
@@ -165,9 +166,9 @@ def _draw_hero(
 
     hilo_font = style.font_semibold(20)
     hilo_y = desc_y + used + 8
-    hilo = f"H {weather.high:.0f}°   L {weather.low:.0f}°"
+    hilo = f"H {fmt_deg(weather.high)}   L {fmt_deg(weather.low)}"
     if weather.feels_like is not None:
-        hilo += f"   Feels {weather.feels_like:.0f}°"
+        hilo += f"   Feels {fmt_deg(weather.feels_like)}"
     draw_text_truncated(draw, (hx, hilo_y), hilo, hilo_font, inner_w, fill=style.fg)
 
     # Detail grid: two columns, three rows.
@@ -267,8 +268,8 @@ def _draw_forecast_row(
             draw, (mid - icon_size // 2, icon_y), fc.icon, size=icon_size, fill=style.fg
         )
 
-        hi = f"{fc.high:.0f}°"
-        lo = f"{fc.low:.0f}°"
+        hi = fmt_deg(fc.high)
+        lo = fmt_deg(fc.low)
         hi_w = text_width(draw, hi, hi_font)
         lo_w = text_width(draw, lo, lo_font)
         gap = 10

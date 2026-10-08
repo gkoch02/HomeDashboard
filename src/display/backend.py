@@ -257,6 +257,7 @@ class DisplayBackend(ABC):
         layout,
         background: Fill | None = None,
         dither_regions: list[Rect] | None = None,
+        image_regions: list[Rect] | None = None,
     ) -> Image.Image:
         """Resize *image* to the configured display size and finalize it.
 
@@ -269,6 +270,9 @@ class DisplayBackend(ABC):
         backend error-diffuses those onto its inks instead of snapping them
         (see :func:`dither_art_regions`). The 1-bit backend ignores them —
         its whole plate already dithers per the theme's quantizer.
+        ``image_regions`` are source imagery (a ``background_fn`` photo):
+        dithered the same way, but never through the accent remap, which
+        would replace a photo pixel that happens to equal a Spectra-6 accent.
         """
 
 
@@ -298,8 +302,10 @@ class WaveshareBackend(DisplayBackend):
         layout,
         background: Fill | None = None,
         dither_regions: list[Rect] | None = None,
+        image_regions: list[Rect] | None = None,
     ) -> Image.Image:
-        del dither_regions  # a 1-bit plate dithers as a whole, per the theme's quantizer
+        # A 1-bit plate dithers as a whole, per the theme's quantizer.
+        del dither_regions, image_regions
         target = _target(self._config)
         needs_resize = target != canvas_size
         if needs_resize:
@@ -340,6 +346,7 @@ class WaveshareColorBackend(DisplayBackend):
         layout,
         background: Fill | None = None,
         dither_regions: list[Rect] | None = None,
+        image_regions: list[Rect] | None = None,
     ) -> Image.Image:
         target = _target(self._config)
         needs_resize = target != canvas_size
@@ -359,14 +366,11 @@ class WaveshareColorBackend(DisplayBackend):
             pad = pad_value(background, image.mode, "RGB")
             rgb = fit_canvas(rgb, target, scaling=scaling, background=pad)
         plate = quantize_to_palette_nearest(rgb, self._palette)
-        return dither_art_regions(
-            rgb,
-            plate,
-            dither_regions,
-            placement(canvas_size, target, scaling),
-            self._palette,
-            remap=G_EXACT_REMAP,
+        place = placement(canvas_size, target, scaling)
+        plate = dither_art_regions(
+            rgb, plate, dither_regions, place, self._palette, remap=G_EXACT_REMAP
         )
+        return dither_art_regions(rgb, plate, image_regions, place, self._palette)
 
 
 class InkyBackend(DisplayBackend):
@@ -389,6 +393,7 @@ class InkyBackend(DisplayBackend):
         layout,
         background: Fill | None = None,
         dither_regions: list[Rect] | None = None,
+        image_regions: list[Rect] | None = None,
     ) -> Image.Image:
         target = _target(self._config)
         scaling = _scaling(self._config, canvas_size)
@@ -400,13 +405,14 @@ class InkyBackend(DisplayBackend):
                 scaling=scaling,
                 background=pad,
             )
-        if image.mode == "RGB" and dither_regions:
+        regions = (dither_regions or []) + (image_regions or [])
+        if image.mode == "RGB" and regions:
             # Diffuse onto the panel's measured inks, so the driver's own
             # nearest-colour mapping at write time is the identity on them.
             image = dither_art_regions(
                 image,
                 image.copy(),
-                dither_regions,
+                regions,
                 placement(canvas_size, target, scaling),
                 INKY_SPECTRA6_PALETTE,
             )

@@ -18,13 +18,14 @@ users on Google API / ICS only paths don't need the wheel installed.
 from __future__ import annotations
 
 import logging
-from datetime import date, datetime, timedelta, tzinfo
+from datetime import date, datetime, tzinfo
 from pathlib import Path
 from typing import Any, cast
 
 from src._time import event_window_utc, week_start
 from src.data.models import CalendarEvent
 from src.fetchers import request_counter
+from src.fetchers.calendar_ical import _parse_ical_event
 from src.fetchers.errors import CalendarFetchError
 
 logger = logging.getLogger(__name__)
@@ -199,66 +200,11 @@ def _parse_caldav_event(
 ) -> CalendarEvent | None:
     """Convert one VEVENT component into a :class:`CalendarEvent`.
 
-    Returns ``None`` for components without DTSTART, with unrecognised
-    DTSTART types, or that otherwise fail to parse.
+    The VEVENT rules are the ICS backend's; a component that raises while
+    parsing is dropped rather than failing the whole calendar.
     """
     try:
-        summary = str(component.get("SUMMARY", "(no title)"))
-        location = str(component.get("LOCATION", "")) or None
-
-        dtstart = component.get("DTSTART")
-        dtend = component.get("DTEND")
-        duration = component.get("DURATION")
-        if dtstart is None:
-            return None
-
-        dt_val = dtstart.dt
-        if isinstance(dt_val, datetime):
-            is_all_day = False
-            start: datetime = dt_val
-            if dtend is not None:
-                end_raw = dtend.dt
-                end = (
-                    end_raw
-                    if isinstance(end_raw, datetime)
-                    else datetime.combine(end_raw, datetime.min.time())
-                )
-            elif duration is not None:
-                end = start + duration.dt
-            else:
-                end = start + timedelta(hours=1)
-
-            # Normalise tz-aware times to naive local wall-clock to match the
-            # Google API path; downstream rendering treats CalendarEvent times
-            # as naive local.
-            if tz is not None and start.tzinfo is not None:
-                start = start.astimezone(tz).replace(tzinfo=None)
-                end = end.astimezone(tz).replace(tzinfo=None)
-        elif isinstance(dt_val, date):
-            is_all_day = True
-            start = datetime.combine(dt_val, datetime.min.time())
-            if dtend is not None:
-                end_raw = dtend.dt
-                if isinstance(end_raw, datetime):
-                    end = end_raw.replace(tzinfo=None)
-                else:
-                    end = datetime.combine(end_raw, datetime.min.time())
-            elif duration is not None:
-                end = start + duration.dt
-            else:
-                end = start + timedelta(days=1)
-        else:
-            return None
-
-        return CalendarEvent(
-            summary=summary,
-            start=start,
-            end=end,
-            is_all_day=is_all_day,
-            location=location,
-            calendar_name=calendar_name,
-            event_id=str(component.get("UID", "")),
-        )
+        return _parse_ical_event(component, calendar_name, tz)
     except Exception as exc:
         logger.debug("Failed to parse CalDAV VEVENT: %s", exc)
         return None
