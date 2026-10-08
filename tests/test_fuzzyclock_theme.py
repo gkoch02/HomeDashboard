@@ -20,6 +20,7 @@ from src.render.theme import (
     load_theme,
 )
 from src.render.themes.fuzzyclock import fuzzyclock_theme
+from tests.inkutils import text_line_heights
 
 # ---------------------------------------------------------------------------
 # Shared fixture
@@ -212,3 +213,25 @@ class TestFuzzyclockInvertTheme:
         result = render_dashboard(data, DisplayConfig(), theme=theme)
         assert isinstance(result, Image.Image)
         assert result.tobytes() != with_weather.tobytes(), "the weather band ignores the data"
+
+
+class TestFuzzyclockInk:
+    def _draw(self) -> tuple[Image.Image, tuple[int, int, int, int]]:
+        from PIL import ImageDraw
+
+        from src.render.components.fuzzyclock_panel import draw_fuzzyclock
+
+        theme = fuzzyclock_theme()
+        region = theme.layout.fuzzyclock
+        img = Image.new("1", (theme.layout.canvas_w, theme.layout.canvas_h), 1)
+        draw_fuzzyclock(
+            ImageDraw.Draw(img), datetime(2026, 3, 23, 7, 30), region=region, style=theme.style
+        )
+        return img, (region.x, region.y, region.x + region.w, region.y + region.h)
+
+    def test_phrase_and_date_line_both_ink(self):
+        img, box = self._draw()
+        lines = text_line_heights(img, box)
+        assert len(lines) == 2, lines
+        phrase_h, date_h = lines
+        assert date_h < phrase_h
