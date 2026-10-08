@@ -28,6 +28,8 @@ from src.data.models import CalendarEvent
 # _fetch_incremental so only runs that actually talk to the Google API pay
 # for them (same discipline as calendar_caldav's local `import caldav`).
 from src.fetchers import request_counter
+from src.fetchers.cache import _deser_event as _deser_sync_event
+from src.fetchers.cache import _ser_event as _ser_sync_event
 from src.fetchers.errors import CalendarFetchError
 
 logger = logging.getLogger(__name__)
@@ -452,35 +454,6 @@ def _filter_to_window(
                 if start < win_end and end > win_start:
                     result.append(event)
     return result
-
-
-# Sync state serialisation helpers
-
-
-def _ser_sync_event(e: CalendarEvent) -> dict:
-    """Serialise a CalendarEvent for the sync state store (includes event_id)."""
-    return {
-        "event_id": e.event_id,
-        "summary": e.summary,
-        "start": e.start.isoformat(),
-        "end": e.end.isoformat(),
-        "is_all_day": e.is_all_day,
-        "location": e.location,
-        "calendar_name": e.calendar_name,
-    }
-
-
-def _deser_sync_event(d: dict) -> CalendarEvent:
-    """Deserialise a sync state event dict back to a CalendarEvent."""
-    return CalendarEvent(
-        summary=d["summary"],
-        start=datetime.fromisoformat(d["start"]),
-        end=datetime.fromisoformat(d["end"]),
-        is_all_day=d.get("is_all_day", False),
-        location=d.get("location"),
-        calendar_name=d.get("calendar_name"),
-        event_id=d.get("event_id"),
-    )
 
 
 def _parse_event(item: dict, calendar_name: str, tz: tzinfo | None = None) -> CalendarEvent | None:
