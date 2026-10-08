@@ -89,9 +89,6 @@ Fetching, caching, circuit breaking and staleness are per source (calendar, weat
 ### Rendering
 Components are pure functions: `draw_*(draw, data, region, style) -> None`, no global state; the same input produces the same PNG. `render_dashboard()` picks the canvas mode from theme + display spec (`_is_color_display()`: a `DisplaySpec` whose `render_mode` is `"RGB"`, i.e. Inky and the Waveshare "G" models), then hands the canvas to `build_display_backend(config).resize_and_finalize(..., background=style.bg)` in `src/display/backend.py`: `WaveshareBackend` (resize, quantize to 1-bit), `WaveshareColorBackend` (four-ink snap) or `InkyBackend` (RGB resize; palette mapping at write time). The refresh-suppression hash is taken on the final backend-ready bytes.
 
-### Config migrations
-`src/config_migrations.py` runs at the top of `load_config()` and upgrades older YAML shapes to `CURRENT_SCHEMA_VERSION = 5` in memory before parsing. `v4_to_v5` is a metadata bump and the attachment point for future renames; a step that must mutate the file on disk needs its own backup.
-
 ## Key Conventions
 
 - **Dataclass-first**: pure data models with no I/O in `src/data/models.py`

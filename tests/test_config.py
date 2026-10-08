@@ -129,6 +129,14 @@ class TestLoadConfig:
         assert cfg.output_dir == "/tmp/dash"
         assert cfg.log_level == "DEBUG"
 
+    def test_a_leftover_schema_version_key_is_ignored(self, tmp_path):
+        """Earlier templates stamped ``schema_version``; files that kept it load as before."""
+        body = {"theme": "terminal", "display": {"provider": "waveshare"}}
+        plain, stamped = tmp_path / "plain.yaml", tmp_path / "stamped.yaml"
+        plain.write_text(yaml.safe_dump(body))
+        stamped.write_text(yaml.safe_dump({"schema_version": 5, **body}))
+        assert load_config(str(stamped)) == load_config(str(plain))
+
     def test_partial_config_preserves_defaults(self, tmp_path):
         p = tmp_path / "config.yaml"
         p.write_text(yaml.dump({"weather": {"api_key": "key999"}}))

@@ -81,7 +81,6 @@ class TestSchemaEndpoint:
         resp = client.get("/api/config/schema")
         assert resp.status_code == 200
         body = resp.get_json()
-        assert body["schema_version"] == 5
         assert any(s["name"] == "weather" for s in body["sections"])
 
     def test_schema_response_omits_secret_plaintext(self, client):

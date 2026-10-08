@@ -17,10 +17,6 @@ Daily state is written to ``<state_dir>/random_theme_state.json``:
 Hourly state is written to ``<state_dir>/random_theme_hourly_state.json``:
     {"hour": "2026-03-22T14", "theme": "terminal"}
 
-(The ``output_dir`` parameter these functions take is the *state* directory —
-``services/theme.py`` passes ``cfg.state_dir``. The name is a v4 leftover from
-when state lived alongside the rendered PNGs.)
-
 A new theme is picked whenever the stored bucket key differs from the current one,
 which naturally rotates the theme at the start of each new day or hour.
 """
@@ -85,6 +81,8 @@ def eligible_themes(
         include: If non-empty, only themes in this list are considered.
                  An empty list means *all* real themes are candidates.
         exclude: Themes to remove from the pool.
+        panel: The panel's (width, height); when given, themes that would be
+            padded on it (see :func:`theme_fits_panel`) are dropped.
 
     Returns:
         Sorted list of eligible theme names (may be empty).
@@ -166,7 +164,7 @@ def _pick(
 def pick_random_theme(
     include: list[str],
     exclude: list[str],
-    output_dir: str,
+    state_dir: str,
     today: date | None = None,
     persist: bool = True,
     panel: tuple[int, int] | None = None,
@@ -181,12 +179,13 @@ def pick_random_theme(
     Args:
         include: Allowlist of theme names (empty = all themes).
         exclude: Denylist of theme names.
-        output_dir: Directory where the state file is stored.
+        state_dir: Directory where the state file is stored.
         today: Override for the current date (useful in tests).
         persist: When False, *report* the stored pick without making one —
             no draw, no write. Returns ``""`` when today's bucket has no
             valid stored pick yet. For read-only callers like the status
             page, whose poll must not be what picks the day's theme.
+        panel: The panel's (width, height), passed to :func:`eligible_themes`.
 
     Returns:
         A concrete theme name (never ``"random"`` or ``"random_daily"``), or
@@ -197,7 +196,7 @@ def pick_random_theme(
     return _pick(
         include,
         exclude,
-        Path(output_dir) / _DAILY_STATE_FILE,
+        Path(state_dir) / _DAILY_STATE_FILE,
         bucket_field="date",
         bucket_key=today.isoformat(),
         label="Random theme",
@@ -210,7 +209,7 @@ def pick_random_theme(
 def pick_random_theme_hourly(
     include: list[str],
     exclude: list[str],
-    output_dir: str,
+    state_dir: str,
     now: datetime | None = None,
     persist: bool = True,
     panel: tuple[int, int] | None = None,
@@ -227,11 +226,12 @@ def pick_random_theme_hourly(
     Args:
         include: Allowlist of theme names (empty = all themes).
         exclude: Denylist of theme names.
-        output_dir: Directory where the state file is stored.
+        state_dir: Directory where the state file is stored.
         now: Override for the current datetime (useful in tests).
         persist: When False, *report* the stored pick without making one —
             no draw, no write. Returns ``""`` when this hour's bucket has no
             valid stored pick yet.
+        panel: The panel's (width, height), passed to :func:`eligible_themes`.
 
     Returns:
         A concrete theme name (never ``"random_hourly"``), or ``""`` when
@@ -242,7 +242,7 @@ def pick_random_theme_hourly(
     return _pick(
         include,
         exclude,
-        Path(output_dir) / _HOURLY_STATE_FILE,
+        Path(state_dir) / _HOURLY_STATE_FILE,
         bucket_field="hour",
         bucket_key=now.strftime("%Y-%m-%dT%H"),
         label="Random hourly theme",
