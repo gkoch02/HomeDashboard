@@ -22,8 +22,6 @@ import logging
 from dataclasses import dataclass
 from typing import Any
 
-CURRENT_SCHEMA_VERSION = 5
-
 
 @dataclass(frozen=True)
 class FieldSpec:
@@ -62,6 +60,15 @@ DEFAULT_ONE_CALL_VERSION = "3.0"
 # there because that module imports PIL and this one must stay importable
 # without it.
 QUANTIZATION_MODES = ("threshold", "floyd_steinberg", "ordered")
+
+# Accepted values for the remaining enum fields, shared by the editor's choices
+# and validate_config so the two cannot disagree. SCALING_MODES is dispatched on
+# by ``src.display.backend``, which imports PIL, so it is defined here.
+DISPLAY_PROVIDERS = ("waveshare", "inky")
+SCALING_MODES = ("auto", "stretch", "fit")
+WEATHER_UNITS = ("imperial", "metric", "standard")
+BIRTHDAY_SOURCES = ("file", "calendar", "contacts")
+QUOTE_REFRESH_MODES = ("daily", "twice_daily", "hourly")
 
 
 def _log_level_names() -> tuple[str, ...]:
@@ -177,7 +184,7 @@ def schema() -> tuple[SectionSpec, ...]:
                     ("display", "provider"),
                     "enum",
                     "Display provider",
-                    choices=("waveshare", "inky"),
+                    choices=DISPLAY_PROVIDERS,
                     editable=False,
                 ),
                 _f("display.model", ("display", "model"), "str", "Display model", editable=False),
@@ -234,7 +241,7 @@ def schema() -> tuple[SectionSpec, ...]:
                         "distortion would exceed a third (a 1360x480 panel fits, a 4:3 "
                         "panel stretches)."
                     ),
-                    choices=("auto", "stretch", "fit"),
+                    choices=SCALING_MODES,
                 ),
                 _f(
                     "display.min_refresh_interval_seconds",
@@ -284,7 +291,7 @@ def schema() -> tuple[SectionSpec, ...]:
                     ("weather", "units"),
                     "enum",
                     "Units",
-                    choices=("imperial", "metric", "standard"),
+                    choices=WEATHER_UNITS,
                 ),
                 _f(
                     "weather.one_call_version",
@@ -402,7 +409,7 @@ def schema() -> tuple[SectionSpec, ...]:
                     ("birthdays", "source"),
                     "enum",
                     "Source",
-                    choices=("file", "calendar", "contacts"),
+                    choices=BIRTHDAY_SOURCES,
                 ),
                 _f(
                     "birthdays.file_path",
@@ -517,7 +524,7 @@ def schema() -> tuple[SectionSpec, ...]:
                     ("cache", "quote_refresh"),
                     "enum",
                     "Quote rotation cadence",
-                    choices=("daily", "twice_daily", "hourly"),
+                    choices=QUOTE_REFRESH_MODES,
                 ),
                 _f(
                     "quotes.path",
@@ -648,4 +655,4 @@ def to_json(values: dict[str, Any] | None = None) -> dict:
                     entry["value"] = values.get(spec.path)
             fields_json.append(entry)
         sections_json.append({"name": section.name, "title": section.title, "fields": fields_json})
-    return {"schema_version": CURRENT_SCHEMA_VERSION, "sections": sections_json}
+    return {"sections": sections_json}

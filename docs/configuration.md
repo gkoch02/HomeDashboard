@@ -582,10 +582,5 @@ is completely bypassed and `service_account_path` is ignored for event fetching.
 
 ## Schema versioning
 
-YAML config files carry an optional `schema_version` field — `5` for v5. Configs that
-omit the key are treated as v4 and upgraded in-memory by `src/config_migrations.py`
-before parsing. The on-disk file is not rewritten by the runner unless an explicit
-backup-and-rewrite step is registered. See [Upgrading from v4](upgrading-from-v4.md)
-for the migration walkthrough. The shipped template sets `schema_version: 5`; a file
-without it still loads, and the in-memory v4→v5 stamp is logged at DEBUG only, since it
-changes nothing you wrote.
+Config files need no version field: every v4 and v5 config loads as written. A
+`schema_version` key left over from an earlier template is ignored.

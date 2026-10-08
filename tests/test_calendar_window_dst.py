@@ -22,12 +22,9 @@ import pytest
 
 from src._time import day_start_utc, event_window_utc
 from src.data.models import CalendarEvent
+from src.fetchers.cache import _ser_event
 from src.fetchers.calendar_caldav import fetch_from_caldav
-from src.fetchers.calendar_google import (
-    _SYNC_STATE_FILENAME,
-    _ser_sync_event,
-    fetch_google_events,
-)
+from src.fetchers.calendar_google import _SYNC_STATE_FILENAME, fetch_google_events
 from src.fetchers.calendar_ical import fetch_from_ical
 
 NY = zoneinfo.ZoneInfo("America/New_York")
@@ -127,7 +124,7 @@ class TestGoogleIncrementalWindow:
         state = {
             "primary": {
                 "sync_token": "tok",
-                "events": [_ser_sync_event(e) for e in stored],
+                "events": [_ser_event(e) for e in stored],
                 "window_start": week.isoformat(),
                 "window_end": (week + timedelta(days=7)).isoformat(),
             }

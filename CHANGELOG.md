@@ -71,6 +71,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Removed
 
+- The config migration runner (`src/config_migrations.py`). Its only step
+  stamped a `schema_version` that nothing read, so `config.example.yaml` no longer
+  carries the key and `GET /api/config/schema` no longer returns it. A config that
+  still has `schema_version: 5` loads exactly as before.
 - The Tangerine font, no longer used by any theme.
 - Retired nine themes: `agenda`, `minimalist`, `today`, `timeline`,
   `year_pulse`, `sunrise`, `tides`, `scorecard` and `naturalist`. They are no

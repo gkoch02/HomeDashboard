@@ -12,19 +12,21 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from src.config import BirthdayConfig, GoogleConfig
+from src.fetchers.cache import _ser_event
 from src.fetchers.calendar import (
-    _apply_delta,
     _days_until,
+    _parse_birthday_entry,
+    _parse_contact_birthday,
+    fetch_birthdays,
+)
+from src.fetchers.calendar_google import (
+    _apply_delta,
     _fetch_full,
     _fetch_incremental,
     _filter_to_window,
     _load_sync_state,
-    _parse_birthday_entry,
-    _parse_contact_birthday,
     _parse_event,
     _save_sync_state,
-    _ser_sync_event,
-    fetch_birthdays,
 )
 
 # ---------------------------------------------------------------------------
@@ -611,7 +613,7 @@ class TestFilterToWindowExtended:
             end=datetime(2024, 3, 13, 10, 0),
             event_id="e1",
         )
-        stored = [_ser_sync_event(event)]
+        stored = [_ser_event(event)]
         result = _filter_to_window(stored, week_start, week_end, tz=est)
         assert len(result) == 1
 
@@ -629,7 +631,7 @@ class TestFilterToWindowExtended:
             end=datetime(2024, 3, 13, 10, 0, tzinfo=timezone.utc),
             event_id="e1",
         )
-        stored = [_ser_sync_event(event)]
+        stored = [_ser_event(event)]
         result = _filter_to_window(stored, week_start, week_end)
         assert len(result) == 1
 
@@ -652,7 +654,7 @@ class TestFilterToWindowExtended:
             is_all_day=True,
             event_id="e1",
         )
-        stored = [_ser_sync_event(event)]
+        stored = [_ser_event(event)]
         result = _filter_to_window(stored, week_start, week_end)
         assert [e.summary for e in result] == expected
 
@@ -774,7 +776,7 @@ class TestTodayWithTimezone:
     def test_today_with_tz_returns_local_date(self):
         import zoneinfo
 
-        from src.fetchers.calendar import _today
+        from src.fetchers.calendar_google import _today
 
         tz = zoneinfo.ZoneInfo("America/New_York")
         result = _today(tz)
@@ -786,7 +788,7 @@ class TestTodayWithTimezone:
     def test_today_without_tz_returns_system_date(self):
         from datetime import date
 
-        from src.fetchers.calendar import _today
+        from src.fetchers.calendar_google import _today
 
         result = _today(None)
         assert result == date.today()
@@ -1043,7 +1045,7 @@ class TestICalFetcher:
         return mock_resp
 
     def _this_monday(self, tz=None):
-        from src.fetchers.calendar import _today
+        from src.fetchers.calendar_google import _today
 
         today = _today(tz)
         return today - timedelta(days=today.weekday())

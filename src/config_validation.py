@@ -19,7 +19,15 @@ from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from src.config_schema import ONE_CALL_VERSIONS, QUANTIZATION_MODES
+from src.config_schema import (
+    BIRTHDAY_SOURCES,
+    DISPLAY_PROVIDERS,
+    ONE_CALL_VERSIONS,
+    QUANTIZATION_MODES,
+    QUOTE_REFRESH_MODES,
+    SCALING_MODES,
+    WEATHER_UNITS,
+)
 
 if TYPE_CHECKING:
     # Annotation-only: importing src.config at runtime would deadlock the
@@ -335,7 +343,6 @@ def validate_config(
         )
 
     # --- Display scaling ---
-    from src.display.backend import SCALING_MODES
 
     if cfg.display.scaling not in SCALING_MODES:
         errors.append(
@@ -349,13 +356,12 @@ def validate_config(
     # --- Display provider/model ---
     from src.display.driver import get_display_spec, supported_display_models
 
-    valid_providers = {"waveshare", "inky"}
-    if cfg.display.provider not in valid_providers:
+    if cfg.display.provider not in DISPLAY_PROVIDERS:
         errors.append(
             ConfigError(
                 field="display.provider",
                 message=f"Unknown display provider: '{cfg.display.provider}'",
-                hint=f"Supported providers: {', '.join(sorted(valid_providers))}",
+                hint=f"Supported providers: {', '.join(sorted(DISPLAY_PROVIDERS))}",
             )
         )
     elif get_display_spec(cfg.display.provider, cfg.display.model) is None:
@@ -458,12 +464,12 @@ def validate_config(
             )
         )
 
-    if cfg.birthdays.source not in ("file", "calendar", "contacts"):
+    if cfg.birthdays.source not in BIRTHDAY_SOURCES:
         errors.append(
             ConfigError(
                 field="birthdays.source",
                 message=f"Invalid birthday source: '{cfg.birthdays.source}'",
-                hint="Must be one of: file, calendar, contacts",
+                hint=f"Must be one of: {', '.join(BIRTHDAY_SOURCES)}",
             )
         )
 
@@ -503,13 +509,12 @@ def validate_config(
         )
 
     # --- Quote refresh ---
-    valid_quote_refresh = {"daily", "twice_daily", "hourly"}
-    if cfg.cache.quote_refresh not in valid_quote_refresh:
+    if cfg.cache.quote_refresh not in QUOTE_REFRESH_MODES:
         errors.append(
             ConfigError(
                 field="cache.quote_refresh",
                 message=f"Invalid quote_refresh value: '{cfg.cache.quote_refresh}'",
-                hint=f"Must be one of: {', '.join(sorted(valid_quote_refresh))}",
+                hint=f"Must be one of: {', '.join(sorted(QUOTE_REFRESH_MODES))}",
             )
         )
 
@@ -579,12 +584,12 @@ def validate_config(
         )
 
     # --- Weather units ---
-    if cfg.weather.units not in ("imperial", "metric", "standard"):
+    if cfg.weather.units not in WEATHER_UNITS:
         warnings.append(
             ConfigWarning(
                 field="weather.units",
                 message=f"Unknown weather units: '{cfg.weather.units}'",
-                hint="Must be one of: imperial, metric, standard",
+                hint=f"Must be one of: {', '.join(WEATHER_UNITS)}",
             )
         )
 

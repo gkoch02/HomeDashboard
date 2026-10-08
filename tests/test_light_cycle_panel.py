@@ -10,6 +10,7 @@ from PIL import Image, ImageDraw
 from src.config import DisplayConfig
 from src.data.models import CalendarEvent, DashboardData, WeatherData
 from src.dummy_data import generate_dummy_data
+from src.render.artkit import hours_of_day, to_local_naive
 from src.render.canvas import render_dashboard
 from src.render.components.light_cycle_panel import (
     _COL_X0,
@@ -17,10 +18,8 @@ from src.render.components.light_cycle_panel import (
     _draw_twilight_band,
     _fmt_change,
     _hour_to_pil_angle,
-    _hours_of_day,
     _pack_lanes,
     _resolve_sun_times,
-    _to_local_naive,
     draw_light_cycle,
 )
 from src.render.quantize import flatten_pixels
@@ -91,44 +90,44 @@ class TestPolarMath:
 class TestToLocalNaive:
     def test_passes_through_naive(self):
         dt = datetime(2026, 5, 6, 10, 30)
-        assert _to_local_naive(dt, TZ) == dt
+        assert to_local_naive(dt, TZ) == dt
 
     def test_converts_aware_to_tz(self):
         dt = datetime(2026, 5, 6, 14, 0, tzinfo=timezone.utc)
-        out = _to_local_naive(dt, TZ)
+        out = to_local_naive(dt, TZ)
         # 14:00 UTC = 10:00 EDT in May
         assert out.tzinfo is None
         assert out.hour == 10
 
     def test_uses_system_tz_when_no_target(self):
         dt = datetime(2026, 5, 6, 14, 0, tzinfo=timezone.utc)
-        out = _to_local_naive(dt, None)
+        out = to_local_naive(dt, None)
         assert out.tzinfo is None
 
 
 class TestHoursOfDay:
     def test_none_input(self):
-        assert _hours_of_day(None, TODAY, TZ) is None
+        assert hours_of_day(None, TODAY, TZ) is None
 
     def test_today_hour(self):
         dt = datetime(2026, 4, 23, 9, 30, tzinfo=TZ)
-        assert _hours_of_day(dt, TODAY, TZ) == 9.5
+        assert hours_of_day(dt, TODAY, TZ) == 9.5
 
     def test_yesterday_returns_negative_clamped(self):
         # delta=-1 day, hour=23.5 → -0.5; clamp to 0
         dt = datetime(2026, 4, 22, 23, 30, tzinfo=TZ)
-        out = _hours_of_day(dt, TODAY, TZ)
+        out = hours_of_day(dt, TODAY, TZ)
         assert out == 0.0
 
     def test_tomorrow_clamped(self):
         # delta=1 day, hour=0.5 → 24.5; clamp to 24
         dt = datetime(2026, 4, 24, 0, 30, tzinfo=TZ)
-        out = _hours_of_day(dt, TODAY, TZ)
+        out = hours_of_day(dt, TODAY, TZ)
         assert out == 24.0
 
     def test_more_than_one_day_away_returns_none(self):
         dt = datetime(2026, 4, 26, 10, 0, tzinfo=TZ)
-        assert _hours_of_day(dt, TODAY, TZ) is None
+        assert hours_of_day(dt, TODAY, TZ) is None
 
 
 # ---------------------------------------------------------------------------

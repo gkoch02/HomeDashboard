@@ -12,7 +12,7 @@ The headline v5 changes:
 - **CalDAV calendar source** alongside Google API and ICS feeds (Nextcloud / Radicale / Apple iCloud / Fastmail / etc.).
 - **Content-hash + cooldown refresh throttle** replaces the v4 Inky-specific hourly throttle. Fuzzyclock is no longer special-cased.
 - **Schema-driven web editor + live theme preview** (`/api/config/schema`, `/api/preview`).
-- **Config schema versioning** (`schema_version: 5`) plus an in-memory migration runner.
+- **v4 configs load unchanged** — v5's config is a strict superset of v4's.
 - **`DisplayBackend` ABC** — internal cleanup; no user-visible behaviour change.
 - **Aware-datetime CI guard** — internal; contributor-facing only.
 
@@ -135,10 +135,9 @@ your v4 settings around does not block the CalDAV path.
 
 ### Config schema versioning
 
-v5 stamps `schema_version: 5` into in-memory configs at parse time. v4 configs (no
-`schema_version` field) are upgraded transparently — no rewrite of your `config.yaml`
-on disk and no data loss. Future schema changes will use the same runner; one that
-needs to mutate the file directly will take its own backup first.
+v5 is a strict superset of v4, so a v4 `config.yaml` loads unchanged: nothing is
+rewritten on disk. A `schema_version` key, which earlier v5 templates carried, is
+ignored.
 
 ### Web UI editor
 

@@ -9,7 +9,6 @@ allowlist or sensitive-field handling.
 from __future__ import annotations
 
 from src.config_schema import (
-    CURRENT_SCHEMA_VERSION,
     FieldSpec,
     SectionSpec,
     all_field_specs,
@@ -25,9 +24,6 @@ def _spec(path: str) -> FieldSpec | None:
 
 
 class TestSchemaShape:
-    def test_current_schema_version_is_5(self):
-        assert CURRENT_SCHEMA_VERSION == 5
-
     def test_schema_returns_section_specs(self):
         for section in schema():
             assert isinstance(section, SectionSpec)
@@ -116,9 +112,8 @@ class TestSecretFieldPaths:
 
 
 class TestToJson:
-    def test_emits_schema_version_and_sections(self):
+    def test_emits_sections(self):
         out = to_json()
-        assert out["schema_version"] == CURRENT_SCHEMA_VERSION
         assert isinstance(out["sections"], list)
         assert all("fields" in s for s in out["sections"])
 
@@ -233,3 +228,39 @@ class TestSchemaImportIsRenderFree:
         )
         assert out.returncode == 0, out.stderr
         assert "clean" in out.stdout
+
+
+class TestEnumChoicesMatchValidation:
+    """Every choice the editor offers validates, and a value outside the list does not."""
+
+    ENUM_PATHS = (
+        "display.provider",
+        "display.scaling",
+        "display.quantization_mode",
+        "weather.units",
+        "weather.one_call_version",
+        "birthdays.source",
+        "cache.quote_refresh",
+    )
+
+    @staticmethod
+    def _issues(path: str, value: str) -> list:
+        from src.config import Config
+        from src.config_validation import validate_config
+
+        cfg = Config()
+        cfg.google.contacts_email = "someone@example.com"  # birthdays.source: contacts
+        section, field = path.split(".")
+        setattr(getattr(cfg, section), field, value)
+        errors, warnings = validate_config(cfg)
+        return [issue for issue in errors + warnings if issue.field == path]
+
+    def test_every_choice_validates(self):
+        specs = {spec.path: spec for spec in all_field_specs()}
+        for path in self.ENUM_PATHS:
+            for choice in specs[path].choices:
+                assert self._issues(path, choice) == [], (path, choice)
+
+    def test_a_value_outside_the_choices_is_flagged(self):
+        for path in self.ENUM_PATHS:
+            assert self._issues(path, "not-a-choice"), path

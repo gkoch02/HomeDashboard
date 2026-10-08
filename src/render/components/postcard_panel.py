@@ -39,7 +39,6 @@ from src.render.artkit import accent_red as _accent_red
 from src.render.artkit import grey as _grey
 from src.render.artkit import ink as _ink
 from src.render.artkit import to_local_naive
-from src.render.components.info_panel import _quote_for_today
 from src.render.components.postcard_scene import light_for, render_scene, scene_kind
 from src.render.primitives import (
     draw_text_truncated,
@@ -49,6 +48,7 @@ from src.render.primitives import (
     truncate_to_width,
     wrap_lines,
 )
+from src.render.quotes import quote_for
 from src.render.theme import ComponentRegion, ThemeStyle
 
 # Geometry — postcard is split at SCENE_W; everything left of it is the
@@ -253,7 +253,7 @@ def _draw_back(
     )
 
     # --- Quote at the bottom — solid ink, larger Playfair body for legibility.
-    quote = _quote_for_today(today, refresh=quote_refresh, now=now, quotes_path=quotes_path)
+    quote = quote_for(today, refresh=quote_refresh, now=now, path=quotes_path)
     quote_font = style.font_quote(15 * SS) if style.font_quote else style.font_regular(15 * SS)
     author_font = (
         style.font_quote_author(12 * SS)

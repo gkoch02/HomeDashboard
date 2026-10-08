@@ -9,7 +9,6 @@ from src.config_schema import QUANTIZATION_MODES
 from src.render.quantize import (
     INKY_SPECTRA6_DESATURATED_PALETTE,
     INKY_SPECTRA6_PALETTE,
-    _redmean_sq,
     blend_inky_palette,
     flatten_pixels,
     quantize_for_display,
@@ -143,7 +142,7 @@ class TestOrderedMode:
 
 
 # ---------------------------------------------------------------------------
-# _redmean_sq
+# Redmean colour matching (inside quantize_to_palette_ordered)
 # ---------------------------------------------------------------------------
 
 _SMALL_PALETTE = [
@@ -154,23 +153,21 @@ _SMALL_PALETTE = [
 ]
 
 
-class TestRedmeanSq:
-    def test_identical_colors_are_zero(self):
-        assert _redmean_sq(100, 150, 200, 100, 150, 200) == 0.0
+class TestRedmeanMatching:
+    @staticmethod
+    def _match(rgb):
+        img = Image.new("RGB", (1, 1), rgb)
+        return flatten_pixels(quantize_to_palette_ordered(img, _SMALL_PALETTE, bayer_strength=0))[0]
 
-    def test_black_to_white_is_large(self):
-        assert _redmean_sq(0, 0, 0, 255, 255, 255) > 1000
+    def test_an_exact_palette_colour_maps_to_itself(self):
+        for colour in _SMALL_PALETTE:
+            assert self._match(colour) == colour
 
-    def test_red_closer_to_red_than_blue(self):
-        """Pure red should be perceptually closer to red palette than to blue palette."""
-        dist_to_red = _redmean_sq(220, 30, 30, 255, 0, 0)
-        dist_to_blue = _redmean_sq(220, 30, 30, 0, 0, 255)
-        assert dist_to_red < dist_to_blue
+    def test_a_reddish_pixel_maps_to_red_not_blue(self):
+        assert self._match((220, 30, 30)) == (255, 0, 0)
 
-    def test_blue_closer_to_blue_than_red(self):
-        dist_to_blue = _redmean_sq(20, 20, 220, 0, 0, 255)
-        dist_to_red = _redmean_sq(20, 20, 220, 255, 0, 0)
-        assert dist_to_blue < dist_to_red
+    def test_a_bluish_pixel_maps_to_blue_not_red(self):
+        assert self._match((20, 20, 220)) == (0, 0, 255)
 
 
 # ---------------------------------------------------------------------------
@@ -341,36 +338,17 @@ class TestQuantizeToPaletteFs:
 
 
 # ---------------------------------------------------------------------------
-# Pure-Python fallbacks (no numpy). Exercised by forcing ``import numpy`` to fail.
+# Palette quantizer edge cases
 # ---------------------------------------------------------------------------
 
 
-class TestPythonFallbacks:
-    """Drive the pure-Python branches by shadowing ``numpy`` with a failing import."""
-
-    @staticmethod
-    def _force_no_numpy(monkeypatch):
-        import builtins
-        import sys
-
-        real_import = builtins.__import__
-
-        def fake_import(name, *args, **kwargs):
-            if name == "numpy" or name.startswith("numpy."):
-                raise ImportError("numpy unavailable for this test")
-            return real_import(name, *args, **kwargs)
-
-        # Remove any cached numpy module so the import statement runs through the shim.
-        monkeypatch.setattr(builtins, "__import__", fake_import)
-        for mod in list(sys.modules):
-            if mod == "numpy" or mod.startswith("numpy."):
-                monkeypatch.delitem(sys.modules, mod, raising=False)
+class TestPaletteQuantizerEdges:
+    """Clipping, threshold mixing and degenerate sizes in the palette quantizers."""
 
     def _solid_rgb(self, r, g, b, w=4, h=4):
         return Image.new("RGB", (w, h), (r, g, b))
 
-    def test_ordered_palette_falls_back_to_python_without_numpy(self, monkeypatch):
-        self._force_no_numpy(monkeypatch)
+    def test_ordered_palette_output_is_palette_only(self):
         palette = [(0, 0, 0), (255, 255, 255)]
         img = self._solid_rgb(250, 250, 250, w=4, h=4)
         result = quantize_to_palette_ordered(img, palette, bayer_strength=0)
@@ -380,8 +358,7 @@ class TestPythonFallbacks:
         palette_set = set(palette)
         assert set(flatten_pixels(result)) <= palette_set
 
-    def test_fs_palette_falls_back_to_python_without_numpy(self, monkeypatch):
-        self._force_no_numpy(monkeypatch)
+    def test_fs_palette_output_is_palette_only(self):
         palette = [(0, 0, 0), (255, 0, 0), (0, 0, 255), (255, 255, 255)]
         # Mixed-color image so the Floyd-Steinberg error diffusion actually propagates.
         img = Image.new("RGB", (3, 3))
@@ -403,10 +380,9 @@ class TestPythonFallbacks:
         assert result.size == (3, 3)
         assert set(flatten_pixels(result)) <= set(palette)
 
-    def test_ordered_python_fallback_respects_bayer_threshold(self, monkeypatch):
+    def test_ordered_respects_bayer_threshold(self):
         """A mid-grey pixel with bayer_strength>0 should produce a mix of black and
         white — never all one colour."""
-        self._force_no_numpy(monkeypatch)
         palette = [(0, 0, 0), (255, 255, 255)]
         img = self._solid_rgb(128, 128, 128, w=4, h=4)
         result = quantize_to_palette_ordered(img, palette, bayer_strength=240)
@@ -416,22 +392,18 @@ class TestPythonFallbacks:
         assert (0, 0, 0) in data
         assert (255, 255, 255) in data
 
-    def test_fs_python_fallback_handles_1x1_image(self, monkeypatch):
+    def test_fs_handles_1x1_image(self):
         """Edge case: width and height both 1 — no error diffusion neighbours exist."""
-        self._force_no_numpy(monkeypatch)
         palette = [(0, 0, 0), (255, 255, 255)]
         img = self._solid_rgb(10, 10, 10, w=1, h=1)
         result = quantize_to_palette_fs(img, palette)
         assert list(flatten_pixels(result)) == [(0, 0, 0)]
 
-    def test_ordered_python_fallback_clips_overflow_high(self, monkeypatch):
+    def test_ordered_clips_overflow_high(self):
         """A near-white pixel + max bayer offset overflows past 255 → clipped to 255.
 
-        Exercises the ``elif r2 > 255: r2 = 255`` branches in
-        ``_quantize_palette_ordered_python``.  Without clipping, redmean distance
-        would be miscomputed for these pixels.
+        Without clipping, redmean distance would be miscomputed for these pixels.
         """
-        self._force_no_numpy(monkeypatch)
         palette = [(0, 0, 0), (255, 255, 255)]
         img = self._solid_rgb(254, 254, 254, w=4, h=4)
         result = quantize_to_palette_ordered(img, palette, bayer_strength=240)
@@ -439,13 +411,8 @@ class TestPythonFallbacks:
         assert set(flatten_pixels(result)) <= set(palette)
         assert (255, 255, 255) in set(flatten_pixels(result))
 
-    def test_ordered_python_fallback_clips_underflow_low(self, monkeypatch):
-        """A near-black pixel + min bayer offset underflows past 0 → clipped to 0.
-
-        Exercises the ``if r2 < 0: r2 = 0`` branches in
-        ``_quantize_palette_ordered_python``.
-        """
-        self._force_no_numpy(monkeypatch)
+    def test_ordered_clips_underflow_low(self):
+        """A near-black pixel + min bayer offset underflows past 0 → clipped to 0."""
         palette = [(0, 0, 0), (255, 255, 255)]
         img = self._solid_rgb(1, 1, 1, w=4, h=4)
         result = quantize_to_palette_ordered(img, palette, bayer_strength=240)

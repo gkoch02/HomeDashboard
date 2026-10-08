@@ -150,4 +150,4 @@ class TestResolveThemeName:
         mock_pick.assert_called_once()
         # ``now`` must be forwarded so the picker can bucket by hour correctly.
         assert mock_pick.call_args.kwargs["now"] == now
-        assert mock_pick.call_args.kwargs["output_dir"] == cfg.state_dir
+        assert mock_pick.call_args.kwargs["state_dir"] == cfg.state_dir

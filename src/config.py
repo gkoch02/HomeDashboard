@@ -484,13 +484,6 @@ def load_config(path: str = "config/config.yaml") -> Config:
     with open(config_path) as f:
         raw = yaml.safe_load(f) or {}
 
-    # v5: upgrade older config shapes in-memory before parsing into dataclasses.
-    # This is non-destructive — the on-disk file is never rewritten here.
-    from src.config_migrations import migrate_in_memory, needs_migration
-
-    if needs_migration(raw):
-        raw = migrate_in_memory(raw)
-
     cfg = Config()
     bad = cfg.unreadable
 
