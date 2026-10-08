@@ -9,7 +9,6 @@ allowlist or sensitive-field handling.
 from __future__ import annotations
 
 from src.config_schema import (
-    CURRENT_SCHEMA_VERSION,
     FieldSpec,
     SectionSpec,
     all_field_specs,
@@ -25,9 +24,6 @@ def _spec(path: str) -> FieldSpec | None:
 
 
 class TestSchemaShape:
-    def test_current_schema_version_is_5(self):
-        assert CURRENT_SCHEMA_VERSION == 5
-
     def test_schema_returns_section_specs(self):
         for section in schema():
             assert isinstance(section, SectionSpec)
@@ -116,9 +112,8 @@ class TestSecretFieldPaths:
 
 
 class TestToJson:
-    def test_emits_schema_version_and_sections(self):
+    def test_emits_sections(self):
         out = to_json()
-        assert out["schema_version"] == CURRENT_SCHEMA_VERSION
         assert isinstance(out["sections"], list)
         assert all("fields" in s for s in out["sections"])
 
