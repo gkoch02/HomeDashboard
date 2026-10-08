@@ -21,7 +21,7 @@ smoke tests, each paired with a companion asserting the range actually reaches i
 from __future__ import annotations
 
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
 import pytest
 from PIL import Image, ImageDraw
@@ -41,19 +41,25 @@ from src.render.components.weatherglass_panel import (
     _PRESSURE_FILE,
     _TREND_MAX_AGE,
     _TREND_MIN_AGE,
+    RULE_DENSE,
     _fmt_clock,
     _load_prev_pressure,
     _pressure_to_angle,
+    _rect_poly,
+    _ruled_fill,
     _save_pressure_sample,
     _temp_cold_threshold,
     _temp_comfort_band,
     _temp_hot_threshold,
     _temp_scale,
+    _trend_word,
+    _uv_category,
     _wind_unit_label,
     draw_weatherglass,
 )
 from src.render.quantize import flatten_pixels
 from src.render.theme import AVAILABLE_THEMES, ComponentRegion, ThemeStyle, load_theme
+from tests.inkutils import ink, record_text
 
 FIXED_NOW = datetime(2026, 4, 6, 10, 30)
 TODAY = FIXED_NOW.date()
@@ -498,14 +504,46 @@ class TestPressureToAngle:
         assert _pressure_to_angle(950.0) > _pressure_to_angle(1013.0)
         assert _pressure_to_angle(1013.0) > _pressure_to_angle(1050.0)
 
-    def test_stays_in_the_top_hemisphere(self):
+    def test_spans_the_aneroid_sweep_with_the_gap_at_the_bottom(self):
+        """950 sits lower left, 1000 at the top, 1050 lower right; nothing enters the gap."""
+        assert _pressure_to_angle(950.0) == 225.0
+        assert _pressure_to_angle(1000.0) == 90.0
+        assert _pressure_to_angle(1050.0) == -45.0
         for p in (800.0, 950.0, 1013.0, 1050.0, 1200.0):
-            assert 0.0 <= _pressure_to_angle(p) <= 180.0
+            assert -45.0 <= _pressure_to_angle(p) <= 225.0
 
     def test_clamps_out_of_range_pressures(self):
         """A sensor spike must pin the needle at the rail, not spin it."""
         assert _pressure_to_angle(500.0) == _pressure_to_angle(900.0)
         assert _pressure_to_angle(2000.0) == _pressure_to_angle(1100.0)
+
+
+class TestTrendWord:
+    def test_no_history_has_no_word(self):
+        assert _trend_word(1013.0, None) is None
+
+    @pytest.mark.parametrize(
+        ("previous", "word"),
+        [(1009.0, "RISING +4"), (1017.0, "FALLING -4"), (1012.5, "STEADY"), (1014.0, "STEADY")],
+    )
+    def test_words_follow_the_threshold(self, previous, word):
+        assert _trend_word(1013.0, previous) == word
+
+
+class TestUvCategory:
+    @pytest.mark.parametrize(
+        ("uv", "name"),
+        [
+            (0.0, "LOW"),
+            (2.9, "LOW"),
+            (3.0, "MODERATE"),
+            (6.0, "HIGH"),
+            (8.0, "VERY HIGH"),
+            (11.0, "EXTREME"),
+        ],
+    )
+    def test_epa_bands(self, uv, name):
+        assert _uv_category(uv) == name
 
 
 class TestFmtClock:
@@ -811,3 +849,51 @@ class TestWeatherglassTheme:
         """render_dashboard defaults state_dir to None."""
         _render()
         assert list(tmp_path.iterdir()) == []
+
+
+class TestEngravedTints:
+    """Zones are ruled on the mono plate, because a mid-grey fill thresholds away."""
+
+    def test_ruled_fill_rules_every_other_row_on_l(self):
+        img = Image.new("L", (40, 40), 255)
+        _ruled_fill(ImageDraw.Draw(img), _rect_poly(0, 0, 39, 39), None, "L", RULE_DENSE)
+        rows = [img.getpixel((20, y)) for y in range(40)]
+        # One final pixel (SS working rows) of ink every RULE_DENSE final pixels.
+        assert rows[:8] == [0, 0, 255, 255, 0, 0, 255, 255]
+
+    def test_ruled_fill_is_a_solid_colour_on_rgb(self):
+        img = Image.new("RGB", (20, 20), (255, 255, 255))
+        _ruled_fill(ImageDraw.Draw(img), _rect_poly(0, 0, 19, 19), (0, 0, 255), "RGB", RULE_DENSE)
+        assert img.getpixel((10, 10)) == (0, 0, 255)
+
+    def test_the_cold_zone_survives_the_mono_pipeline(self):
+        """The freezing zone of the thermometer strip reads as a ~50 % ruled tint."""
+        data = generate_dummy_data(now=FIXED_NOW)
+        img = render_dashboard(data, DisplayConfig(), theme=load_theme("weatherglass"))
+        # The zone strip sits right of the stem; below 32 °F on the 0–110 °F scale.
+        box = (85, 224, 91, 262)
+        area = (box[2] - box[0]) * (box[3] - box[1])
+        assert 0.3 * area < ink(img, box) < 0.7 * area, "the cold zone is not a ruled tint"
+
+
+class TestSunArcZone:
+    def test_computed_sun_times_print_in_the_render_zone(self):
+        """Without OWM weather the strip's times come from astronomy (UTC) but print local."""
+        from zoneinfo import ZoneInfo
+
+        tz = ZoneInfo("America/New_York")
+        img = Image.new("L", (1600, 960), 255)
+        draw = ImageDraw.Draw(img)
+        calls = record_text(draw)
+        draw_weatherglass(
+            draw,
+            DashboardData(events=[], weather=None),
+            date(2026, 12, 21),
+            datetime(2026, 12, 21, 22, 40, tzinfo=tz),
+            image=img,
+            latitude=40.71,
+            longitude=-74.0,
+        )
+        texts = [t for t, _ in calls]
+        assert "Rise 7:16a" in texts, texts
+        assert "Set 4:31p" in texts, texts

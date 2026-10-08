@@ -259,7 +259,7 @@ High-contrast inverted week view with compact spacing and a retro terminal-inspi
 
 #### old_fashioned
 
-Victorian broadsheet layout with serif typography and decorative rules.
+Victorian broadsheet front page. A newspaper nameplate — the title in **Playfair Display** on an inverted band between boxed ears (Roman-numeral volume and day-of-year issue number; "Final Edition") — sits over a ruled dateline carrying the full date and the updated stamp. Below, an inverted date column and today's schedule face a sidebar of weather, birthdays ("Social Notices") and the quote, split by a double column rule. Playfair is kept to display sizes; running text is set in **Literata**, a screen serif with lining figures, so small type stays solid on a 1-bit panel. Cinzel sets the section labels. On Inky the accents are red and black.
 
 [![Old Fashioned theme](../assets/previews/theme_old_fashioned.png)](../assets/previews/theme_old_fashioned.png)
 
@@ -409,15 +409,15 @@ Waveshare uses a crisp monochrome month grid with compact density indicators; In
 
 #### light_cycle
 
-Full-canvas 24-hour radial clock with the entire day arranged around a single dial. The rim carries hour ticks and 00 / 06 / 12 / 18 numerals; the twilight ring fills with progressively denser radial dashes from civil to nautical to astronomical twilight, and a solid wedge for true night. Today's timed events appear as small ticks just inside the ring, a triangular needle marks the current moment, and a sun (or moon, when below the horizon) glyph rides the rim at the current-time position. The center disc shows day name, big date numeral, month, and weather summary; a footer reports rise / set / event count. On Inky the title and accents render in yellow with a blue needle. All sun-time math is computed locally from `src.astronomy` using `weather.latitude` / `weather.longitude` (falls back to OWM-reported sunrise/sunset when coordinates are absent — twilight bands collapse to a single night band).
+Full-canvas 24-hour radial clock. The dial on the left carries hour ticks and 00 / 06 / 12 / 18 numerals around a light band whose tone tracks the sky: solid for night, engraved concentric rings for astronomical, nautical and civil twilight (tighter rings read darker), open for daylight, with heavy rules at sunrise and sunset. Today's timed events sit inside it as arcs over their durations, hollow once they have ended, and the sun (or the moon, after dark) rides the light band at the current time with a needle from the centre disc, which holds the day name, date and month. The column on the right lists sunrise, sunset and day length with its change since yesterday, the current weather, and today's agenda. Sun times come from `src.astronomy` using `weather.latitude` / `weather.longitude`, falling back to the OWM sunrise and sunset (a single night band) without coordinates. On Inky daylight fills yellow and the twilight rings turn blue; all type stays black.
 
 [![Light Cycle theme](../assets/previews/theme_light_cycle.png)](../assets/previews/theme_light_cycle.png)
 
 #### weatherglass
 
-Victorian weather-station instrument deck: a full-canvas panel of procedural analog gauges under a **Rye** masthead with the date and location. Three hero instruments: a thermometer with feels-like, a barometer whose second needle shows the pressure trend, and a hygrometer with a UV bar. A second row holds a wind compass, a sun arc with sunrise and sunset, a moon porthole, and an optional AQI badge (needs PurpleAir). An active weather alert overlays the masthead.
+Victorian weather-station instrument deck: a full-canvas panel of procedural analog gauges under a **Rye** masthead with the date and location. Three hero instruments: a thermometer with the day's range and a feels-like pointer, a 270° aneroid barometer (traditional Stormy-to-Very-Dry words, a second needle and a Rising/Falling/Steady word for the trend), and a hygrometer over a UV gauge. A second row holds a wind compass with bearing, a sun arc standing on a 24-hour horizon strip with twilight tints and day length, a moon porthole, and an optional AQI badge (needs PurpleAir). An active weather alert hangs as a ribbon above the barometer.
 
-Needs weather; no extra fetcher. The barometer keeps a short pressure history in `state/weatherglass_pressure_history.json` for its trend needle (not written on dry-run or dummy previews). Rendered at 2× and thresholded, so edges stay crisp rather than dithered. On Inky the brass rims are yellow and the mercury and alert text red.
+Needs weather; no extra fetcher. The barometer keeps a short pressure history in `state/weatherglass_pressure_history.json` for its trend needle (not written on dry-run or dummy previews). Rendered at 2× and thresholded, so edges stay crisp rather than dithered; shaded zones and bezels are engraved as ruled tints, and numerals are set in **Literata**. On Inky the brass rims are yellow and the mercury and alert text red.
 
 [![Weatherglass theme](../assets/previews/theme_weatherglass.png)](../assets/previews/theme_weatherglass.png)
 

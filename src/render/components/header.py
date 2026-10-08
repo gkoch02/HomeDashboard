@@ -15,6 +15,27 @@ from src.render.primitives import (
 )
 from src.render.theme import ComponentRegion, ThemeStyle
 
+_SEVERITY = {
+    StalenessLevel.FRESH: 0,
+    StalenessLevel.AGING: 1,
+    StalenessLevel.STALE: 2,
+    StalenessLevel.EXPIRED: 3,
+}
+
+
+def status_label(is_stale: bool, source_staleness: dict[str, StalenessLevel] | None) -> str:
+    """The caption prefix for the "updated" stamp: stale beats cached beats fresh."""
+    worst = max(
+        (source_staleness or {}).values(),
+        key=lambda level: _SEVERITY.get(level, 0),
+        default=StalenessLevel.FRESH,
+    )
+    if worst in (StalenessLevel.STALE, StalenessLevel.EXPIRED):
+        return "! Stale  "
+    if is_stale:
+        return "! Cached  "
+    return "Updated  "
+
 
 def draw_header(
     draw: ImageDraw.ImageDraw,
@@ -71,26 +92,7 @@ def draw_header(
     date_str = stamp.strftime("%b %-d")
     ts = f"{date_str}  ·  {time_str}"
 
-    # Determine header label based on worst staleness level
-    worst = StalenessLevel.FRESH
-    if source_staleness:
-        for level in source_staleness.values():
-            if level.value != StalenessLevel.FRESH.value:
-                severity = {
-                    StalenessLevel.FRESH: 0,
-                    StalenessLevel.AGING: 1,
-                    StalenessLevel.STALE: 2,
-                    StalenessLevel.EXPIRED: 3,
-                }
-                if severity.get(level, 0) > severity.get(worst, 0):
-                    worst = level
-
-    if worst == StalenessLevel.STALE or worst == StalenessLevel.EXPIRED:
-        updated_label = "! Stale  "
-    elif is_stale:
-        updated_label = "! Cached  "
-    else:
-        updated_label = "Updated  "
+    updated_label = status_label(is_stale, source_staleness)
 
     label_w = text_width(draw, updated_label, label_font)
     ts_w = text_width(draw, ts, time_font)
