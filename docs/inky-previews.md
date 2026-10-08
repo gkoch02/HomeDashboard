@@ -84,7 +84,7 @@ Accents: **green** primary, **yellow** secondary · [description in Themes ↗](
 
 #### old_fashioned
 
-Accents: **red** primary, **yellow** secondary · [description in Themes ↗](themes.md#old_fashioned)
+Accents: **red** primary, **black** secondary · [description in Themes ↗](themes.md#old_fashioned)
 
 [![Old Fashioned theme on Inky](../assets/previews/theme_old_fashioned_inky.png)](../assets/previews/theme_old_fashioned_inky.png)
 

@@ -12,9 +12,13 @@ from src.data.models import CalendarEvent, DashboardData, WeatherData
 from src.dummy_data import generate_dummy_data
 from src.render.canvas import render_dashboard
 from src.render.components.light_cycle_panel import (
+    _COL_X0,
+    _day_length_change,
     _draw_twilight_band,
+    _fmt_change,
     _hour_to_pil_angle,
     _hours_of_day,
+    _pack_lanes,
     _resolve_sun_times,
     _to_local_naive,
     draw_light_cycle,
@@ -315,7 +319,14 @@ class TestDrawLightCycleDirect:
         ]
         all_day = _direct(DashboardData(events=events, weather=None))
         none = _direct(DashboardData(events=[], weather=None))
-        assert all_day.tobytes() == none.tobytes(), "an all-day event produced a tick on the dial"
+        dial = (0, 0, _COL_X0, 480)
+        assert all_day.crop(dial).tobytes() == none.crop(dial).tobytes(), (
+            "an all-day event produced a mark on the dial"
+        )
+        agenda = (_COL_X0, 0, 800, 480)
+        assert all_day.crop(agenda).tobytes() != none.crop(agenda).tobytes(), (
+            "the all-day event is missing from the agenda"
+        )
 
     def test_no_op_band_returns_early(self):
         """Density 0 or zero-width band should be a no-op (no exceptions)."""
@@ -387,3 +398,108 @@ class TestDrawLightCycleDirect:
         noon = _direct(data, now=datetime(2026, 4, 23, 12, 30, tzinfo=TZ))
         assert _ink(night) > 0
         assert night.tobytes() != noon.tobytes(), "the same glyph was drawn at midnight and midday"
+
+
+def _event(start_h: int, start_m: int, end_h: int, end_m: int, summary: str = "Event"):
+    return CalendarEvent(
+        summary=summary,
+        start=datetime(2026, 4, 23, start_h, start_m),
+        end=datetime(2026, 4, 23, end_h, end_m),
+        calendar_name="Work",
+    )
+
+
+_DIAL = (0, 0, 470, 480)
+_AGENDA = (_COL_X0, 0, 800, 480)
+
+
+class TestEventArcs:
+    def test_an_arc_spans_the_event_duration(self):
+        short = _direct(DashboardData(events=[_event(15, 0, 15, 30)], weather=None))
+        long = _direct(DashboardData(events=[_event(15, 0, 18, 0)], weather=None))
+        assert _ink(long, _DIAL) > _ink(short, _DIAL), "the arc does not grow with the duration"
+
+    def test_an_ended_event_is_drawn_hollow(self):
+        data = DashboardData(events=[_event(13, 0, 16, 0)], weather=None)
+        before = _direct(data, now=datetime(2026, 4, 23, 12, 0, tzinfo=TZ))
+        after = _direct(data, now=datetime(2026, 4, 23, 17, 0, tzinfo=TZ))
+        # Compare the arc alone: the needle moves between the two renders, so
+        # measure the event-ring sector the event occupies (13:00–16:00 sits
+        # left of and below the centre) with the needle parked elsewhere.
+        box = (60, 260, 250, 440)
+        assert _ink(after, box) < _ink(before, box), "an ended event is still drawn solid"
+
+    def test_overlapping_events_take_the_second_lane(self):
+        assert _pack_lanes([(9.0, 10.0), (9.5, 11.0), (10.5, 12.0)]) == [0, 1, 0]
+        assert _pack_lanes([(9.0, 10.0), (10.0, 11.0)]) == [0, 0]
+
+
+class TestInfoColumn:
+    def test_day_length_change_needs_coordinates(self):
+        assert _day_length_change(TODAY, None, None) is None
+        assert _day_length_change(TODAY, 0.0, 0.0) is None
+
+    def test_days_lengthen_in_the_northern_spring(self):
+        change = _day_length_change(TODAY, NYC_LAT, NYC_LON)
+        assert change is not None and change.total_seconds() > 60
+
+    def test_fmt_change_signs(self):
+        from datetime import timedelta
+
+        assert _fmt_change(timedelta(minutes=2, seconds=31)) == "+2m 31s"
+        assert _fmt_change(timedelta(seconds=-75)) == "−1m 15s"
+
+    def test_a_long_agenda_stops_short_of_the_bottom_edge(self):
+        events = [
+            _event(8 + i // 4, (i % 4) * 15, 8 + i // 4, (i % 4) * 15 + 10) for i in range(30)
+        ]
+        img = _direct(DashboardData(events=events, weather=_weather_with_range()))
+        assert _ink(img, (_COL_X0, 466, 800, 480)) == 0, "the agenda ran off the plate"
+        assert _ink(img, (_COL_X0, 400, 800, 466)) > 0, "the overflow line is missing"
+
+
+class TestColourPanels:
+    YELLOW = (255, 255, 0)
+    BLUE = (0, 0, 255)
+
+    def _colour(self, now=FIXED_NOW):
+        img = Image.new("RGB", (800, 480), (255, 255, 255))
+        style = ThemeStyle(
+            fg=(0, 0, 0),
+            bg=(255, 255, 255),
+            accent_primary=self.YELLOW,
+            accent_secondary=self.BLUE,
+        )
+        draw_light_cycle(
+            ImageDraw.Draw(img),
+            DashboardData(events=[], weather=_weather_with_range()),
+            TODAY,
+            now,
+            style=style,
+            latitude=NYC_LAT,
+            longitude=NYC_LON,
+        )
+        return img
+
+    def _count(self, img, colour, box):
+        return sum(1 for px in flatten_pixels(img.crop(box)) if px == colour)
+
+    def test_daylight_is_filled_with_the_primary_accent(self):
+        assert self._count(self._colour(), self.YELLOW, _DIAL) > 1000
+
+    def test_twilight_rings_take_the_secondary_accent(self):
+        assert self._count(self._colour(), self.BLUE, _DIAL) > 100
+
+    def test_no_type_is_set_in_an_accent(self):
+        img = self._colour()
+        assert self._count(img, self.YELLOW, _AGENDA) == 0
+        assert self._count(img, self.BLUE, _AGENDA) == 0
+
+    def test_mono_draws_no_daylight_fill(self):
+        """On mono the accents fall back to ink; daylight must stay paper, not go solid."""
+        img = _direct(DashboardData(events=[], weather=None), latitude=NYC_LAT, longitude=NYC_LON)
+        # A point in the middle of the daylight span (13:00, on the light band).
+        from src.render.components.light_cycle_panel import _polar
+
+        x, y = _polar(150, 13.0)
+        assert img.getpixel((x, y)) != 0, "daylight was painted solid on a mono plate"
