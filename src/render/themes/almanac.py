@@ -13,6 +13,9 @@ Typography:
 
 All data is already available (weather, astronomy, moon, quote, events,
 birthdays) — no new fetcher needed.
+
+Editing notes: Pure math from ``src/astronomy.py`` and ``src/render/moon.py``; it has no
+fetcher.
 """
 
 from __future__ import annotations

@@ -7,6 +7,9 @@ computed locally — no external API calls.
 Four-quadrant layout with a wide dark-sky footer.  Uses DM Sans for a clean
 data-dashboard feel that complements the moonphase theme (which is expressive
 and atmospheric) rather than duplicating it.
+
+Editing notes: Pure math from ``src/astronomy.py`` and ``src/render/moon.py``; it has no
+fetcher.
 """
 
 from __future__ import annotations

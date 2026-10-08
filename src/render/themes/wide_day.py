@@ -22,6 +22,8 @@ so the image changes every tick; on a colour panel, whose full refresh
 flashes for twenty seconds, set ``display.min_refresh_interval_seconds`` to
 space the writes out. The theme is listed in ``EXTRA_EVENT_DAYS``
 because the UP NEXT rail reaches into tomorrow once today's events are done.
+
+Editing notes: ``pack_lanes()`` packs by bar-plus-label pixel extent, not time span.
 """
 
 from __future__ import annotations

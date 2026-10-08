@@ -14,6 +14,9 @@ quantization makes a scaled monochrome panel re-screen the dithers rather than
 threshold a blurred checkerboard to flat ink, and — like any dithered plate —
 derives the theme out of partial refresh. Excluded from the random rotation,
 like ``diags``.
+
+Editing notes: Reads the ink set from the resolved style (``panel_inks()``). The
+DIFFUSED row is its one art region. Listed in ``ALWAYS_LIVE`` in the idle-tick test.
 """
 
 from __future__ import annotations

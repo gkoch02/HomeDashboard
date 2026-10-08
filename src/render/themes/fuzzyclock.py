@@ -22,7 +22,7 @@ legibility at large display sizes on eInk.
 
 Update frequency: time phrases change at 5-minute boundaries, so the cron /
 systemd timer should run every 5 minutes.  The image-hash comparison in
-main.py ensures the eInk panel is only physically refreshed when the phrase
+``OutputService.publish()`` ensures the eInk panel is only physically refreshed when the phrase
 actually changes.
 """
 

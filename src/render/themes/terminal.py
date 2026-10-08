@@ -3,6 +3,9 @@
 Inverted color scheme (white on black) with a compact header and wider
 weather panel for a data-heavy, information-dense terminal aesthetic.
 Uses Share Tech Mono for an authentic monospace terminal feel.
+
+Editing notes: The month-band shrink loop no longer fires with Rajdhani, but it is still
+driven through a narrowed region in ``tests/test_week_view.py``.
 """
 
 from src.render.fonts import (

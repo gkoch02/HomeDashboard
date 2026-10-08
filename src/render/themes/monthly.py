@@ -1,4 +1,8 @@
-"""Full-screen monthly calendar theme with an event-density heatmap."""
+"""Full-screen monthly calendar theme with an event-density heatmap.
+
+Editing notes: Sunday-first six-row grid; ``prefer_color_on_inky=True`` draws the
+heatmap in colour on Inky.
+"""
 
 from __future__ import annotations
 

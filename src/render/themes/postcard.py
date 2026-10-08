@@ -18,6 +18,12 @@ postmark + stamp border pick up the inky-red accent while the scene
 stays grayscale.  Waveshare quantizes the whole image to 1-bit via
 Floyd-Steinberg, turning the greyscale scene into an engraving-style
 dither.
+
+Editing notes: the view is ``postcard_scene.py``, numpy-painted and seeded by
+the date; the light is floored to the hour, keeping the theme out of
+``TIME_DRIVEN``. Its exp / sin / pow go through ``math``-built tables (``_exp``,
+``_sin``, ``_pow``), never numpy's per-CPU SIMD kernels, so the snapshot hash
+holds across machines.
 """
 
 from __future__ import annotations

@@ -189,8 +189,8 @@ class DisplayConfig:
     # ratio by more than a third, then fit. Only "auto" and "fit" put an
     # 800x480 theme on a 1360x480 panoramic panel legibly.
     scaling: str = "auto"
-    # Minimum seconds between hardware refreshes. None ⇒ provider default
-    # (60 for Inky, 0 for Waveshare). Set 3600 on Inky to restore the v4
+    # Minimum seconds between hardware refreshes. None ⇒ display default
+    # (60 for any colour display, 0 for monochrome Waveshare). Set 3600 on Inky to restore the v4
     # "exactly once an hour" hourly throttle.
     min_refresh_interval_seconds: int | None = None
 

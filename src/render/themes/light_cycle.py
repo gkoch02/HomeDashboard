@@ -20,6 +20,9 @@ day length and its change since yesterday, the current weather, today's agenda.
 
 On Inky the daylight span fills with yellow and the twilight rings turn blue;
 all type stays black, since yellow type on the Spectra white does not read.
+
+Editing notes: Pure math from ``src/astronomy.py`` and ``src/render/moon.py``; it has no
+fetcher.
 """
 
 from __future__ import annotations

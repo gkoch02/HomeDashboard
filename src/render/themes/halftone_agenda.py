@@ -22,6 +22,10 @@ weather side.
 On Inky the canvas is RGB (``prefer_color_on_inky=True``): yellow rings the
 sun and moon, red marks the running event's bar and the next-up tick. On
 Waveshare both accents collapse to ink.
+
+Editing notes: Imports ``agenda_day`` from ``day_arc_panel`` rather than copying it; sun
+times are normalised once in ``_sun_times``; ``TEMP_PT = 78`` and the ``inline_range`` /
+``stacks_time`` rules are pinned by tests.
 """
 
 from __future__ import annotations
