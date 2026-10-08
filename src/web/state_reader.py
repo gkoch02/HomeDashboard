@@ -15,6 +15,7 @@ from pathlib import Path
 
 from src._io import read_json
 from src._time import now_utc as _now_utc
+from src._time import to_aware
 from src.config import resolve_tz
 from src.fetchers.cache import check_staleness
 from src.fetchers.host import fetch_host_data
@@ -41,11 +42,7 @@ def read_last_success(output_dir: str) -> dict:
         raw = path.read_text().strip()
         ts = datetime.fromisoformat(raw)
         now = _now_utc()
-        # Treat legacy naive timestamps as UTC. astimezone() on a naive value
-        # would assume system local time and skew seconds_since by the local
-        # UTC offset.
-        if ts.tzinfo is None:
-            ts = ts.replace(tzinfo=timezone.utc)
+        ts = to_aware(ts)
         seconds_since = int((now - ts).total_seconds())
         return {"timestamp": ts.isoformat(), "seconds_since": max(0, seconds_since)}
     except Exception as exc:
@@ -90,12 +87,8 @@ def read_last_error(output_dir: str, last_success: dict | None = None) -> dict:
             if success_ts_str is None:
                 is_current = True
             else:
-                success_ts = datetime.fromisoformat(success_ts_str)
-                # Treat naive legacy timestamps as UTC (see read_last_success).
-                if ts.tzinfo is None:
-                    ts = ts.replace(tzinfo=timezone.utc)
-                if success_ts.tzinfo is None:
-                    success_ts = success_ts.replace(tzinfo=timezone.utc)
+                success_ts = to_aware(datetime.fromisoformat(success_ts_str))
+                ts = to_aware(ts)
                 is_current = ts > success_ts
         return {
             "timestamp": ts.isoformat() if ts is not None else None,
@@ -159,13 +152,7 @@ def read_cache_ages(state_dir: str, ttls: dict[str, int]) -> dict[str, dict]:
             result[source] = {"cache_age_minutes": None, "staleness": "unknown", "fetched_at": None}
             continue
         try:
-            fetched_at = datetime.fromisoformat(block["fetched_at"])
-            # A naive (pre-v5) timestamp is UTC — the convention every other
-            # reader follows (cache._normalise_fetched_at, read_last_success).
-            # Measured against the host's local clock the age would be off by
-            # the UTC offset.
-            if fetched_at.tzinfo is None:
-                fetched_at = fetched_at.replace(tzinfo=timezone.utc)
+            fetched_at = to_aware(datetime.fromisoformat(block["fetched_at"]))
             fetched_at_utc = fetched_at.astimezone(timezone.utc)
             age_minutes = (now_utc - fetched_at_utc).total_seconds() / 60
             staleness = check_staleness(fetched_at_utc, ttls.get(source, 60), now=now_utc)

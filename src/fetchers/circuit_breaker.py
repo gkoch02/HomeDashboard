@@ -15,11 +15,11 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 
 from src._io import locked_update_json
-from src._time import now_utc
+from src._time import now_utc, to_aware
 
 logger = logging.getLogger(__name__)
 
@@ -110,12 +110,7 @@ class CircuitBreaker:
             return True
         # Use UTC for consistent cooldown calculation regardless of clock changes.
         now = now_utc()
-        # Legacy naive timestamps were always written via datetime.utcnow().isoformat();
-        # attach UTC explicitly. astimezone() on a naive value would assume system local
-        # time and skew the elapsed window by the local UTC offset.
-        if last.tzinfo is None:
-            last = last.replace(tzinfo=timezone.utc)
-        age = (now - last).total_seconds() / 60
+        age = (now - to_aware(last)).total_seconds() / 60
         return age >= self._cooldown_minutes
 
     def _load(self) -> None:

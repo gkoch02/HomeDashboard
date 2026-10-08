@@ -187,7 +187,7 @@ def test_read_cache_ages_naive_timestamp_is_utc_not_host_local(tmp_path, monkeyp
 
     Measured against the host's local clock on a UTC-7 host, a stamp written
     five minutes ago read as seven hours in the future — "fresh" here while
-    the renderer's own arithmetic (cache._normalise_fetched_at) agreed with
+    the renderer's own arithmetic (_time.to_aware in cache.py) agreed with
     neither the age nor, once the offset flipped sign, the staleness badge.
     """
     import time
