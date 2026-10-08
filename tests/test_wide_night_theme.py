@@ -188,12 +188,19 @@ class TestSpacing:
 
 
 class TestHeight:
-    def test_a_row_that_fits_is_the_band_fraction_of_the_plate(self):
+    def test_a_row_that_fits_is_80_percent_of_the_plate(self):
         """A full moon alone is its whole disc, so it shows the height exactly."""
         img = _plate(DashboardData(), today=FULL_MOON)
         label_top = _label_top(img)
         top, bottom = _rows(img, (0, 0, 1360, label_top))
-        assert abs((bottom - top) - wn.BAND_FRACTION * 480) <= 3
+        assert abs((bottom - top) - 0.8 * 480) <= 3
+
+    def test_a_lone_moon_and_its_label_stay_on_the_plate(self):
+        """Weather and air quality offline leave the moon alone at the full band
+        height; disc and label must still clear both edges of the strip."""
+        for today in (FULL_MOON, CRESCENT, TODAY):
+            top, bottom = _rows(_plate(DashboardData(), today=today))
+            assert top >= 16 and bottom <= 480 - 16, f"{today}: ink spans rows {top}..{bottom}"
 
     def test_a_row_too_wide_for_80_percent_shrinks_to_fit(self):
         ms = wn.marks_for(_data(), TODAY)
@@ -342,18 +349,3 @@ class TestInvert:
         assert theme.layout.repaint_slot_hours == 1
         assert theme.layout.draw_order == ["wide_night_invert"]
         assert "wide_night_invert" in _EXCLUDED_FROM_POOL
-
-
-class TestOfflineScale:
-    def _moon_rows(self, img: Image.Image) -> int:
-        """Height of the first mark (the moon), its label excluded."""
-        x0, x1 = _extents(img)[0]
-        top, bottom = _rows(img, (x0, 0, x1, _label_top(img) - 1))
-        return bottom - top
-
-    def test_a_lone_moon_keeps_the_plate_scale(self):
-        """With weather and air quality both offline only the moon is left; it must
-        not swell to fill the strip but stay near the size the default row sets."""
-        alone = self._moon_rows(_plate(_data(weather=False, air=False)))
-        in_row = self._moon_rows(_plate(_data(air=False)))
-        assert alone <= 1.1 * in_row, f"lone moon {alone}px vs {in_row}px in the row"

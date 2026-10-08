@@ -61,9 +61,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - `old_fashioned`'s "+N more" no longer prints over the last listed event.
 - `scorecard` shows "no data" for daylight when the weather is unavailable,
   where it claimed 0% left "before sunrise" at any hour.
-- `wide_night` keeps its scale when sources drop out: with weather and air
-  quality offline the moon alone filled 80% of the strip; marks now cap at half
-  its height, which a full row never reaches.
 
 - Cut the panoramic and dithered-art entries in `docs/themes.md` to what each
   theme shows, the data it needs and the config it reads; `make docs-check` now
