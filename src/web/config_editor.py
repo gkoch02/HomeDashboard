@@ -99,8 +99,8 @@ def list_config_backups(config_path: str, limit: int = 5) -> list[dict]:
     embedded name timestamp only breaks mtime ties, since a rotation renames
     the file and carries the original mtime with it.
 
-    Versioned pre-migration backups (``config.yaml.bak-v4``, written by
-    ``src.config_migrations``) are a different kind of artifact — restoring one
+    Versioned pre-migration backups (``config.yaml.bak-v4``, left by earlier
+    releases' config upgrade) are a different kind of artifact — restoring one
     would roll the file back to an older schema — so they are not listed here.
     """
     path = Path(config_path)

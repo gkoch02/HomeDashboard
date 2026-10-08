@@ -22,8 +22,6 @@ import logging
 from dataclasses import dataclass
 from typing import Any
 
-CURRENT_SCHEMA_VERSION = 5
-
 
 @dataclass(frozen=True)
 class FieldSpec:
@@ -648,4 +646,4 @@ def to_json(values: dict[str, Any] | None = None) -> dict:
                     entry["value"] = values.get(spec.path)
             fields_json.append(entry)
         sections_json.append({"name": section.name, "title": section.title, "fields": fields_json})
-    return {"schema_version": CURRENT_SCHEMA_VERSION, "sections": sections_json}
+    return {"sections": sections_json}
