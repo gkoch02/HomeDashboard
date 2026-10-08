@@ -14,7 +14,7 @@ class BuildWithAssets(build_py):
         assets = Path(self.build_lib) / "src" / "_assets"
         copytree(root / "fonts", assets / "fonts", dirs_exist_ok=True)
         copytree(root / "assets" / "previews", assets / "assets" / "previews", dirs_exist_ok=True)
-        for source in ("config/quotes.json", "assets/moon_full.png", "assets/postcard_photo.jpg"):
+        for source in ("config/quotes.json", "assets/moon_full.png"):
             destination = assets / source
             destination.parent.mkdir(parents=True, exist_ok=True)
             copy2(root / source, destination)

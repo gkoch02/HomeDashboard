@@ -16,7 +16,6 @@ from src.data.models import (
 )
 from src.dummy_data import generate_dummy_data
 from src.render.canvas import render_dashboard
-from src.render.components import postcard_panel
 from src.render.components.postcard_panel import (
     _daypart_palette,
     _events_today,
@@ -326,28 +325,6 @@ class TestNoWeatherFallback:
         theme = load_theme("postcard")
         img = render_dashboard(data, DisplayConfig(), theme=theme)
         assert img.size == (800, 480)
-
-
-class TestPhotoView:
-    def test_scene_is_the_photo(self, tmp_path, monkeypatch):
-        """The left panel paints the bundled photo, not the procedural scene."""
-        with_photo = _render()
-        monkeypatch.setattr(postcard_panel, "_PHOTO_PATH", tmp_path / "missing.jpg")
-        procedural = _render()
-        scene = (0, 0, 470, 480)
-        assert with_photo.crop(scene).tobytes() != procedural.crop(scene).tobytes()
-
-    def test_missing_photo_falls_back_to_the_procedural_scene(self, tmp_path, monkeypatch):
-        monkeypatch.setattr(postcard_panel, "_PHOTO_PATH", tmp_path / "missing.jpg")
-        img = _render()
-        scene_ink = sum(1 for p in flatten_pixels(img.crop((0, 0, 470, 480))) if not p)
-        assert scene_ink > 10_000
-
-    def test_photo_is_cropped_to_the_scene(self):
-        photo = postcard_panel._load_photo(str(postcard_panel._PHOTO_PATH), (960, 960))
-        assert photo is not None
-        assert photo.mode == "L"
-        assert photo.size == (960, 960)
 
 
 class TestRenderWithDummyData:

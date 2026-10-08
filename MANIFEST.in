@@ -1,7 +1,6 @@
 recursive-include fonts *.ttf *.txt
 include config/quotes.json
 include assets/moon_full.png
-include assets/postcard_photo.jpg
 recursive-include src/web/templates *.html
 recursive-include src/web/static *.css *.js
 recursive-include assets/previews *.png
