@@ -836,8 +836,8 @@ def _draw_barometer(
 
     word_font = _label_font(style, 11)
     word_radius = tick_out - 50 * SS
-    for p, text in _BARO_WORDS:
-        wx, wy = at(word_radius, _pressure_to_angle(p))
+    for word_hpa, text in _BARO_WORDS:
+        wx, wy = at(word_radius, _pressure_to_angle(word_hpa))
         tb = draw.textbbox((0, 0), text, font=word_font)
         draw.text(
             (wx - (tb[2] - tb[0]) / 2 - tb[0], wy - (tb[3] - tb[1]) / 2 - tb[1]),
@@ -1383,8 +1383,9 @@ def _draw_sun_arc(
             draw.rectangle((sx, strip_y0 + SS, ex, strip_y1 - SS), fill=_grey(255, mode))
             _ruled_fill(draw, _rect_poly(sx, strip_y0, ex, strip_y1), _cold(mode), mode, pitch)
     sx_day, ex_day = _x_for(sr_dt), _x_for(ss_dt)
-    has_day = sx_day is not None and ex_day is not None and ex_day > sx_day
-    if has_day:
+    has_day = False
+    if sx_day is not None and ex_day is not None and ex_day > sx_day:
+        has_day = True
         draw.rectangle((sx_day, strip_y0 + SS, ex_day, strip_y1 - SS), fill=_grey(255, mode))
     draw.rectangle((strip_x0, strip_y0, strip_x1, strip_y1), outline=ink, width=SS)
     for hour in (6, 12, 18):
