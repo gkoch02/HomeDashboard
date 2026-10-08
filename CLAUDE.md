@@ -316,7 +316,7 @@ art themes, in the panel's module docstring. Keep new entries to that shape.
   - `moonphase*`: discs come from `moon_render.py` (procedural; `moonphase_photo` occludes `assets/moon_full.png` via `ThemeStyle.use_moon_photo`); `moonphase_invert` and `moonphase_photo` derive from `moonphase_theme()` with `dataclasses.replace`.
   - `monthly`: Sunday-first six-row grid; `prefer_color_on_inky=True` heatmap.
   - `photo`: `background_fn` pastes a Floyd-Steinberg-dithered `photo.path`; `draw_order` is empty.
-  - `postcard`: seeded procedural art.
+  - `postcard`: the view is `assets/postcard_photo.jpg` (shipped by `setup.py` / `MANIFEST.in`); the seeded procedural scene is the fallback when it is missing.
   - `weatherglass`: 2× supersampled, `threshold` quantization, pressure history in state (`state_dir=None` on dry and dummy runs).
   - `day_arc`: axis-strip elements have disjoint row bands (`TestAxisStripBands`); `build_time_axis()` needs events already filtered to the day; `agenda_day()` rolls over only after sunset and after every timed event has ended.
   - `halftone_agenda`: imports `agenda_day` from `day_arc_panel` rather than copying it; sun times are normalised once in `_sun_times`; `TEMP_PT = 78` and the `inline_range` / `stacks_time` rules are pinned by tests; `supports_partial_refresh=False`.

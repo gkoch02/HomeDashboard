@@ -20,6 +20,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- The `postcard` theme's view is now a photograph, bundled at
+  `assets/postcard_photo.jpg`, instead of the procedural landscape. The
+  procedural scene remains as the fallback when the file is missing.
 - `make install-display-drivers` installs the Waveshare library at the recorded
   commit instead of the vendor's default branch, and with `--no-deps`, so its
   host-probing `setup.py` no longer adds GPIO packages `requirements-pi.txt`

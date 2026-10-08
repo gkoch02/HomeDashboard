@@ -4,15 +4,15 @@ The composition is a divided rectangle:
 
   ┌─────────────────────────────────┬──────────────────────────────────┐
   │                                 │  Greeting (Playfair italic)      │
-  │   Procedural dithered scene     │  ────────────────────────────    │
-  │   (sky + horizon + landscape    │  POSTMARK    [ STAMP w/ MOON ]   │
-  │   + foreground), keyed to the   │                                  │
-  │   weather icon and daypart.     │  TODAY  •  May 23, 2026          │
+  │   Dithered photograph           │  ────────────────────────────    │
+  │   (assets/postcard_photo.jpg);  │  POSTMARK    [ STAMP w/ MOON ]   │
+  │   procedural scene keyed to     │                                  │
+  │   weather + daypart if missing. │  TODAY  •  May 23, 2026          │
   │                                 │  9:00a  TEAM STANDUP             │
   │   Floyd-Steinberg-dithered      │  12:30p LUNCH WITH SARA          │
-  │   greyscale gradients become    │  2:00p  DENTIST                  │
+  │   greyscale becomes             │  2:00p  DENTIST                  │
   │   engraving on Waveshare;       │  6:00p  YOGA — STUDIO 12         │
-  │   stay grey on Inky RGB so the  │                                  │
+  │   stays grey on Inky RGB so the │                                  │
   │   stamp's red accent reads.     │  "Wish you were here"            │
   │                                 │   — quote / signature            │
   └─────────────────────────────────┴──────────────────────────────────┘
@@ -22,9 +22,10 @@ canvases the same greyscale values are emitted as ``(v, v, v)`` triples
 plus a warm red accent for the postmark and stamp border, so the eInk
 panel's color story stays consistent with the rest of the dashboard.
 
-The scene is generated entirely from PIL primitives — no external
-asset paths — so the component is fully offline and deterministic for
-a given date + weather icon.
+The view is a bundled photograph (``assets/postcard_photo.jpg``),
+centre-cropped to the scene and autocontrasted for the dither.  When the
+file is missing the panel falls back to a procedural scene built from PIL
+primitives and keyed to the weather icon and daypart.
 """
 
 from __future__ import annotations
@@ -34,8 +35,9 @@ import random
 from datetime import date, datetime
 from functools import lru_cache
 
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFilter, ImageOps
 
+from src._assets import asset_root
 from src.data.models import CalendarEvent, DashboardData
 from src.render.artkit import accent_red as _accent_red
 from src.render.artkit import grey as _grey
@@ -67,6 +69,12 @@ SS = 2  # supersample factor — must match the theme's canvas multiplier.
 SCENE_W = 480 * SS
 BACK_PAD_X = 20 * SS
 BACK_PAD_Y = 18 * SS
+
+# The view photograph; absent in a stripped install, which falls back to the
+# procedural scene.
+_PHOTO_PATH = asset_root() / "assets" / "postcard_photo.jpg"
+# Horizontal crop centre: the subject sits right of the frame's middle.
+_PHOTO_CENTER_X = 0.58
 
 # Centre of the scene — sun/moon, mountains etc. position relative to this.
 _SCENE_CX = SCENE_W // 2
@@ -101,7 +109,8 @@ def draw_postcard(
     scene_rect = (x0, y0, x0 + SCENE_W, y0 + h)
     back_rect = (x0 + SCENE_W, y0, x0 + w, y0 + h)
 
-    _draw_scene(image, scene_rect, data, today, now)
+    if not _draw_photo(image, scene_rect):
+        _draw_scene(image, scene_rect, data, today, now)
     _draw_back(
         draw,
         image,
@@ -116,7 +125,32 @@ def draw_postcard(
     _draw_center_crease(image, x0 + SCENE_W, y0, h)
 
 
-# Scene dispatch (left panel)
+# Photo view (left panel)
+
+
+@lru_cache(maxsize=4)
+def _load_photo(path: str, size: tuple[int, int]) -> Image.Image | None:
+    """Return the photo as an ``"L"`` image cropped to *size*, or None if unreadable."""
+    try:
+        img = Image.open(path).convert("L")
+    except OSError:
+        return None
+    img = ImageOps.fit(img, size, Image.Resampling.LANCZOS, centering=(_PHOTO_CENTER_X, 0.5))
+    # Stretch the tones and sharpen edges so the subject survives the 1-bit dither.
+    img = ImageOps.autocontrast(img, cutoff=1)
+    return img.filter(ImageFilter.UnsharpMask(radius=4, percent=120, threshold=2))
+
+
+def _draw_photo(image: Image.Image, rect: tuple[int, int, int, int]) -> bool:
+    """Paste the view photo into *rect*; False when the file can't be read."""
+    photo = _load_photo(str(_PHOTO_PATH), (rect[2] - rect[0], rect[3] - rect[1]))
+    if photo is None:
+        return False
+    image.paste(photo.convert(image.mode), rect[:2])
+    return True
+
+
+# Scene dispatch (procedural fallback)
 
 
 def _scene_kind(icon: str | None) -> tuple[str, bool]:
