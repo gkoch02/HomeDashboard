@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [6.1.0] - 2026-10-08
+
 ### Added
 
 - A tested dependency snapshot for reproducible Pi installs:
