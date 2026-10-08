@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import logging
 from datetime import datetime as _datetime
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from src.data.models import DashboardData
+
+logger = logging.getLogger(__name__)
 
 
 def _resolve_scheduled_theme(entries, now: _datetime) -> str | None:
@@ -97,4 +100,10 @@ def resolve_theme_name(
             persist=persist,
         )
         theme_name = theme_name or pseudo_name
+
+    from src.render.themes.registry import RETIRED_THEME_NAMES
+
+    if theme_name in RETIRED_THEME_NAMES:
+        logger.warning("Theme %r has been retired; showing 'default' instead", theme_name)
+        theme_name = "default"
     return theme_name

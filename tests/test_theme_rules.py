@@ -210,7 +210,7 @@ class TestCurrentDaypart:
 
     def test_rule_daypart_day_matches_only_day_bucket(self):
         """``daypart: day`` matches the new dedicated ``day`` bucket."""
-        rule = ThemeRule(when=ThemeRuleCondition(daypart="day"), theme="today")
+        rule = ThemeRule(when=ThemeRuleCondition(daypart="day"), theme="day_arc")
         w = _wx(
             sunrise=datetime(2026, 4, 23, 6, 5),
             sunset=datetime(2026, 4, 23, 19, 43),
@@ -271,7 +271,7 @@ class TestRuleMatches:
         assert _rule_matches(rule, _now(), data) is True
 
     def test_season_autumn_alias_for_fall(self):
-        rule = ThemeRule(when=ThemeRuleCondition(season="autumn"), theme="today")
+        rule = ThemeRule(when=ThemeRuleCondition(season="autumn"), theme="day_arc")
         # October is fall in our bucket
         assert _rule_matches(rule, _now(month=10), _data()) is True
 
@@ -287,7 +287,7 @@ class TestRuleMatches:
     )
     def test_clock_condition(self, when, matching, other):
         """A daypart, season or weekday condition matches inside its window only."""
-        rule = ThemeRule(when=ThemeRuleCondition(**when), theme="today")
+        rule = ThemeRule(when=ThemeRuleCondition(**when), theme="day_arc")
         assert _rule_matches(rule, matching, _data()) is True
         assert _rule_matches(rule, other, _data()) is False
 
@@ -316,7 +316,7 @@ class TestResolveRuleTheme:
     def test_first_match_wins(self):
         rules = [
             ThemeRule(when=ThemeRuleCondition(weather="rain"), theme="weather"),
-            ThemeRule(when=ThemeRuleCondition(season="spring"), theme="today"),
+            ThemeRule(when=ThemeRuleCondition(season="spring"), theme="day_arc"),
         ]
         data = _data(_wx(description="light rain"))
         # Both rules match; first one wins
@@ -338,9 +338,9 @@ class TestResolveThemeNamePriority:
         ("rule_weather", "schedule_theme", "cfg_theme", "override", "data", "expected"),
         [
             ("rain", None, "default", "terminal", _data(_wx("light rain")), "terminal"),
-            ("rain", "minimalist", "default", None, _data(_wx("light rain")), "weather"),
-            ("snow", "minimalist", "default", None, _data(_wx("clear sky")), "minimalist"),
-            ("snow", None, "today", None, _data(_wx("clear sky")), "today"),
+            ("rain", "monthly", "default", None, _data(_wx("light rain")), "weather"),
+            ("snow", "monthly", "default", None, _data(_wx("clear sky")), "monthly"),
+            ("snow", None, "day_arc", None, _data(_wx("clear sky")), "day_arc"),
             ("rain", None, "default", None, None, "default"),
         ],
         ids=[
@@ -394,7 +394,7 @@ theme_rules:
     theme: "weather"
   - when:
       daypart: ["dawn", "dusk"]
-    theme: "sunrise"
+    theme: "astronomy"
 """.strip()
         )
         cfg = load_config(str(cfg_file))
@@ -409,7 +409,7 @@ theme_rules:
         assert r0.when.weekday == "weekend"
 
         r1 = cfg.theme_rules.rules[1]
-        assert r1.theme == "sunrise"
+        assert r1.theme == "astronomy"
         assert r1.when.daypart == ["dawn", "dusk"]
         # Unset fields stay None — the rule doesn't constrain on them.
         assert r1.when.weather is None
@@ -477,7 +477,7 @@ theme_rules:
   - when: { calendar: "empty" }
     theme: "qotd"
   - when: { calendar: ["busy", "active"] }
-    theme: "today"
+    theme: "day_arc"
 """.strip()
         )
         cfg = load_config(str(cfg_file))
@@ -852,7 +852,7 @@ class TestNumericConditionParsing:
 
     def test_unset_thresholds_are_none(self, tmp_path):
         rules = self._rules_from(
-            tmp_path, "theme_rules:\n  - when: {weekday: weekend}\n    theme: today\n"
+            tmp_path, "theme_rules:\n  - when: {weekday: weekend}\n    theme: day_arc\n"
         )
         assert rules[0].when.temp_at_most is None
         assert rules[0].when.temp_at_least is None
@@ -875,9 +875,9 @@ class TestNumericConditionParsing:
         """
         rules = self._rules_from(
             tmp_path,
-            "theme_rules:\n" + bad_rule + "  - when: {weekday: weekend}\n    theme: today\n",
+            "theme_rules:\n" + bad_rule + "  - when: {weekday: weekend}\n    theme: day_arc\n",
         )
-        assert [r.theme for r in rules] == ["today"]
+        assert [r.theme for r in rules] == ["day_arc"]
 
     @pytest.mark.parametrize(
         "yaml_rule",
@@ -896,7 +896,7 @@ class TestNumericConditionParsing:
         """`null` is absence, not a malformed value — the rule survives."""
         rules = self._rules_from(
             tmp_path,
-            "theme_rules:\n  - when: {aqi_at_least: null, weekday: weekend}\n    theme: today\n",
+            "theme_rules:\n  - when: {aqi_at_least: null, weekday: weekend}\n    theme: day_arc\n",
         )
-        assert [r.theme for r in rules] == ["today"]
+        assert [r.theme for r in rules] == ["day_arc"]
         assert rules[0].when.aqi_at_least is None

@@ -187,7 +187,7 @@ class TestThemeChoices:
         theme_field = _find_field(out, "theme")
         assert theme_field is not None
         assert "choices" in theme_field
-        assert "agenda" in theme_field["choices"]
+        assert "terminal" in theme_field["choices"]
 
     def test_theme_stays_editable_and_not_secret(self):
         spec = _spec("theme")

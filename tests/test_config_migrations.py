@@ -38,7 +38,7 @@ class TestV4ToV5:
         assert out["schema_version"] == 5
 
     def test_preserves_existing_keys(self):
-        raw = {"title": "Home", "theme": "agenda", "weather": {"latitude": 1.0}}
+        raw = {"title": "Home", "theme": "terminal", "weather": {"latitude": 1.0}}
         out = v4_to_v5(dict(raw))
         for k, v in raw.items():
             assert out[k] == v

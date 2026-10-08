@@ -108,31 +108,9 @@ class ThemeLayout:
     message: ComponentRegion = field(
         default_factory=lambda: ComponentRegion(0, 0, 800, 400, visible=False)
     )
-    # Used by the ``timeline`` theme for the hourly day-view timeline.
-    # Hidden by default so existing themes are not affected.
-    timeline: ComponentRegion = field(
-        default_factory=lambda: ComponentRegion(0, 40, 800, 360, visible=False)
-    )
-    # Used by the ``year_pulse`` theme for the year progress + countdowns area.
-    # Hidden by default so existing themes are not affected.
-    year_pulse: ComponentRegion = field(
-        default_factory=lambda: ComponentRegion(0, 40, 800, 360, visible=False)
-    )
     # Used by the ``monthly`` theme for a full-canvas month grid heatmap.
     # Hidden by default so existing themes are not affected.
     monthly: ComponentRegion = field(
-        default_factory=lambda: ComponentRegion(0, 0, 800, 480, visible=False)
-    )
-    # Used by the ``sunrise`` theme for the sun-arc + split-schedule panel.
-    sunrise: ComponentRegion = field(
-        default_factory=lambda: ComponentRegion(0, 0, 800, 480, visible=False)
-    )
-    # Used by the ``scorecard`` theme for the numeric KPI tile grid.
-    scorecard: ComponentRegion = field(
-        default_factory=lambda: ComponentRegion(0, 0, 800, 480, visible=False)
-    )
-    # Used by the ``tides`` theme for alternating inverted horizontal bands.
-    tides: ComponentRegion = field(
         default_factory=lambda: ComponentRegion(0, 0, 800, 480, visible=False)
     )
     # Used by the ``countdown`` theme for full-canvas user-configured countdowns.
@@ -173,10 +151,6 @@ class ThemeLayout:
     )
     # Used by the ``postcard`` theme for a dithered procedural scene + postcard back.
     postcard: ComponentRegion = field(
-        default_factory=lambda: ComponentRegion(0, 0, 800, 480, visible=False)
-    )
-    # Used by the ``naturalist`` theme for a Victorian botanical plate.
-    naturalist: ComponentRegion = field(
         default_factory=lambda: ComponentRegion(0, 0, 800, 480, visible=False)
     )
     # Used by the ``weatherglass`` theme for a Victorian weather-station deck.
@@ -310,7 +284,7 @@ class ThemeStyle:
     component_labels: dict[str, str] = field(default_factory=dict)
 
     # When False, all structural border lines and separators are suppressed.
-    # Useful for borderless themes like minimalist.
+    # Useful for borderless themes like weather.
     show_borders: bool = True
 
     # When False, the forecast strip at the bottom of the weather panel is

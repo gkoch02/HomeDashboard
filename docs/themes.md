@@ -26,10 +26,10 @@ theme: terminal
 
 Valid values:
 
-- **Week-view**: `default`, `agenda`, `terminal`, `minimalist`, `old_fashioned`, `today`, `fantasy`
+- **Week-view**: `default`, `terminal`, `old_fashioned`, `fantasy`
 - **Full-screen focused**: `qotd`, `qotd_invert`, `weather`, `fuzzyclock`, `fuzzyclock_invert`, `moonphase`, `moonphase_invert`, `moonphase_photo`, `photo`
-- **Specialized**: `air_quality`, `almanac`, `astronomy`, `constellation_map`, `day_arc`, `halftone`, `halftone_agenda`, `timeline`, `trends`, `year_pulse`, `monthly`, `sunrise`, `light_cycle`, `scorecard`, `tides`
-- **Dithered art**: `postcard`, `naturalist`
+- **Specialized**: `air_quality`, `almanac`, `astronomy`, `constellation_map`, `day_arc`, `halftone`, `halftone_agenda`, `trends`, `monthly`, `light_cycle`
+- **Dithered art**: `postcard`
 - **Utility**: `countdown`, `message`, `diags`
 - **Rotation**: `random_daily` (alias `random`), `random_hourly`
 
@@ -81,7 +81,7 @@ theme_schedule:
   - time: "06:00"
     theme: "default"
   - time: "20:00"
-    theme: "minimalist"
+    theme: "moonphase"
   - time: "22:00"
     theme: "fuzzyclock_invert"
 ```
@@ -105,9 +105,9 @@ theme_rules:
   - when: { weather_alert_present: true }
     theme: "message"
   - when: { calendar: "birthday_today" }
-    theme: "today"
+    theme: "day_arc"
   - when: { calendar: "upcoming_soon" }
-    theme: "today"
+    theme: "day_arc"
   - when: { calendar: ["empty", "done"] }
     theme: "qotd"
   - when: { weather: ["rain", "snow", "thunderstorm"] }
@@ -119,7 +119,7 @@ theme_rules:
   - when: { temp_at_most: 32 }
     theme: "weatherglass"
   - when: { weekday: "weekend" }
-    theme: "today"
+    theme: "almanac"
 ```
 
 Rules are evaluated top-to-bottom; the **first matching** rule wins. A rule matches when every `when:` field it sets evaluates true against the current context (AND semantics). Unset fields don't constrain.
@@ -165,11 +165,8 @@ Rules that reference weather or calendar data silently skip on the first boot (n
 | Theme | Best for | Notes |
 |---|---|---|
 | `default` | general family wall display | Classic 7-day layout with bottom weather, birthdays, and quote panels |
-| `agenda` | high-visibility, legible from afar | Bold DM Sans, dominant 7-day grid, slim weather + birthdays strip; red Inky accent |
 | `terminal` | high-contrast retro look | Inverted black canvas with a distinct multi-font system |
-| `minimalist` | clean editorial layout | Border-light, dense, hides birthdays |
 | `old_fashioned` | decorative print-inspired display | Serif-heavy broadsheet layout |
-| `today` | single-day focus | Large date panel and spacious agenda |
 | `fantasy` | stylized themed display | Ornamental black-canvas week layout |
 
 ### Full-screen focused themes
@@ -198,13 +195,8 @@ Rules that reference weather or calendar data silently skip on the first boot (n
 | `trends` | long-context dashboard | Five stacked sparkline rows: 24h temp, AQI scale, 7-day daylight, 14-day event density, 30-day moon. Bayer-filled area under each curve gives a clean halftone density read on eInk. First chart/graph theme; ordered-Bayer quantization preserves the regular dot pattern. |
 | `astronomy` | sky-tonight dashboard | Sunrise/sunset, civil/nautical/astronomical twilight, moon phase + next full/new, next meteor shower, dark-sky window. Uses `weather.latitude` / `weather.longitude` for twilight math (falls back gracefully without them). Pure-Python — no API calls. |
 | `constellation_map` | tonight's actual sky | Dark-canvas star chart projected for the user's location and the current moment. Renders ~45 named bright stars, seven recognisable northern constellations connected by lines, and the moon at its current alt/az. During daylight the chart auto-projects for tonight's solar midnight so it stays informative. Requires `weather.latitude` / `weather.longitude`; pure-Python sky math (no API). |
-| `timeline` | busy-day planning | Single-day hourly timeline |
-| `year_pulse` | longer-horizon planning | Year progress plus upcoming events and birthdays |
 | `monthly` | month-at-a-glance planning | Traditional month grid with event-density heatmap |
-| `sunrise` | daylight-oriented planning | Sun arc, day/night split, compact footer metrics |
 | `light_cycle` | whole-day-at-a-glance | 24-hour radial clock with twilight bands on the rim, today's events as ticks inside the ring, needle and sun/moon glyph at the current moment, date and weather in the central disc. Uses `weather.latitude` / `weather.longitude` for full astronomical / nautical / civil twilight bands (falls back to OWM sunrise/sunset without them). Pure-Python — no API calls. |
-| `scorecard` | big-number metrics | KPI tiles for weather, AQI, calendar, and system data |
-| `tides` | maximum information density | Alternating horizontal bands spanning many data sources |
 | `weatherglass` | decorative weather station | Victorian brass-and-mahogany instrument deck: hero thermometer, round barometer dial with a pressure-trend needle, hygrometer + UV-index gauges, and a secondary row of wind compass, sun arc, moon porthole, and an optional AQI badge. Rye-masthead, fully procedural gauges, no new fetcher. |
 
 ### Dithered art themes
@@ -212,7 +204,6 @@ Rules that reference weather or calendar data silently skip on the first boot (n
 | Theme | Best for | Notes |
 |---|---|---|
 | `postcard` | nostalgic vista | Procedurally-drawn dithered postcard: left two-thirds is a scene (sky, mountains, water, foreground) keyed to the OWM icon + daypart; right third is the postcard back (cursive greeting, red postmark with month/day, postage stamp with moon glyph, ruled "address" lines listing today's events, daily quote as signature). Floyd-Steinberg quantization. |
-| `naturalist` | Victorian botanical plate | Astloch blackletter masthead with Roman-numeral plate / year / month; Cinzel small-caps Latin specimen name that shifts with season + weather; procedurally-drawn specimen branch with mixed filled/outlined leaves whose count and treatment vary by season (bare in winter, buds in spring, lush canopy in summer, fallen leaves in autumn) plus weather overlays (rain, snow, frost, fog). Four leader-line callouts pin event / moon / sun / weather data to anatomical features. Floyd-Steinberg quantization. |
 
 ### Panoramic themes
 
@@ -260,23 +251,11 @@ Classic layout. Black text on white with a 7-day calendar grid and three bottom 
 
 [![Default theme](../assets/previews/theme_default.png)](../assets/previews/theme_default.png)
 
-#### agenda
-
-High-visibility week view designed to be read from across a room. Dominant 7-day grid in heavy DM Sans Bold with a slim weather + birthdays strip at the bottom (no quote panel); red today/accent on Inky.
-
-[![Agenda theme](../assets/previews/theme_agenda.png)](../assets/previews/theme_agenda.png)
-
 #### terminal
 
 High-contrast inverted week view with compact spacing and a retro terminal-inspired type system.
 
 [![Terminal theme](../assets/previews/theme_terminal.png)](../assets/previews/theme_terminal.png)
-
-#### minimalist
-
-Border-light editorial layout focused on the calendar and weather, with birthdays hidden.
-
-[![Minimalist theme](../assets/previews/theme_minimalist.png)](../assets/previews/theme_minimalist.png)
 
 #### old_fashioned
 
@@ -313,12 +292,6 @@ Needs weather and calendar; fetches one extra day of events for the rollover. Th
 Stacked sparkline dashboard — the first chart/graph theme. A 32-px masthead carries today's date and current time; below it five evenly-stacked rows each visualise a different time series: **TEMP — 24h** (current observation + interpolated forecast across ±12 h), **AIR** (current AQI on a 6-zone health scale with progressive Bayer density per zone), **DAYLIGHT — 7d** (daily day-length for the next week, computed in-process via `src.astronomy`), **EVENTS — 14d** (per-day event count bars), and **MOON — 30d** (illumination curve through one synodic month, with the current phase glyph stamped at right). Each chart sits on a Bayer-filled area whose ordered dot pattern survives the eInk quantize step. Every row degrades gracefully when its data source is missing (no weather, no PurpleAir sensor, no lat/lon). On Inky the series render in blue with a yellow today-marker.
 
 [![Trends theme](../assets/previews/theme_trends.png)](../assets/previews/theme_trends.png)
-
-#### today
-
-Single-day agenda with a large date panel and roomy event list.
-
-[![Today theme](../assets/previews/theme_today.png)](../assets/previews/theme_today.png)
 
 #### day_arc
 
@@ -425,18 +398,6 @@ Dark-canvas star chart of tonight's sky, projected for the configured `weather.l
 
 [![Constellation Map theme](../assets/previews/theme_constellation_map.png)](../assets/previews/theme_constellation_map.png)
 
-#### timeline
-
-Single-day hourly timeline that makes free blocks and overlaps easy to spot.
-
-[![Timeline theme](../assets/previews/theme_timeline.png)](../assets/previews/theme_timeline.png)
-
-#### year_pulse
-
-Year progress plus a compact upcoming-items list for longer-horizon planning.
-
-[![Year Pulse theme](../assets/previews/theme_year_pulse.png)](../assets/previews/theme_year_pulse.png)
-
 #### monthly
 
 Full-screen wall-calendar month view with day cells shaded by event density.
@@ -444,29 +405,11 @@ Waveshare uses a crisp monochrome month grid with compact density indicators; In
 
 [![Monthly theme](../assets/previews/theme_monthly.png)](../assets/previews/theme_monthly.png)
 
-#### sunrise
-
-Sun arc and day/night split layout organized around daylight.
-
-[![Sunrise theme](../assets/previews/theme_sunrise.png)](../assets/previews/theme_sunrise.png)
-
 #### light_cycle
 
 Full-canvas 24-hour radial clock with the entire day arranged around a single dial. The rim carries hour ticks and 00 / 06 / 12 / 18 numerals; the twilight ring fills with progressively denser radial dashes from civil to nautical to astronomical twilight, and a solid wedge for true night. Today's timed events appear as small ticks just inside the ring, a triangular needle marks the current moment, and a sun (or moon, when below the horizon) glyph rides the rim at the current-time position. The center disc shows day name, big date numeral, month, and weather summary; a footer reports rise / set / event count. On Inky the title and accents render in yellow with a blue needle. All sun-time math is computed locally from `src.astronomy` using `weather.latitude` / `weather.longitude` (falls back to OWM-reported sunrise/sunset when coordinates are absent — twilight bands collapse to a single night band).
 
 [![Light Cycle theme](../assets/previews/theme_light_cycle.png)](../assets/previews/theme_light_cycle.png)
-
-#### scorecard
-
-Big-number tile dashboard for weather, AQI, calendar, and system metrics.
-
-[![Scorecard theme](../assets/previews/theme_scorecard.png)](../assets/previews/theme_scorecard.png)
-
-#### tides
-
-Alternating horizontal bands with the densest multi-source layout in the theme set.
-
-[![Tides theme](../assets/previews/theme_tides.png)](../assets/previews/theme_tides.png)
 
 #### weatherglass
 
@@ -481,14 +424,6 @@ Needs weather; no extra fetcher. The barometer keeps a short pressure history in
 Procedurally-drawn dithered postcard composed in two parts. The left two-thirds is a "view" scene picked from the current OWM icon and daypart — sky gradient, two-layer mountain silhouettes, water with ripple lines, foreground shore and reeds, plus sun, moon, clouds, rain streaks, lightning, snowflakes, or fog bands as the weather warrants. The right third is the postcard back: a cursive greeting, a circular red postmark with the current month and day, a perforated postage stamp carrying the moon-phase glyph, four ruled "address" lines listing today's events, and the daily quote as the signature. A 3 px white gutter with a dashed shadow forms the centre crease. Floyd-Steinberg quantization turns the procedural greyscale gradients into engraving-style halftone. On Inky the postmark and the stamp frame render in red.
 
 [![Postcard theme](../assets/previews/theme_postcard.png)](../assets/previews/theme_postcard.png)
-
-#### naturalist
-
-Victorian botanical plate. A blackletter masthead with the plate number and date sits over a Latin specimen name keyed to the season, with a suffix for rain, storm, snow, fog or frost. The hero is a procedurally drawn branch whose leaves follow the season (bare in winter, buds in spring, full in summer, fallen in autumn) with weather overlays. Four leader-line callouts pin today's first event, the moon's phase, sunrise and sunset, and the current weather to the specimen. A footer carries the daily quote.
-
-Needs weather and calendar; the same day and weather always draw the same specimen. Floyd-Steinberg dithered. On Inky the rules, callout lines and author small caps are red.
-
-[![Naturalist theme](../assets/previews/theme_naturalist.png)](../assets/previews/theme_naturalist.png)
 
 #### wide_week
 
@@ -621,20 +556,20 @@ Bundled font families used by the current built-in themes:
 | Font | Used by |
 |---|---|
 | Plus Jakarta Sans | default and general fallback |
-| DM Sans | `agenda`, `minimalist`, `weather`, `fuzzyclock`, `timeline`, `diags`, `monthly`, `countdown`, `astronomy`, `light_cycle`, `constellation_map` (margin), `trends`, `day_arc` (agenda rows), `halftone_agenda` (agenda rows) |
-| Playfair Display | `old_fashioned`, `qotd`, `almanac`, `postcard`, `naturalist` |
-| Cinzel | `fantasy`, `old_fashioned`, `almanac` (section labels + small caps), `postcard` (section labels + author small caps), `naturalist` (specimen name + author small caps) |
+| DM Sans | `weather`, `fuzzyclock`, `diags`, `monthly`, `countdown`, `astronomy`, `light_cycle`, `constellation_map` (margin), `trends`, `day_arc` (agenda rows), `halftone_agenda` (agenda rows) |
+| Playfair Display | `old_fashioned`, `qotd`, `almanac`, `postcard` |
+| Cinzel | `fantasy`, `old_fashioned`, `almanac` (section labels + small caps), `postcard` (section labels + author small caps) |
 | Cormorant Garamond | `moonphase` (body, illumination, strips, quote) |
 | Tangerine | `moonphase` (script quote attribution) |
 | Manufacturing Consent | `moonphase` (Fraktur phase-name headline) |
 | Righteous | `light_cycle` (centre date numeral), `halftone` (every typeset element), `day_arc` (chrome), `halftone_agenda` (weather pane + agenda chrome) |
 | Audiowide | `constellation_map` (cardinal letters, star + constellation labels) |
-| Astloch | `almanac` (masthead + dateline character font), `naturalist` (masthead character font) |
-| Antonio | `sunrise`, `tides` (condensed display title + section labels) |
+| Astloch | `almanac` (masthead + dateline character font) |
+| Antonio | `halftone_agenda_wide` (agenda time cells + duration column) |
 | Oxanium | `terminal` (dashboard title, day column headers, quote body) |
 | Rajdhani | `terminal` (month band, section labels, quote attribution) |
 | Orbitron | `terminal` (large today date numeral) |
-| Space Grotesk | `air_quality`, `message`, `year_pulse`, `scorecard` |
+| Space Grotesk | `air_quality`, `message` |
 | Share Tech Mono | `terminal` (all four base text slots — the theme's general body and data face: event rows, weather readings, birthday rows, header timestamp; the display faces above cover only the title, section-label, month-band, date-numeral and quote slots), `diags` (all data rows), `trends` (tabular numerals), select utility text |
 
 For the same catalog rendered in Inky Spectra 6 color, see

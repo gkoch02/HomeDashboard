@@ -123,7 +123,7 @@ random_theme:                      # only used when theme: random_daily or rando
 #   - when: { weather_alert_present: true }
 #     theme: "message"
 #   - when: { calendar: "birthday_today" }
-#     theme: "today"
+#     theme: "day_arc"
 #   - when: { calendar: ["empty", "done"] }
 #     theme: "qotd"
 #   - when: { weather: ["rain", "snow", "thunderstorm"] }
@@ -159,9 +159,8 @@ filters:
 
 ### Custom quotes (`quotes.path`)
 
-The daily quote shown by the `default`, `qotd`, `almanac`, `postcard`,
-`naturalist`, `tides`, `scorecard`, and `moonphase` themes comes from a JSON
-list of `{"text": ..., "author": ...}` objects. With `quotes.path` unset the
+The daily quote shown by the `default`, `qotd`, `almanac`, `postcard`, and
+`moonphase` themes comes from a JSON list of `{"text": ..., "author": ...}` objects. With `quotes.path` unset the
 bundled `config/quotes.json` (144 entries) is used.
 
 ```json
@@ -531,7 +530,7 @@ Themes declare the requirement themselves (`ThemeLayout.supports_partial_refresh
 the output service uses the full waveform for them whatever the config says. These themes
 always refresh fully:
 
-`constellation_map`, `day_arc`, `fantasy`, `halftone`, `halftone_agenda`, `naturalist`,
+`constellation_map`, `day_arc`, `fantasy`, `halftone`, `halftone_agenda`,
 `photo`, `postcard`, `qotd_invert`, `terminal`, `trends`
 
 What counts is the dither, not the greyscale: a theme can render on an `"L"` canvas and

@@ -297,7 +297,7 @@ class TestLoadConfig:
                 {
                     "theme": "random",
                     "random_theme": {
-                        "include": ["minimalist", "today"],
+                        "include": ["monthly", "day_arc"],
                         "exclude": ["terminal"],
                     },
                 }
@@ -305,7 +305,7 @@ class TestLoadConfig:
         )
         cfg = load_config(str(p))
         assert cfg.theme == "random"
-        assert cfg.random_theme.include == ["minimalist", "today"]
+        assert cfg.random_theme.include == ["monthly", "day_arc"]
         assert cfg.random_theme.exclude == ["terminal"]
 
     def test_theme_schedule_section_parsed(self, tmp_path):

@@ -61,10 +61,15 @@ def config_page():
     cfg_data = get_config_for_web(config_path)
 
     from src.render.theme import AVAILABLE_THEMES
+    from src.render.themes.registry import RETIRED_THEME_NAMES
 
     # Concrete themes only (no random pseudo-themes) for the grid + schedule dropdowns.
     concrete_themes = sorted(t for t in AVAILABLE_THEMES if t not in _RANDOM_THEMES)
-    all_theme_options = sorted(AVAILABLE_THEMES)
+    # A retired name the config still uses stays selectable: the form submits
+    # every select, so a missing option would overwrite it on an unrelated save.
+    configured = {cfg_data["theme"]} | {e["theme"] for e in cfg_data["theme_schedule"]}
+    retired_in_use = sorted(configured & RETIRED_THEME_NAMES)
+    all_theme_options = sorted(AVAILABLE_THEMES) + retired_in_use
 
     from src.config_schema import LOG_LEVELS, QUANTIZATION_MODES
 
@@ -73,6 +78,7 @@ def config_page():
         cfg=cfg_data,
         concrete_themes=concrete_themes,
         all_theme_options=all_theme_options,
+        retired_in_use=retired_in_use,
         log_levels=LOG_LEVELS,
         quantization_modes=QUANTIZATION_MODES,
     )

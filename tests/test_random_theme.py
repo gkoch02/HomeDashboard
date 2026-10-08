@@ -40,8 +40,8 @@ class TestEligibleThemes:
         assert pool == sorted(pool)  # must be sorted
 
     def test_include_restricts_pool(self):
-        pool = eligible_themes(["terminal", "minimalist"], [])
-        assert set(pool) == {"terminal", "minimalist"}
+        pool = eligible_themes(["terminal", "monthly"], [])
+        assert set(pool) == {"terminal", "monthly"}
 
     def test_exclude_removes_themes(self):
         pool = eligible_themes([], ["fantasy", "qotd"])
@@ -50,8 +50,8 @@ class TestEligibleThemes:
         assert set(pool) == _REAL_THEMES - {"fantasy", "qotd"}
 
     def test_include_then_exclude(self):
-        pool = eligible_themes(["terminal", "minimalist", "fantasy"], ["fantasy"])
-        assert set(pool) == {"terminal", "minimalist"}
+        pool = eligible_themes(["terminal", "monthly", "fantasy"], ["fantasy"])
+        assert set(pool) == {"terminal", "monthly"}
 
     def test_include_unknown_theme_returns_empty(self):
         pool = eligible_themes(["nonexistent"], [])
@@ -143,7 +143,7 @@ class TestPickRandomTheme:
 
     def test_exclude_never_chosen(self, tmp_path):
         today = date(2026, 3, 22)
-        exclude = ["fantasy", "qotd", "today"]
+        exclude = ["fantasy", "qotd", "day_arc"]
         for _ in range(30):
             state_path = tmp_path / "random_theme_state.json"
             if state_path.exists():
@@ -289,7 +289,7 @@ class TestPickRandomThemeHourly:
 
     def test_exclude_never_chosen(self, tmp_path):
         now = datetime(2026, 3, 22, 14, 0)
-        exclude = ["fantasy", "qotd", "today"]
+        exclude = ["fantasy", "qotd", "day_arc"]
         for _ in range(30):
             state_path = tmp_path / "random_theme_hourly_state.json"
             if state_path.exists():
@@ -364,11 +364,11 @@ class TestReadOnlyPicks:
 
     def test_hourly_reports_the_stored_pick(self, tmp_path):
         (tmp_path / "random_theme_hourly_state.json").write_text(
-            json.dumps({"hour": "2026-03-22T14", "theme": "minimalist"})
+            json.dumps({"hour": "2026-03-22T14", "theme": "monthly"})
         )
         now = datetime(2026, 3, 22, 14, 30)
         chosen = pick_random_theme_hourly([], [], str(tmp_path), now=now, persist=False)
-        assert chosen == "minimalist"
+        assert chosen == "monthly"
 
     def test_hourly_never_writes_when_reporting(self, tmp_path):
         now = datetime(2026, 3, 22, 14, 0)

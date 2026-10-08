@@ -184,8 +184,8 @@ class TestResolveThemeName:
         from src.services.theme import resolve_theme_name
 
         cfg = Config()
-        cfg.theme = "minimalist"
-        assert resolve_theme_name(cfg, override_theme=None) == "minimalist"
+        cfg.theme = "monthly"
+        assert resolve_theme_name(cfg, override_theme=None) == "monthly"
 
     def test_override_takes_precedence_over_config(self):
         from src.config import Config
@@ -208,10 +208,10 @@ class TestResolveThemeName:
         cfg.random_theme.exclude = []
         cfg.output_dir = str(tmp_path)
         with patch(
-            "src.render.random_theme.pick_random_theme", return_value="minimalist"
+            "src.render.random_theme.pick_random_theme", return_value="monthly"
         ) as mock_pick:
             result = resolve_theme_name(cfg, override_theme=None)
-        assert result == "minimalist"
+        assert result == "monthly"
         mock_pick.assert_called_once()
 
     def test_daily_random_rotates_on_configured_tz_date(self, tmp_path):
@@ -230,7 +230,7 @@ class TestResolveThemeName:
         cfg.output_dir = str(tmp_path)
         now = datetime(2026, 7, 4, 10, 30, tzinfo=timezone.utc)
         with patch(
-            "src.render.random_theme.pick_random_theme", return_value="minimalist"
+            "src.render.random_theme.pick_random_theme", return_value="monthly"
         ) as mock_pick:
             resolve_theme_name(cfg, override_theme=None, now=now)
         assert mock_pick.call_args.kwargs["today"] == now.date()
@@ -247,7 +247,7 @@ class TestResolveThemeName:
         cfg.random_theme.exclude = []
         cfg.output_dir = str(tmp_path)
         with patch(
-            "src.render.random_theme.pick_random_theme", return_value="minimalist"
+            "src.render.random_theme.pick_random_theme", return_value="monthly"
         ) as mock_pick:
             resolve_theme_name(cfg, override_theme=None)
         assert mock_pick.call_args.kwargs["today"] is None

@@ -50,7 +50,6 @@ DECLINES_PARTIAL = {
     "halftone",
     "halftone_agenda",
     "halftone_agenda_wide",
-    "naturalist",
     "photo",
     "postcard",
     "qotd_invert",

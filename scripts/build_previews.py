@@ -141,8 +141,8 @@ def render_preview(theme_name: str, cfg, now: datetime, out_path: Path) -> None:
     # A preview shows a theme at its own canvas *shape*, not letterboxed onto
     # the panel: the panoramic themes declare 1360x480 and an 800x480 rendering
     # of one is a band across the middle of a blank plate. Only the shape is
-    # respected — a theme that supersamples (weatherglass, postcard and
-    # naturalist draw at 1600x960 for an 800x480 panel) still gets the panel's
+    # respected — a theme that supersamples (weatherglass and postcard draw
+    # at 1600x960 for an 800x480 panel) still gets the panel's
     # size and the LANCZOS downsample it was designed around.
     display = cfg.display
     if _aspect_differs(

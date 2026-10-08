@@ -206,9 +206,7 @@ class TestDefaultTheme:
 
 
 class TestLoadTheme:
-    @pytest.mark.parametrize(
-        "name", ["default", "terminal", "minimalist", "old_fashioned", "today", "fantasy", "qotd"]
-    )
+    @pytest.mark.parametrize("name", ["default", "terminal", "old_fashioned", "fantasy", "qotd"])
     def test_loads_by_name(self, name):
         t = load_theme(name)
         assert isinstance(t, Theme)
@@ -221,9 +219,7 @@ class TestLoadTheme:
     def test_available_themes_contains_expected(self):
         assert "default" in AVAILABLE_THEMES
         assert "terminal" in AVAILABLE_THEMES
-        assert "minimalist" in AVAILABLE_THEMES
         assert "old_fashioned" in AVAILABLE_THEMES
-        assert "today" in AVAILABLE_THEMES
         assert "fantasy" in AVAILABLE_THEMES
         assert "qotd" in AVAILABLE_THEMES
 
@@ -250,9 +246,7 @@ class TestRenderDashboardWithThemes:
         assert isinstance(result, Image.Image)
         assert result.size == (800, 480)
 
-    @pytest.mark.parametrize(
-        "name", ["terminal", "minimalist", "old_fashioned", "fantasy", "today", "qotd"]
-    )
+    @pytest.mark.parametrize("name", ["terminal", "old_fashioned", "fantasy", "qotd"])
     def test_theme_produces_valid_image(self, name):
         data = _make_data()
         t = load_theme(name)
@@ -311,41 +305,6 @@ class TestRenderDashboardWithThemes:
         assert labels.get("weather") != "WEATHER"
         assert labels.get("birthdays") != "BIRTHDAYS"
         assert labels.get("info") != "QUOTE OF THE DAY"
-
-    def test_today_theme_hides_week_view(self):
-        """The today theme's week_view region should be invisible."""
-        t = load_theme("today")
-        assert t.layout.week_view.visible is False
-
-    def test_today_theme_shows_today_view(self):
-        """The today theme's today_view region should be visible and in draw_order."""
-        t = load_theme("today")
-        assert t.layout.today_view.visible is True
-        assert "today_view" in t.layout.draw_order
-
-    def test_today_theme_with_events_today(self):
-        """today theme renders correctly when events fall on today."""
-        today = date(2024, 3, 15)
-        data = _make_data(today)
-        # Add an event on today
-        data.events.append(
-            CalendarEvent(
-                summary="Morning Meeting",
-                start=datetime.combine(today, datetime.min.time().replace(hour=9)),
-                end=datetime.combine(today, datetime.min.time().replace(hour=10)),
-            )
-        )
-        t = load_theme("today")
-        result = render_dashboard(data, self._cfg(), theme=t)
-        assert isinstance(result, Image.Image)
-
-    def test_today_theme_with_no_events(self):
-        """today theme renders correctly with an empty event list."""
-        data = _make_data()
-        data.events = []
-        t = load_theme("today")
-        result = render_dashboard(data, self._cfg(), theme=t)
-        assert isinstance(result, Image.Image)
 
     def test_today_view_default_region_not_visible_in_default_theme(self):
         """ThemeLayout.today_view defaults to visible=False so existing themes are unaffected."""
@@ -562,6 +521,15 @@ class TestThemeConfigField:
         warning_fields = [w.field for w in warnings]
         assert "theme" in warning_fields
 
+    def test_retired_theme_warning_says_it_was_retired(self):
+        from src.config import Config, validate_config
+
+        cfg = Config()
+        cfg.theme = "minimalist"
+        _, warnings = validate_config(cfg)
+        [warning] = [w for w in warnings if w.field == "theme"]
+        assert "retired" in warning.message
+
     def test_known_theme_produces_no_theme_warning(self):
         from src.config import Config, validate_config
 
@@ -573,22 +541,8 @@ class TestThemeConfigField:
 
 
 class TestThemeRegistration:
-    def test_timeline_in_available_themes(self):
-        assert "timeline" in AVAILABLE_THEMES
-
-    def test_year_pulse_in_available_themes(self):
-        assert "year_pulse" in AVAILABLE_THEMES
-
     def test_monthly_in_available_themes(self):
         assert "monthly" in AVAILABLE_THEMES
-
-    def test_load_timeline(self):
-        theme = load_theme("timeline")
-        assert theme.name == "timeline"
-
-    def test_load_year_pulse(self):
-        theme = load_theme("year_pulse")
-        assert theme.name == "year_pulse"
 
     def test_load_monthly(self):
         theme = load_theme("monthly")

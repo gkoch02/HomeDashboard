@@ -375,7 +375,7 @@ class TestPartialRefreshThemeWarning:
         from src.config import RandomThemeConfig
 
         cfg = self._cfg("random_daily")
-        cfg.random_theme = RandomThemeConfig(include=["default", "agenda", "minimalist"])
+        cfg.random_theme = RandomThemeConfig(include=["default", "old_fashioned", "monthly"])
         assert self._warning(cfg) is None
 
 
@@ -524,11 +524,11 @@ class TestThemeRulesValidation:
         "theme, when, warned_field",
         [
             ("nonexistent_theme_xyz", {}, "theme_rules[0].theme"),
-            ("agenda", {"daypart": "noon"}, "theme_rules[0].when.daypart"),
-            ("agenda", {"daypart": ["day", "noon"]}, "daypart"),
-            ("agenda", {"season": "monsoon"}, "theme_rules[0].when.season"),
-            ("agenda", {"weekday": "funday"}, "theme_rules[0].when.weekday"),
-            ("agenda", {"calendar": "partying"}, "theme_rules[0].when.calendar"),
+            ("terminal", {"daypart": "noon"}, "theme_rules[0].when.daypart"),
+            ("terminal", {"daypart": ["day", "noon"]}, "daypart"),
+            ("terminal", {"season": "monsoon"}, "theme_rules[0].when.season"),
+            ("terminal", {"weekday": "funday"}, "theme_rules[0].when.weekday"),
+            ("terminal", {"calendar": "partying"}, "theme_rules[0].when.calendar"),
         ],
         ids=[
             "unknown_theme",
@@ -556,7 +556,7 @@ class TestThemeRulesValidation:
         ids=["valid_theme", "valid_daypart", "valid_season", "valid_weekday", "valid_calendar"],
     )
     def test_valid_rule_value_no_warning(self, when, field_fragment):
-        cfg = self._cfg_with_rule("agenda", **when)
+        cfg = self._cfg_with_rule("terminal", **when)
         _, warnings = validate_config(cfg)
         assert not any(field_fragment in w.field for w in warnings)
 
@@ -565,7 +565,7 @@ class TestThemeRulesValidation:
         # were simplified to dawn / day / dusk / night; configs still carrying
         # them should warn.
         for legacy in ("morning", "afternoon"):
-            cfg = self._cfg_with_rule("agenda", daypart=legacy)
+            cfg = self._cfg_with_rule("terminal", daypart=legacy)
             _, warnings = validate_config(cfg)
             assert any("daypart" in w.field for w in warnings), legacy
 
@@ -575,8 +575,8 @@ class TestThemeRulesValidation:
         cfg = Config()
         cfg.theme_rules = ThemeRulesConfig(
             rules=[
-                ThemeRule(when=ThemeRuleCondition(daypart="day"), theme="agenda"),
-                ThemeRule(when=ThemeRuleCondition(season="monsoon"), theme="agenda"),
+                ThemeRule(when=ThemeRuleCondition(daypart="day"), theme="terminal"),
+                ThemeRule(when=ThemeRuleCondition(season="monsoon"), theme="terminal"),
             ]
         )
         _, warnings = validate_config(cfg)
@@ -645,7 +645,7 @@ def test_config_validation_importable_standalone():
 class TestNumericThemeRuleValidation:
     """Temperature / AQI conditions (#215)."""
 
-    def _cfg_with_rule(self, theme="agenda", purpleair=True, **when_kwargs):
+    def _cfg_with_rule(self, theme="terminal", purpleair=True, **when_kwargs):
         from src.config import ThemeRule, ThemeRuleCondition, ThemeRulesConfig
 
         cfg = Config()

@@ -47,7 +47,7 @@ class TestThemeCoverage:
         assert bp.EXCLUDED == frozenset()
 
     def test_the_batch_covers_the_themes_the_old_makefile_list_missed(self):
-        """The 24-name list omitted twelve themes; all of them render now."""
+        """The 24-name list omitted twelve themes; every one still shipped renders now."""
         previously_missing = {
             "almanac",
             "astronomy",
@@ -57,15 +57,12 @@ class TestThemeCoverage:
             "message",
             "monthly",
             "photo",
-            "scorecard",
-            "sunrise",
-            "tides",
             "weatherglass",
         }
         assert previously_missing <= set(bp._theme_names(None))
 
     def test_explicit_theme_selection_is_honoured(self):
-        assert bp._theme_names(["agenda", "qotd"]) == ["agenda", "qotd"]
+        assert bp._theme_names(["fantasy", "qotd"]) == ["fantasy", "qotd"]
 
     def test_unknown_theme_is_rejected(self):
         with pytest.raises(SystemExit):
@@ -87,7 +84,7 @@ class TestRendering:
         return out
 
     def test_renders_a_png_of_the_expected_size(self, tmp_path):
-        out = self._render(tmp_path, "agenda")
+        out = self._render(tmp_path, "fantasy")
         assert out.exists()
         assert Image.open(out).size == (800, 480)
 
@@ -149,7 +146,7 @@ class TestConfigHandling:
         """A naive clock prints the sun times computed from the coordinates as UTC."""
         seen = []
         monkeypatch.setattr(bp, "render_preview", lambda name, cfg, now, out: seen.append(now))
-        assert bp.main(["--out-dir", str(tmp_path), "--theme", "agenda"]) == 0
+        assert bp.main(["--out-dir", str(tmp_path), "--theme", "fantasy"]) == 0
         assert seen[0].tzinfo is bp.LOCAL_PREVIEW_TZ
         assert (seen[0].hour, seen[0].minute) == bp.DEFAULT_TIME
 
@@ -175,15 +172,15 @@ class TestConfigHandling:
 
     def test_bad_date_is_rejected(self):
         with pytest.raises(SystemExit):
-            bp.main(["--date", "not-a-date", "--theme", "agenda"])
+            bp.main(["--date", "not-a-date", "--theme", "fantasy"])
 
 
 class TestBatch:
     def test_batch_writes_one_png_per_theme(self, tmp_path):
-        rc = bp.main(["--out-dir", str(tmp_path), "--theme", "agenda", "--theme", "qotd"])
+        rc = bp.main(["--out-dir", str(tmp_path), "--theme", "fantasy", "--theme", "qotd"])
         assert rc == 0
         assert {p.name for p in tmp_path.glob("*.png")} == {
-            "theme_agenda.png",
+            "theme_fantasy.png",
             "theme_qotd.png",
         }
 
@@ -193,14 +190,14 @@ class TestBatch:
 
         def _flaky(name, cfg, now, out_path):
             calls.append(name)
-            if name == "agenda":
+            if name == "fantasy":
                 raise RuntimeError("boom")
             return real(name, cfg, now, out_path)
 
         monkeypatch.setattr(bp, "render_preview", _flaky)
-        rc = bp.main(["--out-dir", str(tmp_path), "--theme", "agenda", "--theme", "qotd"])
+        rc = bp.main(["--out-dir", str(tmp_path), "--theme", "fantasy", "--theme", "qotd"])
 
-        assert calls == ["agenda", "qotd"]
+        assert calls == ["fantasy", "qotd"]
         assert (tmp_path / "theme_qotd.png").exists()
         assert rc == 1  # but the failure is still reported
 

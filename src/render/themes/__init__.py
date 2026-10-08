@@ -9,7 +9,6 @@ the registrations happen before any consumer reads the registry.
 from __future__ import annotations
 
 # Side-effect imports populate the theme registry. Order is not significant.
-from src.render.themes import agenda as _agenda  # noqa: F401
 from src.render.themes import air_quality as _air_quality  # noqa: F401
 from src.render.themes import almanac as _almanac  # noqa: F401
 from src.render.themes import astronomy as _astronomy  # noqa: F401
@@ -25,23 +24,16 @@ from src.render.themes import halftone_agenda as _halftone_agenda  # noqa: F401
 from src.render.themes import halftone_agenda_wide as _halftone_agenda_wide  # noqa: F401
 from src.render.themes import light_cycle as _light_cycle  # noqa: F401
 from src.render.themes import message as _message  # noqa: F401
-from src.render.themes import minimalist as _minimalist  # noqa: F401
 from src.render.themes import monthly as _monthly  # noqa: F401
 from src.render.themes import moonphase as _moonphase  # noqa: F401
 from src.render.themes import moonphase_invert as _moonphase_invert  # noqa: F401
 from src.render.themes import moonphase_photo as _moonphase_photo  # noqa: F401
-from src.render.themes import naturalist as _naturalist  # noqa: F401
 from src.render.themes import old_fashioned as _old_fashioned  # noqa: F401
 from src.render.themes import photo as _photo  # noqa: F401
 from src.render.themes import postcard as _postcard  # noqa: F401
 from src.render.themes import qotd as _qotd  # noqa: F401
 from src.render.themes import qotd_invert as _qotd_invert  # noqa: F401
-from src.render.themes import scorecard as _scorecard  # noqa: F401
-from src.render.themes import sunrise as _sunrise  # noqa: F401
 from src.render.themes import terminal as _terminal  # noqa: F401
-from src.render.themes import tides as _tides  # noqa: F401
-from src.render.themes import timeline as _timeline  # noqa: F401
-from src.render.themes import today as _today  # noqa: F401
 from src.render.themes import trends as _trends  # noqa: F401
 from src.render.themes import weather as _weather  # noqa: F401
 from src.render.themes import weatherglass as _weatherglass  # noqa: F401
@@ -52,4 +44,3 @@ from src.render.themes import wide_horizon as _wide_horizon  # noqa: F401
 from src.render.themes import wide_night as _wide_night  # noqa: F401
 from src.render.themes import wide_night_invert as _wide_night_invert  # noqa: F401
 from src.render.themes import wide_week as _wide_week  # noqa: F401
-from src.render.themes import year_pulse as _year_pulse  # noqa: F401

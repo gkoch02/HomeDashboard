@@ -44,17 +44,6 @@ class TestDefaultThemeSnapshot:
         assert img.mode == "1"
 
 
-class TestMinimalistThemeSnapshot:
-    def test_renders_correct_size(self):
-        img = _render_theme("minimalist")
-        assert img.size == (800, 480)
-
-    def test_renders_non_blank(self):
-        img = _render_theme("minimalist")
-        pixels = list(img.tobytes())
-        assert not all(p == 255 for p in pixels), "Image is blank (all white)"
-
-
 class TestTerminalThemeSnapshot:
     def test_renders_correct_size(self):
         img = _render_theme("terminal")
@@ -75,9 +64,7 @@ class TestAllThemesRender:
     THEMES = [
         "default",
         "terminal",
-        "minimalist",
         "old_fashioned",
-        "today",
         "fantasy",
         "qotd",
         "qotd_invert",

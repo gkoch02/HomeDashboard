@@ -50,7 +50,7 @@ from src.render.themes.registry import (
 class TestThemeRegistry:
     def test_builtin_themes_registered(self):
         names = set(all_theme_names())
-        assert {"agenda", "terminal", "minimalist", "qotd", "weather", "diags"} <= names
+        assert {"old_fashioned", "terminal", "fantasy", "qotd", "weather", "diags"} <= names
 
     def test_pseudo_names_in_available_themes(self):
         avail = available_themes()
@@ -65,20 +65,20 @@ class TestThemeRegistry:
     def test_legacy_AVAILABLE_THEMES_view_iterates(self):
         """The proxy used by `src.cli` for argparse choices must iterate."""
         names = list(AVAILABLE_THEMES)
-        assert "agenda" in names
+        assert "old_fashioned" in names
         assert "default" in names
         assert "random" in names
 
     def test_legacy_AVAILABLE_THEMES_supports_set_ops(self):
         # config.py does AVAILABLE_THEMES - {"random", ...}
         concrete = AVAILABLE_THEMES - PSEUDO_THEME_NAMES
-        assert "agenda" in concrete
+        assert "old_fashioned" in concrete
         assert "default" not in concrete
 
     def test_load_theme_returns_a_Theme(self):
-        t = load_theme("agenda")
+        t = load_theme("old_fashioned")
         assert isinstance(t, Theme)
-        assert t.name == "agenda"
+        assert t.name == "old_fashioned"
         assert isinstance(t.style, ThemeStyle)
         assert isinstance(t.layout, ThemeLayout)
 
@@ -101,7 +101,7 @@ class TestInkyPaletteRegistry:
 
     def test_known_palette_values(self):
         # Spot-check a couple of known mappings to lock the legacy values in.
-        assert get_inky_palette("agenda") == (INKY_RED, INKY_BLACK)
+        assert get_inky_palette("old_fashioned") == (INKY_RED, INKY_YELLOW)
         assert get_inky_palette("terminal") == (INKY_GREEN, INKY_YELLOW)
         assert get_inky_palette("air_quality") == (INKY_BLUE, INKY_GREEN)
 

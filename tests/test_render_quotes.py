@@ -161,23 +161,19 @@ class TestStoreLoading:
 
 
 class TestPanelsShareOneLoader:
-    """One loader, four prefixes — the point of #217."""
+    """One loader, two prefixes — the point of #217."""
 
     def test_no_panel_keeps_its_own_quotes_path(self):
         import src.render.components.info_panel as ip
         import src.render.components.moonphase_panel as mp
-        import src.render.components.scorecard_panel as sp
-        import src.render.components.tides_panel as tp
 
-        for module in (ip, mp, sp, tp):
+        for module in (ip, mp):
             assert not hasattr(module, "QUOTES_FILE"), module.__name__
 
     def test_no_panel_keeps_its_own_fallback_list(self):
         import src.render.components.moonphase_panel as mp
-        import src.render.components.scorecard_panel as sp
-        import src.render.components.tides_panel as tp
 
-        for module in (mp, sp, tp):
+        for module in (mp,):
             assert not hasattr(module, "_DEFAULT_QUOTES"), module.__name__
 
     def test_panels_keep_independent_selections(self, tmp_path):
@@ -186,8 +182,7 @@ class TestPanelsShareOneLoader:
 
         path = _store(tmp_path, [{"text": f"q{i}", "author": "a"} for i in range(80)])
         picks = {_quote_for_today(TODAY, quotes_path=path)["text"]} | {
-            quote_for(TODAY, prefix=prefix, path=path)["text"]
-            for prefix in ("moonphase-", "scorecard-", "tides-")
+            quote_for(TODAY, prefix=prefix, path=path)["text"] for prefix in ("moonphase-",)
         }
         assert len(picks) > 1
 

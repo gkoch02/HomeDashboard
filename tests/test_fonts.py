@@ -4,7 +4,6 @@ import pytest
 from PIL import ImageFont
 
 from src.render.fonts import (
-    antonio_bold,
     antonio_semibold,
     bold,
     cinzel_semibold,
@@ -40,7 +39,6 @@ class TestFontAccessors:
             (rajdhani, 12),
             (rajdhani_semibold, 12),
             (antonio_semibold, 12),
-            (antonio_bold, 12),
         ],
         ids=lambda v: v.__name__ if callable(v) else None,
     )
@@ -65,7 +63,6 @@ class TestFontAccessors:
 
         assert stroke_mass(oxanium_bold(48)) > stroke_mass(oxanium(48))
         assert stroke_mass(oxanium_extrabold(48)) > stroke_mass(oxanium_bold(48))
-        assert stroke_mass(antonio_bold(48)) > stroke_mass(antonio_semibold(48))
 
     def test_caching_returns_same_object(self):
         """@lru_cache should return the same object on repeated calls."""

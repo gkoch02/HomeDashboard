@@ -38,7 +38,7 @@ def draw_header(
     h = region.h
     pad = L.PAD
 
-    # Filled header band (may be skipped for minimalist/no-bar themes)
+    # Filled header band (may be skipped for no-bar themes)
     if style.invert_header:
         filled_rect(draw, (x, y, x + w - 1, y + h - 1), fill=style.fg)
         text_fill = style.bg

@@ -1,7 +1,7 @@
 """Shared helpers for the procedural art themes.
 
-The dithered/engraved panels (``weatherglass``, ``postcard``, ``naturalist``,
-``halftone``, ``almanac``) render on an ``"L"`` greyscale canvas on Waveshare
+The dithered/engraved panels (``weatherglass``, ``postcard``, ``halftone``,
+``almanac``) render on an ``"L"`` greyscale canvas on Waveshare
 and an RGB canvas on Inky, so every colour they place must be expressed
 per-mode. These helpers grew up copy-pasted in each panel; this module is the
 single home for the genuinely shared ones.

@@ -42,7 +42,7 @@ def _post_with_csrf(client, path: str, payload: dict):
 
 class TestPreviewEndpoint:
     def test_returns_png_for_valid_theme(self, client):
-        resp = _post_with_csrf(client, "/api/preview", {"theme": "agenda"})
+        resp = _post_with_csrf(client, "/api/preview", {"theme": "terminal"})
         assert resp.status_code == 200
         assert resp.mimetype == "image/png"
         # PNG signature is 89 50 4E 47 0D 0A 1A 0A — confirm we got a real image.
@@ -71,7 +71,7 @@ class TestPreviewEndpoint:
             raise RuntimeError("boom")
 
         monkeypatch.setattr("src.web.routes.preview.render_dashboard", _boom)
-        resp = _post_with_csrf(client, "/api/preview", {"theme": "agenda"})
+        resp = _post_with_csrf(client, "/api/preview", {"theme": "terminal"})
         assert resp.status_code == 500
         assert "Render failed" in resp.get_json()["error"]
 
@@ -102,7 +102,7 @@ class TestSchemaEndpoint:
 
 class TestPatchPreview:
     def test_patch_must_be_a_dict(self, client):
-        resp = _post_with_csrf(client, "/api/preview", {"theme": "agenda", "patch": "nope"})
+        resp = _post_with_csrf(client, "/api/preview", {"theme": "terminal", "patch": "nope"})
         assert resp.status_code == 400
         assert "patch" in resp.get_json()["error"]
 
@@ -112,7 +112,7 @@ class TestPatchPreview:
         resp = _post_with_csrf(
             client,
             "/api/preview",
-            {"theme": "agenda", "patch": {"title": "Candidate Title"}},
+            {"theme": "terminal", "patch": {"title": "Candidate Title"}},
         )
         assert resp.status_code == 200
         assert resp.mimetype == "image/png"
@@ -121,11 +121,11 @@ class TestPatchPreview:
         assert config_yaml.read_text() == before
 
     def test_patch_changes_the_rendered_output(self, client):
-        base = _post_with_csrf(client, "/api/preview", {"theme": "agenda"}).get_data()
+        base = _post_with_csrf(client, "/api/preview", {"theme": "terminal"}).get_data()
         patched = _post_with_csrf(
             client,
             "/api/preview",
-            {"theme": "agenda", "patch": {"title": "A Very Different Title"}},
+            {"theme": "terminal", "patch": {"title": "A Very Different Title"}},
         ).get_data()
         assert base != patched
 
@@ -133,7 +133,7 @@ class TestPatchPreview:
         resp = _post_with_csrf(
             client,
             "/api/preview",
-            {"theme": "agenda", "patch": {"schedule.quiet_hours_start": 99}},
+            {"theme": "terminal", "patch": {"schedule.quiet_hours_start": 99}},
         )
         assert resp.status_code == 400
         data = resp.get_json()
@@ -141,7 +141,7 @@ class TestPatchPreview:
         assert any("quiet_hours_start" in e["field"] for e in data["validation_errors"])
 
     def test_empty_patch_behaves_like_no_patch(self, client):
-        resp = _post_with_csrf(client, "/api/preview", {"theme": "agenda", "patch": {}})
+        resp = _post_with_csrf(client, "/api/preview", {"theme": "terminal", "patch": {}})
         assert resp.status_code == 200
         assert resp.mimetype == "image/png"
 
@@ -220,7 +220,7 @@ class TestPreviewMatchesTheRenderer:
     def test_an_unresolvable_zone_still_previews(self, tmp_path):
         """The saved config is not validated on load; a bad zone falls back to UTC."""
         client = self._client(tmp_path, "timezone: Mars/Base\n")
-        resp = _post_with_csrf(client, "/api/preview", {"theme": "agenda"})
+        resp = _post_with_csrf(client, "/api/preview", {"theme": "terminal"})
         assert resp.status_code == 200, resp.get_data(as_text=True)
 
     def test_preview_still_persists_no_pressure_history(self, tmp_path, monkeypatch):
