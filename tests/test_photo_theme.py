@@ -412,3 +412,12 @@ class TestPhotoOnWaveshareG:
         style.photo_path = str(sky_and_foliage)
         layout = ThemeLayout(canvas_w=800, canvas_h=480)
         assert _draw_photo_background(canvas, layout, style, WAVESHARE_G) == [(0, 0, 800, 480)]
+
+    @pytest.mark.parametrize("rgb", [(161, 164, 165), (58, 91, 70)], ids=["grey", "green"])
+    def test_a_photo_equal_to_a_spectra_accent_is_dithered_not_remapped(self, tmp_path, rgb):
+        """The accent remap is for theme-drawn colours. A flat photo area that happens to
+        equal a Spectra-6 value must dither like any other pixel, not snap to one ink."""
+        p = tmp_path / "flat.png"
+        Image.new("RGB", (800, 480), rgb).save(p)
+        inks = set(flatten_pixels(self._render(p).convert("RGB")))
+        assert len(inks) > 1, f"{rgb} came out as the single ink {inks}"

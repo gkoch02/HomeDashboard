@@ -206,8 +206,9 @@ class ThemeLayout:
     # Receives the raw PIL Image so it can paste photo/grayscale content beneath UI elements.
     # Signature: (image, layout, style, config) -> art rects or None. ``config`` is
     # the DisplayConfig, so the function can pick the panel's ink set; any
-    # (x0, y0, x1, y1) canvas rects it returns join RenderContext.dither_regions,
-    # which a colour backend Floyd-Steinbergs onto its own inks.
+    # (x0, y0, x1, y1) canvas rects it returns are source imagery, which a
+    # colour backend Floyd-Steinbergs onto its own inks (without the accent remap
+    # art regions get).
     background_fn: (
         Callable[
             [Image.Image, ThemeLayout, ThemeStyle, DisplayConfig],

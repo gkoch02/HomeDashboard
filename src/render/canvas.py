@@ -245,8 +245,6 @@ def render_dashboard(
         image=image,
         visibility=dict(visibility),
     )
-    if background_art:
-        ctx.dither_regions.extend(background_art)
 
     for name in layout.draw_order:
         region = getattr(layout, name, None)
@@ -273,6 +271,7 @@ def render_dashboard(
         layout=layout,
         background=style.bg,
         dither_regions=ctx.dither_regions,
+        image_regions=background_art,
     )
 
     return image
