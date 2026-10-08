@@ -1,25 +1,28 @@
 """light_cycle_panel.py — 24-hour radial clock theme.
 
-A full-canvas circular clock representing the entire day at a glance:
+The day as one dial, with the details beside it:
 
-  * Outer rim: 24 hour ticks with major numerals at 00 / 06 / 12 / 18.
-  * Twilight band ring: concentric arcs whose density encodes the day's
-    light cycle — solid at deep night, sparse at civil twilight, empty
-    during daylight. Arcs are computed from astronomical / nautical /
-    civil twilight times via :mod:`src.astronomy`, with a graceful
-    fallback to OWM-reported sunrise/sunset when latitude/longitude are
-    unavailable.
-  * Event ring: small radial dashes at each timed-event start position.
-  * Center disc: today's date, day name, and weather summary.
-  * Sun (or moon, when the sun is below the horizon) glyph at the
-    current-time position on the rim, plus a needle running from centre
-    to that point.
+  * Dial (left): 24 hour ticks with numerals at 00 / 06 / 12 / 18; a light
+    band whose tone encodes the sky — solid at night, engraved concentric
+    rings for astronomical / nautical / civil twilight (denser = darker),
+    open in daylight; today's timed events as arcs spanning their duration
+    (hollow once they have ended); the sun (or moon) riding the light band
+    at the current time, with a needle from the centre.
+  * Centre disc: day name, the day-of-month numeral, month.
+  * Info column (right): sunrise, sunset and day length with its change
+    since yesterday; the current weather; today's agenda.
+
+Twilight comes from :mod:`src.astronomy` when coordinates are configured,
+falling back to the OWM sunrise / sunset otherwise. On a colour panel the
+daylight span is filled with the primary accent and the twilight rings take
+the secondary; type is never set in an accent, since yellow on the Spectra
+white is unreadable.
 """
 
 from __future__ import annotations
 
 import math
-from datetime import date, datetime, tzinfo
+from datetime import date, datetime, timedelta, tzinfo
 
 from PIL import ImageDraw
 
@@ -31,27 +34,33 @@ from src.render.fonts import weather_icon
 from src.render.icons import FALLBACK_ICON, OWM_ICON_MAP
 from src.render.moon import moon_phase_glyph
 from src.render.primitives import (
+    draw_text_truncated,
     events_for_day,
+    fmt_time,
     text_height,
     text_width,
     usable_coords,
 )
 from src.render.theme import ComponentRegion, ThemeStyle
 
-# Layout constants
+# Dial geometry
 
-_CENTER_X = 400
-_CENTER_Y = 222
-_OUTER_R = 192  # rim of the clock face
-_TICK_INNER_R = 180  # minor hour ticks start here
-_MAJOR_TICK_INNER_R = 170  # major (every 6h) ticks start here
-_HOUR_LABEL_R = 212  # numerals sit just outside the rim
-_TWILIGHT_OUTER_R = 167
-_TWILIGHT_INNER_R = 126
-_EVENT_OUTER_R = 122
-_EVENT_INNER_R = 110
+_CENTER_X = 262
+_CENTER_Y = 240
+_OUTER_R = 196  # rim of the clock face
+_TICK_INNER_R = 187  # minor hour ticks start here
+_MAJOR_TICK_INNER_R = 178  # major (every 6h) ticks start here
+_HOUR_LABEL_R = 213  # numerals sit just outside the rim
+_TWILIGHT_OUTER_R = 174
+_TWILIGHT_INNER_R = 140
+_EVENT_OUTER_R = 132
+_EVENT_LANE_W = 9  # two lanes inward from _EVENT_OUTER_R, 2 px apart
 _INNER_DISC_R = 104  # central content area radius
-_GLYPH_R = 192  # sun/moon glyph sits just outside the rim
+
+# Info column
+
+_COL_X0 = 500
+_COL_X1 = 784
 
 
 # Polar coordinate helpers
@@ -158,13 +167,13 @@ def _resolve_sun_times(
     return sr_hr, ss_hr, [(0.0, sr_hr, 4), (ss_hr, 24.0, 4)]
 
 
-# Angular spacing between radial dashes for each phase, in degrees.
-# Smaller spacing = denser band. None = solid fill (deep night).
-_PHASE_DASH_SPACING_DEG: dict[int, float | None] = {
+# Pitch, in pixels, of the concentric rings that shade each twilight phase:
+# a tighter pitch reads darker. Night (4) is solid.
+_PHASE_RING_PITCH: dict[int, int | None] = {
     4: None,  # night — solid fill
-    3: 1.5,  # astronomical twilight — very dense dashes
-    2: 3.0,  # nautical twilight — medium dashes
-    1: 5.0,  # civil twilight — sparse dashes
+    3: 2,  # astronomical twilight
+    2: 3,  # nautical twilight
+    1: 5,  # civil twilight
 }
 
 
@@ -176,51 +185,59 @@ def _draw_twilight_band(
     fill,
     bg,
 ) -> None:
-    """Draw one twilight band inside the twilight annulus.
+    """Shade one phase of the light band between *start_hr* and *end_hr*.
 
-    Density 4 = solid filled annular wedge.  Densities 1–3 are radial-dash
-    fields whose spacing decreases with darkness — sparse for civil twilight,
-    very dense for astronomical twilight.
+    Density 4 is a solid annular wedge; 1–3 are concentric one-pixel rings
+    whose pitch tightens as the sky darkens — an engraver's tint, which holds
+    its tone on a 1-bit panel where a dither would speckle.
     """
     if density <= 0 or end_hr <= start_hr:
         return
     start_angle = _hour_to_pil_angle(start_hr)
     end_angle = _hour_to_pil_angle(end_hr)
-    spacing = _PHASE_DASH_SPACING_DEG.get(density, 5.0)
-
-    if spacing is None:
-        # Solid filled annular wedge: outer pie filled, then inner pie stamps bg.
+    pitch = _PHASE_RING_PITCH.get(density, 5)
+    if pitch is None:
         draw.pieslice(_bbox(_TWILIGHT_OUTER_R), start_angle, end_angle, fill=fill)
         draw.pieslice(_bbox(_TWILIGHT_INNER_R), start_angle, end_angle, fill=bg)
         return
+    for radius in range(_TWILIGHT_INNER_R + pitch, _TWILIGHT_OUTER_R, pitch):
+        draw.arc(_bbox(radius), start_angle, end_angle, fill=fill)
 
-    # Radial dashes: a short line from inner to outer radius at each step.
-    # Use the unwrapped (start, end) since the caller already split at midnight.
-    span = end_angle - start_angle
-    if span < 0:
-        span += 360.0
-    n = max(1, int(span // spacing))
-    step = span / n
-    for i in range(n + 1):
-        a = math.radians((start_angle + i * step) % 360.0)
-        x0 = _CENTER_X + int(round(_TWILIGHT_INNER_R * math.cos(a)))
-        y0 = _CENTER_Y + int(round(_TWILIGHT_INNER_R * math.sin(a)))
-        x1 = _CENTER_X + int(round(_TWILIGHT_OUTER_R * math.cos(a)))
-        y1 = _CENTER_Y + int(round(_TWILIGHT_OUTER_R * math.sin(a)))
-        draw.line([(x0, y0), (x1, y1)], fill=fill, width=1)
+
+def _fill_daylight(draw: ImageDraw.ImageDraw, sunrise_hr: float, sunset_hr: float, fill, bg):
+    """Fill the daylight span of the light band (colour panels only)."""
+    if sunset_hr <= sunrise_hr:
+        return
+    start, end = _hour_to_pil_angle(sunrise_hr), _hour_to_pil_angle(sunset_hr)
+    draw.pieslice(_bbox(_TWILIGHT_OUTER_R), start, end, fill=fill)
+    draw.pieslice(_bbox(_TWILIGHT_INNER_R), start, end, fill=bg)
+
+
+def _draw_horizon_marks(draw: ImageDraw.ImageDraw, hours: list[float], fill) -> None:
+    """A heavy radial rule across the light band at sunrise and sunset."""
+    for hr in hours:
+        draw.line(
+            [_polar(_TWILIGHT_INNER_R - 3, hr), _polar(_TWILIGHT_OUTER_R + 3, hr)],
+            fill=fill,
+            width=3,
+        )
 
 
 # Tick marks + numerals
 
 
 def _draw_hour_ticks(draw: ImageDraw.ImageDraw, fill) -> None:
-    """Draw 24 minor ticks on the rim, with 4 longer ticks at 00/06/12/18."""
-    for hour in range(24):
-        is_major = hour % 6 == 0
+    """24 hour ticks on the rim (longer at 00/06/12/18) and quarter-hour pips."""
+    for quarter in range(96):
+        hour = quarter / 4
+        if quarter % 4:
+            draw.line([_polar(_OUTER_R - 4, hour), _polar(_OUTER_R, hour)], fill=fill)
+            continue
+        is_major = quarter % 24 == 0
         inner = _MAJOR_TICK_INNER_R if is_major else _TICK_INNER_R
-        x0, y0 = _polar(inner, hour)
-        x1, y1 = _polar(_OUTER_R, hour)
-        draw.line([(x0, y0), (x1, y1)], fill=fill, width=2 if is_major else 1)
+        draw.line(
+            [_polar(inner, hour), _polar(_OUTER_R, hour)], fill=fill, width=3 if is_major else 2
+        )
 
 
 def _draw_hour_labels(
@@ -232,44 +249,62 @@ def _draw_hour_labels(
     label_font = (style.font_section_label or style.font_bold)(18)
     for hour, text in ((0, "00"), (6, "06"), (12, "12"), (18, "18")):
         x, y = _polar(_HOUR_LABEL_R, hour)
-        tw = text_width(draw, text, label_font)
-        th = text_height(label_font)
-        draw.text((x - tw // 2, y - th // 2 - 1), text, font=label_font, fill=fill)
+        bb = draw.textbbox((0, 0), text, font=label_font)
+        draw.text(
+            (x - (bb[2] - bb[0]) / 2 - bb[0], y - (bb[3] - bb[1]) / 2 - bb[1]),
+            text,
+            font=label_font,
+            fill=fill,
+        )
 
 
 # Events ring
 
 
-def _draw_event_ticks(
-    draw: ImageDraw.ImageDraw,
-    events: list,
-    today: date,
-    tz: tzinfo | None,
-    fill,
-    accent,
-) -> int:
-    """Draw small radial dashes for each timed event. Returns count drawn."""
-    drawn = 0
+def _event_spans(events: list, today: date, tz: tzinfo | None) -> list[tuple[float, float]]:
+    """``(start_hr, end_hr)`` for each timed event on *today*; all-day events have none."""
+    spans = []
     for ev in events:
-        if ev.is_all_day:
+        if ev.is_all_day or not isinstance(ev.start, datetime):
             continue
-        start = ev.start
-        if not isinstance(start, datetime):
+        start = _hours_of_day(ev.start, today, tz)
+        if start is None:
             continue
-        hr = _hours_of_day(start, today, tz)
-        if hr is None:
-            continue
-        x0, y0 = _polar(_EVENT_INNER_R, hr)
-        x1, y1 = _polar(_EVENT_OUTER_R, hr)
-        draw.line([(x0, y0), (x1, y1)], fill=accent, width=2)
-        # A dot at the inner end so the mark reads even when fill matches bg
-        draw.ellipse(
-            (x0 - 2, y0 - 2, x0 + 2, y0 + 2),
-            fill=accent,
-            outline=fill,
-        )
-        drawn += 1
-    return drawn
+        end = _hours_of_day(ev.end, today, tz) if isinstance(ev.end, datetime) else None
+        # A sliver at least 10 minutes wide, so a zero-length event still shows.
+        end = max(end if end is not None else start, start + 1 / 6)
+        spans.append((start, min(end, 24.0)))
+    return spans
+
+
+def _pack_lanes(spans: list[tuple[float, float]]) -> list[int]:
+    """Lane 0 unless the span overlaps the last one placed there; then lane 1."""
+    lane_end = [-1.0, -1.0]
+    lanes = []
+    for start, end in spans:
+        lane = 0 if start >= lane_end[0] else 1
+        lane_end[lane] = max(lane_end[lane], end)
+        lanes.append(lane)
+    return lanes
+
+
+def _draw_event_arcs(
+    draw: ImageDraw.ImageDraw,
+    spans: list[tuple[float, float]],
+    now_hr: float,
+    fill,
+    bg,
+) -> int:
+    """Draw each event as an arc over its duration; ended events are hollow."""
+    for (start, end), lane in zip(spans, _pack_lanes(spans)):
+        outer = _EVENT_OUTER_R - lane * (_EVENT_LANE_W + 2)
+        a0, a1 = _hour_to_pil_angle(start), _hour_to_pil_angle(end)
+        draw.arc(_bbox(outer), a0, a1, fill=fill, width=_EVENT_LANE_W)
+        if end <= now_hr:
+            inset = 1.6  # degrees, so the hollow keeps its end caps
+            if (a1 - a0) % 360 > 2 * inset:
+                draw.arc(_bbox(outer - 2), a0 + inset, a1 - inset, fill=bg, width=_EVENT_LANE_W - 4)
+    return len(spans)
 
 
 # Center content
@@ -278,220 +313,260 @@ def _draw_event_ticks(
 def _draw_center_disc(
     draw: ImageDraw.ImageDraw,
     today: date,
-    now: datetime,
-    weather,
     style: ThemeStyle,
 ) -> None:
-    """Render day-of-week, big date numeral, month, and weather summary.
-
-    The four lines are stacked using each line's actual textbbox height +
-    a fixed gap, anchored on the date numeral's centre.  This avoids the
-    classic "tall numeral overlaps the next line" trap that font-metric
-    approximations produce — the gaps below are guaranteed clear of the
-    numeral's descender.
-    """
+    """Day-of-week above the date numeral, month below, centred on the dial."""
     fg = style.fg
-    bg = style.bg
-    font_bold = style.font_bold
-    font_medium = style.font_medium
-    font_regular = style.font_regular
-    accent = style.primary_accent_fill()
+    draw.ellipse(_bbox(_INNER_DISC_R), fill=style.bg, outline=fg, width=2)
+    draw.ellipse(_bbox(_INNER_DISC_R - 5), outline=fg)
 
-    # Background disc — clear out anything from rings that bled inward.
-    draw.ellipse(_bbox(_INNER_DISC_R), fill=bg, outline=accent)
-
-    # --- Big date numeral, centred vertically on the disc ---
     day_str = str(today.day)
-    day_font = (style.font_date_number or font_bold)(70)
+    day_font = (style.font_date_number or style.font_bold)(84)
     day_bbox = draw.textbbox((0, 0), day_str, font=day_font)
-    day_w = day_bbox[2] - day_bbox[0]
     day_h = day_bbox[3] - day_bbox[1]
-    day_x = _CENTER_X - day_w // 2 - day_bbox[0]
-    day_y = _CENTER_Y - day_h // 2 - day_bbox[1]
-    draw.text((day_x, day_y), day_str, font=day_font, fill=fg)
-
-    gap = 8  # vertical breathing room between disc lines
-    day_top = _CENTER_Y - day_h // 2
-    day_bottom = _CENTER_Y + day_h // 2
-
-    # --- Day-of-week label, sitting above the numeral ---
-    dow = now.strftime("%A").upper()
-    dow_font = font_medium(13)
-    dow_bbox = draw.textbbox((0, 0), dow, font=dow_font)
-    dow_w = dow_bbox[2] - dow_bbox[0]
-    dow_h = dow_bbox[3] - dow_bbox[1]
-    dow_x = _CENTER_X - dow_w // 2 - dow_bbox[0]
-    dow_y = day_top - gap - dow_h - dow_bbox[1]
-    draw.text((dow_x, dow_y), dow, font=dow_font, fill=accent)
-
-    # --- Month label, sitting below the numeral ---
-    month = today.strftime("%B").upper()
-    month_font = font_medium(13)
-    month_bbox = draw.textbbox((0, 0), month, font=month_font)
-    month_w = month_bbox[2] - month_bbox[0]
-    month_h = month_bbox[3] - month_bbox[1]
-    month_x = _CENTER_X - month_w // 2 - month_bbox[0]
-    month_y = day_bottom + gap - month_bbox[1]
-    draw.text((month_x, month_y), month, font=month_font, fill=fg)
-
-    # --- Weather summary, anchored just below the month line ---
-    if weather is not None:
-        temp_str = f"{weather.current_temp:.0f}°"
-        if weather.high is not None and weather.low is not None:
-            temp_str += f"   H {weather.high:.0f}°  L {weather.low:.0f}°"
-        wx_font = font_regular(11)
-        wx_bbox = draw.textbbox((0, 0), temp_str, font=wx_font)
-        wx_w = wx_bbox[2] - wx_bbox[0]
-        wx_x = _CENTER_X - wx_w // 2 - wx_bbox[0]
-        wx_y = month_y + month_h + 6 - wx_bbox[1]
-        draw.text((wx_x, wx_y), temp_str, font=wx_font, fill=fg)
+    draw.text(
+        (
+            _CENTER_X - (day_bbox[2] - day_bbox[0]) / 2 - day_bbox[0],
+            _CENTER_Y - day_h / 2 - day_bbox[1] + 2,
+        ),
+        day_str,
+        font=day_font,
+        fill=fg,
+    )
+    gap = 10
+    label_font = style.font_bold(14)
+    for text, above in (
+        (today.strftime("%A").upper(), True),
+        (today.strftime("%B").upper(), False),
+    ):
+        tb = draw.textbbox((0, 0), text, font=label_font)
+        th = tb[3] - tb[1]
+        ty = _CENTER_Y - day_h / 2 - gap - th if above else _CENTER_Y + day_h / 2 + gap + 2
+        draw.text(
+            (_CENTER_X - (tb[2] - tb[0]) / 2 - tb[0], ty - tb[1]), text, font=label_font, fill=fg
+        )
 
 
 # Sun/moon glyph + needle
 
 
+def _now_hours(now: datetime) -> float:
+    now_naive = _to_local_naive(now, now.tzinfo)
+    return now_naive.hour + now_naive.minute / 60.0 + now_naive.second / 3600.0
+
+
 def _draw_now_glyph_and_needle(
     draw: ImageDraw.ImageDraw,
-    now: datetime,
+    now_hr: float,
     today: date,
     sunrise_hr: float | None,
     sunset_hr: float | None,
     style: ThemeStyle,
 ) -> None:
-    """Draw the needle pointing to current time and the sun/moon glyph at the rim."""
-    now_naive = _to_local_naive(now, now.tzinfo)
-    now_hr = now_naive.hour + now_naive.minute / 60.0 + now_naive.second / 3600.0
+    """Needle from the disc to the light band, and the sun or moon riding the band."""
+    band_r = (_TWILIGHT_INNER_R + _TWILIGHT_OUTER_R) / 2
+    halo_r = 19
 
-    # Needle: a tapered triangle running from the inner disc out to the rim.
-    accent = style.secondary_accent_fill()
-    needle_inner = _INNER_DISC_R + 2
-    needle_outer = _OUTER_R - 8
     rad = _hour_to_radians(now_hr)
-    # Perpendicular direction for the base of the triangle
     perp = rad + math.pi / 2
-    base_w = 4
-    bx0 = _CENTER_X + int(round(needle_inner * math.cos(rad) + base_w * math.cos(perp)))
-    by0 = _CENTER_Y + int(round(needle_inner * math.sin(rad) + base_w * math.sin(perp)))
-    bx1 = _CENTER_X + int(round(needle_inner * math.cos(rad) - base_w * math.cos(perp)))
-    by1 = _CENTER_Y + int(round(needle_inner * math.sin(rad) - base_w * math.sin(perp)))
-    tx = _CENTER_X + int(round(needle_outer * math.cos(rad)))
-    ty = _CENTER_Y + int(round(needle_outer * math.sin(rad)))
-    draw.polygon([(bx0, by0), (tx, ty), (bx1, by1)], fill=accent, outline=style.fg)
-
-    # Glyph: sun when daytime, moon when night
-    is_day = sunrise_hr is not None and sunset_hr is not None and sunrise_hr <= now_hr <= sunset_hr
-    if is_day:
-        glyph = OWM_ICON_MAP.get("01d", FALLBACK_ICON)
-        glyph_fill = style.primary_accent_fill()
-    else:
-        glyph = moon_phase_glyph(today)
-        glyph_fill = style.fg
-    glyph_font = weather_icon(30)
-    gy: float
-    gx, gy = _polar(_GLYPH_R + 22, now_hr)
-    bbox = draw.textbbox((0, 0), glyph, font=glyph_font)
-    gw, gh = bbox[2] - bbox[0], bbox[3] - bbox[1]
-    halo_r = max(gw, gh) // 2 + 5
-    # Clamp the glyph y so its halo never bleeds into the footer band — at
-    # hour 12 (noon, bottom of the dial) the radial position would otherwise
-    # land within ~4 px of the footer label baseline.
-    footer_top = _CENTER_Y + (480 - _CENTER_Y - 28) - 4  # footer label sits at region.y + h - 28
-    gy = min(gy, footer_top - halo_r)
-    draw.ellipse(
-        (gx - halo_r, gy - halo_r, gx + halo_r, gy + halo_r),
-        fill=style.bg,
+    base_r = _INNER_DISC_R + 1
+    tip_r = band_r - halo_r - 1
+    base_w = 5
+    base = (_CENTER_X + base_r * math.cos(rad), _CENTER_Y + base_r * math.sin(rad))
+    draw.polygon(
+        [
+            (base[0] + base_w * math.cos(perp), base[1] + base_w * math.sin(perp)),
+            (_CENTER_X + tip_r * math.cos(rad), _CENTER_Y + tip_r * math.sin(rad)),
+            (base[0] - base_w * math.cos(perp), base[1] - base_w * math.sin(perp)),
+        ],
+        fill=style.secondary_accent_fill(),
         outline=style.fg,
     )
+
+    is_day = sunrise_hr is not None and sunset_hr is not None and sunrise_hr <= now_hr <= sunset_hr
+    glyph = OWM_ICON_MAP.get("01d", FALLBACK_ICON) if is_day else moon_phase_glyph(today)
+    # By day the halo takes the primary accent (yellow on colour, paper on mono)
+    # and the glyph stays ink, so it reads on either.
+    halo_fill = style.primary_accent_fill() if is_day else style.bg
+    if halo_fill == style.fg:
+        halo_fill = style.bg
+    gx = _CENTER_X + band_r * math.cos(rad)
+    gy = _CENTER_Y + band_r * math.sin(rad)
+    draw.ellipse(
+        (gx - halo_r, gy - halo_r, gx + halo_r, gy + halo_r),
+        fill=halo_fill,
+        outline=style.fg,
+        width=2,
+    )
+    glyph_font = weather_icon(24)
+    bbox = draw.textbbox((0, 0), glyph, font=glyph_font)
     draw.text(
-        (gx - gw // 2 - bbox[0], gy - gh // 2 - bbox[1]),
+        (gx - (bbox[2] - bbox[0]) / 2 - bbox[0], gy - (bbox[3] - bbox[1]) / 2 - bbox[1]),
         glyph,
         font=glyph_font,
-        fill=glyph_fill,
+        fill=style.fg,
     )
 
 
-# Header + footer strips
+# Info column
 
 
-def _draw_header_strip(
+def _fmt_hours(hr: float | None) -> str:
+    """``6:31a`` for fractional hours-of-day; an em dash for none."""
+    if hr is None:
+        return "—"
+    # Round to the minute before splitting so 23:59:30 carries into the hour.
+    total_minutes = int(round(hr * 60.0)) % (24 * 60)
+    h, m = divmod(total_minutes, 60)
+    suffix = "a" if h < 12 else "p"
+    return f"{h % 12 or 12}:{m:02d}{suffix}"
+
+
+def _day_length_change(
+    today: date, latitude: float | None, longitude: float | None
+) -> timedelta | None:
+    """Today's day length minus yesterday's, or ``None`` without coordinates."""
+    coords = usable_coords(latitude, longitude)
+    if coords is None:
+        return None
+    spans = []
+    for day in (today - timedelta(days=1), today):
+        st = sun_times(day, *coords)
+        if st.sunrise is None or st.sunset is None:
+            return None
+        spans.append(st.sunset - st.sunrise)
+    return spans[1] - spans[0]
+
+
+def _fmt_change(delta: timedelta) -> str:
+    seconds = int(round(delta.total_seconds()))
+    sign = "+" if seconds >= 0 else "−"
+    minutes, secs = divmod(abs(seconds), 60)
+    return f"{sign}{minutes}m {secs:02d}s"
+
+
+def _column_label(draw: ImageDraw.ImageDraw, x: float, y: float, text: str, style) -> None:
+    draw.text((x, y), text, font=(style.font_section_label or style.font_bold)(11), fill=style.fg)
+
+
+def _draw_sun_section(
     draw: ImageDraw.ImageDraw,
-    region: ComponentRegion,
-    today: date,
-    weather,
-    style: ThemeStyle,
-) -> None:
-    title_font = (style.font_title or style.font_bold)(15)
-    label_font = (style.font_section_label or style.font_bold)(11)
-    fg = style.fg
-
-    title = "LIGHT  CYCLE"
-    draw.text(
-        (region.x + 18, region.y + 12),
-        title,
-        font=title_font,
-        fill=style.primary_accent_fill(),
-    )
-
-    if weather is not None and weather.location_name:
-        loc = weather.location_name.upper()
-        loc_w = text_width(draw, loc, label_font)
-        draw.text(
-            (region.x + region.w - loc_w - 18, region.y + 16),
-            loc,
-            font=label_font,
-            fill=fg,
-        )
-
-
-def _draw_footer_legend(
-    draw: ImageDraw.ImageDraw,
-    region: ComponentRegion,
+    y: int,
     sunrise_hr: float | None,
     sunset_hr: float | None,
-    event_count: int,
+    change: timedelta | None,
+    style: ThemeStyle,
+) -> int:
+    """Sunrise / sunset / day length as a three-up row. Returns the next free y."""
+    value_font = style.font_bold(24)
+    slot = (_COL_X1 - _COL_X0) // 3
+    length = None
+    if sunrise_hr is not None and sunset_hr is not None and sunset_hr > sunrise_hr:
+        minutes = int(round((sunset_hr - sunrise_hr) * 60))
+        length = f"{minutes // 60}h {minutes % 60:02d}m"
+    cells = (
+        ("SUNRISE", _fmt_hours(sunrise_hr)),
+        ("SUNSET", _fmt_hours(sunset_hr)),
+        ("DAYLIGHT", length or "—"),
+    )
+    for i, (label, value) in enumerate(cells):
+        x = _COL_X0 + i * slot
+        _column_label(draw, x, y, label, style)
+        draw.text((x, y + 16), value, font=value_font, fill=style.fg)
+    if change is not None:
+        # Right-aligned under DAYLIGHT; it may run back under SUNSET, which is empty there.
+        caption = f"{_fmt_change(change)} vs yesterday"
+        font = style.font_medium(11)
+        draw.text(
+            (_COL_X1 - text_width(draw, caption, font), y + 46), caption, font=font, fill=style.fg
+        )
+    return y + 66
+
+
+def _draw_weather_section(draw: ImageDraw.ImageDraw, y: int, weather, style: ThemeStyle) -> int:
+    """Icon, current temperature, condition and range. Returns the next free y."""
+    if weather is None:
+        return y
+    icon = OWM_ICON_MAP.get(weather.current_icon, FALLBACK_ICON)
+    icon_font = weather_icon(38)
+    ib = draw.textbbox((0, 0), icon, font=icon_font)
+    draw.text((_COL_X0 - ib[0], y + 4 - ib[1]), icon, font=icon_font, fill=style.fg)
+    temp_x = _COL_X0 + (ib[2] - ib[0]) + 14
+    temp_font = style.font_bold(40)
+    temp = f"{weather.current_temp:.0f}°"
+    tb = draw.textbbox((0, 0), temp, font=temp_font)
+    draw.text((temp_x - tb[0], y + 2 - tb[1]), temp, font=temp_font, fill=style.fg)
+    text_x = temp_x + (tb[2] - tb[0]) + 16
+    desc = (weather.current_description or "").capitalize()
+    draw_text_truncated(
+        draw, (text_x, y + 2), desc, style.font_semibold(15), _COL_X1 - text_x, fill=style.fg
+    )
+    if weather.high is not None and weather.low is not None:
+        draw.text(
+            (text_x, y + 23),
+            f"H {weather.high:.0f}°   L {weather.low:.0f}°",
+            font=style.font_medium(14),
+            fill=style.fg,
+        )
+    return y + 56
+
+
+def _draw_agenda(
+    draw: ImageDraw.ImageDraw,
+    y: int,
+    bottom: int,
+    events: list,
+    now: datetime,
     style: ThemeStyle,
 ) -> None:
-    """Bottom strip: sunrise/sunset times + today's event count."""
-    fy = region.y + region.h - 28
-    label_font = (style.font_section_label or style.font_bold)(10)
-    val_font = style.font_semibold(13)
-    fg = style.fg
-
-    def _fmt(hr: float | None) -> str:
-        if hr is None:
-            return "—"
-        # Round to the nearest minute up-front, then split into h/m so a
-        # 23:59:30 → 60-minute carry advances the hour instead of producing
-        # "11:00p" while h stays 23.
-        total_minutes = int(round(hr * 60.0)) % (24 * 60)
-        h, m = divmod(total_minutes, 60)
-        suffix = "a" if h < 12 else "p"
-        h12 = h % 12 or 12
-        return f"{h12}:{m:02d}{suffix}"
-
-    items = [
-        ("RISE", _fmt(sunrise_hr)),
-        ("SET", _fmt(sunset_hr)),
-        ("EVENTS", str(event_count)),
-    ]
-    # Render evenly spaced across the canvas
-    slot_w = region.w // len(items)
-    for i, (label, value) in enumerate(items):
-        cx = region.x + slot_w * i + slot_w // 2
-        lw = text_width(draw, label, label_font)
-        vw = text_width(draw, value, val_font)
-        draw.text(
-            (cx - lw // 2, fy),
-            label,
-            font=label_font,
-            fill=style.primary_accent_fill(),
+    """Today's events, one per row; a hollow marker once an event has ended."""
+    count = len(events)
+    label = "TODAY" if not count else f"TODAY · {count} EVENT{'S' if count != 1 else ''}"
+    _column_label(draw, _COL_X0, y, label, style)
+    y += 22
+    if not events:
+        draw.text((_COL_X0, y), "Nothing scheduled", font=style.font_medium(15), fill=style.fg)
+        return
+    row_h = 30
+    time_font = style.font_semibold(15)
+    title_font = style.font_medium(17)
+    now_naive = _to_local_naive(now, now.tzinfo)
+    time_w = 62
+    for idx, ev in enumerate(events):
+        # While events follow, keep a row free for the "+N more" line.
+        needed = row_h if idx == count - 1 else 2 * row_h
+        if y + needed > bottom:
+            draw.text((_COL_X0, y), f"+{count - idx} more", font=time_font, fill=style.fg)
+            return
+        # Event times are naive local, like the render clock once localised.
+        ended = not ev.is_all_day and isinstance(ev.end, datetime) and ev.end <= now_naive
+        cy = y + text_height(title_font) // 2 + 1
+        box = (_COL_X0, cy - 4, _COL_X0 + 8, cy + 4)
+        if ended:
+            draw.rectangle(box, outline=style.fg)
+        else:
+            draw.rectangle(box, fill=style.fg)
+        when = "all day" if ev.is_all_day else fmt_time(ev.start)
+        draw.text((_COL_X0 + 16, y), when, font=time_font, fill=style.fg)
+        title_x = _COL_X0 + 16 + time_w
+        draw_text_truncated(
+            draw, (title_x, y), ev.summary, title_font, _COL_X1 - title_x, fill=style.fg
         )
-        draw.text(
-            (cx - vw // 2, fy + 12),
-            value,
-            font=val_font,
-            fill=fg,
-        )
+        y += row_h
+
+
+def _draw_column_heading(draw: ImageDraw.ImageDraw, weather, style: ThemeStyle) -> None:
+    title = "LIGHT CYCLE"
+    if weather is not None and weather.location_name:
+        title = f"{title} · {weather.location_name.upper()}"
+    draw_text_truncated(
+        draw, (_COL_X0, 22), title, style.font_bold(13), _COL_X1 - _COL_X0, fill=style.fg
+    )
+    draw.line([(_COL_X0, 44), (_COL_X1, 44)], fill=style.fg, width=2)
+
+
+def _rule(draw: ImageDraw.ImageDraw, y: int, style: ThemeStyle) -> None:
+    draw.line([(_COL_X0, y), (_COL_X1, y)], fill=style.fg)
 
 
 def draw_light_cycle(
@@ -514,38 +589,46 @@ def draw_light_cycle(
     fg = style.fg
     weather = data.weather
     tz = now.tzinfo
+    now_hr = _now_hours(now)
+    is_colour = style.primary_accent_fill() != fg
 
-    _draw_header_strip(draw, region, today, weather, style)
-
-    draw.ellipse(_bbox(_OUTER_R), outline=fg, width=2)
-
-    # Twilight bands
+    # Light band
     weather_sunrise = weather.sunrise if weather else None
     weather_sunset = weather.sunset if weather else None
     sunrise_hr, sunset_hr, bands = _resolve_sun_times(
         today, weather_sunrise, weather_sunset, latitude, longitude, tz
     )
+    if is_colour and sunrise_hr is not None and sunset_hr is not None:
+        _fill_daylight(draw, sunrise_hr, sunset_hr, style.primary_accent_fill(), style.bg)
+    ring_fill = style.secondary_accent_fill()
     for start_hr, end_hr, density in bands:
-        _draw_twilight_band(draw, start_hr, end_hr, density, style.fg, style.bg)
+        _draw_twilight_band(
+            draw, start_hr, end_hr, density, fg if density == 4 else ring_fill, style.bg
+        )
+    draw.ellipse(_bbox(_TWILIGHT_OUTER_R), outline=fg)
+    draw.ellipse(_bbox(_TWILIGHT_INNER_R), outline=fg)
+    if sunrise_hr is not None and sunset_hr is not None:
+        _draw_horizon_marks(draw, [sunrise_hr, sunset_hr], fg)
 
-    # Subtle inner + outer guide circles framing the twilight ring
-    draw.ellipse(_bbox(_TWILIGHT_OUTER_R), outline=fg, width=1)
-    draw.ellipse(_bbox(_TWILIGHT_INNER_R), outline=fg, width=1)
-
-    # Hour ticks + labels
+    # Rim
+    draw.ellipse(_bbox(_OUTER_R), outline=fg, width=3)
     _draw_hour_ticks(draw, fg)
     _draw_hour_labels(draw, style, fg)
 
-    # Event ring
-    timed_events = events_for_day(data.events, today)
-    event_count = _draw_event_ticks(
-        draw, timed_events, today, tz, fg, style.secondary_accent_fill()
+    # Events
+    todays = events_for_day(data.events, today)
+    _draw_event_arcs(draw, _event_spans(todays, today, tz), now_hr, fg, style.bg)
+
+    _draw_center_disc(draw, today, style)
+    _draw_now_glyph_and_needle(draw, now_hr, today, sunrise_hr, sunset_hr, style)
+
+    # Info column
+    _draw_column_heading(draw, weather, style)
+    y = _draw_sun_section(
+        draw, 60, sunrise_hr, sunset_hr, _day_length_change(today, latitude, longitude), style
     )
-
-    # Center disc (drawn after rings so it masks anything that bled inward)
-    _draw_center_disc(draw, today, now, weather, style)
-
-    # Now-glyph + needle on top of everything
-    _draw_now_glyph_and_needle(draw, now, today, sunrise_hr, sunset_hr, style)
-
-    _draw_footer_legend(draw, region, sunrise_hr, sunset_hr, event_count, style)
+    if weather is not None:
+        _rule(draw, y, style)
+        y = _draw_weather_section(draw, y + 14, weather, style)
+    _rule(draw, y, style)
+    _draw_agenda(draw, y + 14, region.y + region.h - 16, todays, now, style)

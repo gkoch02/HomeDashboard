@@ -175,10 +175,10 @@ The cooldown is `display.min_refresh_interval_seconds` (config), defaulting to 6
 | `Rajdhani-Regular.ttf` / `Rajdhani-SemiBold.ttf` (OFL) | `rajdhani`, `rajdhani_semibold` | `terminal` — month band, section labels, quote attribution |
 | `Orbitron-Variable.ttf` (OFL, variable) | `orbitron_black` | `terminal` — large today date numeral |
 | `DMSans.ttf` | `dm_regular/medium/semibold/bold` | `weather`, `fuzzyclock`, `diags` (section labels), `countdown`, `astronomy`, `light_cycle`, `constellation_map` (margin) |
-| `PlayfairDisplay-*.ttf` | `playfair_regular/medium/semibold/bold` | `old_fashioned`, `qotd`, `almanac` (body + quote), `wide_week` rail (masthead, temperature, NEXT time, quote mark) |
-| `Literata-SemiBold.ttf` / `Literata-Bold.ttf` (OFL; static instances at opsz 12 cut from the upstream variable font with `fonttools varLib.instancer`) | `literata_semibold`, `literata_bold` | `wide_week` rail — the quote (SemiBold ≥ 18 px, Bold below, via `wide_week_rail_panel.quote_font`) |
+| `PlayfairDisplay-*.ttf` | `playfair_regular/medium/semibold/bold` | `old_fashioned` (display sizes), `qotd`, `almanac` (body + quote), `wide_week` rail (masthead, temperature, NEXT time, quote mark) |
+| `Literata-SemiBold.ttf` / `Literata-Bold.ttf` (OFL; static instances at opsz 12 cut from the upstream variable font with `fonttools varLib.instancer`) | `literata_semibold`, `literata_bold` | `wide_week` rail — the quote (SemiBold ≥ 18 px, Bold below, via `wide_week_rail_panel.quote_font`); `old_fashioned` text below 17 px; `weatherglass` numerals |
 | `Figtree-ExtraBold.ttf` (OFL; static full-glyph Google Fonts build, via `@expo-google-fonts/figtree`) | `figtree_extrabold` | `wide_horizon` — event rows (21-px titles, 17-px times) |
-| `Cinzel.ttf` | `cinzel_semibold/bold/black` | `fantasy`, `old_fashioned` section labels, `moonphase`, `almanac` (section labels + small caps) |
+| `Cinzel.ttf` | `cinzel_semibold/bold/black` | `fantasy`, `old_fashioned` section labels, `moonphase`, `almanac` (section labels + small caps), `weatherglass` words |
 | `CormorantGaramond.ttf` / `CormorantGaramond-Italic.ttf` (OFL, variable) | `cormorant_regular/medium/semibold/italic` | `moonphase` — date, illumination, celestial + weather strips, quote body (italic) |
 | `Tangerine-Regular.ttf` (OFL) | `tangerine_regular` | `moonphase` — calligraphic script quote attribution |
 | `ManufacturingConsent-Regular.ttf` (OFL) | `manufacturing_consent` | `moonphase` — Fraktur blackletter phase-name headline |
@@ -318,7 +318,7 @@ art themes, in the panel's module docstring. Keep new entries to that shape.
   - `monthly`: Sunday-first six-row grid; `prefer_color_on_inky=True` heatmap.
   - `photo`: `background_fn` pastes a Floyd-Steinberg-dithered `photo.path`; `draw_order` is empty.
   - `postcard`: seeded procedural art.
-  - `weatherglass`: 2× supersampled, `threshold` quantization, pressure history in state (`state_dir=None` on dry and dummy runs).
+  - `weatherglass`: 2× supersampled, `threshold` quantization, so shaded zones use `_ruled_fill` (rules on even rows), never grey; pressure history in state (`state_dir=None` on dry and dummy runs).
   - `day_arc`: axis-strip elements have disjoint row bands (`TestAxisStripBands`); `build_time_axis()` needs events already filtered to the day; `agenda_day()` rolls over only after sunset and after every timed event has ended.
   - `halftone_agenda`: imports `agenda_day` from `day_arc_panel` rather than copying it; sun times are normalised once in `_sun_times`; `TEMP_PT = 78` and the `inline_range` / `stacks_time` rules are pinned by tests; `supports_partial_refresh=False`.
   - `halftone_agenda_wide`: imports the private band and time-cell helpers from `halftone_agenda_panel` on purpose; draws no event-state treatments so the plate repaints once a day; marks and type use `artkit.accent_yellow_solid`, not `skyart.accent_yellow`, whose L-mode grey `harden_typeset` snaps to paper; `tests/test_halftone_agenda_wide_theme.py` pins before/during/after byte-identity.

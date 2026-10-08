@@ -101,7 +101,7 @@ class TestInkyPaletteRegistry:
 
     def test_known_palette_values(self):
         # Spot-check a couple of known mappings to lock the legacy values in.
-        assert get_inky_palette("old_fashioned") == (INKY_RED, INKY_YELLOW)
+        assert get_inky_palette("old_fashioned") == (INKY_RED, INKY_BLACK)
         assert get_inky_palette("terminal") == (INKY_GREEN, INKY_YELLOW)
         assert get_inky_palette("air_quality") == (INKY_BLUE, INKY_GREEN)
 

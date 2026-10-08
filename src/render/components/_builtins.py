@@ -14,6 +14,7 @@ from src.render.components import (
     almanac_panel,
     astronomy_panel,
     birthday_bar,
+    broadsheet_masthead,
     constellation_map_panel,
     countdown_panel,
     day_arc_panel,
@@ -44,6 +45,7 @@ from src.render.components import (
     wide_week_rail_panel,
 )
 from src.render.components.registry import RenderContext, register_component
+from src.render.primitives import content_time
 
 
 @register_component("header")
@@ -55,6 +57,20 @@ def _header(ctx: RenderContext) -> None:
         title=ctx.title,
         source_staleness=ctx.data.source_staleness,
         content_at=ctx.data.content_at,
+        region=ctx.layout.header,
+        style=ctx.style,
+    )
+
+
+@register_component("broadsheet_masthead")
+def _broadsheet_masthead(ctx: RenderContext) -> None:
+    broadsheet_masthead.draw_broadsheet_masthead(
+        ctx.draw,
+        ctx.today,
+        content_time(ctx.data, ctx.now),
+        title=ctx.title,
+        is_stale=ctx.data.is_stale,
+        source_staleness=ctx.data.source_staleness,
         region=ctx.layout.header,
         style=ctx.style,
     )

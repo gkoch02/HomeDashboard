@@ -1,26 +1,25 @@
 """light_cycle.py — Full-canvas radial 24-hour clock theme.
 
-A circular dial visualises the entire day at a glance: twilight bands ring
-the rim, calendar events appear as radial dashes inside that ring, and a
-needle plus sun (or moon) glyph mark the current moment.  Center disc
-holds today's date and weather summary.
+A dial on the left shows the whole day at once: the light band's tone tracks
+the sky (solid night, engraved rings through twilight, open daylight), today's
+events sit as arcs over their durations, and the sun rides the band at the
+current time. The column on the right carries the numbers — sunrise, sunset,
+day length and its change since yesterday, the current weather, today's agenda.
 
   ┌──────────────────────────────────────────────────────────────┐
-  │  LIGHT  CYCLE                                  PORTLAND, OR  │
-  │                          ╱─── 00 ───╲                        │
-  │                       ·  · twilight ·  ·                     │
-  │                    ·         ▓ NIGHT ▓        ·              │
-  │                   ·   ┌───────────┐         ☀              │
-  │   18 ── ── ── ── ─┤   │  THURSDAY │ ── ── ── ── 06 ── ──    │
-  │                   ·   │     27    │         ·              │
-  │                    ·  │   APRIL   │        ·               │
-  │                       │ 72° H78 L60│                        │
-  │                       └───────────┘                         │
-  │                          ╲─── 12 ───╱                        │
-  │                                                              │
-  │     RISE              SET             EVENTS                 │
-  │     6:24a             7:51p            5                     │
+  │              00                   LIGHT CYCLE                │
+  │        ╭───────────╮              ─────────────────────────  │
+  │      ╱ ▓▓▓ night ▓▓▓ ╲            SUNRISE  SUNSET  DAYLIGHT  │
+  │     │ ≡  ┌───────┐  ≡ │           6:31a    7:26p   12h 54m   │
+  │  18 │    │MONDAY │    │ 06        ─────────────────────────  │
+  │     │ ◜  │   6   │  ◝ │           ☁ 42°  Partly cloudy       │
+  │      ╲   │ APRIL │   ╱            ─────────────────────────  │
+  │        ╰──── ☀ ────╯              TODAY · 2 EVENTS           │
+  │              12                   ■ 2p   1:1 with Alex       │
   └──────────────────────────────────────────────────────────────┘
+
+On Inky the daylight span fills with yellow and the twilight rings turn blue;
+all type stays black, since yellow type on the Spectra white does not read.
 """
 
 from __future__ import annotations

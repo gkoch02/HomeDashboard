@@ -8,12 +8,13 @@ porthole with a procedural terminator, and an optional AQI badge.
 
 The composition reads top to bottom as masthead → three hero instruments
 → four secondary instruments, with engraved tick marks, hairline cross-hatch
-ornaments, and filigree corner curls.  An alert cartouche overlays the
-masthead when weather alerts are active.
+ornaments, and filigree corner curls.  An alert ribbon sits between the
+masthead and the barometer when weather alerts are active.
 
-On Waveshare the L-mode canvas is supersampled 2× (1600×960) and the
-backend's LANCZOS resize + Floyd-Steinberg quantize turn the gradients
-into authentic engraving-style halftone.  On Inky the canvas opts into
+On Waveshare the L-mode canvas is supersampled 2× (1600×960); the backend's
+LANCZOS resize anti-aliases every rim, tick and needle and the threshold
+quantize snaps them to crisp ink, while shaded zones are engraved as ruled
+tints that survive that step.  On Inky the canvas opts into
 RGB so the brass rims pick up yellow, the mercury column + alert text
 pick up red, the cold scale + falling-pressure trend needle pick up blue,
 and the comfort band + rising-pressure trend needle pick up green.
@@ -23,9 +24,9 @@ from __future__ import annotations
 
 from src.render.fonts import (
     cinzel_black,
-    cinzel_semibold,
-    playfair_regular,
-    playfair_semibold,
+    cinzel_bold,
+    literata_bold,
+    literata_semibold,
     rye,
 )
 from src.render.theme import (
@@ -72,20 +73,19 @@ def weatherglass_theme() -> Theme:
         style=ThemeStyle(
             fg=0,
             bg=255,
-            font_regular=playfair_regular,
-            font_medium=playfair_regular,
-            font_semibold=playfair_semibold,
-            font_bold=playfair_semibold,
-            # Rye Western-saloon masthead; Cinzel for engraved dial labels
-            # and high-contrast instrument numerals (Cinzel Black has sound
-            # digit and degree-sign metrics, which a condensed display face
-            # need not).
+            # Literata (a screen serif with lining figures) sets every scale
+            # numeral and small reading; Cinzel Bold the engraved words; Cinzel
+            # Black the hero readings; Rye the Western-saloon masthead.
+            font_regular=literata_semibold,
+            font_medium=literata_semibold,
+            font_semibold=literata_bold,
+            font_bold=literata_bold,
             font_title=rye,
-            font_section_label=cinzel_semibold,
+            font_section_label=cinzel_bold,
             font_date_number=cinzel_black,
             font_month_title=cinzel_black,
-            font_quote=playfair_regular,
-            font_quote_author=cinzel_semibold,
+            font_quote=literata_semibold,
+            font_quote_author=cinzel_bold,
             label_font_size=11,
             label_font_weight="semibold",
             # Brass + mercury is the dominant palette pair on Inky.

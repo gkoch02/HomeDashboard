@@ -31,6 +31,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - The Waveshare 10.85" (G) driver is installed by `make install-display-drivers`
   from the pinned commit's demo code, where it used to need copying and patching
   by hand. The display driver accepts the demo driver's `Init()` spelling.
+- `old_fashioned`: a newspaper nameplate replaces the generic header — the
+  title centred on an inverted band between boxed ears, over a ruled dateline
+  with the full date and the updated stamp. Text below 17 px is set in Literata
+  instead of Playfair Display, whose hairlines broke up on a 1-bit panel, and
+  Cinzel is kept to section labels, so birthday rows no longer switch to caps.
+  The sidebar is re-proportioned so the quote's attribution fits. On Inky the
+  secondary accent is black instead of yellow, which did not read as type.
+- `weatherglass`: the barometer is a 270° aneroid dial with a tick every 2 hPa,
+  the traditional words at their mercury-inch positions, and the reading,
+  trend word and nameplate in the bottom gap. On Waveshare, shaded zones —
+  the thermometer's cold zone, the hygrometer's comfort band, the UV gauge and
+  the twilight on the sun strip — are engraved as ruled tints instead of being
+  dropped, and dial bezels are knurled. The thermometer shows the day's range
+  and a solid feels-like pointer; the sun arc now runs from sunrise to sunset
+  over a 24-hour horizon strip and reports day length; the UV gauge names its
+  category; the compass gives the bearing. Numerals are set in Literata, and
+  the alert ribbon no longer overlaps the dial.
+- `light_cycle`: redesigned. The dial moves left and grows; twilight is shaded
+  with concentric engraved rings instead of radial dashes; events are arcs
+  over their durations, hollow once ended; the sun rides the light band. A
+  column on the right gives sunrise, sunset, day length and its change since
+  yesterday, the current weather, and today's agenda. On Inky daylight fills
+  yellow and twilight blue, and no type is set in yellow.
 
 ### Removed
 
@@ -44,6 +67,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Fixed
 
+- `weatherglass` prints the sun strip's times in the configured zone. Without
+  OWM weather it fell back to the computed sunrise, which is UTC, and printed
+  that zone's clock (New York sunrise as 12:16p).
 - The web UI compares CSRF tokens in constant time, and a non-ASCII token is
   rejected with the usual 403 rather than a 500.
 - A fetch thread stuck past the pipeline bound no longer keeps the renderer
