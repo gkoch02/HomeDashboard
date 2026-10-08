@@ -178,7 +178,6 @@ def fantasy_theme() -> Theme:
         weather=ComponentRegion(_CI, _BODY_Y, _SIDEBAR_W - _CI, _WEATHER_H),
         birthdays=ComponentRegion(_CI, _BODY_Y + _WEATHER_H, _SIDEBAR_W - _CI, _BIRTHDAY_H),
         info=ComponentRegion(_CI, _BODY_Y + _WEATHER_H + _BIRTHDAY_H, _SIDEBAR_W - _CI, _INFO_H),
-        today_view=ComponentRegion(0, 0, 0, 0, visible=False),
         draw_order=["header", "weather", "birthdays", "info", "week_view"],
         overlay_fn=_draw_fantasy_overlay,
     )

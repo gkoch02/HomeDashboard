@@ -48,11 +48,6 @@ def wide_week_theme() -> Theme:
             canvas_h=CANVAS_H,
             wide_week_rail=ComponentRegion(0, 0, RAIL_W, CANVAS_H),
             week_view=ComponentRegion(RAIL_W, 0, week_w, CANVAS_H),
-            header=ComponentRegion(0, 0, 0, 0, visible=False),
-            weather=ComponentRegion(0, 0, 0, 0, visible=False),
-            birthdays=ComponentRegion(0, 0, 0, 0, visible=False),
-            info=ComponentRegion(0, 0, 0, 0, visible=False),
-            today_view=ComponentRegion(0, 0, 0, 0, visible=False),
             draw_order=["week_view", "wide_week_rail"],
         ),
         style=ThemeStyle(

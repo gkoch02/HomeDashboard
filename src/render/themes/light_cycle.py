@@ -43,13 +43,6 @@ def light_cycle_theme() -> Theme:
             canvas_w=800,
             canvas_h=480,
             light_cycle=ComponentRegion(0, 0, 800, 480),
-            # Hide standard regions not used by this theme
-            header=ComponentRegion(0, 0, 800, 40, visible=False),
-            week_view=ComponentRegion(0, 40, 800, 320, visible=False),
-            weather=ComponentRegion(0, 360, 300, 120, visible=False),
-            birthdays=ComponentRegion(300, 360, 250, 120, visible=False),
-            info=ComponentRegion(550, 360, 250, 120, visible=False),
-            today_view=ComponentRegion(0, 60, 800, 280, visible=False),
             draw_order=["light_cycle"],
         ),
         style=ThemeStyle(

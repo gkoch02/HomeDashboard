@@ -81,8 +81,6 @@ def old_fashioned_theme() -> Theme:
             canvas_w=800,
             canvas_h=480,
             header=ComponentRegion(0, 0, 800, header_h),
-            # Week view hidden — today_view replaces it for the broadsheet column
-            week_view=ComponentRegion(0, body_y, main_w, body_h, visible=False),
             today_view=ComponentRegion(0, body_y, main_w, body_h),
             weather=ComponentRegion(side_x, body_y, side_w, weather_h),
             birthdays=ComponentRegion(

@@ -16,11 +16,6 @@ def diags_theme() -> Theme:
             canvas_w=800,
             canvas_h=480,
             # All standard regions disabled — diags owns the full canvas.
-            header=ComponentRegion(0, 0, 800, 28, visible=False),
-            week_view=ComponentRegion(0, 0, 0, 0, visible=False),
-            weather=ComponentRegion(0, 0, 0, 0, visible=False),
-            birthdays=ComponentRegion(0, 0, 0, 0, visible=False),
-            info=ComponentRegion(0, 0, 0, 0, visible=False),
             diags=ComponentRegion(0, 0, 800, 480),
             draw_order=["diags"],
         ),

@@ -171,14 +171,6 @@ class TestDiagsTheme:
         assert layout.diags.w == 800
         assert layout.diags.h == 480
 
-    def test_standard_regions_hidden(self):
-        layout = diags_theme().layout
-        assert layout.header.visible is False
-        assert layout.week_view.visible is False
-        assert layout.weather.visible is False
-        assert layout.birthdays.visible is False
-        assert layout.info.visible is False
-
     def test_draw_order(self):
         assert diags_theme().layout.draw_order == ["diags"]
 

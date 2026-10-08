@@ -117,7 +117,6 @@ def photo_theme() -> Theme:
     layout = ThemeLayout(
         canvas_w=800,
         canvas_h=480,
-        header=None,
         draw_order=[],
         background_fn=_draw_photo_background,
     )

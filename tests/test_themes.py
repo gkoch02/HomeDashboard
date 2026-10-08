@@ -26,6 +26,7 @@ from src.render.theme import (
     default_theme,
     load_theme,
 )
+from tests.inkutils import marks
 
 # ---------------------------------------------------------------------------
 # Shared fixture data
@@ -331,19 +332,21 @@ class TestRenderDashboardWithThemes:
         assert result.size == (800, 480)
 
     def test_invisible_region_skips_component(self):
-        """Setting region.visible=False skips that component without crashing."""
+        """A drawn component whose region is visible=False lays down no ink in its band."""
         data = _make_data()
-        layout = default_layout()
-        layout.weather = ComponentRegion(
-            layout.weather.x,
-            layout.weather.y,
-            layout.weather.w,
-            layout.weather.h,
-            visible=False,
-        )
-        t = Theme(name="no-weather", style=ThemeStyle(), layout=layout)
-        result = render_dashboard(data, self._cfg(), theme=t)
-        assert isinstance(result, Image.Image)
+
+        def render(visible: bool) -> Image.Image:
+            layout = default_layout()
+            w = layout.weather
+            layout.weather = ComponentRegion(w.x, w.y, w.w, w.h, visible=visible)
+            t = Theme(name="weather-probe", style=ThemeStyle(), layout=layout)
+            return render_dashboard(data, self._cfg(), theme=t)
+
+        w = default_layout().weather
+        # Inset by 2 px so the neighbouring panels' border rules stay out of the band.
+        band = (w.x + 2, w.y + 2, w.x + w.w - 2, w.y + w.h - 2)
+        assert marks(render(True), band, background=255) > 0
+        assert marks(render(False), band, background=255) == 0
 
     def test_qotd_theme_hides_calendar_components(self):
         """QOTD theme has no header, week_view, or birthdays in draw_order."""
@@ -440,15 +443,6 @@ class TestQotdInvertTheme:
         from src.render.themes.qotd_invert import qotd_invert_theme
 
         assert qotd_invert_theme().layout.weather.visible is True
-
-    def test_standard_regions_hidden(self):
-        from src.render.themes.qotd_invert import qotd_invert_theme
-
-        layout = qotd_invert_theme().layout
-        assert layout.header.visible is False
-        assert layout.week_view.visible is False
-        assert layout.birthdays.visible is False
-        assert layout.info.visible is False
 
     def test_draw_order(self):
         from src.render.themes.qotd_invert import qotd_invert_theme

@@ -86,13 +86,6 @@ class TestFuzzyclockTheme:
         theme = fuzzyclock_theme()
         assert theme.layout.weather.visible is True
 
-    def test_other_regions_hidden(self):
-        theme = fuzzyclock_theme()
-        assert theme.layout.header.visible is False
-        assert theme.layout.week_view.visible is False
-        assert theme.layout.birthdays.visible is False
-        assert theme.layout.info.visible is False
-
     def test_draw_order(self):
         theme = fuzzyclock_theme()
         assert theme.layout.draw_order == ["fuzzyclock", "fuzzyclock_weather"]
@@ -185,15 +178,6 @@ class TestFuzzyclockInvertTheme:
         from src.render.themes.fuzzyclock_invert import fuzzyclock_invert_theme
 
         assert fuzzyclock_invert_theme().layout.weather.visible is True
-
-    def test_standard_regions_hidden(self):
-        from src.render.themes.fuzzyclock_invert import fuzzyclock_invert_theme
-
-        layout = fuzzyclock_invert_theme().layout
-        assert layout.header.visible is False
-        assert layout.week_view.visible is False
-        assert layout.birthdays.visible is False
-        assert layout.info.visible is False
 
     def test_draw_order(self):
         from src.render.themes.fuzzyclock_invert import fuzzyclock_invert_theme

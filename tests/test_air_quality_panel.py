@@ -530,14 +530,6 @@ class TestAirQualityTheme:
 
         assert air_quality_theme().layout.air_quality_full.visible is True
 
-    def test_standard_regions_hidden(self):
-        from src.render.themes.air_quality import air_quality_theme
-
-        layout = air_quality_theme().layout
-        assert layout.header.visible is False
-        assert layout.week_view.visible is False
-        assert layout.weather.visible is False
-
     def test_uses_space_grotesk_fonts(self):
         from src.render.fonts import sg_bold, sg_regular
         from src.render.themes.air_quality import air_quality_theme

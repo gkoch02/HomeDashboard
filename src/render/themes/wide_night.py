@@ -47,13 +47,6 @@ def wide_night_theme() -> Theme:
             canvas_h=CANVAS_H,
             repaint_slot_hours=1,
             wide_night=ComponentRegion(0, 0, CANVAS_W, CANVAS_H),
-            # Hide the standard regions — this theme is full-canvas.
-            header=ComponentRegion(0, 0, 0, 0, visible=False),
-            week_view=ComponentRegion(0, 0, 0, 0, visible=False),
-            weather=ComponentRegion(0, 0, 0, 0, visible=False),
-            birthdays=ComponentRegion(0, 0, 0, 0, visible=False),
-            info=ComponentRegion(0, 0, 0, 0, visible=False),
-            today_view=ComponentRegion(0, 0, 0, 0, visible=False),
             draw_order=["wide_night"],
         ),
         style=ThemeStyle(

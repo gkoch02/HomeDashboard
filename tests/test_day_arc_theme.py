@@ -120,11 +120,6 @@ class TestDayArcRegistration:
     def test_draw_order_only_day_arc(self):
         assert load_theme("day_arc").layout.draw_order == ["day_arc"]
 
-    def test_standard_regions_hidden(self):
-        layout = load_theme("day_arc").layout
-        for name in ("header", "week_view", "weather", "birthdays", "info", "today_view"):
-            assert getattr(layout, name).visible is False, name
-
     def test_greyscale_canvas_with_floyd_steinberg(self):
         layout = load_theme("day_arc").layout
         assert layout.canvas_mode == "L"

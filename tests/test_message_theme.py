@@ -18,16 +18,6 @@ def test_message_theme_canvas_dimensions():
     assert theme.layout.canvas_h == 480
 
 
-def test_message_theme_hides_default_components():
-    """Calendar/birthdays/info are hidden so the message dominates the canvas."""
-    layout = message_theme().layout
-    assert layout.header.visible is False
-    assert layout.week_view.visible is False
-    assert layout.birthdays.visible is False
-    assert layout.info.visible is False
-    assert layout.today_view.visible is False
-
-
 def test_message_theme_message_region_fills_above_banner():
     layout = message_theme().layout
     msg_h = 480 - BANNER_H

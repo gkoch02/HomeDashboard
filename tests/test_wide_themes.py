@@ -110,7 +110,7 @@ class TestThemes:
         assert (rail.x, rail.w) == (0, week.x)
         assert week.x + week.w == 1360
         assert rail.h == week.h == 480
-        assert not layout.header.visible
+        assert "header" not in layout.draw_order
 
     def test_wide_week_draws_the_rail_left_and_the_week_right(self):
         data = generate_dummy_data(now=FIXED_NOW)

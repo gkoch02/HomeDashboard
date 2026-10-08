@@ -103,15 +103,6 @@ class TestWeatherThemeRegistration:
         assert r.h == 480
         assert r.visible is True
 
-    def test_standard_regions_hidden(self):
-        theme = load_theme("weather")
-        layout = theme.layout
-        assert not layout.header.visible
-        assert not layout.week_view.visible
-        assert not layout.birthdays.visible
-        assert not layout.info.visible
-        assert not layout.today_view.visible
-
     def test_draw_order_uses_weather_full(self):
         theme = load_theme("weather")
         assert theme.layout.draw_order == ["weather_full"]

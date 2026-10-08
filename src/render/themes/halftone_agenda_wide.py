@@ -48,12 +48,6 @@ def halftone_agenda_wide_theme() -> Theme:
             preferred_quantization_mode="floyd_steinberg",
             prefer_color_on_inky=True,
             halftone_agenda_wide=ComponentRegion(0, 0, CANVAS_W, CANVAS_H),
-            header=ComponentRegion(0, 0, 0, 0, visible=False),
-            week_view=ComponentRegion(0, 0, 0, 0, visible=False),
-            weather=ComponentRegion(0, 0, 0, 0, visible=False),
-            birthdays=ComponentRegion(0, 0, 0, 0, visible=False),
-            info=ComponentRegion(0, 0, 0, 0, visible=False),
-            today_view=ComponentRegion(0, 0, 0, 0, visible=False),
             draw_order=["halftone_agenda_wide"],
         ),
         style=ThemeStyle(

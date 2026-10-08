@@ -107,11 +107,6 @@ class TestHalftoneAgendaRegistration:
     def test_draw_order_only_halftone_agenda(self):
         assert load_theme("halftone_agenda").layout.draw_order == ["halftone_agenda"]
 
-    def test_standard_regions_hidden(self):
-        layout = load_theme("halftone_agenda").layout
-        for name in ("header", "week_view", "weather", "birthdays", "info", "today_view"):
-            assert getattr(layout, name).visible is False, name
-
     def test_greyscale_canvas_with_floyd_steinberg(self):
         layout = load_theme("halftone_agenda").layout
         assert layout.canvas_mode == "L"

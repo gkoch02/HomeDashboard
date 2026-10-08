@@ -61,13 +61,6 @@ def weatherglass_theme() -> Theme:
             # paper — nothing for the fast waveform to fade. It also redraws every
             # tick, so it is the theme that gains most from the fast path.
             weatherglass=ComponentRegion(0, 0, 1600, 960),
-            # Hide all standard regions — this theme owns the full canvas.
-            header=ComponentRegion(0, 0, 1600, 80, visible=False),
-            week_view=ComponentRegion(0, 80, 1600, 640, visible=False),
-            weather=ComponentRegion(0, 720, 600, 240, visible=False),
-            birthdays=ComponentRegion(600, 720, 500, 240, visible=False),
-            info=ComponentRegion(1100, 720, 500, 240, visible=False),
-            today_view=ComponentRegion(0, 120, 1600, 560, visible=False),
             draw_order=["weatherglass"],
         ),
         style=ThemeStyle(

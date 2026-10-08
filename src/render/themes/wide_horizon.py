@@ -64,12 +64,6 @@ def wide_horizon_theme() -> Theme:
             # land on an hour boundary, so they are never delayed by it.
             repaint_slot_hours=1,
             wide_horizon=ComponentRegion(0, 0, CANVAS_W, CANVAS_H),
-            header=ComponentRegion(0, 0, 0, 0, visible=False),
-            week_view=ComponentRegion(0, 0, 0, 0, visible=False),
-            weather=ComponentRegion(0, 0, 0, 0, visible=False),
-            birthdays=ComponentRegion(0, 0, 0, 0, visible=False),
-            info=ComponentRegion(0, 0, 0, 0, visible=False),
-            today_view=ComponentRegion(0, 0, 0, 0, visible=False),
             draw_order=["wide_horizon"],
         ),
         style=ThemeStyle(

@@ -54,13 +54,6 @@ def day_arc_theme() -> Theme:
             preferred_quantization_mode="floyd_steinberg",
             prefer_color_on_inky=True,
             day_arc=ComponentRegion(0, 0, 800, 480),
-            # Hide all standard regions — this theme is full-canvas.
-            header=ComponentRegion(0, 0, 800, 40, visible=False),
-            week_view=ComponentRegion(0, 40, 800, 320, visible=False),
-            weather=ComponentRegion(0, 360, 300, 120, visible=False),
-            birthdays=ComponentRegion(300, 360, 250, 120, visible=False),
-            info=ComponentRegion(550, 360, 250, 120, visible=False),
-            today_view=ComponentRegion(0, 60, 800, 280, visible=False),
             draw_order=["day_arc"],
         ),
         style=ThemeStyle(
