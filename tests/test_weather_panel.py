@@ -14,13 +14,8 @@ from src.data.models import (
     WeatherData,
 )
 from src.render import layout as L
-from src.render.components.weather_panel import (
-    _draw_alert_column,
-    _draw_aqi_column,
-    _fmt_time,
-    draw_weather,
-)
-from src.render.primitives import aqi_accent
+from src.render.components.weather_panel import _draw_alert_column, _draw_aqi_column, draw_weather
+from src.render.primitives import aqi_accent, fmt_time
 from src.render.quantize import flatten_pixels
 from src.render.theme import ComponentRegion, ThemeStyle
 from tests.conftest import make_draw, make_weather
@@ -515,19 +510,19 @@ class TestStalenessGlyph:
 class TestFmtTime:
     def test_formats_am_time(self):
         dt = datetime(2024, 3, 15, 6, 24, tzinfo=timezone.utc)
-        result = _fmt_time(dt)
+        result = fmt_time(dt)
         assert "6" in result
         assert "a" in result
 
     def test_formats_pm_time(self):
         dt = datetime(2024, 3, 15, 19, 51, tzinfo=timezone.utc)
-        result = _fmt_time(dt)
+        result = fmt_time(dt)
         assert "7" in result
         assert "p" in result
 
     def test_on_the_hour_drops_minutes(self):
         dt = datetime(2024, 3, 15, 8, 0, tzinfo=timezone.utc)
-        result = _fmt_time(dt)
+        result = fmt_time(dt)
         assert ":00" not in result
 
 

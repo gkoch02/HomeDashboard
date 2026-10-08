@@ -31,7 +31,6 @@ from src.render.quantize import _BAYER_4X4
 # ``day_arc`` theme can share it.
 from src.render.skyart import draw_bayer_rule as _draw_bayer_rule
 from src.render.skyart import draw_weather_scene as _draw_weather_scene
-from src.render.skyart import illustration_kind as _illustration_kind  # noqa: F401
 from src.render.theme import ComponentRegion, ThemeStyle
 
 # Weather Icons font glyphs — Righteous itself has no ↑/↓ arrows, so the

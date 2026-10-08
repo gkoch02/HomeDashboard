@@ -10,13 +10,9 @@ import pytest
 from PIL import Image
 
 from src.data.models import DayForecast, WeatherAlert, WeatherData
-from src.render.components.qotd_panel import (
-    _icon_width,
-    _wrap_lines,
-    draw_qotd,
-    draw_qotd_weather,
-)
+from src.render.components.qotd_panel import _icon_width, draw_qotd, draw_qotd_weather
 from src.render.fonts import bold as jakarta_bold
+from src.render.primitives import wrap_lines
 from src.render.theme import ComponentRegion
 from src.render.themes.qotd import qotd_theme
 from tests.conftest import make_draw
@@ -40,7 +36,7 @@ TODAY = date(2026, 3, 22)
 
 
 # ---------------------------------------------------------------------------
-# _wrap_lines helper
+# wrap_lines helper
 # ---------------------------------------------------------------------------
 
 
@@ -50,18 +46,18 @@ class TestWrapLines:
 
     def test_short_text_fits_on_one_line(self):
         font = self._font()
-        lines = _wrap_lines("Hello world", font, max_width=800)
+        lines = wrap_lines("Hello world", font, max_width=800)
         assert lines == ["Hello world"]
 
     def test_long_text_wraps_to_multiple_lines(self):
         font = self._font(20)
         long_text = " ".join(["word"] * 30)
-        lines = _wrap_lines(long_text, font, max_width=200)
+        lines = wrap_lines(long_text, font, max_width=200)
         assert len(lines) > 1
 
     def test_empty_string_returns_empty_list(self):
         font = self._font()
-        lines = _wrap_lines("", font, max_width=400)
+        lines = wrap_lines("", font, max_width=400)
         assert lines == []
 
     def test_single_long_word_is_broken_to_fit(self):
@@ -71,7 +67,7 @@ class TestWrapLines:
         (#288); now every line fits, and nothing of the word is lost.
         """
         font = self._font(20)
-        lines = _wrap_lines("superlongword", font, max_width=40)
+        lines = wrap_lines("superlongword", font, max_width=40)
         assert len(lines) > 1
         assert all(font.getlength(line) <= 40 for line in lines)
         assert "".join(lines) == "superlongword"
@@ -79,7 +75,7 @@ class TestWrapLines:
     def test_each_line_within_max_width(self):
         font = self._font(16)
         text = "This is a moderately long sentence that should wrap nicely into several lines."
-        lines = _wrap_lines(text, font, max_width=200)
+        lines = wrap_lines(text, font, max_width=200)
         for line in lines:
             assert font.getlength(line) <= 200 or " " not in line
 
@@ -87,7 +83,7 @@ class TestWrapLines:
         font = self._font(20)
         words = ["alpha", "beta", "gamma", "delta", "epsilon", "zeta"]
         text = " ".join(words)
-        lines = _wrap_lines(text, font, max_width=150)
+        lines = wrap_lines(text, font, max_width=150)
         reconstructed = " ".join(lines)
         assert reconstructed == text
 
@@ -146,11 +142,11 @@ def _quote(today=TODAY, region=QUOTE_REGION, **kwargs) -> Image.Image:
 
 def _with_quotes(quotes, tmp_path):
     """Context manager swapping in a custom quote store, cache cleared."""
-    from src.render.components.info_panel import _quote_for_today
+    from src.render.quotes import cache_clear
 
     qfile = tmp_path / "quotes.json"
     qfile.write_text(json.dumps(quotes))
-    _quote_for_today.cache_clear()
+    cache_clear()
     return patch("src.render.quotes.DEFAULT_QUOTES_PATH", qfile)
 
 

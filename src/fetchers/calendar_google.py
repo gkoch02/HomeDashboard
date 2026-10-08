@@ -28,8 +28,7 @@ from src.data.models import CalendarEvent
 # _fetch_incremental so only runs that actually talk to the Google API pay
 # for them (same discipline as calendar_caldav's local `import caldav`).
 from src.fetchers import request_counter
-from src.fetchers.cache import _deser_event as _deser_sync_event
-from src.fetchers.cache import _ser_event as _ser_sync_event
+from src.fetchers.cache import _deser_event, _ser_event
 from src.fetchers.errors import CalendarFetchError
 
 logger = logging.getLogger(__name__)
@@ -197,7 +196,7 @@ def fetch_google_events(
             )
             sync_state[cal_id] = {
                 "sync_token": new_token,
-                "events": [_ser_sync_event(e) for e in cal_events],
+                "events": [_ser_event(e) for e in cal_events],
                 "window_start": requested_start,
                 "window_end": requested_end,
             }
@@ -396,7 +395,7 @@ def _apply_delta(
             event = _parse_event(item, calendar_name, tz=tz)
             if event is not None:
                 event.event_id = event_id
-                by_id[event_id] = _ser_sync_event(event)
+                by_id[event_id] = _ser_event(event)
 
     return list(by_id.values()) + no_id
 
@@ -425,7 +424,7 @@ def _filter_to_window(
 
     result: list[CalendarEvent] = []
     for d in stored:
-        event = _deser_sync_event(d)
+        event = _deser_event(d)
         if event.is_all_day:
             s = event.start.date() if isinstance(event.start, datetime) else event.start
             e = event.end.date() if isinstance(event.end, datetime) else event.end

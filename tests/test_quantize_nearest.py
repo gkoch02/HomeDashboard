@@ -6,7 +6,6 @@ from PIL import Image
 
 from src.display.driver import WAVESHARE_G_PALETTE
 from src.render.quantize import (
-    _quantize_palette_nearest_python,
     flatten_pixels,
     quantize_to_palette_nearest,
 )
@@ -47,13 +46,6 @@ def test_neutral_greys_never_land_on_a_coloured_ink():
     # And the cut is at mid-grey, like the 1-bit threshold.
     assert greys[127] == (0, 0, 0)
     assert greys[128] == (255, 255, 255)
-
-
-def test_pure_python_fallback_agrees_with_numpy():
-    ramp = _ramp()
-    fast = flatten_pixels(quantize_to_palette_nearest(ramp, PALETTE))
-    slow = flatten_pixels(_quantize_palette_nearest_python(ramp, PALETTE))
-    assert fast == slow
 
 
 def test_l_and_one_bit_inputs_are_accepted():

@@ -1,6 +1,6 @@
 """Tests for src/fetchers/calendar_google.py
 
-Covers: _parse_event, _ser_sync_event, _deser_sync_event, _load_sync_state,
+Covers: _parse_event, _ser_event, _deser_event, _load_sync_state,
 _save_sync_state, _apply_delta, _filter_to_window, _fetch_full,
 _fetch_incremental, fetch_google_events, clear_service_caches.
 """
@@ -19,16 +19,15 @@ import pytest
 from src._time import event_window_utc
 from src.config import GoogleConfig
 from src.data.models import CalendarEvent
+from src.fetchers.cache import _deser_event, _ser_event
 from src.fetchers.calendar_google import (
     _apply_delta,
-    _deser_sync_event,
     _fetch_full,
     _fetch_incremental,
     _filter_to_window,
     _load_sync_state,
     _parse_event,
     _save_sync_state,
-    _ser_sync_event,
     _today,
     clear_service_caches,
     fetch_google_events,
@@ -136,7 +135,7 @@ class TestParseEvent:
 
 
 # ---------------------------------------------------------------------------
-# _ser_sync_event / _deser_sync_event
+# _ser_event / _deser_event
 # ---------------------------------------------------------------------------
 
 
@@ -156,12 +155,12 @@ class TestSyncEventSerialization:
 
     def test_roundtrip_timed(self):
         event = self._make_event()
-        d = _ser_sync_event(event)
+        d = _ser_event(event)
         assert d["event_id"] == "evt001"
         assert d["summary"] == "Team Lunch"
         assert d["is_all_day"] is False
 
-        restored = _deser_sync_event(d)
+        restored = _deser_event(d)
         assert restored.summary == event.summary
         assert restored.start == event.start
         assert restored.end == event.end
@@ -180,8 +179,8 @@ class TestSyncEventSerialization:
             is_all_day=True,
             calendar_name="Personal",
         )
-        d = _ser_sync_event(event)
-        restored = _deser_sync_event(d)
+        d = _ser_event(event)
+        restored = _deser_event(d)
         assert restored.is_all_day is True
 
     def test_deser_missing_optional_fields(self):
@@ -190,7 +189,7 @@ class TestSyncEventSerialization:
             "start": "2024-03-15T09:00:00",
             "end": "2024-03-15T10:00:00",
         }
-        event = _deser_sync_event(d)
+        event = _deser_event(d)
         assert event.summary == "Minimal"
         assert event.is_all_day is False
         assert event.location is None
@@ -223,9 +222,9 @@ class TestSyncEventSerialization:
         (tmp_path / "calendar_sync_state.json").write_text(json.dumps(state))
 
         loaded = _load_sync_state(str(tmp_path))["primary"]["events"]
-        event = _deser_sync_event(loaded[0])
+        event = _deser_event(loaded[0])
         assert event == self._make_event()
-        assert _ser_sync_event(event) == stored
+        assert _ser_event(event) == stored
 
 
 # ---------------------------------------------------------------------------
@@ -426,7 +425,7 @@ class TestApplyDelta:
             calendar_name="Work",
             event_id=event_id,
         )
-        return _ser_sync_event(event)
+        return _ser_event(event)
 
     def test_upsert_new_event(self):
         stored = []
@@ -512,7 +511,7 @@ class TestFilterToWindow:
             calendar_name="Cal",
             event_id=event_id,
         )
-        return _ser_sync_event(event)
+        return _ser_event(event)
 
     def _window(self, year=2024, month=3, day=11):
         """Return a Mon–Mon UTC window starting on given date."""
@@ -1118,9 +1117,9 @@ class TestFilterToWindowOverlap:
     """Timed events use overlap semantics, like the all-day branch (#275)."""
 
     def _stored(self, start: datetime, end: datetime) -> dict:
-        from src.fetchers.calendar_google import _ser_sync_event
+        from src.fetchers.cache import _ser_event
 
-        return _ser_sync_event(
+        return _ser_event(
             CalendarEvent(
                 summary="x",
                 start=start,
@@ -1173,7 +1172,7 @@ class TestIncrementalSync:
             start=datetime(2024, 3, 15, 9),
             end=datetime(2024, 3, 15, 10),
         )
-        stored = [_ser_sync_event(stored_event)]
+        stored = [_ser_event(stored_event)]
         cancelled_item = {"id": "evt1", "status": "cancelled"}
         merged = _apply_delta(stored, [cancelled_item], "Cal")
         assert len(merged) == 0
@@ -1186,7 +1185,7 @@ class TestIncrementalSync:
             start=datetime(2024, 3, 15, 9),
             end=datetime(2024, 3, 15, 10),
         )
-        stored = [_ser_sync_event(stored_event)]
+        stored = [_ser_event(stored_event)]
         updated_item = {
             "id": "evt1",
             "summary": "New Title",
@@ -1220,8 +1219,8 @@ class TestIncrementalSync:
             calendar_name="Work",
             event_id="abc123",
         )
-        d = _ser_sync_event(event)
-        restored = _deser_sync_event(d)
+        d = _ser_event(event)
+        restored = _deser_event(d)
         assert restored.summary == event.summary
         assert restored.location == event.location
         assert restored.event_id == event.event_id
@@ -1236,7 +1235,7 @@ class TestIncrementalSync:
             end=datetime(2024, 3, 13, 10),
             event_id="e1",
         )
-        stored = [_ser_sync_event(event)]
+        stored = [_ser_event(event)]
         result = _filter_to_window(stored, week_start, week_end)
         assert len(result) == 1
 
@@ -1250,7 +1249,7 @@ class TestIncrementalSync:
             end=datetime(2024, 3, 1, 10),
             event_id="old",
         )
-        stored = [_ser_sync_event(old_event)]
+        stored = [_ser_event(old_event)]
         result = _filter_to_window(stored, week_start, week_end)
         assert len(result) == 0
 
@@ -1269,7 +1268,7 @@ class TestIncrementalSync:
 
     def test_sync_state_persisted_across_calls(self):
         """Sync token is stored in the state file after a full fetch."""
-        from src.fetchers.calendar import _load_sync_state, _save_sync_state
+        from src.fetchers.calendar_google import _load_sync_state, _save_sync_state
 
         with tempfile.TemporaryDirectory() as tmpdir:
             state = {"primary": {"sync_token": "tok123", "events": []}}
@@ -1278,7 +1277,7 @@ class TestIncrementalSync:
             assert loaded["primary"]["sync_token"] == "tok123"
 
     def test_load_sync_state_returns_empty_when_missing(self):
-        from src.fetchers.calendar import _load_sync_state
+        from src.fetchers.calendar_google import _load_sync_state
 
         with tempfile.TemporaryDirectory() as tmpdir:
             result = _load_sync_state(tmpdir)

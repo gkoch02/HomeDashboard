@@ -15,7 +15,6 @@ from datetime import date
 from PIL import ImageDraw
 
 from src.data.models import WeatherData
-from src.render.components.info_panel import _quote_for_today
 from src.render.fonts import (
     bold as jakarta_bold,
 )
@@ -32,6 +31,7 @@ from src.render.icons import FALLBACK_ICON, OWM_ICON_MAP, draw_weather_icon
 from src.render.moon import moon_phase_glyph
 from src.render.primitives import fmt_deg, text_height
 from src.render.primitives import wrap_lines as _wrap_lines
+from src.render.quotes import quote_for
 from src.render.theme import ComponentRegion, ThemeStyle
 
 
@@ -63,7 +63,7 @@ def draw_qotd(
     if style is None:
         style = ThemeStyle()
 
-    quote = _quote_for_today(today, refresh=quote_refresh, quotes_path=quotes_path)
+    quote = quote_for(today, refresh=quote_refresh, path=quotes_path)
     text = quote["text"]  # marks rendered separately, large
     author = f"\u2014 {quote['author']}"
 

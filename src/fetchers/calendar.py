@@ -19,31 +19,11 @@ from src._time import event_window_utc
 from src.config import BirthdayConfig, GoogleConfig
 from src.data.models import Birthday, CalendarEvent
 from src.fetchers import request_counter
-
-# Re-export from sub-modules so existing consumers don't break.
-# Tests and other code can continue to ``from src.fetchers.calendar import ...``.
-from src.fetchers.calendar_google import (  # noqa: F401
-    _apply_delta,
-    _build_service,
-    _deser_sync_event,
-    _fetch_full,
-    _fetch_incremental,
-    _filter_to_window,
-    _load_sync_state,
-    _parse_event,
-    _save_sync_state,
-    _ser_sync_event,
-    _today,
-    fetch_google_events,
-)
+from src.fetchers.calendar_google import _build_service, _today, fetch_google_events
 from src.fetchers.calendar_google import (
     clear_service_caches as _google_clear_service_caches,
 )
-from src.fetchers.calendar_ical import (  # noqa: F401
-    _parse_ical_event,
-    _url_hostname,
-    fetch_from_ical,
-)
+from src.fetchers.calendar_ical import fetch_from_ical
 
 logger = logging.getLogger(__name__)
 
@@ -96,9 +76,6 @@ def _build_people_service(cfg: GoogleConfig):
 
 
 # Public API: event fetching (dispatches to Google API or ICS)
-
-# Keep _fetch_from_ical as an alias for backward compat with mock paths
-_fetch_from_ical = fetch_from_ical
 
 
 def fetch_events(

@@ -1,28 +1,13 @@
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date
 
 from PIL import ImageDraw
 
 from src.render import layout as L
 from src.render.primitives import draw_text_wrapped, hline, truncate_to_width, wrap_lines
-from src.render.quotes import cache_clear as quotes_cache_clear
 from src.render.quotes import quote_for
 from src.render.theme import ComponentRegion, ThemeStyle
-
-
-def _quote_for_today(
-    today: date,
-    refresh: str = "daily",
-    now: datetime | None = None,
-    quotes_path: str | None = None,
-) -> dict:
-    """Pick this panel's quote. Selection lives in :mod:`src.render.quotes`."""
-    return quote_for(today, refresh=refresh, now=now, path=quotes_path)
-
-
-# Kept for callers (including tests) that flush the cache after swapping stores.
-_quote_for_today.cache_clear = quotes_cache_clear  # type: ignore[attr-defined]
 
 
 def _count_lines(text: str, font, max_width: int) -> int:
@@ -59,7 +44,7 @@ def draw_info(
     info_label = style.component_labels.get("info", "QUOTE OF THE DAY")
     draw.text((x0 + pad, y0 + pad), info_label, font=label_font, fill=style.primary_accent_fill())
 
-    quote = _quote_for_today(today, refresh=quote_refresh, quotes_path=quotes_path)
+    quote = quote_for(today, refresh=quote_refresh, path=quotes_path)
 
     # Quote text — adapt font size so long quotes fit without truncation
     text = f'"{quote["text"]}"'

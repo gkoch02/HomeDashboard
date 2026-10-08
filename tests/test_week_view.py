@@ -10,12 +10,11 @@ from src.render import layout as L
 from src.render.components.week_view import (
     _collect_spanning_events,
     _density_tier,
-    _events_for_day,
-    _fmt_time,
     _fonts_for_tier,
     _is_multiday,
     draw_week,
 )
+from src.render.primitives import events_for_day, fmt_time
 from src.render.quantize import flatten_pixels
 from tests.conftest import all_day_event, make_draw
 from tests.inkutils import ink
@@ -31,7 +30,7 @@ def _timed(day: date, h_start: int, h_end: int, summary: str = "Evt", location: 
 
 
 # ---------------------------------------------------------------------------
-# _fmt_time
+# fmt_time
 # ---------------------------------------------------------------------------
 
 
@@ -41,31 +40,31 @@ WEEK_BOX = (L.WEEK_X, L.WEEK_Y, L.WEEK_X + L.WEEK_W, L.WEEK_Y + L.WEEK_H)
 class TestFmtTime:
     def test_on_the_hour_am(self):
         dt = datetime(2024, 3, 15, 9, 0)
-        assert _fmt_time(dt) == "9a"
+        assert fmt_time(dt) == "9a"
 
     def test_on_the_hour_pm(self):
         dt = datetime(2024, 3, 15, 14, 0)
-        assert _fmt_time(dt) == "2p"
+        assert fmt_time(dt) == "2p"
 
     def test_with_minutes_am(self):
         dt = datetime(2024, 3, 15, 9, 30)
-        assert _fmt_time(dt) == "9:30a"
+        assert fmt_time(dt) == "9:30a"
 
     def test_with_minutes_pm(self):
         dt = datetime(2024, 3, 15, 15, 45)
-        assert _fmt_time(dt) == "3:45p"
+        assert fmt_time(dt) == "3:45p"
 
     def test_noon(self):
         dt = datetime(2024, 3, 15, 12, 0)
-        assert _fmt_time(dt) == "12p"
+        assert fmt_time(dt) == "12p"
 
     def test_midnight(self):
         dt = datetime(2024, 3, 15, 0, 0)
-        assert _fmt_time(dt) == "12a"
+        assert fmt_time(dt) == "12a"
 
 
 # ---------------------------------------------------------------------------
-# _events_for_day
+# events_for_day
 # ---------------------------------------------------------------------------
 
 
@@ -90,18 +89,18 @@ class TestEventsForDay:
     def test_returns_events_on_matching_day(self):
         day = date(2024, 3, 15)
         e = self._timed(day, 9, 10)
-        result = _events_for_day([e], day)
+        result = events_for_day([e], day)
         assert e in result
 
     def test_excludes_events_on_other_days(self):
         day = date(2024, 3, 15)
         other = self._timed(date(2024, 3, 16), 9, 10)
-        assert _events_for_day([other], day) == []
+        assert events_for_day([other], day) == []
 
     def test_all_day_event_included_on_start_day(self):
         day = date(2024, 3, 15)
         e = self._all_day(day, day + timedelta(days=1))
-        result = _events_for_day([e], day)
+        result = events_for_day([e], day)
         assert e in result
 
     def test_all_day_event_excluded_on_end_day(self):
@@ -109,21 +108,21 @@ class TestEventsForDay:
         start = date(2024, 3, 15)
         end = date(2024, 3, 16)
         e = self._all_day(start, end)
-        assert _events_for_day([e], end) == []
+        assert events_for_day([e], end) == []
 
     def test_multi_day_event_included_on_middle_day(self):
         start = date(2024, 3, 14)
         end = date(2024, 3, 17)
         e = self._all_day(start, end)
-        assert e in _events_for_day([e], date(2024, 3, 15))
-        assert e in _events_for_day([e], date(2024, 3, 16))
-        assert _events_for_day([e], date(2024, 3, 17)) == []
+        assert e in events_for_day([e], date(2024, 3, 15))
+        assert e in events_for_day([e], date(2024, 3, 16))
+        assert events_for_day([e], date(2024, 3, 17)) == []
 
     def test_all_day_sorted_before_timed(self):
         day = date(2024, 3, 15)
         timed = self._timed(day, 8, 9, summary="Early Meeting")
         allday = self._all_day(day, day + timedelta(days=1), summary="Conference")
-        result = _events_for_day([timed, allday], day)
+        result = events_for_day([timed, allday], day)
         assert result[0] == allday
         assert result[1] == timed
 
@@ -131,12 +130,12 @@ class TestEventsForDay:
         day = date(2024, 3, 15)
         late = self._timed(day, 15, 16, summary="Afternoon")
         early = self._timed(day, 9, 10, summary="Morning")
-        result = _events_for_day([late, early], day)
+        result = events_for_day([late, early], day)
         assert result[0] == early
         assert result[1] == late
 
     def test_empty_events_list(self):
-        assert _events_for_day([], date(2024, 3, 15)) == []
+        assert events_for_day([], date(2024, 3, 15)) == []
 
 
 # ---------------------------------------------------------------------------
@@ -848,7 +847,7 @@ class TestMultidaySpanning:
         """Multi-day events drawn as spanning bars should not also appear as per-day bars."""
         spanning = all_day_event(date(2024, 3, 13), date(2024, 3, 16), "Multi")
         timed = _timed(date(2024, 3, 13), 9, 10, "Standup")
-        # _events_for_day still returns the multi-day event (it's the draw_week
+        # events_for_day still returns the multi-day event (it's the draw_week
         # function that filters). Just verify both events are visible on the day.
-        events = _events_for_day([spanning, timed], date(2024, 3, 13))
+        events = events_for_day([spanning, timed], date(2024, 3, 13))
         assert len(events) == 2  # both show up in the raw filter
