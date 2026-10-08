@@ -6,7 +6,7 @@ from datetime import date, datetime, timedelta
 from unittest.mock import patch
 
 import pytest
-from PIL import Image, ImageDraw
+from PIL import Image
 
 from src.data.models import CalendarEvent, DayForecast
 from src.render.components.today_view import (
@@ -16,12 +16,8 @@ from src.render.components.today_view import (
 )
 from src.render.quantize import flatten_pixels
 from src.render.theme import ComponentRegion
-from tests.inkutils import record_text
-
-
-def _make_draw(w: int = 800, h: int = 480):
-    img = Image.new("1", (w, h), 1)
-    return img, ImageDraw.Draw(img)
+from tests.conftest import make_draw
+from tests.inkutils import ink, record_text
 
 
 def _timed(
@@ -184,16 +180,6 @@ DATE_PANEL = (0, 60, _DATE_PANEL_W, 340)
 EVENTS = (_DATE_PANEL_W, 60, 800, 340)
 
 
-def _ink(img: Image.Image, box: tuple[int, int, int, int] | None = None) -> int:
-    """Count ink (value-0) pixels, optionally only inside *box*."""
-    px = flatten_pixels(img)
-    width = img.width
-    if box is None:
-        return sum(1 for v in px if v == 0)
-    x0, y0, x1, y1 = box
-    return sum(1 for y in range(y0, y1) for x in range(x0, x1) if px[y * width + x] == 0)
-
-
 def _divider_height(img: Image.Image) -> int:
     """Inked rows in the rule between the date panel and the event list."""
     px = flatten_pixels(img)
@@ -202,7 +188,7 @@ def _divider_height(img: Image.Image) -> int:
 
 
 def _render(events=None, today=TODAY, **kwargs) -> Image.Image:
-    img, draw = _make_draw()
+    img, draw = make_draw()
     draw_today(draw, events or [], today, **kwargs)
     return img
 
@@ -212,27 +198,27 @@ class TestDrawToday:
         """The date panel is inverted and the event list carries the empty message."""
         img = _render()
         panel_area = _DATE_PANEL_W * 280
-        assert _ink(img, DATE_PANEL) > panel_area * 0.5, "date panel is not inverted"
-        assert _ink(img, DATE_PANEL) < panel_area, "no date text knocked out of the fill"
-        assert _ink(img, EVENTS) > 0, "no empty-state message"
+        assert ink(img, DATE_PANEL) > panel_area * 0.5, "date panel is not inverted"
+        assert ink(img, DATE_PANEL) < panel_area, "no date text knocked out of the fill"
+        assert ink(img, EVENTS) > 0, "no empty-state message"
         assert _divider_height(img) > 200, "no rule between the panels"
 
     def test_date_panel_tracks_the_date(self):
         """Day name, month and numeral come from the date, so they vary with it."""
         inks = {
-            d: _ink(_render(today=d), DATE_PANEL)
+            d: ink(_render(today=d), DATE_PANEL)
             for d in (date(2024, 3, 1), date(2024, 3, 15), date(2024, 12, 25))
         }
         assert len(set(inks.values())) == 3, f"the date panel is not date-driven: {inks}"
 
     def test_smoke_single_timed_event(self):
         """A timed event replaces the empty-state message."""
-        assert _ink(_render([_timed(TODAY, 10, 11)]), EVENTS) != _ink(_render(), EVENTS)
+        assert ink(_render([_timed(TODAY, 10, 11)]), EVENTS) != ink(_render(), EVENTS)
 
     def test_smoke_single_all_day_event(self):
         """An all-day event draws a filled bar, so it inks far more than a timed row."""
-        all_day = _ink(_render([_all_day(TODAY, TODAY + timedelta(days=1))]), EVENTS)
-        assert all_day > _ink(_render([_timed(TODAY, 10, 11)]), EVENTS) * 5
+        all_day = ink(_render([_all_day(TODAY, TODAY + timedelta(days=1))]), EVENTS)
+        assert all_day > ink(_render([_timed(TODAY, 10, 11)]), EVENTS) * 5
 
     def test_smoke_mixed_events(self):
         """All three events are drawn, so the plate exceeds any one of them."""
@@ -241,9 +227,9 @@ class TestDrawToday:
             _timed(TODAY, 9, 10, "Standup"),
             _timed(TODAY, 14, 15, "Review"),
         ]
-        mixed = _ink(_render(events), EVENTS)
-        assert mixed > _ink(_render(events[:1]), EVENTS)
-        assert mixed > _ink(_render(events[1:]), EVENTS)
+        mixed = ink(_render(events), EVENTS)
+        assert mixed > ink(_render(events[:1]), EVENTS)
+        assert mixed > ink(_render(events[1:]), EVENTS)
 
     def test_smoke_events_on_different_days_only_today_shown(self):
         """Yesterday's and tomorrow's events are filtered out, not merely tolerated."""
@@ -253,7 +239,7 @@ class TestDrawToday:
             _timed(TODAY, 11, 12, "Today"),
             _timed(TODAY + timedelta(days=1), 9, 10, "Tomorrow"),
         ]
-        assert _ink(_render(with_neighbours), EVENTS) == _ink(_render(only_today), EVENTS), (
+        assert ink(_render(with_neighbours), EVENTS) == ink(_render(only_today), EVENTS), (
             "an event from another day reached the plate"
         )
 
@@ -262,15 +248,15 @@ class TestDrawToday:
         events = [_timed(TODAY, 8 + i, 9 + i, f"Event {i}") for i in range(10)]
         tall = ComponentRegion(0, 60, 800, 300)
         short = ComponentRegion(0, 60, 800, 140)
-        tall_ink = _ink(_render(events, region=tall), (240, 60, 800, 360))
-        short_ink = _ink(_render(events, region=short), (240, 60, 800, 360))
+        tall_ink = ink(_render(events, region=tall), (240, 60, 800, 360))
+        short_ink = ink(_render(events, region=short), (240, 60, 800, 360))
         assert tall_ink > short_ink, "the region height does not affect how much is listed"
 
     def test_smoke_many_events_overflow(self):
         """Beyond what fits, the list stops and shows a '+N more' indicator."""
 
         def with_events(n):
-            img, draw = _make_draw()
+            img, draw = make_draw()
             calls = record_text(draw)
             events = [_timed(TODAY, 6 + (i % 14), 7 + (i % 14), f"E{i}") for i in range(n)]
             draw_today(draw, events, TODAY)
@@ -287,22 +273,22 @@ class TestDrawToday:
         from src.render.theme import ThemeStyle
 
         event = [_all_day(TODAY, TODAY + timedelta(days=1), "Conference Day")]
-        outlined = _ink(_render(event, style=ThemeStyle(invert_allday_bars=False)), EVENTS)
-        filled = _ink(_render(event, style=ThemeStyle(invert_allday_bars=True)), EVENTS)
+        outlined = ink(_render(event, style=ThemeStyle(invert_allday_bars=False)), EVENTS)
+        filled = ink(_render(event, style=ThemeStyle(invert_allday_bars=True)), EVENTS)
         assert outlined > 0
         assert filled > outlined * 5, "the inverted bar is not filled"
 
     def test_smoke_event_with_location(self):
         """A location adds a line below the title."""
         with_loc = _timed(TODAY, 9, 10, "Doctor Visit", location="123 Medical Center, Suite 4")
-        assert _ink(_render([with_loc]), EVENTS) > _ink(
+        assert ink(_render([with_loc]), EVENTS) > ink(
             _render([_timed(TODAY, 9, 10, "Doctor Visit")]), EVENTS
         )
 
     def test_location_shows_its_first_line_only(self):
         # The street, not the street with the suite run on after it — a
         # newline in the location is where the row ends, not a space.
-        img, draw = _make_draw()
+        img, draw = make_draw()
         evt = _timed(TODAY, 9, 10, "Visit", location="123 Main St\nSuite 200, Springfield")
         seen_texts: list[str] = []
 
@@ -324,16 +310,16 @@ class TestDrawToday:
         """A long title wraps rather than being dropped or overflowing."""
         long_title = _timed(TODAY, 10, 11, "A Very Long Event Title That Should Be Wrapped")
         img = _render([long_title])
-        assert _ink(img, EVENTS) > _ink(_render([_timed(TODAY, 10, 11, "Short")]), EVENTS)
-        assert _ink(img, (0, 340, 800, 480)) == 0, "the event list overflowed its region"
+        assert ink(img, EVENTS) > ink(_render([_timed(TODAY, 10, 11, "Short")]), EVENTS)
+        assert ink(img, (0, 340, 800, 480)) == 0, "the event list overflowed its region"
 
     def test_smoke_small_region(self):
         """A small region still renders and keeps everything inside it."""
         region = ComponentRegion(0, 60, 400, 120)
         events = [_timed(TODAY, i, i + 1, f"E{i}") for i in range(9, 14)]
         img = _render(events, region=region)
-        assert _ink(img, (0, 60, 400, 180)) > 0
-        assert _ink(img, (400, 0, 800, 480)) == 0, "content escaped a 400px-wide region"
+        assert ink(img, (0, 60, 400, 180)) > 0
+        assert ink(img, (400, 0, 800, 480)) == 0, "content escaped a 400px-wide region"
 
     def test_smoke_all_day_invert_style(self):
         """The inverted all-day bar knocks its title out of the fill."""
@@ -341,10 +327,10 @@ class TestDrawToday:
 
         evt = _all_day(TODAY, TODAY + timedelta(days=1), "Inverted")
         img = _render([evt], style=ThemeStyle(invert_allday_bars=True))
-        bar_ink = _ink(img, EVENTS)
+        bar_ink = ink(img, EVENTS)
         assert bar_ink > 0
         blank_title = _all_day(TODAY, TODAY + timedelta(days=1), "")
-        assert bar_ink < _ink(
+        assert bar_ink < ink(
             _render([blank_title], style=ThemeStyle(invert_allday_bars=True)), EVENTS
         ), "the title is not knocked out of the inverted bar"
 
@@ -361,7 +347,7 @@ class TestDrawToday:
             for i in range(3)
         ]
         with_fc = _render([_timed(TODAY, 10, 11)], forecast=forecast)
-        assert _ink(with_fc, EVENTS) > 0
+        assert ink(with_fc, EVENTS) > 0
 
     def test_no_events_today_message_differs_from_with_events(self):
         assert _render().tobytes() != _render([_timed(TODAY, 9, 10)]).tobytes()
@@ -374,13 +360,13 @@ class TestDrawToday:
         """
         same_period = _render([_timed(TODAY, 9, 11, "Block")])
         cross_noon = _render([_timed(TODAY, 11, 13, "Block")])
-        assert _ink(same_period, EVENTS) < _ink(cross_noon, EVENTS), (
+        assert ink(same_period, EVENTS) < ink(cross_noon, EVENTS), (
             "the redundant am/pm suffix was not stripped"
         )
 
     def test_cross_noon_event(self):
         """An 11a–1p event keeps both suffixes."""
-        assert _ink(_render([_timed(TODAY, 11, 13, "Lunch & Meeting")]), EVENTS) > 0
+        assert ink(_render([_timed(TODAY, 11, 13, "Lunch & Meeting")]), EVENTS) > 0
 
 
 class TestOverflowLine:
@@ -398,7 +384,7 @@ class TestOverflowLine:
     # the count on a location line.
     @pytest.mark.parametrize("height", range(380, 421, 4))
     def test_more_line_clears_the_rows_above(self, height):
-        img, draw = _make_draw()
+        img, draw = make_draw()
         calls = record_text(draw)
         region = ComponentRegion(0, 80, 490, height)
         draw_today(draw, self._events(), TODAY, region=region)

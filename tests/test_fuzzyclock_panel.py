@@ -3,20 +3,15 @@
 from datetime import datetime
 
 import pytest
-from PIL import Image, ImageDraw
 
 from src.render.components.fuzzyclock_panel import _phrase_segments, draw_fuzzyclock, fuzzy_time
 from src.render.theme import ComponentRegion, ThemeStyle
+from tests.conftest import make_draw
 from tests.inkutils import ink, text_line_heights
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
-
-def _make_draw(w: int = 800, h: int = 480):
-    img = Image.new("1", (w, h), 1)
-    return img, ImageDraw.Draw(img)
 
 
 def _dt(hour: int, minute: int) -> datetime:
@@ -151,7 +146,7 @@ class TestFuzzyTime:
 
 class TestDrawFuzzyclock:
     def test_smoke_default_region(self):
-        img, draw = _make_draw()
+        img, draw = make_draw()
         result = draw_fuzzyclock(draw, _dt(7, 30))
         assert result is None  # pure side-effect function
 
@@ -177,16 +172,16 @@ class TestDrawFuzzyclock:
     def test_renders_a_non_blank_plate(self, now, region, style):
         """Every input shape draws something; the phrase itself is pinned by TestFuzzyTime."""
         box = (0, 0, 800, 480) if region is None else (region.x, region.y, region.w, region.h)
-        img, draw = _make_draw(max(box[2], 800), max(box[3], 480))
+        img, draw = make_draw(max(box[2], 800), max(box[3], 480))
         draw_fuzzyclock(draw, now, region=region, style=style)
         assert ink(img, (box[0], box[1], box[0] + box[2], box[1] + box[3])) > 0
 
     def test_overflow_block_falls_back_to_minimum_sizes(self):
         """A region too short for the fitted block is set at the minimum phrase size."""
-        roomy, roomy_draw = _make_draw()
+        roomy, roomy_draw = make_draw()
         draw_fuzzyclock(roomy_draw, _dt(7, 30), region=ComponentRegion(0, 0, 800, 400))
         # height=60 means threshold = 60 - 2*24 = 12px, far smaller than any rendered block
-        short, short_draw = _make_draw()
+        short, short_draw = make_draw()
         draw_fuzzyclock(short_draw, _dt(7, 30), region=ComponentRegion(0, 0, 800, 60))
         tallest_roomy = max(text_line_heights(roomy, (0, 0, 800, 400)))
         tallest_short = max(text_line_heights(short, (0, 0, 800, 480)))

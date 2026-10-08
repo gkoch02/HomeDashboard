@@ -18,16 +18,12 @@ from src.render.components.moonphase_panel import (
 from src.render.quantize import flatten_pixels
 from src.render.quotes import quote_for
 from src.render.theme import ComponentRegion, ThemeStyle, load_theme
+from tests.conftest import make_draw
 from tests.inkutils import marks, record_text
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
-
-def _make_draw(w: int = 800, h: int = 480):
-    img = Image.new("1", (w, h), 1)
-    return img, ImageDraw.Draw(img)
 
 
 def _make_weather(**overrides) -> WeatherData:
@@ -178,17 +174,6 @@ def _light_style():
     return moonphase_invert_theme().style
 
 
-def _marks(img, box=None) -> int:
-    """Pixels differing from the canvas background colour."""
-    px = flatten_pixels(img)
-    width = img.width
-    background = px[0]
-    if box is None:
-        return sum(1 for v in px if v != background)
-    x0, y0, x1, y1 = box
-    return sum(1 for y in range(y0, y1) for x in range(x0, x1) if px[y * width + x] != background)
-
-
 def _render_l(today=None, data=None, *, style=None, background=0, **kwargs):
     """Render on an L plate using a real theme style."""
     img = Image.new("L", (800, 480), background)
@@ -251,12 +236,12 @@ class TestBilevelType:
 
     def test_dark_plate_type_has_no_grey_edges(self):
         img = _render_l()
-        assert _marks(img, self._TYPE_BAND) > 0
+        assert marks(img, self._TYPE_BAND) > 0
         assert self._greys(img) == 0
 
     def test_light_plate_type_has_no_grey_edges(self):
         img = _render_l(style=_light_style(), background=255)
-        assert _marks(img, self._TYPE_BAND) > 0
+        assert marks(img, self._TYPE_BAND) > 0
         assert self._greys(img) == 0
 
     def test_restores_the_callers_fontmode(self):
@@ -282,15 +267,15 @@ class TestBareDiscs:
 
 class TestDrawMoonphaseSmoke:
     def test_renders_with_full_data(self):
-        assert _marks(_render_l()) > 0
+        assert marks(_render_l()) > 0
 
     def test_returns_none(self):
-        _, draw = _make_draw()
+        _, draw = make_draw()
         assert draw_moonphase(draw, _make_data(), TODAY) is None
 
     def test_produces_non_blank_image(self):
         """Genuinely non-blank: pixels differ from the background."""
-        assert _marks(_render_l()) > 0
+        assert marks(_render_l()) > 0
 
     def test_draws_the_hero_and_flanking_moons(self):
         """The filmstrip is the hero plus three days each side, spanning the plate."""
@@ -299,15 +284,15 @@ class TestDrawMoonphaseSmoke:
     def test_renders_without_weather(self):
         """weather=None drops the sun/weather line but keeps the rest."""
         without = _render_l(data=_make_data(weather=None))
-        assert _marks(without) > 0
+        assert marks(without) > 0
         _assert_filmstrip(without, "without weather")
-        assert _marks(without) != _marks(_render_l()), "the weather line is not drawn"
+        assert marks(without) != marks(_render_l()), "the weather line is not drawn"
 
     def test_renders_with_default_region_and_style(self):
         """region=None/style=None fill in the full-canvas defaults."""
-        img_default, draw = _make_draw()
+        img_default, draw = make_draw()
         draw_moonphase(draw, _make_data(), TODAY, region=None, style=None)
-        img_explicit, draw2 = _make_draw()
+        img_explicit, draw2 = make_draw()
         draw_moonphase(
             draw2,
             _make_data(),
@@ -315,21 +300,21 @@ class TestDrawMoonphaseSmoke:
             region=ComponentRegion(0, 0, 800, 480),
             style=ThemeStyle(),
         )
-        assert _marks(img_default) > 0
+        assert marks(img_default) > 0
         assert img_default.tobytes() == img_explicit.tobytes()
 
     def test_renders_with_custom_region(self):
         """A shifted region moves the content with it."""
         at_origin = _render_l(region=ComponentRegion(0, 0, 800, 240))
         lower = _render_l(region=ComponentRegion(0, 120, 800, 240))
-        assert _marks(at_origin) > 0
+        assert marks(at_origin) > 0
         assert at_origin.tobytes() != lower.tobytes()
 
     def test_renders_with_custom_style(self):
         """The dark and light theme styles produce different plates."""
         dark = _render_l(style=_dark_style(), background=0)
         light = _render_l(style=_light_style(), background=255)
-        assert _marks(dark) > 0 and _marks(light) > 0
+        assert marks(dark) > 0 and marks(light) > 0
         assert dark.tobytes() != light.tobytes()
 
 
@@ -349,7 +334,7 @@ class TestDrawMoonphasePhases:
     def test_renders_across_lunar_cycle(self, d):
         """Every date draws the full filmstrip."""
         img = _render_l(d)
-        assert _marks(img) > 0
+        assert marks(img) > 0
         _assert_filmstrip(img, f"for {d}")
 
     def test_hero_disc_tracks_illumination(self):
@@ -388,25 +373,25 @@ class TestDrawMoonphasePhases:
 
 class TestDrawMoonphaseCelestialStrip:
     def test_renders_without_sunrise(self):
-        base = _marks(_render_l())
-        assert _marks(_render_l(data=_make_data(weather=_make_weather(sunrise=None)))) != base
+        base = marks(_render_l())
+        assert marks(_render_l(data=_make_data(weather=_make_weather(sunrise=None)))) != base
 
     def test_renders_without_sunset(self):
-        base = _marks(_render_l())
-        assert _marks(_render_l(data=_make_data(weather=_make_weather(sunset=None)))) != base
+        base = marks(_render_l())
+        assert marks(_render_l(data=_make_data(weather=_make_weather(sunset=None)))) != base
 
     def test_renders_without_sunrise_and_sunset(self):
         """Neither time still renders the rest of the panel."""
         neither = _render_l(data=_make_data(weather=_make_weather(sunrise=None, sunset=None)))
-        assert _marks(neither) > 0
+        assert marks(neither) > 0
         _assert_filmstrip(neither, "without sun times")
-        assert _marks(neither) != _marks(_render_l())
+        assert marks(neither) != marks(_render_l())
 
 
 class TestDrawMoonphaseQuoteRefresh:
     @pytest.mark.parametrize("mode", ["daily", "hourly", "twice_daily"])
     def test_refresh_mode_renders(self, mode):
-        assert _marks(_render_l(quote_refresh=mode)) > 0
+        assert marks(_render_l(quote_refresh=mode)) > 0
 
     def test_refresh_modes_can_select_different_quotes(self):
         """The three cadences bucket differently, so they do not all agree."""

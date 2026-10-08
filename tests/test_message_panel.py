@@ -5,8 +5,8 @@
 from PIL import Image, ImageDraw
 
 from src.render.components.message_panel import draw_message
-from src.render.quantize import flatten_pixels
 from src.render.theme import ComponentRegion, ThemeStyle
+from tests.inkutils import ink, text_line_heights
 
 
 def _make_draw(w: int = 800, h: int = 400):
@@ -26,37 +26,6 @@ def _make_draw(w: int = 800, h: int = 400):
 BOX = (0, 0, 800, 400)
 
 
-def _ink(img: Image.Image, box: tuple[int, int, int, int] = BOX) -> int:
-    """Count ink (value-0) pixels inside *box*."""
-    px = flatten_pixels(img)
-    width = img.width
-    x0, y0, x1, y1 = box
-    return sum(1 for y in range(y0, y1) for x in range(x0, x1) if px[y * width + x] == 0)
-
-
-def _text_line_heights(img: Image.Image, box: tuple[int, int, int, int] = BOX, min_h: int = 3):
-    """Heights of the horizontal bands of ink inside *box*.
-
-    One band per rendered line; each band's height tracks the font size.
-    """
-    px = flatten_pixels(img)
-    width = img.width
-    x0, y0, x1, y1 = box
-    hot = [any(px[y * width + x] == 0 for x in range(x0, x1)) for y in range(y0, y1)]
-    runs = []
-    start = None
-    for i, is_hot in enumerate(hot):
-        if is_hot and start is None:
-            start = i
-        elif not is_hot and start is not None:
-            if i - start >= min_h:
-                runs.append(i - start)
-            start = None
-    if start is not None and len(hot) - start >= min_h:
-        runs.append(len(hot) - start)
-    return runs
-
-
 def _render(message: str, **kwargs) -> Image.Image:
     img, draw = _make_draw()
     draw_message(draw, message, **kwargs)
@@ -70,8 +39,8 @@ class TestDrawMessageSmoke:
     def test_smoke_short_message(self):
         """A short message is drawn, on few lines."""
         img = _render("Hello")
-        assert _ink(img) > 0
-        assert len(_text_line_heights(img)) <= 3
+        assert ink(img, BOX) > 0
+        assert len(text_line_heights(img, BOX)) <= 3
 
     def test_smoke_default_args(self):
         """region=None/style=None fill in the documented defaults."""
@@ -82,13 +51,13 @@ class TestDrawMessageSmoke:
         """A smaller region keeps the text inside it."""
         region = ComponentRegion(0, 0, 400, 200)
         img = _render("Hello", region=region)
-        assert _ink(img, (0, 0, 400, 200)) > 0
-        assert _ink(img, (400, 0, 800, 400)) == 0, "text escaped a 400px-wide region"
+        assert ink(img, (0, 0, 400, 200)) > 0
+        assert ink(img, (400, 0, 800, 400)) == 0, "text escaped a 400px-wide region"
 
     def test_smoke_small_region_does_not_crash(self):
         """A region too small for any candidate size still draws via the fallback."""
         img = _render("Hello", region=ComponentRegion(0, 0, 120, 50))
-        assert _ink(img, (0, 0, 120, 60)) > 0, "the fallback path drew nothing"
+        assert ink(img, (0, 0, 120, 60)) > 0, "the fallback path drew nothing"
 
     def test_smoke_custom_style(self):
         """An inverted style is not the same plate as the default."""
@@ -99,8 +68,10 @@ class TestDrawMessageSmoke:
     def test_empty_string_shows_placeholder(self):
         """An empty message falls back to the placeholder, not a blank plate."""
         empty = _render("")
-        assert _ink(empty) > 0
-        assert _ink(empty) != _ink(_render("Hello")), "the placeholder is not distinguishable"
+        assert ink(empty, BOX) > 0
+        assert ink(empty, BOX) != ink(_render("Hello"), BOX), (
+            "the placeholder is not distinguishable"
+        )
 
     def test_whitespace_only_shows_placeholder(self):
         """Whitespace is stripped first, so it takes the same path as empty."""
@@ -112,9 +83,9 @@ class TestDrawMessageSmoke:
     def test_very_long_message_wraps_to_many_lines(self):
         """A 40-word message wraps rather than being dropped or set on one line."""
         img = _render(_LONG)
-        lines = _text_line_heights(img)
+        lines = text_line_heights(img, BOX)
         assert len(lines) > 3, f"a 40-word message did not wrap: {lines}"
-        assert len(lines) > len(_text_line_heights(_render("Hello")))
+        assert len(lines) > len(text_line_heights(_render("Hello"), BOX))
 
     def test_short_messages_are_set_larger_than_long_ones(self):
         """The size-selection loop picks the largest size that fits.
@@ -123,8 +94,8 @@ class TestDrawMessageSmoke:
         message's tallest band must beat the long one's. The old version of
         this test only compared plate bytes, which differ for any reason.
         """
-        short_lines = _text_line_heights(_render("Hello"))
-        long_lines = _text_line_heights(_render(_LONG))
+        short_lines = text_line_heights(_render("Hello"), BOX)
+        long_lines = text_line_heights(_render(_LONG), BOX)
         assert max(short_lines) > max(long_lines), (
             f"short message not set larger: {max(short_lines)} vs {max(long_lines)}"
         )
@@ -142,9 +113,9 @@ class TestDrawMessageSmoke:
         text = "Hello world this is a longer message"
         for w in (60, 120, 200, 300):
             img = _render(text, region=ComponentRegion(0, 0, w, 400))
-            assert _ink(img, (0, 0, w, 400)) > 0, f"nothing drawn at all at w={w}"
-            assert _ink(img, (w, 0, 800, 400)) == 0, f"text overflowed the region at w={w}"
-        assert _ink(_render(text, region=ComponentRegion(0, 0, 300, 400)), (300, 0, 800, 400)) == 0
+            assert ink(img, (0, 0, w, 400)) > 0, f"nothing drawn at all at w={w}"
+            assert ink(img, (w, 0, 800, 400)) == 0, f"text overflowed the region at w={w}"
+        assert ink(_render(text, region=ComponentRegion(0, 0, 300, 400)), (300, 0, 800, 400)) == 0
 
     def test_unfittable_message_uses_size_20_fallback(self):
         """Too tall at every candidate size → the size-20, 8-line fallback.
@@ -156,8 +127,8 @@ class TestDrawMessageSmoke:
         region = ComponentRegion(0, 0, 200, 60)
         forty = _render(_LONG, region=region)
         eighty = _render(" ".join(["extraordinary"] * 80), region=region)
-        assert _ink(forty, (0, 0, 200, 400)) > 0, "the fallback drew nothing"
-        assert _ink(forty, (0, 0, 200, 400)) == _ink(eighty, (0, 0, 200, 400)), (
+        assert ink(forty, (0, 0, 200, 400)) > 0, "the fallback drew nothing"
+        assert ink(forty, (0, 0, 200, 400)) == ink(eighty, (0, 0, 200, 400)), (
             "the 8-line fallback cap is not being applied"
         )
 
@@ -171,7 +142,7 @@ class TestDrawMessageQuoteMarks:
     def test_quote_marks_frame_the_text_block(self):
         """The marks sit outside the text's own column, one high and one low."""
         img = _render("Short")
-        bands = _text_line_heights(img)
+        bands = text_line_heights(img, BOX)
         assert len(bands) >= 2, f"expected a mark band and a text band: {bands}"
 
     def test_with_and_without_message_differ(self):
@@ -192,4 +163,4 @@ class TestDrawMessageRegionStyle:
         at_origin = _render("Same text", region=ComponentRegion(0, 0, 800, 400))
         offset = _render("Same text", region=ComponentRegion(200, 100, 400, 200))
         assert at_origin.tobytes() != offset.tobytes()
-        assert _ink(offset, (0, 0, 200, 400)) == 0, "content ignored the region x offset"
+        assert ink(offset, (0, 0, 200, 400)) == 0, "content ignored the region x offset"

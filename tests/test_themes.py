@@ -390,12 +390,9 @@ class TestRenderDashboardWithThemes:
 
     def test_qotd_theme_uses_playfair_fonts(self):
         """QOTD theme font callables should return Playfair Display fonts."""
-        from PIL import ImageFont
-
         t = load_theme("qotd")
         for fn in (t.style.font_regular, t.style.font_bold, t.style.font_semibold):
-            font = fn(24)
-            assert isinstance(font, ImageFont.FreeTypeFont)
+            assert fn(24).getname()[0] == "Playfair Display"
 
     def test_qotd_layout_qotd_region_default_invisible(self):
         """ThemeLayout.qotd defaults to visible=False in non-qotd themes."""
@@ -477,11 +474,9 @@ class TestQotdInvertTheme:
         assert result.tobytes() != with_weather.tobytes(), "the weather band ignores the data"
 
     def test_uses_playfair_fonts(self):
-        from PIL import ImageFont
-
         t = load_theme("qotd_invert")
         for fn in (t.style.font_regular, t.style.font_bold):
-            assert isinstance(fn(24), ImageFont.FreeTypeFont)
+            assert fn(24).getname()[0] == "Playfair Display"
 
 
 # ---------------------------------------------------------------------------

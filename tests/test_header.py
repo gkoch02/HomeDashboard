@@ -1,33 +1,21 @@
-"""Tests for header.py; ink is counted with the local ``_ink`` (the band is inverted, so more
+"""Tests for header.py; ink is counted with ``inkutils.ink`` (the band is inverted, so more
 text means less ink, and the ``updated`` stamp must read ``content_at``, never ``now``).
 """
 
 from datetime import datetime
 
-from PIL import Image, ImageDraw
+from PIL import Image
 
 from src.data.models import StalenessLevel
 from src.render import layout as L
 from src.render.components.header import draw_header
-from src.render.quantize import flatten_pixels
 from src.render.theme import ComponentRegion, ThemeStyle
+from tests.conftest import make_draw
+from tests.inkutils import ink
 
 REGION = ComponentRegion(0, L.HEADER_Y, L.WIDTH, L.HEADER_H)
 BOX = (REGION.x, REGION.y, REGION.x + REGION.w, REGION.y + REGION.h)
 AREA = REGION.w * REGION.h
-
-
-def _make_draw(w: int = 800, h: int = 480):
-    img = Image.new("1", (w, h), 1)
-    return img, ImageDraw.Draw(img)
-
-
-def _ink(img: Image.Image, box: tuple[int, int, int, int] = BOX) -> int:
-    """Count ink (value-0) pixels inside *box*."""
-    px = flatten_pixels(img)
-    width = img.width
-    x0, y0, x1, y1 = box
-    return sum(1 for y in range(y0, y1) for x in range(x0, x1) if px[y * width + x] == 0)
 
 
 class TestDrawHeader:
@@ -35,34 +23,34 @@ class TestDrawHeader:
         return datetime(2026, 3, 18, 9, 30)
 
     def _render(self, now=None, **kwargs) -> Image.Image:
-        img, draw = _make_draw()
+        img, draw = make_draw()
         draw_header(draw, now or self._now(), **kwargs)
         return img
 
     def test_smoke_renders_without_error(self):
         """The default style fills the band and knocks its text out of it."""
         img = self._render()
-        assert _ink(img) > AREA * 0.5, "header band is not inverted"
-        assert _ink(img) < AREA, "no text was knocked out of the fill"
+        assert ink(img, BOX) > AREA * 0.5, "header band is not inverted"
+        assert ink(img, BOX) < AREA, "no text was knocked out of the fill"
 
     def test_uninverted_header_draws_a_rule_instead_of_a_band(self):
         """invert_header=False leaves ink for the text and border only."""
         plain = self._render(style=ThemeStyle(invert_header=False))
-        assert 0 < _ink(plain) < AREA * 0.5, "the band was filled despite invert_header=False"
+        assert 0 < ink(plain, BOX) < AREA * 0.5, "the band was filled despite invert_header=False"
 
     def test_fresh_staleness_shows_updated_label(self):
         """FRESH draws the plain 'Updated' label, not a warning."""
         fresh = self._render(source_staleness={"weather": StalenessLevel.FRESH})
         stale = self._render(source_staleness={"weather": StalenessLevel.STALE})
-        assert _ink(fresh) != _ink(stale), "FRESH and STALE drew the same label"
+        assert ink(fresh, BOX) != ink(stale, BOX), "FRESH and STALE drew the same label"
 
     def test_aging_staleness_does_not_show_stale(self):
         """AGING is below the warning threshold — same label as FRESH."""
         aging = self._render(source_staleness={"weather": StalenessLevel.AGING})
         fresh = self._render(source_staleness={"weather": StalenessLevel.FRESH})
         stale = self._render(source_staleness={"weather": StalenessLevel.STALE})
-        assert _ink(aging) == _ink(fresh), "AGING was escalated to a warning label"
-        assert _ink(aging) != _ink(stale)
+        assert ink(aging, BOX) == ink(fresh, BOX), "AGING was escalated to a warning label"
+        assert ink(aging, BOX) != ink(stale, BOX)
 
     def test_stale_staleness_renders(self):
         """STALE swaps in the '! Stale' label, which is wider than 'Updated'.
@@ -73,27 +61,27 @@ class TestDrawHeader:
         stale = self._render(source_staleness={"weather": StalenessLevel.STALE})
         fresh = self._render(source_staleness={"weather": StalenessLevel.FRESH})
         assert stale != fresh
-        assert _ink(stale) > _ink(fresh), "'! Stale' did not replace 'Updated'"
+        assert ink(stale, BOX) > ink(fresh, BOX), "'! Stale' did not replace 'Updated'"
 
     def test_expired_staleness_renders(self):
         """EXPIRED shares the '! Stale' label with STALE."""
         expired = self._render(source_staleness={"weather": StalenessLevel.EXPIRED})
         stale = self._render(source_staleness={"weather": StalenessLevel.STALE})
-        assert _ink(expired) == _ink(stale)
-        assert _ink(expired) != _ink(self._render())
+        assert ink(expired, BOX) == ink(stale, BOX)
+        assert ink(expired, BOX) != ink(self._render(), BOX)
 
     def test_is_stale_without_severe_levels_shows_cached(self):
         """is_stale=True with only AGING sources draws '! Cached', its own label."""
         cached = self._render(is_stale=True, source_staleness={"weather": StalenessLevel.AGING})
-        assert _ink(cached) != _ink(self._render()), "'! Cached' was not drawn"
-        assert _ink(cached) != _ink(
-            self._render(source_staleness={"weather": StalenessLevel.STALE})
+        assert ink(cached, BOX) != ink(self._render(), BOX), "'! Cached' was not drawn"
+        assert ink(cached, BOX) != ink(
+            self._render(source_staleness={"weather": StalenessLevel.STALE}), BOX
         ), "'! Cached' is indistinguishable from '! Stale'"
 
     def test_is_stale_no_source_staleness_shows_cached(self):
         """No per-source map at all still yields the '! Cached' label."""
-        assert _ink(self._render(is_stale=True)) == _ink(
-            self._render(is_stale=True, source_staleness={"weather": StalenessLevel.AGING})
+        assert ink(self._render(is_stale=True), BOX) == ink(
+            self._render(is_stale=True, source_staleness={"weather": StalenessLevel.AGING}), BOX
         )
 
     def test_severity_ordering_multiple_sources(self):
@@ -105,7 +93,7 @@ class TestDrawHeader:
             source_staleness={"a": StalenessLevel.STALE, "b": StalenessLevel.AGING}
         )
         only_stale = self._render(source_staleness={"b": StalenessLevel.STALE})
-        assert _ink(worst_last) == _ink(worst_first) == _ink(only_stale), (
+        assert ink(worst_last, BOX) == ink(worst_first, BOX) == ink(only_stale, BOX), (
             "the label depends on iteration order rather than severity"
         )
 
@@ -115,17 +103,17 @@ class TestDrawHeader:
         # The stamp block is ~141 px wide, right-aligned inside the pad.
         stamp_x = REGION.x + REGION.w - L.PAD - 142
         right = (stamp_x, REGION.y, REGION.x + REGION.w, REGION.y + REGION.h)
-        assert _ink(self._render(title=long_title), right) == _ink(self._render(), right)
+        assert ink(self._render(title=long_title), right) == ink(self._render(), right)
 
     def test_custom_title_renders(self):
         """The title is drawn from the argument, not hardcoded."""
-        assert _ink(self._render(title="My Dashboard")) != _ink(self._render())
+        assert ink(self._render(title="My Dashboard"), BOX) != ink(self._render(), BOX)
 
     def test_pm_time_format(self):
         """Morning and evening stamps format differently (a vs p)."""
         morning = self._render(now=datetime(2026, 3, 18, 9, 43))
         evening = self._render(now=datetime(2026, 3, 18, 21, 43))
-        assert _ink(morning) != _ink(evening)
+        assert ink(morning, BOX) != ink(evening, BOX)
 
     def test_updated_stamp_reads_content_at_not_now(self):
         """The stamp must track when the data changed, not when we painted.

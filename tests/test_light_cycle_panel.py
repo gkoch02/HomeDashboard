@@ -25,17 +25,14 @@ from src.render.components.light_cycle_panel import (
 )
 from src.render.quantize import flatten_pixels
 from src.render.theme import AVAILABLE_THEMES, ComponentRegion, ThemeStyle, load_theme
+from tests.conftest import make_draw
+from tests.inkutils import ink
 
 NYC_LAT = 40.7128
 NYC_LON = -74.0060
 TZ = ZoneInfo("America/New_York")
 FIXED_NOW = datetime(2026, 4, 23, 12, 0, tzinfo=TZ)
 TODAY = FIXED_NOW.date()
-
-
-def _make_draw(w: int = 800, h: int = 480):
-    img = Image.new("1", (w, h), 1)
-    return img, ImageDraw.Draw(img)
 
 
 def _render(**kwargs):
@@ -181,16 +178,6 @@ class TestResolveSunTimes:
 # ---------------------------------------------------------------------------
 
 
-def _ink(img, box=None) -> int:
-    """Count ink (value-0) pixels, optionally only inside *box*."""
-    px = flatten_pixels(img)
-    width = img.width
-    if box is None:
-        return sum(1 for v in px if v == 0)
-    x0, y0, x1, y1 = box
-    return sum(1 for y in range(y0, y1) for x in range(x0, x1) if px[y * width + x] == 0)
-
-
 class TestLightCycleRender:
     def test_renders_correct_size(self):
         img = _render(latitude=NYC_LAT, longitude=NYC_LON)
@@ -206,7 +193,7 @@ class TestLightCycleRender:
         without = _render()
         with_coords = _render(latitude=NYC_LAT, longitude=NYC_LON)
         assert without.size == (800, 480)
-        assert _ink(without) > 0, "nothing drawn without coordinates"
+        assert ink(without) > 0, "nothing drawn without coordinates"
         assert without.tobytes() != with_coords.tobytes(), (
             "the coordinates make no difference to the dial"
         )
@@ -216,7 +203,7 @@ class TestLightCycleRender:
         data = DashboardData(events=[], weather=None)
         img = render_dashboard(data, DisplayConfig(), theme=load_theme("light_cycle"))
         assert img.size == (800, 480)
-        assert _ink(img) > 0, "the dial chrome is missing entirely"
+        assert ink(img) > 0, "the dial chrome is missing entirely"
 
 
 # ---------------------------------------------------------------------------
@@ -240,7 +227,7 @@ def _weather_with_range():
 
 def _direct(data, now=None, **kwargs):
     """Draw the panel alone onto a fresh plate."""
-    img, d = _make_draw()
+    img, d = make_draw()
     draw_light_cycle(d, data, TODAY, now or FIXED_NOW, **kwargs)
     return img
 
@@ -250,12 +237,12 @@ class TestDrawLightCycleDirect:
         """region=None/style=None fill in the defaults and draw the dial."""
         data = DashboardData(events=[], weather=None)
         img = _direct(data)
-        assert _ink(img) > 0, "nothing drawn at all"
+        assert ink(img) > 0, "nothing drawn at all"
         explicit = _direct(data, region=ComponentRegion(0, 0, 800, 480), style=ThemeStyle())
         assert img.tobytes() == explicit.tobytes()
 
     def test_with_weather_only(self):
-        img, d = _make_draw()
+        img, d = make_draw()
         w = WeatherData(
             current_temp=60.0,
             current_icon="01d",
@@ -269,17 +256,17 @@ class TestDrawLightCycleDirect:
         )
         with_weather = _direct(DashboardData(events=[], weather=w))
         without = _direct(DashboardData(events=[], weather=None))
-        assert _ink(with_weather) > _ink(without), "the weather summary is not drawn"
+        assert ink(with_weather) > ink(without), "the weather summary is not drawn"
 
     def test_with_lat_lon_full_twilight_bands(self):
         """Coordinates enable the computed twilight rings, which add ink."""
         data = DashboardData(events=[], weather=None)
         with_coords = _direct(data, latitude=NYC_LAT, longitude=NYC_LON)
         without = _direct(data)
-        assert _ink(with_coords) > _ink(without), "no twilight bands drawn from the coordinates"
+        assert ink(with_coords) > ink(without), "no twilight bands drawn from the coordinates"
 
     def test_with_timed_events_renders_event_ticks(self):
-        img, d = _make_draw()
+        img, d = make_draw()
         events = [
             CalendarEvent(
                 summary="Standup",
@@ -296,7 +283,7 @@ class TestDrawLightCycleDirect:
         ]
         with_events = _direct(DashboardData(events=events, weather=None))
         without = _direct(DashboardData(events=[], weather=None))
-        assert _ink(with_events) > _ink(without), "no event ticks drawn"
+        assert ink(with_events) > ink(without), "no event ticks drawn"
 
     def test_skips_all_day_events(self):
         """All-day events produce no tick — they have no hour to plot at.
@@ -330,7 +317,7 @@ class TestDrawLightCycleDirect:
 
     def test_no_op_band_returns_early(self):
         """Density 0 or zero-width band should be a no-op (no exceptions)."""
-        img, d = _make_draw()
+        img, d = make_draw()
         before = bytes(img.tobytes())
         _draw_twilight_band(d, 5.0, 5.0, 4, 0, 1)  # zero width
         _draw_twilight_band(d, 5.0, 6.0, 0, 0, 1)  # density 0
@@ -345,7 +332,7 @@ class TestDrawLightCycleDirect:
         guard is a backstop for a same-day event whose hour cannot be
         resolved, and is not what this test covers.
         """
-        img, d = _make_draw()
+        img, d = make_draw()
         events = [
             CalendarEvent(
                 summary="Distant",
@@ -362,7 +349,7 @@ class TestDrawLightCycleDirect:
 
     def test_weather_with_no_high_low_renders(self):
         """Weather missing high/low still renders (just shows current temp)."""
-        img, d = _make_draw()
+        img, d = make_draw()
         w = WeatherData(
             current_temp=60.0,
             current_icon="01d",
@@ -374,14 +361,14 @@ class TestDrawLightCycleDirect:
             sunset=datetime(2026, 4, 23, 19, 43, tzinfo=TZ),
         )
         no_range = _direct(DashboardData(events=[], weather=w))
-        assert _ink(no_range) > 0
-        assert _ink(no_range) < _ink(
+        assert ink(no_range) > 0
+        assert ink(no_range) < ink(
             _direct(DashboardData(events=[], weather=_weather_with_range()))
         ), "the hi/lo range is not being drawn when present"
 
     def test_night_glyph_when_now_outside_daylight(self):
         """At midnight the moon glyph branch is hit instead of the sun."""
-        img, d = _make_draw()
+        img, d = make_draw()
         midnight = datetime(2026, 4, 23, 0, 30, tzinfo=TZ)
         w = WeatherData(
             current_temp=50.0,
@@ -396,7 +383,7 @@ class TestDrawLightCycleDirect:
         data = DashboardData(events=[], weather=w)
         night = _direct(data, now=midnight)
         noon = _direct(data, now=datetime(2026, 4, 23, 12, 30, tzinfo=TZ))
-        assert _ink(night) > 0
+        assert ink(night) > 0
         assert night.tobytes() != noon.tobytes(), "the same glyph was drawn at midnight and midday"
 
 
@@ -417,7 +404,7 @@ class TestEventArcs:
     def test_an_arc_spans_the_event_duration(self):
         short = _direct(DashboardData(events=[_event(15, 0, 15, 30)], weather=None))
         long = _direct(DashboardData(events=[_event(15, 0, 18, 0)], weather=None))
-        assert _ink(long, _DIAL) > _ink(short, _DIAL), "the arc does not grow with the duration"
+        assert ink(long, _DIAL) > ink(short, _DIAL), "the arc does not grow with the duration"
 
     def test_an_ended_event_is_drawn_hollow(self):
         data = DashboardData(events=[_event(13, 0, 16, 0)], weather=None)
@@ -427,7 +414,7 @@ class TestEventArcs:
         # measure the event-ring sector the event occupies (13:00–16:00 sits
         # left of and below the centre) with the needle parked elsewhere.
         box = (60, 260, 250, 440)
-        assert _ink(after, box) < _ink(before, box), "an ended event is still drawn solid"
+        assert ink(after, box) < ink(before, box), "an ended event is still drawn solid"
 
     def test_overlapping_events_take_the_second_lane(self):
         assert _pack_lanes([(9.0, 10.0), (9.5, 11.0), (10.5, 12.0)]) == [0, 1, 0]
@@ -454,8 +441,8 @@ class TestInfoColumn:
             _event(8 + i // 4, (i % 4) * 15, 8 + i // 4, (i % 4) * 15 + 10) for i in range(30)
         ]
         img = _direct(DashboardData(events=events, weather=_weather_with_range()))
-        assert _ink(img, (_COL_X0, 466, 800, 480)) == 0, "the agenda ran off the plate"
-        assert _ink(img, (_COL_X0, 400, 800, 466)) > 0, "the overflow line is missing"
+        assert ink(img, (_COL_X0, 466, 800, 480)) == 0, "the agenda ran off the plate"
+        assert ink(img, (_COL_X0, 400, 800, 466)) > 0, "the overflow line is missing"
 
 
 class TestColourPanels:

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import date, datetime
 
-from PIL import Image, ImageDraw
+import pytest
 
 from src.config import CountdownConfig, CountdownEvent, DisplayConfig, load_config
 from src.dummy_data import generate_dummy_data
@@ -15,15 +15,11 @@ from src.render.components.countdown_panel import (
     draw_countdown,
 )
 from src.render.theme import AVAILABLE_THEMES, load_theme
-from tests.inkutils import ink
+from tests.conftest import make_draw
+from tests.inkutils import ink, record_text
 
 FIXED_NOW = datetime(2026, 4, 23, 12, 0)
 TODAY = FIXED_NOW.date()
-
-
-def _make_draw(w: int = 800, h: int = 480):
-    img = Image.new("1", (w, h), 1)
-    return img, ImageDraw.Draw(img)
 
 
 def _render(countdown_events):
@@ -59,33 +55,13 @@ class TestParseEvents:
     def test_empty_input_returns_empty(self):
         assert _parse_events([], TODAY) == []
 
-    def test_drops_past_events(self):
-        out = _parse_events(
-            [CountdownEvent(name="Past", date="2020-01-01")],
-            TODAY,
-        )
-        assert out == []
-
-    def test_drops_events_without_name(self):
-        out = _parse_events(
-            [CountdownEvent(name="", date="2026-06-04")],
-            TODAY,
-        )
-        assert out == []
-
-    def test_drops_events_without_date(self):
-        out = _parse_events(
-            [CountdownEvent(name="X", date="")],
-            TODAY,
-        )
-        assert out == []
-
-    def test_drops_events_with_invalid_date(self):
-        out = _parse_events(
-            [CountdownEvent(name="X", date="nope")],
-            TODAY,
-        )
-        assert out == []
+    @pytest.mark.parametrize(
+        "name, when",
+        [("Past", "2020-01-01"), ("", "2026-06-04"), ("X", ""), ("X", "nope")],
+        ids=["past", "no-name", "no-date", "invalid-date"],
+    )
+    def test_drops_unusable_events(self, name, when):
+        assert _parse_events([CountdownEvent(name=name, date=when)], TODAY) == []
 
     def test_today_event_kept_with_zero_days(self):
         out = _parse_events(
@@ -113,59 +89,70 @@ class TestParseEvents:
 
 
 # ---------------------------------------------------------------------------
-# Rendering smoke tests
+# Rendering
 # ---------------------------------------------------------------------------
+
+PARIS = CountdownEvent(name="Paris", date="2026-06-04")  # 42 days after TODAY
+
+
+def _drawn(events) -> list[str]:
+    """The strings draw_countdown sets for *events*, in order."""
+    _img, d = make_draw()
+    calls = record_text(d)
+    draw_countdown(d, events, TODAY)
+    return [text for text, _box in calls]
 
 
 class TestCountdownRender:
-    def test_renders_correct_size_with_events(self):
-        img = _render([CountdownEvent(name="Paris", date="2026-06-04")])
+    def test_theme_renders_the_panel(self):
+        img = _render([PARIS])
         assert img.size == (800, 480)
-        assert img.mode == "1"
+        assert ink(img) > 0, "the countdown theme drew nothing"
 
-    def test_renders_non_blank_with_events(self):
-        img = _render([CountdownEvent(name="Paris", date="2026-06-04")])
-        assert not all(p == 255 for p in img.tobytes())
+    def test_events_change_the_plate(self):
+        assert _render([PARIS]).tobytes() != _render([]).tobytes()
 
-    def test_renders_non_blank_empty(self):
-        img = _render([])
-        assert not all(p == 255 for p in img.tobytes())
+    def test_a_single_event_takes_the_hero_layout(self):
+        drawn = _drawn([PARIS])
+        assert "COUNTING DOWN TO" in drawn
+        assert {"42", "DAYS", "PARIS"} <= set(drawn)
 
-    def test_renders_hero_layout_for_single_event(self):
-        """Single event uses hero layout — test that it doesn't crash."""
-        img = _render([CountdownEvent(name="Paris", date="2026-06-04")])
-        assert img.size == (800, 480)
-
-    def test_renders_list_layout_for_multiple_events(self):
-        img = _render(
+    def test_several_events_take_the_list_layout(self):
+        drawn = _drawn(
             [
                 CountdownEvent(name="A", date="2026-06-01"),
                 CountdownEvent(name="B", date="2026-07-01"),
                 CountdownEvent(name="C", date="2026-08-01"),
             ]
         )
-        assert img.size == (800, 480)
+        assert "COUNTING DOWN TO" not in drawn
+        assert {"A", "B", "C"} <= set(drawn)
 
-    def test_renders_with_today_event(self):
-        img = _render([CountdownEvent(name="Now", date=TODAY.isoformat())])
-        assert img.size == (800, 480)
+    def test_an_event_today_has_arrived(self):
+        drawn = _drawn([CountdownEvent(name="Now", date=TODAY.isoformat())])
+        assert "ARRIVED" in drawn and "0" in drawn
 
-    def test_long_name_does_not_crash(self):
-        img = _render([CountdownEvent(name="a" * 200, date="2026-06-04")])
-        assert img.size == (800, 480)
+    def test_a_long_name_is_truncated_inside_the_panel(self):
+        _img, d = make_draw()
+        calls = record_text(d)
+        draw_countdown(d, [CountdownEvent(name="a" * 200, date="2026-06-04")], TODAY)
+        name = [(text, box) for text, box in calls if text.startswith("AAA")]
+        assert len(name) == 1
+        text, box = name[0]
+        assert text.endswith("...") and box[2] <= 800
 
 
 class TestDrawCountdownDirect:
     def test_defaults_region_and_style(self):
-        img, d = _make_draw()
+        img, d = make_draw()
         draw_countdown(d, [], TODAY)
         # Empty state should still produce pixels
         assert ink(img) > 0, "the empty countdown state drew nothing"
 
     def test_none_events_treated_as_empty(self):
-        img, d = _make_draw()
+        img, d = make_draw()
         draw_countdown(d, None, TODAY)  # type: ignore[arg-type]
-        empty, ed = _make_draw()
+        empty, ed = make_draw()
         draw_countdown(ed, [], TODAY)
         assert img.tobytes() == empty.tobytes(), (
             "events=None was not treated the same as an empty list"
