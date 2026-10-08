@@ -147,7 +147,10 @@ def effective_accents() -> tuple[dict[str, dict], list[str]]:
         name = registered.group(1)
         explicit: dict[str, str] = {}
         for role, raw in ACCENT_ASSIGN_RE.findall(text):
-            token = INKY_TOKEN_RE.match(raw.strip())
+            value = raw.strip().rstrip(")").strip()
+            if value == "None":
+                continue  # set back to unset, e.g. by a dataclasses.replace in a variant
+            token = INKY_TOKEN_RE.match(value)
             if token is None:
                 errors.append(
                     f"{theme_file.relative_to(ROOT)}: cannot read accent_{role}={raw.strip()!r} "

@@ -62,6 +62,16 @@ def cyber_mono(size: int) -> ImageFont.FreeTypeFont:
     return get_font("ShareTechMono-Regular.ttf", size)
 
 
+# A variable font with a single weight axis, pinned to *wght*. Pin a weight in
+# every accessor: several of these files default to a thin instance (Oxanium's
+# is ExtraLight 200), which renders as hairlines on the panel.
+@lru_cache(maxsize=192)
+def _variable_font(filename: str, size: int, wght: int) -> ImageFont.FreeTypeFont:
+    font = ImageFont.truetype(str(FONT_DIR / filename), size)
+    font.set_variation_by_axes([wght])
+    return font
+
+
 # DM Sans — screen-optimised geometric sans for the Minimalist theme.
 # Variable font with optical-size (opsz 9–40) and weight (wght 100–1000) axes.
 # opsz is clamped to the render size so small text auto-uses the screen-optimised cut.
@@ -91,23 +101,16 @@ def dm_bold(size: int) -> ImageFont.FreeTypeFont:
 
 # Cinzel — Roman inscription caps, used for the D&D Fantasy theme.
 # Variable font with a single weight axis (wght 400–900).
-@lru_cache(maxsize=32)
-def _get_cinzel(size: int, wght: int) -> ImageFont.FreeTypeFont:
-    font = ImageFont.truetype(str(FONT_DIR / "Cinzel.ttf"), size)
-    font.set_variation_by_axes([wght])
-    return font
-
-
 def cinzel_semibold(size: int) -> ImageFont.FreeTypeFont:
-    return _get_cinzel(size, 600)
+    return _variable_font("Cinzel.ttf", size, 600)
 
 
 def cinzel_bold(size: int) -> ImageFont.FreeTypeFont:
-    return _get_cinzel(size, 700)
+    return _variable_font("Cinzel.ttf", size, 700)
 
 
 def cinzel_black(size: int) -> ImageFont.FreeTypeFont:
-    return _get_cinzel(size, 900)
+    return _variable_font("Cinzel.ttf", size, 900)
 
 
 # Oxanium — techno/cyberpunk display sans whose squared geometric terminals read
@@ -118,38 +121,24 @@ def cinzel_black(size: int) -> ImageFont.FreeTypeFont:
 # Variable font, wght 200-800, whose DEFAULT axis instance is ExtraLight (200) —
 # every accessor must pin a weight explicitly or the terminal theme renders as
 # near-invisible hairlines on the panel.
-@lru_cache(maxsize=32)
-def _get_oxanium(size: int, wght: int) -> ImageFont.FreeTypeFont:
-    font = ImageFont.truetype(str(FONT_DIR / "Oxanium-Variable.ttf"), size)
-    font.set_variation_by_axes([wght])
-    return font
-
-
 def oxanium(size: int) -> ImageFont.FreeTypeFont:
-    return _get_oxanium(size, 400)
+    return _variable_font("Oxanium-Variable.ttf", size, 400)
 
 
 def oxanium_bold(size: int) -> ImageFont.FreeTypeFont:
-    return _get_oxanium(size, 700)
+    return _variable_font("Oxanium-Variable.ttf", size, 700)
 
 
 def oxanium_extrabold(size: int) -> ImageFont.FreeTypeFont:
-    return _get_oxanium(size, 800)
+    return _variable_font("Oxanium-Variable.ttf", size, 800)
 
 
 # Orbitron — the canonical geometric sci-fi display face (Matt McInerney, OFL).
 # Very wide, so it is reserved for the terminal theme's single hero element: the
 # large today date numeral.  Variable font, wght 400-900; Black (900) gives the
 # numeral enough stroke mass to hold against the black canvas.
-@lru_cache(maxsize=32)
-def _get_orbitron(size: int, wght: int) -> ImageFont.FreeTypeFont:
-    font = ImageFont.truetype(str(FONT_DIR / "Orbitron-Variable.ttf"), size)
-    font.set_variation_by_axes([wght])
-    return font
-
-
 def orbitron_black(size: int) -> ImageFont.FreeTypeFont:
-    return _get_orbitron(size, 900)
+    return _variable_font("Orbitron-Variable.ttf", size, 900)
 
 
 # Jura — a squarish, slightly rounded technical sans (Daniel Johnson, OFL),
@@ -158,15 +147,8 @@ def orbitron_black(size: int) -> ImageFont.FreeTypeFont:
 # open, even forms read across a dark room; SemiBold (600) keeps the stems
 # solid on the four-ink panel without the numerals clotting. Its 700 is too
 # light for the 20-px labels, which are set in Oxanium ExtraBold instead.
-@lru_cache(maxsize=32)
-def _get_jura(size: int, wght: int) -> ImageFont.FreeTypeFont:
-    font = ImageFont.truetype(str(FONT_DIR / "Jura-Variable.ttf"), size)
-    font.set_variation_by_axes([wght])
-    return font
-
-
 def jura_semibold(size: int) -> ImageFont.FreeTypeFont:
-    return _get_jura(size, 600)
+    return _variable_font("Jura-Variable.ttf", size, 600)
 
 
 # Rajdhani — squarish semi-condensed techno sans drawn for UI legibility at small
@@ -244,24 +226,16 @@ def figtree_extrabold(size: int) -> ImageFont.FreeTypeFont:
 # Cormorant Garamond — high-contrast Garamond-revival serif (OFL).  Variable
 # font with a wght axis (300–700); paired with Cinzel for moonphase's
 # mystical/celestial body text.
-@lru_cache(maxsize=32)
-def _get_cormorant(size: int, wght: int, italic: bool) -> ImageFont.FreeTypeFont:
-    name = "CormorantGaramond-Italic.ttf" if italic else "CormorantGaramond.ttf"
-    font = ImageFont.truetype(str(FONT_DIR / name), size)
-    font.set_variation_by_axes([wght])
-    return font
-
-
 def cormorant_semibold(size: int) -> ImageFont.FreeTypeFont:
-    return _get_cormorant(size, 600, italic=False)
+    return _variable_font("CormorantGaramond.ttf", size, 600)
 
 
 def cormorant_bold(size: int) -> ImageFont.FreeTypeFont:
-    return _get_cormorant(size, 700, italic=False)
+    return _variable_font("CormorantGaramond.ttf", size, 700)
 
 
 def cormorant_italic_semibold(size: int) -> ImageFont.FreeTypeFont:
-    return _get_cormorant(size, 600, italic=True)
+    return _variable_font("CormorantGaramond-Italic.ttf", size, 600)
 
 
 # Manufacturing Consent — Fraktur blackletter modernised with contemporary
@@ -303,15 +277,8 @@ def rye(size: int) -> ImageFont.FreeTypeFont:
 # Antonio — tall narrow condensed sans (Vernon Adams, OFL).  Sets the agenda
 # time cells in halftone_agenda_wide.  Variable font, wght 100-700; the
 # accessor pins SemiBold (600) rather than relying on the axis default.
-@lru_cache(maxsize=32)
-def _get_antonio(size: int, wght: int) -> ImageFont.FreeTypeFont:
-    font = ImageFont.truetype(str(FONT_DIR / "Antonio-Variable.ttf"), size)
-    font.set_variation_by_axes([wght])
-    return font
-
-
 def antonio_semibold(size: int) -> ImageFont.FreeTypeFont:
-    return _get_antonio(size, 600)
+    return _variable_font("Antonio-Variable.ttf", size, 600)
 
 
 # Big Shoulders Display — Chicago-signage condensed grotesque (Patric King /

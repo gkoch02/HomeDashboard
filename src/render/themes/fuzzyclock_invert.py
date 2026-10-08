@@ -22,46 +22,23 @@ screen-optimised sans-serif hold up well at large sizes when reversed out of
 a dark background.
 """
 
-from src.render.fonts import dm_bold, dm_medium, dm_regular, dm_semibold
-from src.render.theme import ComponentRegion, Theme, ThemeLayout, ThemeStyle
+from __future__ import annotations
 
-BANNER_H = 80  # height of the bottom weather strip
+import dataclasses
+
+from src.render.theme import Theme
+from src.render.themes.fuzzyclock import fuzzyclock_theme
 
 
 def fuzzyclock_invert_theme() -> Theme:
-    """Return the fuzzyclock Inverted theme."""
-    clock_h = 480 - BANNER_H  # 400 px for the clock face
-
-    return Theme(
-        name="fuzzyclock_invert",
-        layout=ThemeLayout(
-            canvas_w=800,
-            canvas_h=480,
-            # Fuzzyclock main area: full canvas above the weather banner
-            fuzzyclock=ComponentRegion(0, 0, 800, clock_h),
-            # Weather banner: full width at the bottom
-            weather=ComponentRegion(0, clock_h, 800, BANNER_H),
-            draw_order=["fuzzyclock", "fuzzyclock_weather"],
-            # Overrides the derivation (a 95% ink plate would decline): the
-            # phrase changes every five minutes, so declining would mean ~200
-            # full-waveform flashes a day. Listed in OVERRIDES in
-            # tests/test_theme_partial_refresh.py.
-            supports_partial_refresh=True,
-        ),
-        style=ThemeStyle(
-            fg=1,  # white text on black canvas
-            bg=0,
-            invert_header=False,
-            invert_today_col=False,
-            invert_allday_bars=False,
-            font_regular=dm_regular,
-            font_medium=dm_medium,
-            font_semibold=dm_semibold,
-            font_bold=dm_bold,
-            label_font_size=11,
-            label_font_weight="semibold",
-        ),
-    )
+    """Return the fuzzyclock Inverted theme: ``fuzzyclock`` with the polarity flipped."""
+    base = fuzzyclock_theme()
+    # Overrides the derivation (a 95% ink plate would decline): the phrase
+    # changes every five minutes, so declining would mean ~200 full-waveform
+    # flashes a day. Listed in OVERRIDES in tests/test_theme_partial_refresh.py.
+    layout = dataclasses.replace(base.layout, supports_partial_refresh=True)
+    style = dataclasses.replace(base.style, fg=1, bg=0)
+    return dataclasses.replace(base, name="fuzzyclock_invert", layout=layout, style=style)
 
 
 def _register() -> None:

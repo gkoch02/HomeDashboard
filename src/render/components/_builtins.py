@@ -148,8 +148,11 @@ def _qotd(ctx: RenderContext) -> None:
     )
 
 
+# The weather banner under qotd, fuzzyclock and message: one adapter, three names.
 @register_component("qotd_weather")
-def _qotd_weather(ctx: RenderContext) -> None:
+@register_component("fuzzyclock_weather")
+@register_component("message_weather")
+def _weather_banner(ctx: RenderContext) -> None:
     qotd_panel.draw_qotd_weather(
         ctx.draw,
         ctx.data.weather,
@@ -177,17 +180,6 @@ def _fuzzyclock(ctx: RenderContext) -> None:
         ctx.draw,
         ctx.now,
         region=ctx.layout.fuzzyclock,
-        style=ctx.style,
-    )
-
-
-@register_component("fuzzyclock_weather")
-def _fuzzyclock_weather(ctx: RenderContext) -> None:
-    qotd_panel.draw_qotd_weather(
-        ctx.draw,
-        ctx.data.weather,
-        ctx.today,
-        region=ctx.layout.weather,
         style=ctx.style,
     )
 
@@ -236,17 +228,6 @@ def _message(ctx: RenderContext) -> None:
         ctx.draw,
         ctx.message_text or "",
         region=ctx.layout.message,
-        style=ctx.style,
-    )
-
-
-@register_component("message_weather")
-def _message_weather(ctx: RenderContext) -> None:
-    qotd_panel.draw_qotd_weather(
-        ctx.draw,
-        ctx.data.weather,
-        ctx.today,
-        region=ctx.layout.weather,
         style=ctx.style,
     )
 

@@ -43,6 +43,7 @@ from src.render.icons import FALLBACK_ICON, OWM_ICON_MAP
 from src.render.primitives import (
     aqi_accent,
     draw_text_truncated,
+    draw_unavailable,
     filled_rect,
     fmt_deg,
     hline,
@@ -85,7 +86,7 @@ def draw_air_quality_full(
         style = ThemeStyle()
 
     if data.air_quality is None:
-        _draw_unavailable(draw, region, style)
+        draw_unavailable(draw, region, style, "Air Quality Unavailable", 16)
         return
 
     x0, y0 = region.x, region.y
@@ -555,21 +556,3 @@ def _draw_forecast_columns(
             pw = text_width(draw, precip_str, precip_font)
             if row_y + text_height(precip_font) <= y0 + H - 2:
                 draw.text((col_cx - pw // 2, row_y), precip_str, font=precip_font, fill=fg)
-
-
-def _draw_unavailable(
-    draw: ImageDraw.ImageDraw,
-    region: ComponentRegion,
-    style: ThemeStyle,
-) -> None:
-    """Centred message when air quality data is not configured."""
-    font = style.font_medium(16)
-    msg = "Air Quality Unavailable"
-    mw = text_width(draw, msg, font)
-    mh = text_height(font)
-    draw.text(
-        (region.x + (region.w - mw) // 2, region.y + (region.h - mh) // 2),
-        msg,
-        font=font,
-        fill=style.fg,
-    )

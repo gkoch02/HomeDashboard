@@ -569,15 +569,6 @@ class TestDrawMoonphaseProcedural:
 
 
 class TestMoonphaseHelpers:
-    def test_luminance_modes(self):
-        from src.render.components.moonphase_panel import _luminance
-
-        assert _luminance(0) == 0.0
-        assert _luminance(1) == 1.0  # "1" mode white
-        assert _luminance(255) == 1.0
-        assert _luminance((255, 255, 255)) == 1.0
-        assert _luminance((0, 0, 0)) == 0.0
-
     def test_usable_coords(self):
         from src.render.primitives import usable_coords
 

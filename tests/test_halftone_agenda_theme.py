@@ -12,6 +12,7 @@ from src.data.models import CalendarEvent, DashboardData
 from src.dummy_data import generate_dummy_data
 from src.render.artkit import fmt_temp
 from src.render.canvas import render_dashboard
+from src.render.components.day_arc_panel import agenda_metrics
 from src.render.components.halftone_agenda_panel import (
     _DENSITY_TIERS,
     AGENDA_PAD_X,
@@ -30,7 +31,6 @@ from src.render.components.halftone_agenda_panel import (
     _draw_time_cell,
     _location_text,
     _sun_times,
-    agenda_metrics,
     draw_halftone_agenda,
     event_times,
     inline_range,
@@ -205,20 +205,20 @@ class TestHelpers:
 
 class TestAgendaMetrics:
     def test_few_events_get_the_roomiest_tier(self):
-        assert agenda_metrics(1, 400) == _DENSITY_TIERS[0]
+        assert agenda_metrics(1, 400, _DENSITY_TIERS) == _DENSITY_TIERS[0]
 
     def test_tier_steps_down_as_events_grow(self):
-        picked = [agenda_metrics(n, 400)[1] for n in (1, 3, 5, 7, 10)]
+        picked = [agenda_metrics(n, 400, _DENSITY_TIERS)[1] for n in (1, 3, 5, 7, 10)]
         assert picked == sorted(picked, reverse=True)
 
     def test_capacity_is_measured_against_real_height(self):
         # A tier whose rows overrun the space available must not be chosen,
         # even when its nominal max_rows would cover the event count.
-        tier = agenda_metrics(2, 60)
+        tier = agenda_metrics(2, 60, _DENSITY_TIERS)
         assert tier[1] <= 60
 
     def test_impossible_counts_fall_back_to_the_densest_tier(self):
-        assert agenda_metrics(99, 400) == _DENSITY_TIERS[-1]
+        assert agenda_metrics(99, 400, _DENSITY_TIERS) == _DENSITY_TIERS[-1]
 
 
 # ---------------------------------------------------------------------------

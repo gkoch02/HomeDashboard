@@ -857,8 +857,14 @@ _DENSITY_TIERS: tuple[tuple[int, int, int, int, int, bool], ...] = (
 )
 
 
-def agenda_metrics(n_events: int, avail_h: int) -> tuple[int, int, int, int, int, bool]:
-    """Pick the roomiest density tier that shows *n_events* within *avail_h*.
+def agenda_metrics(
+    n_events: int,
+    avail_h: int,
+    tiers: tuple[tuple[int, int, int, int, int, bool], ...] = _DENSITY_TIERS,
+) -> tuple[int, int, int, int, int, bool]:
+    """Pick the roomiest density tier in *tiers* that shows *n_events* within *avail_h*.
+
+    ``halftone_agenda`` passes its own tier table.
 
     Tier capacity is tested against the space actually on hand rather than the
     tier's nominal ``max_rows``: a tier whose rows don't fit would otherwise be
@@ -870,10 +876,10 @@ def agenda_metrics(n_events: int, avail_h: int) -> tuple[int, int, int, int, int
     almost every real event name. Shrinking the type and paging the overflow
     into "+N more" keeps full-width titles legible instead.
     """
-    for tier in _DENSITY_TIERS:
+    for tier in tiers:
         if min(tier[0], avail_h // max(1, tier[1])) >= n_events:
             return tier
-    return _DENSITY_TIERS[-1]
+    return tiers[-1]
 
 
 def _location_text(event: CalendarEvent) -> str:

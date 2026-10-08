@@ -36,7 +36,7 @@ from src.render.moon import (
     next_full_moon,
     next_new_moon,
 )
-from src.render.moon_render import MoonTones, render_moon_disc
+from src.render.moon_render import MoonTones, render_moon_disc, tone_luminance
 from src.render.primitives import (
     fmt_deg,
     fmt_time,
@@ -77,15 +77,6 @@ _FRAME_CLEARANCE = 10
 
 
 # Tone + geometry helpers
-
-
-def _luminance(value: int | tuple[int, int, int]) -> float:
-    """Normalize an "L"/"1"/RGB colour to a 0..1 luminance."""
-    if isinstance(value, tuple):
-        return sum(value) / 3 / 255
-    if value <= 1:  # "1" bilevel mode
-        return float(value)
-    return value / 255
 
 
 def _moon_tones(style: ThemeStyle, mode: str, dark_canvas: bool) -> MoonTones:
@@ -470,7 +461,7 @@ def _draw_plate(
 
     image = image if image is not None else getattr(draw, "_image", None)
     mode = image.mode if image is not None else "1"
-    dark_canvas = _luminance(style.bg) < 0.5
+    dark_canvas = tone_luminance(style.bg) < 0.5
     tones = _moon_tones(style, mode, dark_canvas)
 
     # Supermoon = a (near-)full moon close to perigee.

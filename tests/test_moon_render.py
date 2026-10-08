@@ -17,8 +17,8 @@ from src.render.moon_render import (
     _build_lit_mask,
     _lit_span,
     _load_moon_photo,
-    _tone_luminance,
     render_moon_disc,
+    tone_luminance,
 )
 from src.render.quantize import flatten_pixels
 from tests.inkutils import marks
@@ -253,16 +253,16 @@ class TestProceduralPath:
 
 class TestToneLuminance:
     def test_bilevel(self):
-        assert _tone_luminance(0) == 0.0
-        assert _tone_luminance(1) == 1.0
+        assert tone_luminance(0) == 0.0
+        assert tone_luminance(1) == 1.0
 
     def test_greyscale(self):
-        assert _tone_luminance(255) == 1.0
-        assert _tone_luminance(128) == pytest.approx(0.502, abs=0.01)
+        assert tone_luminance(255) == 1.0
+        assert tone_luminance(128) == pytest.approx(0.502, abs=0.01)
 
     def test_rgb(self):
-        assert _tone_luminance((255, 255, 255)) == 1.0
-        assert _tone_luminance((0, 0, 0)) == 0.0
+        assert tone_luminance((255, 255, 255)) == 1.0
+        assert tone_luminance((0, 0, 0)) == 0.0
 
 
 @pytest.fixture(autouse=True)
