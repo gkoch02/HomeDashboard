@@ -20,6 +20,7 @@ import logging
 
 from flask import Blueprint, current_app, jsonify, request, send_file
 
+from src.config import resolve_tz
 from src.dummy_data import generate_dummy_data
 from src.render.canvas import render_dashboard
 from src.render.theme import AVAILABLE_THEMES, load_theme
@@ -92,7 +93,9 @@ def render_preview():
         return jsonify({"error": f"Could not load theme: {exc}"}), 500
 
     try:
-        data = generate_dummy_data(tz=None)
+        # The configured zone, as the real run uses: a naive clock reads the
+        # sun times computed from the coordinates as UTC.
+        data = generate_dummy_data(tz=resolve_tz(cfg.timezone))
         image = render_dashboard(
             data,
             cfg.display,

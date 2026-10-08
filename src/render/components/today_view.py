@@ -159,8 +159,11 @@ def _draw_event_list(
 
     y = y0 + PAD
     for idx, event in enumerate(events):
+        # While events follow, content stops short of the "+N more" line so the
+        # overflow count never lands on the last drawn row.
+        limit = bottom if idx == len(events) - 1 else bottom - more_h
         min_h = min_allday_h if event.is_all_day else min_timed_h
-        if y + min_h > bottom:
+        if y + min_h > limit:
             remaining = len(events) - idx
             more_y = min(y, bottom - more_h)
             draw.text((x, more_y), f"+{remaining} more", font=time_font, fill=style.fg)
@@ -199,7 +202,7 @@ def _draw_event_list(
             y += time_h + 2
 
             # Title — limit to however many lines fit in the remaining space.
-            remaining_for_title = bottom - event_spacing - y
+            remaining_for_title = limit - event_spacing - y
             max_lines = max(1, remaining_for_title // (title_h + 2))
             used_h = draw_text_wrapped(
                 draw,
@@ -217,7 +220,7 @@ def _draw_event_list(
             # y-advance stays consistent with the measured single-line font height.
             if event.location:
                 loc_text = location_line(event.location)
-                if loc_text and y + text_height(loc_font) <= bottom:
+                if loc_text and y + text_height(loc_font) <= limit:
                     y += 2
                     draw_text_truncated(draw, (x, y), loc_text, loc_font, max_w, fill=style.fg)
                     y += text_height(loc_font)

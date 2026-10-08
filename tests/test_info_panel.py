@@ -7,7 +7,8 @@ from unittest.mock import patch
 from PIL import Image, ImageDraw
 
 from src.render.components.info_panel import _quote_for_today, draw_info
-from tests.inkutils import ink
+from src.render.theme import ComponentRegion
+from tests.inkutils import ink, record_text
 
 
 class TestQuoteForToday:
@@ -85,6 +86,19 @@ class TestDrawInfo:
             assert ink(img) > 0, f"day +{offset} drew nothing"
             plates.add(img.tobytes())
         assert len(plates) > 1, "the quote never changed across a week"
+
+    def test_a_long_attribution_is_cut_to_the_panel(self, tmp_path):
+        path = tmp_path / "quotes.json"
+        author = "Rear Admiral Grace Brewster Murray Hopper (attributed, paraphrased)"
+        path.write_text(json.dumps([{"text": "Short.", "author": author}]))
+        img, draw = self._make_draw()
+        calls = record_text(draw)
+        region = ComponentRegion(500, 300, 280, 140)
+        draw_info(draw, date(2024, 3, 15), region=region, quotes_path=str(path))
+        attribution = [(t, box) for t, box in calls if t.startswith("—")]
+        assert len(attribution) == 1
+        text, box = attribution[0]
+        assert text.endswith("...") and box[2] <= region.x + region.w
 
     def test_long_quote_adapts_to_smaller_font(self, tmp_path):
         """A very long quote triggers the smaller font (regular(12))."""

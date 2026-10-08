@@ -14,10 +14,13 @@ Configuration::
     photo:
       path: /home/pi/wallpaper.jpg
 
-**Waveshare / 1-bit path** — photo is converted to grayscale, resized with
+Both paths turn the photo upright per its EXIF orientation and crop it to fill
+the canvas (scaled to cover, centre-cropped), so it is never stretched.
+
+**Waveshare / 1-bit path** — photo is converted to grayscale, cropped with
 LANCZOS, and dithered to 1-bit via Floyd-Steinberg.
 
-**Inky Spectra 6 / RGB path** — photo is resized with LANCZOS and quantized to
+**Inky Spectra 6 / RGB path** — photo is cropped with LANCZOS and quantized to
 the 6-color Spectra 6 palette using Floyd-Steinberg error diffusion against a
 *blended* reference palette (50/50 mix of the physical SATURATED colors and
 pure ideal hues, mirroring ``InkyE673._palette_blend(saturation=0.5)``).  The
@@ -55,7 +58,7 @@ def _draw_photo_background(
         return
     try:
         if image.mode == "RGB":
-            # Inky Spectra 6 color path: resize then quantize to 6-color palette
+            # Inky Spectra 6 color path: crop then quantize to 6-color palette
             # using the blended reference palette (50/50 SATURATED + DESATURATED),
             # which mirrors InkyE673._palette_blend(saturation=0.5) and gives each
             # hue a vibrant enough reference for correct nearest-color decisions.
@@ -66,6 +69,7 @@ def _draw_photo_background(
             # some Pillow 10+ builds; a colour-set sanity check detects this and
             # falls back to the fully-vectorised Bayer path.
             from PIL import Image as _Image
+            from PIL import ImageOps
 
             from src.render.quantize import (
                 blend_inky_palette,
@@ -74,8 +78,8 @@ def _draw_photo_background(
                 quantize_to_palette_ordered,
             )
 
-            img = _Image.open(path).convert("RGB")
-            img = img.resize((layout.canvas_w, layout.canvas_h), _Image.Resampling.LANCZOS)
+            img = ImageOps.exif_transpose(_Image.open(path)).convert("RGB")
+            img = ImageOps.fit(img, (layout.canvas_w, layout.canvas_h), _Image.Resampling.LANCZOS)
             blended = blend_inky_palette(0.25)
             blended_set = set(map(tuple, blended))
 

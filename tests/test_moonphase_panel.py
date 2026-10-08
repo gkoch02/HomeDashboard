@@ -18,7 +18,7 @@ from src.render.components.moonphase_panel import (
 from src.render.quantize import flatten_pixels
 from src.render.quotes import quote_for
 from src.render.theme import ComponentRegion, ThemeStyle, load_theme
-from tests.inkutils import marks
+from tests.inkutils import marks, record_text
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -579,3 +579,62 @@ class TestMoonphaseHelpers:
         x0, y0, x1, y1 = img.getbbox()
         assert abs((x0 + x1) // 2 - 200) <= 2
         assert abs((y0 + y1) // 2 - 100) <= 2
+
+
+class TestTextStaysInsideTheFrame:
+    """A long quote, author and weather description stay inside the plate's frame."""
+
+    LONG_QUOTE = (
+        "The most dangerous phrase in the language is 'we have always done it this way', "
+        "and the second most dangerous is the confident assumption that whatever worked "
+        "last season will keep working simply because nobody has yet bothered to check."
+    )
+    LONG_AUTHOR = "Rear Admiral Grace Brewster Murray Hopper of the United States Navy Reserve"
+
+    def _texts(self, tmp_path, author: str, text: str = LONG_QUOTE):
+        path = tmp_path / "quotes.json"
+        path.write_text(json.dumps([{"text": text, "author": author}]))
+        weather = _make_weather(current_description="heavy intensity shower rain and drizzle")
+        img = Image.new("L", (800, 480), 0)
+        draw = ImageDraw.Draw(img)
+        calls = record_text(draw)
+        draw_moonphase(
+            draw,
+            _make_data(weather=weather),
+            TODAY,
+            image=img,
+            style=_dark_style(),
+            quotes_path=str(path),
+        )
+        # The data lines and the quote: everything set below the moon row.
+        return [(text, box) for text, box in calls if box[1] > 300]
+
+    def test_lines_fit_the_quote_column(self, tmp_path):
+        texts = self._texts(tmp_path, "Hopper")
+        assert texts
+        for text, (x0, _y0, x1, _y1) in texts:
+            assert x0 >= 30 and x1 <= 770, f"{text!r} runs to x={x0}..{x1}"
+        cut = [t for t, _ in texts if t.endswith("...")]
+        assert any("sunrise" in t for t in cut), "the weather line's cut is not marked"
+        assert any("sunrise" not in t for t in cut), "the quote's cut is not marked"
+
+    def test_a_long_attribution_fits_the_quote_column(self, tmp_path):
+        texts = self._texts(tmp_path, self.LONG_AUTHOR, text="Short.")
+        attribution = [(t, box) for t, box in texts if t.startswith("—")]
+        assert len(attribution) == 1, "a short quote leaves room for its attribution"
+        text, (x0, _y0, x1, _y1) = attribution[0]
+        assert text.endswith("...") and x0 >= 30 and x1 <= 770
+
+    @pytest.mark.parametrize("author", ["Plato", "Gregory"])
+    def test_an_attribution_shows_whatever_its_letters(self, tmp_path, author):
+        """A short quote leaves room for its attribution, descenders or not."""
+        texts = self._texts(tmp_path, author, text="Short.")
+        assert [t for t, _ in texts if t.startswith("—")] == [f"— {author}"]
+        for text, (_x0, _y0, _x1, y1) in texts:
+            assert y1 < 480 - 8 - 1, f"{text!r} reaches y={y1}, onto the frame"
+
+    def test_nothing_is_set_on_the_frame(self, tmp_path):
+        texts = self._texts(tmp_path, self.LONG_AUTHOR)
+        for text, (_x0, _y0, _x1, y1) in texts:
+            # The themes' vine border is the rectangle drawn 8 px in.
+            assert y1 < 480 - 8 - 1, f"{text!r} reaches y={y1}, onto the frame"

@@ -38,7 +38,10 @@ from src.render.moon import moon_phase_glyph
 from src.render.theme import ComponentRegion, ThemeStyle
 
 # The share of the plate's height each mark spans when the row fits at it.
-BAND_FRACTION = 0.8
+# Width binds first for three or four marks (about 225 and 165 px), so this
+# binds only when sources drop out; set just above the three-mark size so an
+# offline moon keeps the plate's scale instead of filling it.
+BAND_FRACTION = 0.5
 # The narrowest gap the row will accept between marks (and at either end)
 # before the shared height is reduced: a share of the height, so the gaps
 # grow with the type — a fixed gap is overtaken by the space inside a mark

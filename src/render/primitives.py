@@ -25,7 +25,10 @@ def load_and_dither_image(
     fg: int | tuple[int, int, int],
     bg: int | tuple[int, int, int],
 ) -> Image.Image:
-    """Load an image from *path*, resize to *size*, and dither to 1-bit.
+    """Load an image from *path*, crop it to fill *size*, and dither to 1-bit.
+
+    The image is upright per its EXIF orientation, scaled to cover *size*
+    and centre-cropped, so a photo of any shape keeps its proportions.
 
     *fg* and *bg* are 1-bit values (0=black, 1=white).  When *bg* is 0 (dark
     canvas) the grayscale values are inverted so bright photo areas map to white
@@ -39,11 +42,37 @@ def load_and_dither_image(
     from PIL import Image as _Image
     from PIL import ImageOps
 
-    img = _Image.open(path).convert("L")
-    img = img.resize(size, _Image.Resampling.LANCZOS)
+    img = ImageOps.exif_transpose(_Image.open(path)).convert("L")
+    img = ImageOps.fit(img, size, _Image.Resampling.LANCZOS)
     if bg == 0:
         img = ImageOps.invert(img)
     return img.convert("1", dither=_Image.Dither.FLOYDSTEINBERG)
+
+
+def truncate_to_width(
+    draw: ImageDraw.ImageDraw, text: str, font: ImageFont.FreeTypeFont, max_width: float
+) -> str:
+    """Return *text*, or its longest prefix plus "..." that fits *max_width*.
+
+    Falls back to a bare "..." when not even one character fits.
+    """
+
+    def measure(t: str) -> float:
+        bbox = draw.textbbox((0, 0), t, font=font)
+        return bbox[2] - bbox[0]
+
+    if measure(text) <= max_width:
+        return text
+    ellipsis = "..."
+    lo, hi, best_i = 1, len(text), 0
+    while lo <= hi:
+        mid = (lo + hi) // 2
+        if measure(text[:mid] + ellipsis) <= max_width:
+            best_i = mid
+            lo = mid + 1
+        else:
+            hi = mid - 1
+    return text[:best_i] + ellipsis
 
 
 def draw_text_truncated(
@@ -55,32 +84,9 @@ def draw_text_truncated(
     fill: Fill = BLACK,
 ) -> int:
     """Draw text, truncating with ellipsis if needed. Returns actual width drawn."""
-    bbox = draw.textbbox((0, 0), text, font=font)
-    text_w = bbox[2] - bbox[0]
-
-    if text_w <= max_width:
-        draw.text(xy, text, font=font, fill=fill)
-        return int(text_w)
-
-    ellipsis = "..."
-    lo, hi, best_i = 1, len(text), 0
-    while lo <= hi:
-        mid = (lo + hi) // 2
-        truncated = text[:mid] + ellipsis
-        bbox = draw.textbbox((0, 0), truncated, font=font)
-        if bbox[2] - bbox[0] <= max_width:
-            best_i = mid
-            lo = mid + 1
-        else:
-            hi = mid - 1
-    if best_i > 0:
-        truncated = text[:best_i] + ellipsis
-        draw.text(xy, truncated, font=font, fill=fill)
-        bbox = draw.textbbox((0, 0), truncated, font=font)
-        return int(bbox[2] - bbox[0])
-
-    draw.text(xy, ellipsis, font=font, fill=fill)
-    bbox = draw.textbbox((0, 0), ellipsis, font=font)
+    shown = truncate_to_width(draw, text, font, max_width)
+    draw.text(xy, shown, font=font, fill=fill)
+    bbox = draw.textbbox((0, 0), shown, font=font)
     return int(bbox[2] - bbox[0])
 
 

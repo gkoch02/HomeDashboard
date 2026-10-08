@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from datetime import datetime, timedelta
 
 import pytest
@@ -25,6 +26,7 @@ from src.render.components.postcard_panel import (
 )
 from src.render.quantize import flatten_pixels
 from src.render.theme import AVAILABLE_THEMES, load_theme
+from tests.inkutils import text_line_heights
 
 FIXED_NOW = datetime(2026, 4, 6, 14, 30)
 TODAY = FIXED_NOW.date()
@@ -369,3 +371,31 @@ class TestBackHasEventText:
             1 for y in range(170, 280) for x in range(510, 780) if not img.getpixel((x, y))
         )
         assert agenda_ink > 200
+
+
+class TestQuoteFitsTheBack:
+    """A long quote and attribution stay on the postcard back, apart from each other."""
+
+    LONG_TEXT = (
+        "The most dangerous phrase in the language is 'we've always done it this way', "
+        "and the second most dangerous is the confident assumption that it still works."
+    )
+
+    def _render_quote(self, tmp_path, author: str):
+        path = tmp_path / f"q{len(author)}.json"
+        path.write_text(json.dumps([{"text": self.LONG_TEXT, "author": author}]))
+        return _render(quotes_path=str(path))
+
+    def test_a_long_attribution_never_reaches_the_scene(self, tmp_path):
+        short = self._render_quote(tmp_path, "Hopper")
+        long = self._render_quote(
+            tmp_path, "Rear Admiral Grace Brewster Murray Hopper (attributed, paraphrased)"
+        )
+        scene = (0, 0, 478, 480)
+        assert short.crop(scene).tobytes() == long.crop(scene).tobytes()
+
+    def test_the_last_quote_line_clears_the_attribution(self, tmp_path):
+        img = self._render_quote(tmp_path, "Grace Hopper")
+        # The quote's lines touch one another (descender to ascender); the
+        # attribution must stand apart as its own band beneath them.
+        assert len(text_line_heights(img, (490, 380, 798, 478))) == 2

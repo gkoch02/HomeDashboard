@@ -240,17 +240,21 @@ def draw_scorecard(
         remaining = (sunset_dt - now_naive).total_seconds()
         day_pct = int(100 * remaining / total_daylight) if total_daylight > 0 else 0
         ctx = f"sunrise {fmt_time(sunrise_dt)}"
+        day_hero = f"{day_pct}%"
+    elif sunrise_dt and sunset_dt:
+        day_hero = "0%"
+        ctx = "after sunset" if now_naive > sunset_dt else "before sunrise"
     else:
-        # After sunset or before sunrise: show time until/since
-        day_pct = 0
-        ctx = "after sunset" if sunset_dt and now_naive > sunset_dt else "before sunrise"
+        # Without sun times the time of day says nothing about daylight.
+        day_hero = "—"
+        ctx = "no data"
     _draw_tile(
         draw,
         x0,
         row2_y,
         _COL_W,
         _ROW2_H,
-        hero=f"{day_pct}%",
+        hero=day_hero,
         label="DAYLIGHT LEFT",
         context=ctx,
         style=style,

@@ -17,6 +17,7 @@ from src.render.primitives import (
     filled_rect,
     hline,
     text_width,
+    truncate_to_width,
     vline,
     wind_unit,
 )
@@ -414,14 +415,11 @@ def _draw_alert_column(
             current = word
     if current:
         lines.append(current)
-    lines = lines[:2]
-
-    # Truncate last line if needed
-    for i, line in enumerate(lines):
-        if text_width(draw, line, alert_font) > max_w:
-            while line and text_width(draw, line + "...", alert_font) > max_w:
-                line = line[:-1]
-            lines[i] = line + "..."
+    if len(lines) > 2:
+        # Two lines at most; the second carries the rest of the text so the
+        # cut shows as an ellipsis rather than silently dropped words.
+        lines = [lines[0], " ".join(lines[1:])]
+    lines = [truncate_to_width(draw, line, alert_font, max_w) for line in lines]
 
     line_h = draw.textbbox((0, 0), "Ag", font=alert_font)
     lh = line_h[3] - line_h[1]

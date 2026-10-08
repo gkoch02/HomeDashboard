@@ -5,7 +5,7 @@ from datetime import date, datetime
 from PIL import ImageDraw
 
 from src.render import layout as L
-from src.render.primitives import draw_text_wrapped, hline, wrap_lines
+from src.render.primitives import draw_text_wrapped, hline, truncate_to_width, wrap_lines
 from src.render.quotes import cache_clear as quotes_cache_clear
 from src.render.quotes import quote_for
 from src.render.theme import ComponentRegion, ThemeStyle
@@ -93,7 +93,7 @@ def draw_info(
     if attr_y + 16 < y0 + h:
         draw.text(
             (x0 + pad, attr_y),
-            f"— {quote['author']}",
+            truncate_to_width(draw, f"— {quote['author']}", author_font, max_width),
             font=author_font,
             fill=style.secondary_accent_fill(),
         )

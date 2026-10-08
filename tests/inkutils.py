@@ -114,3 +114,22 @@ def ink_clusters(img: Image.Image, box: Box, min_gap: int = 12) -> int:
     if not cols:
         return 0
     return 1 + sum(1 for p, q in zip(cols, cols[1:]) if q - p > min_gap)
+
+
+def record_text(draw) -> list[tuple[str, Box]]:
+    """Log every ``draw.text`` call on *draw* as ``(text, ink bbox)``, in order.
+
+    For assertions about *which string* a panel set (an ellipsis, an overflow
+    count) and where it landed; pixel counts cannot tell a cut word from a
+    whole one. The bbox is the font's, from ``textbbox`` at the drawn origin.
+    """
+    calls: list[tuple[str, Box]] = []
+    real = draw.text
+
+    def _text(xy, text, *args, **kwargs):
+        font = kwargs.get("font", args[1] if len(args) > 1 else None)
+        calls.append((text, tuple(draw.textbbox(xy, text, font=font))))
+        return real(xy, text, *args, **kwargs)
+
+    draw.text = _text
+    return calls

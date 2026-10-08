@@ -26,7 +26,7 @@ from src.render.components.scorecard_panel import (
 )
 from src.render.quotes import quote_for
 from src.render.theme import ComponentRegion, ThemeStyle
-from tests.inkutils import ink
+from tests.inkutils import ink, record_text
 
 FIXED_NOW = datetime(2026, 4, 6, 10, 30)
 FIXED_TODAY = FIXED_NOW.date()
@@ -164,6 +164,26 @@ class TestDrawScorecard:
         data.weather = None
         img = self._draw(data)
         assert img.size == (800, 480)
+
+    def _texts(self, data: DashboardData, now: datetime = FIXED_NOW) -> list[str]:
+        draw, _img = _blank_draw()
+        calls = record_text(draw)
+        draw_scorecard(draw, data, now.date(), now)
+        return [text for text, _box in calls]
+
+    def test_daylight_without_sun_times_reads_no_data(self):
+        """Mid-morning with weather offline is not "before sunrise" with 0% left."""
+        data = generate_dummy_data(now=FIXED_NOW)
+        data.weather = None
+        texts = self._texts(data)
+        assert "before sunrise" not in texts and "0%" not in texts
+        assert texts.count("no data") >= 2  # daylight and sunset tiles alike
+
+    def test_daylight_before_sunrise_still_reads_zero(self):
+        data = generate_dummy_data(now=FIXED_NOW)
+        data.weather = _minimal_weather()
+        texts = self._texts(data, datetime(2026, 4, 6, 5, 0))
+        assert "0%" in texts and "before sunrise" in texts
 
     def test_smoke_no_air_quality(self):
         data = generate_dummy_data(now=FIXED_NOW)

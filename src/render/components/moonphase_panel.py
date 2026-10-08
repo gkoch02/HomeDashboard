@@ -42,6 +42,7 @@ from src.render.primitives import (
     fmt_time,
     text_height,
     text_width,
+    truncate_to_width,
     wrap_lines,
 )
 
@@ -69,6 +70,9 @@ _HERO_R = 95
 _DATA_FONT_PT = 26
 _QUOTE_FONT_PT = 23
 _ATTR_FONT_PT = 32
+# Space kept clear at the plate's bottom edge: the themes' vine border is drawn
+# 8 px in, and nothing set here may touch it.
+_FRAME_CLEARANCE = 10
 
 
 # Tone + geometry helpers
@@ -290,9 +294,10 @@ def _draw_sun_weather_line(
     cx: int,
     y: int,
     style: ThemeStyle,
+    max_w: int,
     gap: int = 6,
 ) -> int:
-    """Draw sunrise/sunset and a compact current-weather summary."""
+    """Draw sunrise/sunset and a compact current-weather summary within *max_w*."""
     if weather is None:
         return y
     font = cormorant_regular(_DATA_FONT_PT)
@@ -305,7 +310,8 @@ def _draw_sun_weather_line(
         parts.append(f"{weather.current_temp:.0f}° {weather.current_description.title()}")
     if not parts:
         return y
-    return _draw_centered(draw, "  ~  ".join(parts), cx, y, font, style.fg, gap=gap)
+    text = truncate_to_width(draw, "  ~  ".join(parts), font, max_w)
+    return _draw_centered(draw, text, cx, y, font, style.fg, gap=gap)
 
 
 def _draw_next_phase_line(
@@ -345,26 +351,40 @@ def _draw_quote(
 ) -> None:
     """Draw a small wrapped quote at the bottom, centered.
 
-    *gap* is the vertical space between the quote body and its attribution.
+    *gap* is the vertical space between the quote body and its attribution,
+    which is dropped rather than drawn past ``y + max_h``.
     """
     quote = quote_for(today, refresh=quote_refresh, prefix="moonphase-", path=quotes_path)
     text = f'"{quote["text"]}"'
     quote_font = cormorant_italic(_QUOTE_FONT_PT)
     lines_h = text_height(quote_font)
-    lines = wrap_lines(text, quote_font, max_w)[:2]
+    lines = wrap_lines(text, quote_font, max_w)
+    if len(lines) > 2:
+        lines = [lines[0], truncate_to_width(draw, " ".join(lines[1:]), quote_font, max_w)]
 
     cur_y = y
-    for line in lines:
+    for i, line in enumerate(lines):
         lw = text_width(draw, line, quote_font)
         draw.text((cx - lw // 2, cur_y), line, font=quote_font, fill=style.fg)
-        cur_y += lines_h + 4
+        # Spacing goes between lines only, as _quote_body_height measures it.
+        cur_y += lines_h + (4 if i < len(lines) - 1 else 0)
 
     attr_font = tangerine_regular(_ATTR_FONT_PT)
-    attr = f"— {quote['author']}"
+    attr = truncate_to_width(draw, f"— {quote['author']}", attr_font, max_w)
     attr_w = text_width(draw, attr, attr_font)
     attr_y = cur_y + gap
-    if attr_y + text_height(attr_font) <= y + max_h:
+    if attr_y + _line_box(attr_font) <= y + max_h:
         draw.text((cx - attr_w // 2, attr_y), attr, font=attr_font, fill=style.fg)
+
+
+def _line_box(font) -> int:
+    """Ascent plus descent: the depth any line in *font* can reach below its origin.
+
+    The script attribution face hangs its descenders well below an "Ag" box,
+    so a name with a "g" or "y" sits lower than one without.
+    """
+    ascent, descent = font.getmetrics()
+    return ascent + descent
 
 
 def _quote_body_height(
@@ -447,7 +467,7 @@ def draw_moonphase(
     quote_w = w - 60
     data_line_h = text_height(cormorant_regular(_DATA_FONT_PT))
     quote_body_h = _quote_body_height(today, quote_w, quote_refresh, quotes_path)
-    attr_h = text_height(tangerine_regular(_ATTR_FONT_PT))
+    attr_h = _line_box(tangerine_regular(_ATTR_FONT_PT))
 
     sun_draws = weather is not None and (
         bool(weather.sunrise) or bool(weather.sunset) or weather.current_temp is not None
@@ -455,12 +475,12 @@ def draw_moonphase(
     n_data = 2 + (1 if sun_draws else 0)  # lunar + next-phase always draw
     n_gaps = n_data + 1  # gaps between data lines, then quote→attribution
 
-    bottom_limit = region.y + region.h - 16
+    bottom_limit = region.y + region.h - _FRAME_CLEARANCE
     fixed_h = n_data * data_line_h + quote_body_h + attr_h
     gap = max(4, min(26, (bottom_limit - y - fixed_h) // n_gaps))
 
     y = _draw_lunar_line(draw, today, cx, y, style, latitude, longitude, tz, gap=gap)
-    y = _draw_sun_weather_line(draw, weather, cx, y, style, gap=gap)
+    y = _draw_sun_weather_line(draw, weather, cx, y, style, quote_w, gap=gap)
     y = _draw_next_phase_line(draw, today, cx, y, style, gap=gap)
     _draw_quote(
         draw,
@@ -468,7 +488,7 @@ def draw_moonphase(
         cx,
         y,
         quote_w,
-        region.y + region.h - y,
+        bottom_limit - y,
         style,
         quote_refresh,
         quotes_path,
