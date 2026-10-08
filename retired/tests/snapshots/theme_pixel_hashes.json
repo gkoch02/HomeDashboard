@@ -1,0 +1,16 @@
+{
+  "reference_env": {
+    "pillow_version": "12.2.0"
+  },
+  "themes": {
+    "agenda": "df7758210e71c876862ce3251c91230348eb5a9f38241b77a0138b3283e1d609",
+    "minimalist": "f51d57b21eb97073344b97a19c838e417e1ab66e126374c9ac375087eaab1b77",
+    "today": "7dec4f1f9cf2dd13366f8c3632a86d6d1a778e7838363fa1267949fb16115bc8",
+    "timeline": "c1cb40b7db927beed975458dbf2061e6275fbcbad5fdd401c33e532e5d68d3b7",
+    "year_pulse": "e8a6272980831e5b1d9de6d4bb79733eeb5c7dd7cb347a0656418b4e9648caa3",
+    "sunrise": "f283b0e6f2c28317b8a87bf4d19e93a1cc3b8939265751ff3b85f884c8f9d029",
+    "tides": "8bb8d02bd169183f60e192b6442e7558d7f562dca08aebd9541c70697a688e34",
+    "scorecard": "620b4cb2a81087227346f279a6b927a1a6c373abfc241cccc314e56d44863795",
+    "naturalist": "d2569bb04c2283198c82d9cd9df94f52e484c5d2bba7400ba1ed88f534db8e8f"
+  }
+}

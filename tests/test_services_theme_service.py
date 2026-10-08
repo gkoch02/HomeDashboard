@@ -40,13 +40,13 @@ class TestResolveScheduledTheme:
             ((), _now(12), None),
             ((("06:00", "default"),), _now(10), "default"),
             ((("22:00", "terminal"),), _now(8), None),
-            ((("14:00", "minimalist"),), _now(14, 0), "minimalist"),
+            ((("14:00", "monthly"),), _now(14, 0), "monthly"),
             ((("06:00", "default"), ("20:00", "fuzzyclock_invert")), _now(21), "fuzzyclock_invert"),
             ((("06:00", "default"), ("20:00", "terminal")), _now(10), "default"),
             ((("20:00", "terminal"), ("06:00", "default")), _now(10), "default"),
             ((("06:00", "default"), ("22:00", "terminal")), _now(5), None),
             (
-                (("06:00", "default"), ("18:00", "minimalist"), ("22:00", "terminal")),
+                (("06:00", "default"), ("18:00", "monthly"), ("22:00", "terminal")),
                 _now(23),
                 "terminal",
             ),
@@ -78,11 +78,11 @@ class TestResolveThemeName:
     @pytest.mark.parametrize(
         ("cfg_theme", "pairs", "override", "now", "expected"),
         [
-            ("default", (("00:00", "minimalist"),), "terminal", _now(12), "terminal"),
-            ("random", (), "today", _now(12), "today"),
-            ("default", (("06:00", "minimalist"),), None, _now(10), "minimalist"),
-            ("default", (("06:00", "minimalist"),), None, _now(4), "default"),
-            ("today", (), None, _now(12), "today"),
+            ("default", (("00:00", "monthly"),), "terminal", _now(12), "terminal"),
+            ("random", (), "day_arc", _now(12), "day_arc"),
+            ("default", (("06:00", "monthly"),), None, _now(10), "monthly"),
+            ("default", (("06:00", "monthly"),), None, _now(4), "default"),
+            ("day_arc", (), None, _now(12), "day_arc"),
             ("default", (("00:00", "terminal"),), None, None, "default"),
         ],
         ids=[
@@ -104,9 +104,9 @@ class TestResolveThemeName:
         ("cfg_theme", "pairs", "picker", "picked"),
         [
             ("random", (), "pick_random_theme", "fantasy"),
-            ("default", (("00:00", "random"),), "pick_random_theme", "today"),
+            ("default", (("00:00", "random"),), "pick_random_theme", "day_arc"),
             ("random_daily", (), "pick_random_theme", "qotd"),
-            ("default", (("00:00", "random_hourly"),), "pick_random_theme_hourly", "tides"),
+            ("default", (("00:00", "random_hourly"),), "pick_random_theme_hourly", "trends"),
         ],
         ids=[
             "cfg-random",
@@ -123,6 +123,19 @@ class TestResolveThemeName:
             result = resolve_theme_name(cfg, override_theme=None, now=_now(12))
         assert result == picked
         mock_pick.assert_called_once()
+
+    @pytest.mark.parametrize(
+        ("cfg_theme", "pairs"),
+        [("minimalist", ()), ("default", (("00:00", "tides"),))],
+        ids=["cfg-theme", "schedule-entry"],
+    )
+    def test_retired_theme_falls_back_to_default(self, cfg_theme, pairs, caplog):
+        """A config still naming a retired theme renders ``default`` rather than
+        raising in ``load_theme()`` on every run."""
+        cfg = _make_cfg(theme=cfg_theme, entries=_entries(*pairs))
+        with caplog.at_level("WARNING", logger="src.services.theme"):
+            assert resolve_theme_name(cfg, override_theme=None, now=_now(12)) == "default"
+        assert "retired" in caplog.text
 
     def test_random_hourly_resolves_via_pick_random_theme_hourly(self):
         """'random_hourly' routes through pick_random_theme_hourly with the current time."""

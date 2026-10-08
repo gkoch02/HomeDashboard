@@ -209,15 +209,13 @@ logging:
 # docs/inky-previews.md (Inky Spectra 6 colour).
 #
 # --- theme names (kept in sync with the registry by scripts/check_docs.py) ---
-#   WEEK VIEW       default | agenda | terminal | minimalist | old_fashioned |
-#                   today | fantasy
+#   WEEK VIEW       default | terminal | old_fashioned | fantasy
 #   FULL SCREEN     qotd | qotd_invert | fuzzyclock | fuzzyclock_invert |
 #                   weather | moonphase | moonphase_invert | moonphase_photo
-#   SPECIALIZED     timeline | year_pulse | monthly | sunrise | light_cycle |
-#                   air_quality | astronomy | constellation_map | almanac |
-#                   scorecard | tides | halftone | halftone_agenda | day_arc |
-#                   trends | weatherglass
-#   DITHERED ART    postcard | naturalist
+#   SPECIALIZED     monthly | light_cycle | air_quality | astronomy |
+#                   constellation_map | almanac | halftone | halftone_agenda |
+#                   day_arc | trends | weatherglass
+#   DITHERED ART    postcard
 #   PANORAMIC       wide_week | wide_day | wide_forecast | wide_horizon |
 #                   wide_night | wide_night_invert | halftone_agenda_wide
 #   PHOTO OVERLAY   photo
@@ -284,9 +282,9 @@ logging:
 #   - when: { weather_alert_present: true }
 #     theme: "message"
 #   - when: { calendar: "birthday_today" }
-#     theme: "today"
+#     theme: "day_arc"
 #   - when: { calendar: "upcoming_soon" }
-#     theme: "today"
+#     theme: "day_arc"
 #   - when: { calendar: ["empty", "done"] }
 #     theme: "qotd"
 #   - when: { weather: ["rain", "snow", "thunderstorm"] }
@@ -300,7 +298,7 @@ logging:
 #   - when: { temp_at_least: 95 }
 #     theme: "weatherglass"
 #   - when: { weekday: "weekend" }
-#     theme: "today"
+#     theme: "almanac"
 
 # Time-of-day theme schedule — automatically switches themes at configured times.
 # Checked before random/explicit theme logic. Ignored when --theme is passed via CLI.
@@ -311,6 +309,6 @@ logging:
 #   - time: "06:00"
 #     theme: "default"
 #   - time: "20:00"
-#     theme: "minimalist"
+#     theme: "moonphase"
 #   - time: "22:00"
 #     theme: "fuzzyclock_invert"

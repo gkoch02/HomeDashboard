@@ -152,7 +152,7 @@ deploy:
 		--exclude='credentials/' --exclude='config/config.yaml' \
 		--exclude='config/web.yaml' --exclude='config/*.bak*' \
 		--exclude='.pytest_cache' --exclude='.ruff_cache' --exclude='.mypy_cache' \
-		--exclude='htmlcov' --exclude='*.egg-info' --exclude='.coverage' \
+		--exclude='htmlcov' --exclude='*.egg-info' --exclude='.coverage' --exclude='retired/' \
 		$(if $(QUOTES_FILE),--exclude='$(QUOTES_FILE)',) \
 		. $(PI_USER)@$(PI_HOST):$(PI_DIR)/
 

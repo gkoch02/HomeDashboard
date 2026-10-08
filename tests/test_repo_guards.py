@@ -134,7 +134,7 @@ class TestThemeEntryBudget:
 
     def test_repo_themes_md_has_entries_to_measure(self):
         text = (REPO_ROOT / "docs" / "themes.md").read_text()
-        assert len(check_docs.theme_entries(text)) > 40
+        assert len(check_docs.theme_entries(text)) > 30
 
     def test_long_entry_fails(self):
         body = "word " * (check_docs.THEME_ENTRY_MAX_WORDS + 1)

@@ -174,7 +174,7 @@ The cooldown is `display.min_refresh_interval_seconds` (config), defaulting to 6
 | `Oxanium-Variable.ttf` (OFL, variable) | `oxanium`, `oxanium_bold`, `oxanium_extrabold` | `terminal` — dashboard title, day column headers, quote body; `wide_night` — the tracked labels (ExtraBold) |
 | `Rajdhani-Regular.ttf` / `Rajdhani-SemiBold.ttf` (OFL) | `rajdhani`, `rajdhani_semibold` | `terminal` — month band, section labels, quote attribution |
 | `Orbitron-Variable.ttf` (OFL, variable) | `orbitron_black` | `terminal` — large today date numeral |
-| `DMSans.ttf` | `dm_regular/medium/semibold/bold` | `minimalist`, `weather`, `fuzzyclock`, `diags` (section labels), `countdown`, `astronomy`, `agenda`, `light_cycle`, `constellation_map` (margin) |
+| `DMSans.ttf` | `dm_regular/medium/semibold/bold` | `weather`, `fuzzyclock`, `diags` (section labels), `countdown`, `astronomy`, `light_cycle`, `constellation_map` (margin) |
 | `PlayfairDisplay-*.ttf` | `playfair_regular/medium/semibold/bold` | `old_fashioned`, `qotd`, `almanac` (body + quote), `wide_week` rail (masthead, temperature, NEXT time, quote mark) |
 | `Literata-SemiBold.ttf` / `Literata-Bold.ttf` (OFL; static instances at opsz 12 cut from the upstream variable font with `fonttools varLib.instancer`) | `literata_semibold`, `literata_bold` | `wide_week` rail — the quote (SemiBold ≥ 18 px, Bold below, via `wide_week_rail_panel.quote_font`) |
 | `Figtree-ExtraBold.ttf` (OFL; static full-glyph Google Fonts build, via `@expo-google-fonts/figtree`) | `figtree_extrabold` | `wide_horizon` — event rows (21-px titles, 17-px times) |
@@ -185,7 +185,7 @@ The cooldown is `display.min_refresh_interval_seconds` (config), defaulting to 6
 | `SpaceGrotesk-Regular.ttf` | `sg_regular` | `air_quality`, `message` |
 | `SpaceGrotesk-Medium.ttf` | `sg_medium` | `air_quality`, `message` |
 | `SpaceGrotesk-Bold.ttf` | `sg_bold` | `air_quality`, `message` |
-| `Antonio-Variable.ttf` (OFL, variable) | `antonio_semibold`, `antonio_bold` | `sunrise`, `tides` — title + section labels (condensed display); `halftone_agenda_wide` — agenda time cells and duration column |
+| `Antonio-Variable.ttf` (OFL, variable) | `antonio_semibold` | `halftone_agenda_wide` — agenda time cells and duration column |
 | `Astloch-Bold.ttf` (OFL) | `astloch_bold` | `almanac` — blackletter masthead + dateline character font |
 | `Audiowide-Regular.ttf` (OFL) | `audiowide` | `constellation_map` — cardinal letters, star + constellation labels |
 | `Righteous-Regular.ttf` (OFL) | `righteous` | `light_cycle` — hero day-of-month numeral; `halftone` — every typeset element; `day_arc` — chrome (dateline, numeral, labels) |
@@ -216,12 +216,12 @@ The cooldown is `display.min_refresh_interval_seconds` (config), defaulting to 6
 | `invert_header` | `True` | Fill header bar with `fg`, draw text in `bg` |
 | `invert_today_col` | `True` | Fill today column with `fg`, draw text in `bg` |
 | `invert_allday_bars` | `True` | Filled (vs outlined) all-day event bars |
-| `show_borders` | `True` | Draw structural border lines and section separators; set `False` for borderless themes like `minimalist` |
+| `show_borders` | `True` | Draw structural border lines and section separators; set `False` for borderless themes like `weather` |
 | `show_forecast_strip` | `True` | Draw the 3-day forecast grid at the bottom of the weather panel; set `False` for compact strips where the panel is too short to accommodate it without overlap — the four current-conditions rows are then spread evenly across the full panel height |
 | `spacing_scale` | `1.0` | Event row height multiplier in the week view |
 | `label_font_size` | `12` | Point size for section labels (WEATHER, BIRTHDAYS, …) |
 | `label_font_weight` | `"bold"` | Weight for section labels when `font_section_label` is `None`: `"bold"` / `"semibold"` / `"regular"` |
-| `component_labels` | `{}` | Override section label strings per component (keys: `"weather"`, `"birthdays"`, `"info"`, `"year_pulse"`, …) |
+| `component_labels` | `{}` | Override section label strings per component (keys: `"weather"`, `"birthdays"`, `"info"`, …) |
 
 #### Font callables
 
@@ -303,6 +303,7 @@ art themes, in the panel's module docstring. Keep new entries to that shape.
 
 ### Themes
 
+- Retired themes live in `retired/` (not imported, tested, linted or deployed; `retired/README.md` says how to restore one). Their names stay in `RETIRED_THEME_NAMES` in `src/render/themes/registry.py`, which `resolve_theme_name()` maps to `default` with a warning so an old config keeps rendering.
 - Theme resolution: CLI `--theme` > `theme_rules` > `theme_schedule` > `cfg.theme` / random. `resolve_theme_name()` runs twice when rules exist (pre-fetch with `data=None` to size the event window, post-fetch with data); rules needing weather, AQI or calendar data skip silently when it is missing.
 - `theme_rules` conditions: `weather`, `weather_alert_present`, `daypart` (`dawn` / `day` / `dusk` / `night`), `season`, `weekday`, `calendar` (`empty` / `done` / `active` / `upcoming_soon` / `busy` / `birthday_today`), `temp_at_least` / `temp_at_most`, `aqi_at_least`. An unreadable numeric bound drops the whole rule rather than widening it; booleans are rejected (YAML reads `yes` as `True`). Calendar states come from `_calendar_states()` and are emitted only when the source is present in `data.source_staleness`.
 - `_event_window()` fetches the union of the ranges every rule candidate needs, anchored on `_time.week_start()`. `EXTRA_EVENT_DAYS` in `src/app.py` (theme → days past the week) feeds it; add any theme that rolls its agenda to tomorrow (`day_arc`, `halftone_agenda`, `wide_day`, `wide_week` = 1, `halftone_agenda_wide` = 2, `wide_horizon` = 3).
@@ -316,7 +317,7 @@ art themes, in the panel's module docstring. Keep new entries to that shape.
   - `moonphase*`: discs come from `moon_render.py` (procedural; `moonphase_photo` occludes `assets/moon_full.png` via `ThemeStyle.use_moon_photo`); `moonphase_invert` and `moonphase_photo` derive from `moonphase_theme()` with `dataclasses.replace`.
   - `monthly`: Sunday-first six-row grid; `prefer_color_on_inky=True` heatmap.
   - `photo`: `background_fn` pastes a Floyd-Steinberg-dithered `photo.path`; `draw_order` is empty.
-  - `postcard`, `naturalist`: seeded procedural art; `naturalist` seeds from `_stable_seed(...)` because `str.__hash__` is per-process.
+  - `postcard`: seeded procedural art.
   - `weatherglass`: 2× supersampled, `threshold` quantization, pressure history in state (`state_dir=None` on dry and dummy runs).
   - `day_arc`: axis-strip elements have disjoint row bands (`TestAxisStripBands`); `build_time_axis()` needs events already filtered to the day; `agenda_day()` rolls over only after sunset and after every timed event has ended.
   - `halftone_agenda`: imports `agenda_day` from `day_arc_panel` rather than copying it; sun times are normalised once in `_sun_times`; `TEMP_PT = 78` and the `inline_range` / `stacks_time` rules are pinned by tests; `supports_partial_refresh=False`.

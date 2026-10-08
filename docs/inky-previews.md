@@ -76,35 +76,17 @@ Accents: **blue** primary, **red** secondary · [description in Themes ↗](them
 
 [![Default theme on Inky](../assets/previews/theme_default_inky.png)](../assets/previews/theme_default_inky.png)
 
-#### agenda
-
-Accents: **red** primary, **black** secondary · [description in Themes ↗](themes.md#agenda)
-
-[![Agenda theme on Inky](../assets/previews/theme_agenda_inky.png)](../assets/previews/theme_agenda_inky.png)
-
 #### terminal
 
 Accents: **green** primary, **yellow** secondary · [description in Themes ↗](themes.md#terminal)
 
 [![Terminal theme on Inky](../assets/previews/theme_terminal_inky.png)](../assets/previews/theme_terminal_inky.png)
 
-#### minimalist
-
-Accents: **blue** primary, **red** secondary · [description in Themes ↗](themes.md#minimalist)
-
-[![Minimalist theme on Inky](../assets/previews/theme_minimalist_inky.png)](../assets/previews/theme_minimalist_inky.png)
-
 #### old_fashioned
 
 Accents: **red** primary, **yellow** secondary · [description in Themes ↗](themes.md#old_fashioned)
 
 [![Old Fashioned theme on Inky](../assets/previews/theme_old_fashioned_inky.png)](../assets/previews/theme_old_fashioned_inky.png)
-
-#### today
-
-Accents: **blue** primary, **red** secondary · [description in Themes ↗](themes.md#today)
-
-[![Today theme on Inky](../assets/previews/theme_today_inky.png)](../assets/previews/theme_today_inky.png)
 
 #### fantasy
 
@@ -212,23 +194,11 @@ Accents: **yellow** primary, **red** secondary · [description in Themes ↗](th
 
 [![Halftone Agenda theme on Inky](../assets/previews/theme_halftone_agenda_inky.png)](../assets/previews/theme_halftone_agenda_inky.png)
 
-#### timeline
-
-Accents: **blue** primary, **red** secondary · [description in Themes ↗](themes.md#timeline)
-
-[![Timeline theme on Inky](../assets/previews/theme_timeline_inky.png)](../assets/previews/theme_timeline_inky.png)
-
 #### trends
 
 Accents: **blue** primary, **yellow** secondary · [description in Themes ↗](themes.md#trends)
 
 [![Trends theme on Inky](../assets/previews/theme_trends_inky.png)](../assets/previews/theme_trends_inky.png)
-
-#### year_pulse
-
-Accents: **green** primary, **blue** secondary · [description in Themes ↗](themes.md#year_pulse)
-
-[![Year Pulse theme on Inky](../assets/previews/theme_year_pulse_inky.png)](../assets/previews/theme_year_pulse_inky.png)
 
 #### monthly
 
@@ -236,29 +206,11 @@ Accents: **yellow** primary, **red** secondary · [description in Themes ↗](th
 
 [![Monthly theme on Inky](../assets/previews/theme_monthly_inky.png)](../assets/previews/theme_monthly_inky.png)
 
-#### sunrise
-
-Accents: **yellow** primary, **red** secondary · [description in Themes ↗](themes.md#sunrise)
-
-[![Sunrise theme on Inky](../assets/previews/theme_sunrise_inky.png)](../assets/previews/theme_sunrise_inky.png)
-
 #### light_cycle
 
 Accents: **yellow** primary, **blue** secondary · [description in Themes ↗](themes.md#light_cycle)
 
 [![Light Cycle theme on Inky](../assets/previews/theme_light_cycle_inky.png)](../assets/previews/theme_light_cycle_inky.png)
-
-#### scorecard
-
-Accents: **red** primary, **blue** secondary · [description in Themes ↗](themes.md#scorecard)
-
-[![Scorecard theme on Inky](../assets/previews/theme_scorecard_inky.png)](../assets/previews/theme_scorecard_inky.png)
-
-#### tides
-
-Accents: **blue** primary, **yellow** secondary · [description in Themes ↗](themes.md#tides)
-
-[![Tides theme on Inky](../assets/previews/theme_tides_inky.png)](../assets/previews/theme_tides_inky.png)
 
 #### weatherglass
 
@@ -273,12 +225,6 @@ Accents: **yellow** primary, **red** secondary · [description in Themes ↗](th
 Accents: **red** primary, **black** secondary · [description in Themes ↗](themes.md#postcard)
 
 [![Postcard theme on Inky](../assets/previews/theme_postcard_inky.png)](../assets/previews/theme_postcard_inky.png)
-
-#### naturalist
-
-Accents: **red** primary, **black** secondary · [description in Themes ↗](themes.md#naturalist)
-
-[![Naturalist theme on Inky](../assets/previews/theme_naturalist_inky.png)](../assets/previews/theme_naturalist_inky.png)
 
 ### Panoramic themes
 

@@ -34,6 +34,22 @@ PSEUDO_THEME_NAMES: frozenset[str] = frozenset(
     {"default", "random", "random_daily", "random_hourly"}
 )
 
+# Themes no longer shipped; their code lives in ``retired/``. A config still
+# naming one renders ``default`` instead of failing every run.
+RETIRED_THEME_NAMES: frozenset[str] = frozenset(
+    {
+        "agenda",
+        "minimalist",
+        "naturalist",
+        "scorecard",
+        "sunrise",
+        "tides",
+        "timeline",
+        "today",
+        "year_pulse",
+    }
+)
+
 # (primary, secondary) Spectra-6 palette index pair for each registered theme.
 # When unset, the canvas falls back to ``(INKY_BLUE, INKY_RED)``.
 _REGISTRY: dict[str, ThemeFactory] = {}

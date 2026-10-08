@@ -32,6 +32,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   from the pinned commit's demo code, where it used to need copying and patching
   by hand. The display driver accepts the demo driver's `Init()` spelling.
 
+### Removed
+
+- Retired nine themes: `agenda`, `minimalist`, `today`, `timeline`,
+  `year_pulse`, `sunrise`, `tides`, `scorecard` and `naturalist`. They are no
+  longer registered, previewed or documented; their themes, panels, tests,
+  previews and doc entries are kept under `retired/` with steps to restore
+  one. A config, schedule entry or rule still naming one renders `default`
+  and `--check-config` says the theme was retired.
+
 ### Fixed
 
 - The web UI compares CSRF tokens in constant time, and a non-ASCII token is

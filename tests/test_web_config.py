@@ -112,7 +112,7 @@ _YAML_TO_ATTR_OVERRIDES: dict[tuple, tuple] = {
 # detectable.
 _SAMPLE_VALUES: dict[str, object] = {
     "title": "ZZZ-roundtrip-title",
-    "theme": "minimalist",
+    "theme": "monthly",
     "timezone": "America/Los_Angeles",
     "log_level": "DEBUG",
     "display.show_weather": False,
@@ -145,7 +145,7 @@ _SAMPLE_VALUES: dict[str, object] = {
     "cache.cooldown_minutes": 20,
     "cache.quote_refresh": "hourly",
     "quotes.path": "/srv/dashboard/quotes.json",
-    "random_theme.include": ["minimalist"],
+    "random_theme.include": ["monthly"],
     "random_theme.exclude": ["fantasy"],
     # v5 additions — keep aligned with src.config_schema.
     "display.min_refresh_interval_seconds": 90,
@@ -1032,7 +1032,7 @@ def test_post_api_config_reload_updates_dash_cfg_atomically(client, app):
 # theme_rules — YAML-textarea editing path
 # ---------------------------------------------------------------------------
 
-_RULES_YAML = "- when:\n    weekday: weekend\n  theme: today\n"
+_RULES_YAML = "- when:\n    weekday: weekend\n  theme: day_arc\n"
 
 
 def test_editable_field_theme_rules_round_trips(tmp_path):
@@ -1043,14 +1043,14 @@ def test_editable_field_theme_rules_round_trips(tmp_path):
     patch, errors = _normalise_patch({"theme_rules": _RULES_YAML})
     assert errors == []
     raw = _apply_to_raw({}, patch)
-    assert raw["theme_rules"] == [{"when": {"weekday": "weekend"}, "theme": "today"}]
+    assert raw["theme_rules"] == [{"when": {"weekday": "weekend"}, "theme": "day_arc"}]
 
     p = tmp_path / "config.yaml"
     p.write_text(yaml.dump(raw, default_flow_style=False, sort_keys=False))
 
     cfg = load_config(str(p))
     assert len(cfg.theme_rules.rules) == 1
-    assert cfg.theme_rules.rules[0].theme == "today"
+    assert cfg.theme_rules.rules[0].theme == "day_arc"
     assert cfg.theme_rules.rules[0].when.weekday == "weekend"
 
     served = get_config_for_web(str(p))["theme_rules_yaml"]
@@ -1062,7 +1062,7 @@ def test_theme_rules_empty_string_removes_key(tmp_path):
 
     patch, errors = _normalise_patch({"theme_rules": ""})
     assert errors == []
-    raw = _apply_to_raw({"theme_rules": [{"theme": "today"}], "title": "T"}, patch)
+    raw = _apply_to_raw({"theme_rules": [{"theme": "day_arc"}], "title": "T"}, patch)
     assert "theme_rules" not in raw
     assert raw["title"] == "T"
 
@@ -1104,7 +1104,7 @@ def test_apply_patch_saves_valid_theme_rules_yaml(tmp_path):
         saved, errors, _warnings = apply_patch(str(p), {"theme_rules": _RULES_YAML})
     assert saved is True and errors == []
     assert yaml.safe_load(p.read_text())["theme_rules"] == [
-        {"when": {"weekday": "weekend"}, "theme": "today"}
+        {"when": {"weekday": "weekend"}, "theme": "day_arc"}
     ]
 
 
@@ -1116,7 +1116,7 @@ def test_theme_rules_entry_shape_is_validated():
         "- when weekday weekend\n- theme today\n",  # list of strings (missing colons)
         "- when: {weekday: weekend}\n",  # missing theme key
         "- theme: 7\n",  # theme not a string
-        "- when: not-a-mapping\n  theme: today\n",  # when not a mapping
+        "- when: not-a-mapping\n  theme: day_arc\n",  # when not a mapping
     ]
     for text in bad_cases:
         patch, errors = _normalise_patch({"theme_rules": text})
@@ -1127,12 +1127,12 @@ def test_theme_rules_entry_shape_is_validated():
 def test_theme_rules_non_list_value_is_rejected_not_cleared(tmp_path):
     """A buggy API client sending a dict must not silently erase saved rules."""
     p = tmp_path / "config.yaml"
-    p.write_text("title: T\ntheme_rules:\n- when: {weekday: weekend}\n  theme: today\n")
+    p.write_text("title: T\ntheme_rules:\n- when: {weekday: weekend}\n  theme: day_arc\n")
     with patch(_VALIDATE_PATCH, return_value=([], [])):
         saved, errors, _warnings = apply_patch(str(p), {"theme_rules": {"oops": 1}})
     assert saved is False
     assert any(e["field"] == "theme_rules" for e in errors)
-    assert "theme: today" in p.read_text()
+    assert "theme: day_arc" in p.read_text()
 
 
 def test_theme_rules_list_value_entries_also_validated():
@@ -1144,10 +1144,10 @@ def test_theme_rules_list_value_entries_also_validated():
     assert errors[0]["field"] == "theme_rules"
 
     patch, errors = _normalise_patch(
-        {"theme_rules": [{"when": {"weekday": "weekend"}, "theme": "today"}]}
+        {"theme_rules": [{"when": {"weekday": "weekend"}, "theme": "day_arc"}]}
     )
     assert errors == []
-    assert patch["theme_rules"] == [{"when": {"weekday": "weekend"}, "theme": "today"}]
+    assert patch["theme_rules"] == [{"when": {"weekday": "weekend"}, "theme": "day_arc"}]
 
 
 class TestOneCallVersionInTheEditor:

@@ -28,13 +28,8 @@ from src.render.components import (
     message_panel,
     monthly_panel,
     moonphase_panel,
-    naturalist_panel,
     postcard_panel,
     qotd_panel,
-    scorecard_panel,
-    sunrise_panel,
-    tides_panel,
-    timeline_panel,
     today_view,
     trends_panel,
     weather_full,
@@ -47,7 +42,6 @@ from src.render.components import (
     wide_horizon_panel,
     wide_night_panel,
     wide_week_rail_panel,
-    year_pulse_panel,
 )
 from src.render.components.registry import RenderContext, register_component
 
@@ -241,29 +235,6 @@ def _message_weather(ctx: RenderContext) -> None:
     )
 
 
-@register_component("timeline")
-def _timeline(ctx: RenderContext) -> None:
-    timeline_panel.draw_timeline(
-        ctx.draw,
-        ctx.data.events,
-        ctx.today,
-        ctx.now,
-        region=ctx.layout.timeline,
-        style=ctx.style,
-    )
-
-
-@register_component("year_pulse")
-def _year_pulse(ctx: RenderContext) -> None:
-    year_pulse_panel.draw_year_pulse(
-        ctx.draw,
-        ctx.data,
-        ctx.today,
-        region=ctx.layout.year_pulse,
-        style=ctx.style,
-    )
-
-
 @register_component("monthly")
 def _monthly(ctx: RenderContext) -> None:
     monthly_panel.draw_monthly(
@@ -272,46 +243,6 @@ def _monthly(ctx: RenderContext) -> None:
         ctx.today,
         region=ctx.layout.monthly,
         style=ctx.style,
-    )
-
-
-@register_component("sunrise")
-def _sunrise(ctx: RenderContext) -> None:
-    sunrise_panel.draw_sunrise(
-        ctx.draw,
-        ctx.data,
-        ctx.today,
-        ctx.now,
-        region=ctx.layout.sunrise,
-        style=ctx.style,
-    )
-
-
-@register_component("scorecard")
-def _scorecard(ctx: RenderContext) -> None:
-    scorecard_panel.draw_scorecard(
-        ctx.draw,
-        ctx.data,
-        ctx.today,
-        ctx.now,
-        region=ctx.layout.scorecard,
-        style=ctx.style,
-        quote_refresh=ctx.quote_refresh,
-        quotes_path=ctx.quotes_path,
-    )
-
-
-@register_component("tides")
-def _tides(ctx: RenderContext) -> None:
-    tides_panel.draw_tides(
-        ctx.draw,
-        ctx.data,
-        ctx.today,
-        ctx.now,
-        region=ctx.layout.tides,
-        style=ctx.style,
-        quote_refresh=ctx.quote_refresh,
-        quotes_path=ctx.quotes_path,
     )
 
 
@@ -452,21 +383,6 @@ def _postcard(ctx: RenderContext) -> None:
         ctx.now,
         image=ctx.image,
         region=ctx.layout.postcard,
-        style=ctx.style,
-        quote_refresh=ctx.quote_refresh,
-        quotes_path=ctx.quotes_path,
-    )
-
-
-@register_component("naturalist")
-def _naturalist(ctx: RenderContext) -> None:
-    naturalist_panel.draw_naturalist(
-        ctx.draw,
-        ctx.data,
-        ctx.today,
-        ctx.now,
-        image=ctx.image,
-        region=ctx.layout.naturalist,
         style=ctx.style,
         quote_refresh=ctx.quote_refresh,
         quotes_path=ctx.quotes_path,

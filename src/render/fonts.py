@@ -311,10 +311,9 @@ def rye(size: int) -> ImageFont.FreeTypeFont:
     return get_font("Rye-Regular.ttf", size)
 
 
-# Antonio — tall narrow condensed sans (Vernon Adams, OFL).  Carries the
-# high-contrast condensed display role in the sunrise and tides themes: their
-# titles and section labels.  Variable font, wght 100-700; the accessors pin
-# Bold (700) and SemiBold (600) rather than relying on the axis default.
+# Antonio — tall narrow condensed sans (Vernon Adams, OFL).  Sets the agenda
+# time cells in halftone_agenda_wide.  Variable font, wght 100-700; the
+# accessor pins SemiBold (600) rather than relying on the axis default.
 @lru_cache(maxsize=32)
 def _get_antonio(size: int, wght: int) -> ImageFont.FreeTypeFont:
     font = ImageFont.truetype(str(FONT_DIR / "Antonio-Variable.ttf"), size)
@@ -324,10 +323,6 @@ def _get_antonio(size: int, wght: int) -> ImageFont.FreeTypeFont:
 
 def antonio_semibold(size: int) -> ImageFont.FreeTypeFont:
     return _get_antonio(size, 600)
-
-
-def antonio_bold(size: int) -> ImageFont.FreeTypeFont:
-    return _get_antonio(size, 700)
 
 
 # Big Shoulders Display — Chicago-signage condensed grotesque (Patric King /

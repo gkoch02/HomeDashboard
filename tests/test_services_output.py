@@ -840,7 +840,7 @@ class TestLatestPngDuringCooldown:
 
     def _publish(self, svc, image, now):
         with patch("src.services.output.build_display_driver") as driver:
-            svc.publish(image, dry_run=False, force_full=False, now=now, theme_name="agenda")
+            svc.publish(image, dry_run=False, force_full=False, now=now, theme_name="terminal")
         return driver
 
     def test_a_deferred_refresh_still_updates_latest_png(self, tmp_path):
@@ -910,7 +910,7 @@ class TestLatestPngDuringCooldown:
             dry_run=True,
             force_full=False,
             now=datetime(2026, 4, 6, 10, 0, tzinfo=timezone.utc),
-            theme_name="agenda",
+            theme_name="terminal",
         )
         assert (tmp_path / "latest.png").exists()
 
@@ -946,7 +946,7 @@ class TestRepaintSlot:
             ((8, 12, 5), (8, 14, 55), {}, {}, False),
             ((8, 14, 55), (8, 15, 0), {}, {}, True),
             ((8, 12, 5), (9, 12, 5), {}, {}, True),
-            ((8, 12, 5), (8, 12, 30), {"theme": "today"}, {}, True),
+            ((8, 12, 5), (8, 12, 30), {"theme": "day_arc"}, {}, True),
             ((8, 12, 5), (8, 12, 30), {}, {"force_full": True}, True),
             ((8, 12, 5), (8, 12, 30), {"slot": None}, {"slot": None}, True),
         ],

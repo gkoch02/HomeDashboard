@@ -15,7 +15,7 @@ Daily state is written to ``<state_dir>/random_theme_state.json``:
     {"date": "2026-03-22", "theme": "terminal"}
 
 Hourly state is written to ``<state_dir>/random_theme_hourly_state.json``:
-    {"hour": "2026-03-22T14", "theme": "minimalist"}
+    {"hour": "2026-03-22T14", "theme": "terminal"}
 
 (The ``output_dir`` parameter these functions take is the *state* directory —
 ``services/theme.py`` passes ``cfg.state_dir``. The name is a v4 leftover from

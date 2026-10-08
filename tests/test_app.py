@@ -638,7 +638,7 @@ class TestRun:
         assert mock_publish.call_args.kwargs["theme_supports_partial"] is False
 
     def test_theme_override_arg_used_directly(self, tmp_path):
-        app = self._make_full_app(tmp_path, dummy=True, theme="minimalist")
+        app = self._make_full_app(tmp_path, dummy=True, theme="monthly")
         fake_data = MagicMock()
         fake_data.events = []
         from PIL import Image
@@ -650,7 +650,7 @@ class TestRun:
             patch("src.app.should_force_full_refresh", return_value=False),
             patch("src.app.generate_dummy_data", return_value=fake_data),
             patch("src.app.render_dashboard", return_value=fake_image),
-            patch("src.app.resolve_theme_name", return_value="minimalist") as mock_resolve,
+            patch("src.app.resolve_theme_name", return_value="monthly") as mock_resolve,
             patch.object(app.output, "publish"),
             patch.object(app.output, "write_health_marker"),
         ):
@@ -658,7 +658,7 @@ class TestRun:
 
         # resolve_theme_name called with the override
         call_args = mock_resolve.call_args
-        assert call_args.args[1] == "minimalist"
+        assert call_args.args[1] == "monthly"
 
     def test_no_theme_arg_and_no_rules_calls_resolver_once(self, tmp_path):
         """Common case: no theme_rules configured → phase 2 is skipped."""
@@ -1038,7 +1038,7 @@ class TestRunIntegration:
             tmp_path,
             theme="default",
             theme_schedule=[
-                {"time": "00:00", "theme": "minimalist"},
+                {"time": "00:00", "theme": "monthly"},
                 {"time": "20:00", "theme": "fuzzyclock"},
             ],
         )
@@ -1068,7 +1068,7 @@ class TestRunIntegration:
         ):
             app.run()
 
-        assert captured["theme_name"] == "minimalist"
+        assert captured["theme_name"] == "monthly"
 
     def test_cached_data_used_when_all_fetchers_raise(self, tmp_path):
         """When every live fetcher raises, DataPipeline falls back to cached values."""
@@ -1191,11 +1191,11 @@ class TestRunEvents:
         assert isinstance(details["live_sources"], list)
 
     def test_theme_override_is_recorded(self, tmp_path):
-        app = _real_app(tmp_path, theme="minimalist")
+        app = _real_app(tmp_path, theme="monthly")
         app.run()
 
         event = next(e for e in _events(app) if e["kind"] == "run_completed")
-        assert event["details"]["theme"] == "minimalist"
+        assert event["details"]["theme"] == "monthly"
 
     def test_failed_run_is_recorded_with_the_exception_type(self, tmp_path):
         app = _real_app(tmp_path)
@@ -1285,7 +1285,7 @@ class TestEventWindowPseudoThemeRules:
 
         app = _make_app(tmp_path)
         app.cfg.theme_rules.rules = [ThemeRule(when={"weather": "rain"}, theme="random_hourly")]
-        app.cfg.random_theme.include = ["default", "agenda"]
+        app.cfg.random_theme.include = ["default", "terminal"]
         app.cfg.random_theme.exclude = []
         app.cfg.display.width, app.cfg.display.height = 800, 480
         assert app._event_window("default", datetime(2026, 4, 11, 10, 0)) == (None, 7)

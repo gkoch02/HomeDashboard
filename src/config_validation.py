@@ -258,7 +258,7 @@ def validate_config(
         warnings.append(
             ConfigWarning(
                 field="theme",
-                message=f"Unknown theme: '{cfg.theme}'",
+                message=_unknown_theme_message(cfg.theme, f"Unknown theme: '{cfg.theme}'"),
                 hint=f"Available themes: {', '.join(sorted(AVAILABLE_THEMES))}",
             )
         )
@@ -316,7 +316,9 @@ def validate_config(
             warnings.append(
                 ConfigWarning(
                     field=f"theme_schedule[{i}].theme",
-                    message=f"Unknown theme '{entry.theme}' in schedule",
+                    message=_unknown_theme_message(
+                        entry.theme, f"Unknown theme '{entry.theme}' in schedule"
+                    ),
                     hint=f"Available themes: {', '.join(sorted(real_themes))}",
                 )
             )
@@ -632,7 +634,9 @@ def validate_config(
             warnings.append(
                 ConfigWarning(
                     field=f"theme_rules[{i}].theme",
-                    message=f"Unknown theme '{rule.theme}' in rule",
+                    message=_unknown_theme_message(
+                        rule.theme, f"Unknown theme '{rule.theme}' in rule"
+                    ),
                     hint=f"Available themes: {', '.join(sorted(AVAILABLE_THEMES))}",
                 )
             )
@@ -770,6 +774,15 @@ def validate_config(
         )
 
     return errors, warnings
+
+
+def _unknown_theme_message(name: str, unknown: str) -> str:
+    """*unknown*, or the retirement notice when *name* is a retired theme."""
+    from src.render.themes.registry import RETIRED_THEME_NAMES
+
+    if name in RETIRED_THEME_NAMES:
+        return f"Theme '{name}' has been retired; 'default' is shown instead"
+    return unknown
 
 
 def print_validation_report(errors: list[ConfigError], warnings: list[ConfigWarning]) -> None:

@@ -1,14 +1,14 @@
 """Shared quote store for the panels that show a daily quote.
 
 One loader and one selection rule for every panel that shows a quote (info,
-tides, scorecard, moonphase); the store path comes from ``quotes.path`` so a
+moonphase); the store path comes from ``quotes.path`` so a
 customised store can live outside the tree ``make deploy`` overwrites.
 
 The bucket key is
 ``<prefix><date>[-bucket]`` hashed with MD5 and taken modulo the store size, so
 the same slot always maps to the same quote and repeats are possible. Each
-panel keeps its own *prefix* (``"tides-"``, ``"scorecard-"``, ``"moonphase-"``,
-and the empty prefix for the info panel) so two panels on the same plate do not
+panel keeps its own *prefix* (``"moonphase-"``, and the empty prefix for the
+info panel) so two panels on the same plate do not
 show the same quote on the same day.
 """
 

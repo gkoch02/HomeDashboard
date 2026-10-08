@@ -248,7 +248,7 @@ TOKEN=$(curl -s -c cookies.txt http://dashboard.local:8080/ \
 curl -b cookies.txt -X POST http://dashboard.local:8080/api/preview \
   -H "Content-Type: application/json" \
   -H "X-CSRF-Token: $TOKEN" \
-  -d '{"theme":"agenda"}' \
+  -d '{"theme":"terminal"}' \
   -o agenda-preview.png
 ```
 
@@ -332,7 +332,7 @@ object per line.
  "message": "Saved 3 changes from /config", "details": {"fields": ["theme", "title"]}}
 {"timestamp": "2026-04-20T15:35:02+00:00", "kind": "run_completed",
  "message": "Rendered 'agenda' in 2.4s (3 live, 1 cached: birthdays)",
- "details": {"duration_seconds": 2.4, "theme": "agenda", "dry_run": false,
+ "details": {"duration_seconds": 2.4, "theme": "terminal", "dry_run": false,
              "live_sources": ["air_quality", "events", "weather"],
              "cached_sources": ["birthdays"]}}
 ```
@@ -351,7 +351,7 @@ minutes, and a night of "skipped" rows would bury everything else.
 A few operator notes:
 
 - **Sensitive but not user-attributed.** The file logs *what* changed (e.g.
-  "saved theme: minimalist") and the field set involved, but it does **not** record
+  "saved theme: terminal") and the field set involved, but it does **not** record
   the authenticated username — basic-auth gates access at the request boundary and
   is not threaded into `append_event`. Don't rely on this log for per-user
   accountability in shared deployments. Treat it with the same care as `web.yaml`:

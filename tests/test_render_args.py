@@ -54,8 +54,8 @@ class TestBuildRenderKwargs:
         assert theme.style.photo_path == "/photos/hero.jpg"
 
     def test_other_themes_are_not_given_a_photo_path(self):
-        theme = load_theme("agenda")
-        build_render_kwargs(_cfg(**{"photo.path": "/photos/hero.jpg"}), theme, "agenda")
+        theme = load_theme("terminal")
+        build_render_kwargs(_cfg(**{"photo.path": "/photos/hero.jpg"}), theme, "terminal")
         assert theme.style.photo_path == ""
 
     def test_countdown_events_are_forwarded(self):
@@ -107,7 +107,7 @@ class TestBuildRenderKwargs:
     def test_every_key_is_a_real_render_dashboard_parameter(self):
         """A typo here would be silently swallowed by a **kwargs signature."""
         accepted = set(inspect.signature(render_dashboard).parameters)
-        kwargs = build_render_kwargs(_cfg(), load_theme("agenda"), "agenda")
+        kwargs = build_render_kwargs(_cfg(), load_theme("terminal"), "terminal")
         assert set(kwargs) <= accepted
 
     def test_it_covers_every_config_driven_render_parameter(self):
@@ -119,7 +119,7 @@ class TestBuildRenderKwargs:
         # Both call sites pass these two positionally.
         positional = {"data", "config"}
         expected = set(params) - positional
-        assert set(build_render_kwargs(_cfg(), load_theme("agenda"), "agenda")) == expected
+        assert set(build_render_kwargs(_cfg(), load_theme("terminal"), "terminal")) == expected
 
 
 class TestConfigWithoutRealFile:
@@ -141,5 +141,5 @@ class TestNamespaceCompatibility:
             countdown=SimpleNamespace(events=[]),
             weather=SimpleNamespace(latitude=0.0, longitude=0.0),
         )
-        kwargs = build_render_kwargs(cfg, load_theme("agenda"), "agenda")
+        kwargs = build_render_kwargs(cfg, load_theme("terminal"), "terminal")
         assert kwargs["quote_refresh"] == "hourly"

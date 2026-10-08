@@ -187,7 +187,7 @@ theme_rules:
   - when: { weather_alert_present: true }
     theme: "message"
   - when: { calendar: "birthday_today" }
-    theme: "today"
+    theme: "day_arc"
   - when: { calendar: ["empty", "done"] }
     theme: "qotd"
   - when: { weather: ["rain", "snow", "thunderstorm"] }
@@ -232,7 +232,7 @@ Note that this is cumulative: the panel drifts further from black the longer it 
 default and what the shipped example config now uses.
 
 Themes whose plate is dithered artwork or solid ink — the `halftone` pair, `day_arc`,
-`postcard`, `naturalist`, `trends`, `constellation_map`, `photo`, and the dark-canvas
+`postcard`, `trends`, `constellation_map`, `photo`, and the dark-canvas
 `terminal`, `fantasy` and `qotd_invert` — opt out of partial refresh entirely and always
 take the full waveform, so this cannot be the explanation for those. `fuzzyclock_invert`,
 `moonphase` and `moonphase_photo` are dark plates that keep partial refresh deliberately,

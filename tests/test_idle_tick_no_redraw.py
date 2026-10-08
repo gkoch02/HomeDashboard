@@ -33,15 +33,11 @@ TIME_DRIVEN = {
     "fuzzyclock",
     "fuzzyclock_invert",
     "light_cycle",
-    "timeline",
     "weatherglass",
     # Datelines that show the current time as part of the design, and
     # constellation_map's label, which names the moment the chart is projected
     # for and so must agree with the stars.
     "constellation_map",
-    "scorecard",
-    "sunrise",
-    "tides",
     "trends",
     # The NOW marker on a panoramic timeline; see wide_day_panel.
     "wide_day",
