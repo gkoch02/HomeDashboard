@@ -20,6 +20,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- The `postcard` theme's view is redrawn: layered mountain ridges with
+  aerial perspective and snow-capped summits, a lake that mirrors them, and
+  framing pines. The sun now follows the hour between sunrise and sunset,
+  with a golden glow at dawn and dusk and moon, stars and the Milky Way at
+  night; clouds, rain, lightning, snow and fog are all redrawn. The scene
+  changes at most once an hour.
 - `make install-display-drivers` installs the Waveshare library at the recorded
   commit instead of the vendor's default branch, and with `--no-deps`, so its
   host-probing `setup.py` no longer adds GPIO packages `requirements-pi.txt`

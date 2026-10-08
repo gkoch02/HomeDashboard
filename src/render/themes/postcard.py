@@ -2,9 +2,9 @@
 
 A divided composition that reads like a piece of mail picked up off the
 doormat.  The left two-thirds is a Floyd-Steinberg-dithered procedural
-"view" — sky, horizon, landscape silhouette, foreground — keyed to the
-current weather icon and daypart so the scene shifts from dawn to dusk
-and from a clear afternoon to a thunderstorm.  The right third is the
+mountain-lake "view" keyed to the weather icon, with the sun following
+the hour, so the scene shifts from dawn to dusk and from a clear
+afternoon to a thunderstorm.  The right third is the
 postcard's back: cursive greeting (the daily quote), a circular postmark
 that doubles as the dateline, a stamp carrying the moon phase glyph, and
 a stack of ruled "address" lines listing today's events.
@@ -16,8 +16,8 @@ and a hand-lettered feel achieved by mixing weights against the dither.
 On Inky the canvas opts into RGB (``prefer_color_on_inky=True``); the
 postmark + stamp border pick up the inky-red accent while the scene
 stays grayscale.  Waveshare quantizes the whole image to 1-bit via
-Floyd-Steinberg, turning the procedural greyscale gradients into the
-characteristic engraving-style dither.
+Floyd-Steinberg, turning the greyscale scene into an engraving-style
+dither.
 """
 
 from __future__ import annotations

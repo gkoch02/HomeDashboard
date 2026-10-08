@@ -203,7 +203,7 @@ Rules that reference weather or calendar data silently skip on the first boot (n
 
 | Theme | Best for | Notes |
 |---|---|---|
-| `postcard` | nostalgic vista | Procedurally-drawn dithered postcard: left two-thirds is a scene (sky, mountains, water, foreground) keyed to the OWM icon + daypart; right third is the postcard back (cursive greeting, red postmark with month/day, postage stamp with moon glyph, ruled "address" lines listing today's events, daily quote as signature). Floyd-Steinberg quantization. |
+| `postcard` | nostalgic vista | Procedurally-drawn dithered postcard: left two-thirds is a mountain-lake scene keyed to the OWM icon, with the sun following the hour; right third is the postcard back (cursive greeting, red postmark with month/day, postage stamp with moon glyph, ruled "address" lines listing today's events, daily quote as signature). Floyd-Steinberg quantization. |
 
 ### Panoramic themes
 
@@ -423,7 +423,7 @@ Needs weather; no extra fetcher. The barometer keeps a short pressure history in
 
 #### postcard
 
-Procedurally-drawn dithered postcard composed in two parts. The left two-thirds is a "view" scene picked from the current OWM icon and daypart — sky gradient, two-layer mountain silhouettes, water with ripple lines, foreground shore and reeds, plus sun, moon, clouds, rain streaks, lightning, snowflakes, or fog bands as the weather warrants. The right third is the postcard back: a cursive greeting, a circular red postmark with the current month and day, a perforated postage stamp carrying the moon-phase glyph, four ruled "address" lines listing today's events, and the daily quote as the signature. A 3 px white gutter with a dashed shadow forms the centre crease. Floyd-Steinberg quantization turns the procedural greyscale gradients into engraving-style halftone. On Inky the postmark and the stamp frame render in red.
+Procedurally-drawn dithered postcard composed in two parts. The left two-thirds is a mountain-lake "view": four ridges fading with distance, snow on the summits, a lake mirroring them, and pines framing the near bank. The landscape changes daily; the weather icon sets the conditions (cumulus, overcast, rain veils, lightning, snowfall, fog banks) and the hour moves the sun between sunrise and sunset, from a low golden glow to midday, or brings out the moon and stars at night. The right third is the postcard back: a cursive greeting, a circular red postmark with the current month and day, a perforated postage stamp carrying the moon-phase glyph, four ruled "address" lines listing today's events, and the daily quote as the signature. A 3 px white gutter with a dashed shadow forms the centre crease. Floyd-Steinberg quantization turns the procedural greyscale gradients into engraving-style halftone. On Inky the postmark and the stamp frame render in red.
 
 [![Postcard theme](../assets/previews/theme_postcard.png)](../assets/previews/theme_postcard.png)
 
