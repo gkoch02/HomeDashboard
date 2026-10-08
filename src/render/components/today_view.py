@@ -220,7 +220,7 @@ def _draw_event_list(
             # y-advance stays consistent with the measured single-line font height.
             if event.location:
                 loc_text = location_line(event.location)
-                if loc_text and y + text_height(loc_font) <= limit:
+                if loc_text and y + 2 + text_height(loc_font) <= limit:
                     y += 2
                     draw_text_truncated(draw, (x, y), loc_text, loc_font, max_w, fill=style.fg)
                     y += text_height(loc_font)

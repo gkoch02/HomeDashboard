@@ -351,8 +351,10 @@ def _draw_quote(
 ) -> None:
     """Draw a small wrapped quote at the bottom, centered.
 
-    *gap* is the vertical space between the quote body and its attribution,
-    which is dropped rather than drawn past ``y + max_h``.
+    *gap* is the vertical space between the quote body and its attribution.
+    When the spacing leaves too little room the attribution closes that gap
+    to stay above ``y + max_h``; it is dropped only when it would then reach
+    into the quote itself.
     """
     quote = quote_for(today, refresh=quote_refresh, prefix="moonphase-", path=quotes_path)
     text = f'"{quote["text"]}"'
@@ -372,8 +374,8 @@ def _draw_quote(
     attr_font = tangerine_regular(_ATTR_FONT_PT)
     attr = truncate_to_width(draw, f"— {quote['author']}", attr_font, max_w)
     attr_w = text_width(draw, attr, attr_font)
-    attr_y = cur_y + gap
-    if attr_y + _line_box(attr_font) <= y + max_h:
+    attr_y = min(cur_y + gap, y + max_h - _line_box(attr_font))
+    if attr_y >= cur_y:
         draw.text((cx - attr_w // 2, attr_y), attr, font=attr_font, fill=style.fg)
 
 

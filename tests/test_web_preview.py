@@ -217,6 +217,12 @@ class TestPreviewMatchesTheRenderer:
         assert resp.status_code == 200, resp.get_data(as_text=True)
         assert str(captured["data"].fetched_at.tzinfo) == "America/Chicago"
 
+    def test_an_unresolvable_zone_still_previews(self, tmp_path):
+        """The saved config is not validated on load; a bad zone falls back to UTC."""
+        client = self._client(tmp_path, "timezone: Mars/Base\n")
+        resp = _post_with_csrf(client, "/api/preview", {"theme": "agenda"})
+        assert resp.status_code == 200, resp.get_data(as_text=True)
+
     def test_preview_still_persists_no_pressure_history(self, tmp_path, monkeypatch):
         client = self._client(tmp_path, f"state_dir: {tmp_path / 'state'}\n")
         kwargs = self._render_kwargs(client, "weatherglass", monkeypatch)

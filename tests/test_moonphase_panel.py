@@ -633,6 +633,19 @@ class TestTextStaysInsideTheFrame:
         for text, (_x0, _y0, _x1, y1) in texts:
             assert y1 < 480 - 8 - 1, f"{text!r} reaches y={y1}, onto the frame"
 
+    def test_a_two_line_quote_keeps_its_attribution(self, tmp_path):
+        """Even spacing leaves a two-line quote's attribution a pixel short of room
+        above the frame; it closes the gap rather than being dropped."""
+        quote = (
+            "In a universe of blind physical forces and genetic replication, some people "
+            "are going to get hurt, other people are going to get lucky, and you won't "
+            "find any rhyme or reason in it."
+        )
+        texts = self._texts(tmp_path, "Gregory", text=quote)
+        assert [t for t, _ in texts if t.startswith("—")] == ["— Gregory"]
+        for text, (_x0, _y0, _x1, y1) in texts:
+            assert y1 < 480 - 8 - 1, f"{text!r} reaches y={y1}, onto the frame"
+
     def test_nothing_is_set_on_the_frame(self, tmp_path):
         texts = self._texts(tmp_path, self.LONG_AUTHOR)
         for text, (_x0, _y0, _x1, y1) in texts:
