@@ -9,7 +9,8 @@ from __future__ import annotations
 
 import json
 import pathlib
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
+from unittest.mock import patch
 
 import pytest
 
@@ -177,20 +178,24 @@ class TestPanelsShareOneLoader:
             assert not hasattr(module, "_DEFAULT_QUOTES"), module.__name__
 
     def test_panels_keep_independent_selections(self, tmp_path):
-        from src.render.components.info_panel import _quote_for_today
         from src.render.quotes import quote_for
 
         path = _store(tmp_path, [{"text": f"q{i}", "author": "a"} for i in range(80)])
-        picks = {_quote_for_today(TODAY, quotes_path=path)["text"]} | {
+        picks = {quote_for(TODAY, path=path)["text"]} | {
             quote_for(TODAY, prefix=prefix, path=path)["text"] for prefix in ("moonphase-",)
         }
         assert len(picks) > 1
 
     def test_the_config_path_reaches_the_panels(self, tmp_path):
-        from src.render.components.info_panel import _quote_for_today
+        from src.render.components.info_panel import draw_info
+        from tests.conftest import make_draw
+        from tests.inkutils import record_text
 
         path = _store(tmp_path, [{"text": "Configured", "author": "Me"}])
-        assert _quote_for_today(TODAY, quotes_path=path)["text"] == "Configured"
+        _img, draw = make_draw()
+        calls = record_text(draw)
+        draw_info(draw, TODAY, quotes_path=str(path))
+        assert any("Configured" in text for text, _box in calls)
 
 
 class TestConfigPathEndToEnd:
@@ -246,3 +251,127 @@ class TestConfigPathEndToEnd:
         cfg_path = tmp_path / "config.yaml"
         cfg_path.write_text("")
         assert (load_config(str(cfg_path)).quotes.path or None) is None
+
+
+class TestQuoteFor:
+    def test_returns_dict_with_text_and_author(self):
+        q = Q.quote_for(date(2024, 3, 15))
+        assert "text" in q
+        assert "author" in q
+        assert isinstance(q["text"], str)
+        assert isinstance(q["author"], str)
+
+    def test_deterministic_same_day(self):
+        d = date(2024, 6, 21)
+        q1 = Q.quote_for(d)
+        q2 = Q.quote_for(d)
+        assert q1 == q2
+
+    def test_different_days_can_differ(self):
+        """Two different dates should not always return the same quote
+        (statistically near-certain with any real pool)."""
+
+        quotes = {Q.quote_for(date(2024, 1, 1) + timedelta(days=i))["text"] for i in range(10)}
+        assert len(quotes) > 1
+
+    def test_uses_quotes_json_when_present(self, tmp_path):
+        custom = [{"text": "Custom quote", "author": "Custom Author"}]
+        qfile = tmp_path / "quotes.json"
+        qfile.write_text(json.dumps(custom))
+
+        with patch("src.render.quotes.DEFAULT_QUOTES_PATH", qfile):
+            Q.cache_clear()
+            q = Q.quote_for(date(2024, 3, 15))
+
+        assert q["text"] == "Custom quote"
+        assert q["author"] == "Custom Author"
+
+    def test_falls_back_to_defaults_when_file_missing(self, tmp_path):
+        missing = tmp_path / "no_such_file.json"
+        with patch("src.render.quotes.DEFAULT_QUOTES_PATH", missing):
+            q = Q.quote_for(date(2024, 3, 15))
+        assert q["text"]  # non-empty
+
+    def test_falls_back_to_defaults_on_corrupt_json(self, tmp_path):
+        corrupt = tmp_path / "quotes.json"
+        corrupt.write_text("not json {{{")
+        with patch("src.render.quotes.DEFAULT_QUOTES_PATH", corrupt):
+            q = Q.quote_for(date(2024, 3, 15))
+        assert q["text"]
+
+    def test_index_within_pool_bounds(self):
+        """Hash-mod should never produce an out-of-range index."""
+        for day_offset in range(100):
+            d = date(2024, 1, 1) + __import__("datetime").timedelta(days=day_offset)
+            q = Q.quote_for(d)
+            assert q["text"]
+
+
+class TestQuoteRefreshModes:
+    """Tests for the refresh= parameter on quote_for."""
+
+    def setup_method(self):
+        Q.cache_clear()
+
+    def teardown_method(self):
+        Q.cache_clear()
+
+    def test_daily_same_as_default(self):
+        d = date(2025, 6, 1)
+        assert Q.quote_for(d, refresh="daily") == Q.quote_for(d)
+
+    def test_twice_daily_am_stable(self):
+        d = date(2025, 6, 1)
+        now_am1 = datetime(2025, 6, 1, 9, 0)
+        now_am2 = datetime(2025, 6, 1, 11, 59)
+        assert Q.quote_for(d, refresh="twice_daily", now=now_am1) == Q.quote_for(
+            d, refresh="twice_daily", now=now_am2
+        )
+
+    def test_twice_daily_pm_stable(self):
+        d = date(2025, 6, 1)
+        now_pm1 = datetime(2025, 6, 1, 12, 0)
+        now_pm2 = datetime(2025, 6, 1, 23, 0)
+        assert Q.quote_for(d, refresh="twice_daily", now=now_pm1) == Q.quote_for(
+            d, refresh="twice_daily", now=now_pm2
+        )
+
+    def test_twice_daily_am_pm_differ(self):
+        d = date(2025, 6, 2)
+        now_am = datetime(2025, 6, 2, 8, 0)
+        now_pm = datetime(2025, 6, 2, 14, 0)
+        # Keys differ ("2025-06-02-am" vs "2025-06-02-pm") so hashes differ
+        q_am = Q.quote_for(d, refresh="twice_daily", now=now_am)
+        q_pm = Q.quote_for(d, refresh="twice_daily", now=now_pm)
+        assert q_am != q_pm
+
+    def test_hourly_same_hour_stable(self):
+        d = date(2025, 6, 3)
+        now1 = datetime(2025, 6, 3, 14, 0)
+        now2 = datetime(2025, 6, 3, 14, 59)
+        assert Q.quote_for(d, refresh="hourly", now=now1) == Q.quote_for(
+            d, refresh="hourly", now=now2
+        )
+
+    def test_hourly_different_hours_differ(self):
+        d = date(2025, 6, 3)
+        now_h1 = datetime(2025, 6, 3, 9, 0)
+        now_h2 = datetime(2025, 6, 3, 10, 0)
+        q1 = Q.quote_for(d, refresh="hourly", now=now_h1)
+        q2 = Q.quote_for(d, refresh="hourly", now=now_h2)
+        assert q1 != q2
+
+    def test_daily_and_hourly_can_differ(self):
+        d = date(2025, 6, 4)
+        now = datetime(2025, 6, 4, 15, 0)
+        q_daily = Q.quote_for(d, refresh="daily")
+        q_hourly = Q.quote_for(d, refresh="hourly", now=now)
+        # Keys are different strings so at least one of the many hours will differ
+        assert isinstance(q_daily, dict) and isinstance(q_hourly, dict)
+
+    def test_result_has_text_and_author(self):
+        d = date(2025, 6, 5)
+        now = datetime(2025, 6, 5, 10, 0)
+        for refresh in ("daily", "twice_daily", "hourly"):
+            q = Q.quote_for(d, refresh=refresh, now=now)
+            assert "text" in q and "author" in q

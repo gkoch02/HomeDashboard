@@ -17,7 +17,7 @@ floyd_steinberg
 
 ordered
     4×4 Bayer ordered/threshold dithering, implemented in pure Python
-    (``tobytes`` / ``putdata``) — no numpy dependency required.
+    (``tobytes`` / ``putdata``).
     Produces a regular dot-matrix pattern; useful for structured gradients.
 """
 
@@ -172,7 +172,7 @@ def quantize_for_display(image: Image.Image, mode: str = "threshold") -> Image.I
 
 
 def _ordered_bayer(image: Image.Image) -> Image.Image:
-    """Apply 4×4 Bayer ordered dithering (pure Python — no numpy required)."""
+    """Apply 4×4 Bayer ordered dithering (pure Python)."""
     w, h = image.size
     pixels = cast("list[int]", flatten_pixels(image))
     thresholds = [_BAYER_4X4[y & 3][x & 3] for y in range(h) for x in range(w)]
@@ -180,30 +180,6 @@ def _ordered_bayer(image: Image.Image) -> Image.Image:
     out = Image.new("L", (w, h))
     out.putdata(quantized)
     return out.convert("1")
-
-
-def _redmean_sq(
-    r1: int,
-    g1: int,
-    b1: int,
-    r2: int,
-    g2: int,
-    b2: int,
-) -> float:
-    """Perceptually-weighted squared color distance (redmean approximation).
-
-    More accurate than Euclidean RGB for perceived hue differences, especially
-    in the red channel.  No trigonometry or expensive colour-space conversions.
-    """
-    r_mean = (r1 + r2) * 0.5
-    dr = r1 - r2
-    dg = g1 - g2
-    db = b1 - b2
-    return (
-        (2.0 + r_mean * (1.0 / 256.0)) * dr * dr
-        + 4.0 * dg * dg
-        + (2.0 + (255.0 - r_mean) * (1.0 / 256.0)) * db * db
-    )
 
 
 def quantize_to_palette_ordered(
@@ -220,8 +196,6 @@ def quantize_to_palette_ordered(
     redmean perceptual distance approximation for more accurate hue mapping than
     Euclidean RGB.
 
-    Uses a numpy fast path when numpy is importable; falls back to pure Python.
-
     Args:
         image:          Source image (any mode; converted to RGB internally).
         colors:         Target palette as a list of (R, G, B) tuples.
@@ -232,20 +206,8 @@ def quantize_to_palette_ordered(
     Returns:
         PIL Image in ``"RGB"`` mode with all pixels snapped to *colors*.
     """
-    try:
-        import numpy as np
+    import numpy as np
 
-        return _quantize_palette_ordered_numpy(image, colors, bayer_strength, np)
-    except ImportError:
-        return _quantize_palette_ordered_python(image, colors, bayer_strength)
-
-
-def _quantize_palette_ordered_numpy(
-    image: Image.Image,
-    colors: list[tuple[int, int, int]],
-    bayer_strength: int,
-    np,  # passed in to avoid re-importing
-) -> Image.Image:
     w, h = image.size
     rgb = np.array(image.convert("RGB"), dtype=np.float32)  # H×W×3
 
@@ -274,55 +236,6 @@ def _quantize_palette_ordered_numpy(
     return Image.fromarray(result, mode="RGB")
 
 
-def _quantize_palette_ordered_python(
-    image: Image.Image,
-    colors: list[tuple[int, int, int]],
-    bayer_strength: int,
-) -> Image.Image:
-    w, h = image.size
-    rgb_img = image.convert("RGB")
-    raw = cast("list[tuple[int, int, int]]", flatten_pixels(rgb_img))
-    result: list[tuple[int, int, int]] = []
-
-    x = y = 0
-    for pix in raw:
-        r, g, b = pix[0], pix[1], pix[2]
-        offset = (_BAYER_4X4[y & 3][x & 3] - 120) * bayer_strength // 240
-        r2 = r + offset
-        g2 = g + offset
-        b2 = b + offset
-        if r2 < 0:
-            r2 = 0
-        elif r2 > 255:
-            r2 = 255
-        if g2 < 0:
-            g2 = 0
-        elif g2 > 255:
-            g2 = 255
-        if b2 < 0:
-            b2 = 0
-        elif b2 > 255:
-            b2 = 255
-
-        best_dist = 1e18
-        best_color = colors[0]
-        for c in colors:
-            d = _redmean_sq(r2, g2, b2, c[0], c[1], c[2])
-            if d < best_dist:
-                best_dist = d
-                best_color = c
-        result.append(best_color)
-
-        x += 1
-        if x == w:
-            x = 0
-            y += 1
-
-    out = Image.new("RGB", (w, h))
-    out.putdata(result)
-    return out
-
-
 def quantize_to_palette_fs(
     image: Image.Image,
     colors: list[tuple[int, int, int]],
@@ -349,17 +262,8 @@ def quantize_to_palette_fs(
     error its left neighbour just emitted — so there is no row-vectorised form
     of it. The per-pixel loop therefore runs on plain Python floats: the same
     arithmetic on per-pixel numpy slices is ~4× slower (per-call overhead) for
-    pixel-identical output. Numpy is used only for the cheap bulk conversions
-    at the edges when it is present.
+    pixel-identical output.
     """
-    return _quantize_palette_fs_python(image, colors)
-
-
-def _quantize_palette_fs_python(
-    image: Image.Image,
-    colors: list[tuple[int, int, int]],
-) -> Image.Image:
-    """Floyd-Steinberg onto *colors* on plain Python floats (see quantize_to_palette_fs)."""
     w, h = image.size
     raw = cast("list[tuple[int, int, int]]", flatten_pixels(image.convert("RGB")))
     # Mutable float buffer; each entry is [r, g, b].
@@ -429,10 +333,7 @@ def quantize_to_palette_nearest(
 
     Returns an ``"RGB"`` image whose pixel values are exactly *colors*.
     """
-    try:
-        import numpy as np
-    except ImportError:
-        return _quantize_palette_nearest_python(image, colors)
+    import numpy as np
 
     rgb = np.array(image.convert("RGB"), dtype=np.int32)  # H×W×3
     # One H×W distance plane per ink, kept as a running minimum: an H×W×N×3
@@ -451,27 +352,6 @@ def quantize_to_palette_nearest(
             best = np.where(closer, dist, best)
     pal_u8 = np.array(colors, dtype=np.uint8)
     return Image.fromarray(pal_u8[index], mode="RGB")
-
-
-def _quantize_palette_nearest_python(
-    image: Image.Image, colors: list[tuple[int, int, int]]
-) -> Image.Image:
-    pixels = cast("list[tuple[int, int, int]]", flatten_pixels(image.convert("RGB")))
-    cache: dict[tuple[int, int, int], tuple[int, int, int]] = {}
-    result: list[tuple[int, int, int]] = []
-    for px in pixels:
-        snapped = cache.get(px)
-        if snapped is None:
-            r, g, b = px
-            snapped = min(
-                colors,
-                key=lambda c: (c[0] - r) ** 2 + (c[1] - g) ** 2 + (c[2] - b) ** 2,
-            )
-            cache[px] = snapped
-        result.append(snapped)
-    out = Image.new("RGB", image.size)
-    out.putdata(result)
-    return out
 
 
 def build_palette_image(colors: list[tuple[int, int, int]]) -> Image.Image:

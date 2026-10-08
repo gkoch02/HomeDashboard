@@ -38,7 +38,6 @@ from src.render.quantize import (
 Fill = int | tuple[int, int, int]
 Rect = tuple[int, int, int, int]
 
-SCALING_MODES: tuple[str, ...] = ("auto", "stretch", "fit")
 
 #: ``scaling: auto`` stretches until the stretch would bend the aspect ratio by
 #: more than this factor, then fits instead. A third is well past what any

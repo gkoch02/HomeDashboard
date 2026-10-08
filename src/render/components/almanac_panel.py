@@ -46,7 +46,6 @@ from src.astronomy import (
 )
 from src.data.models import DashboardData
 from src.render.artkit import season
-from src.render.components.info_panel import _quote_for_today
 from src.render.moon import (
     moon_illumination,
     moon_phase_glyph,
@@ -67,6 +66,7 @@ from src.render.primitives import (
     vline,
     wrap_lines,
 )
+from src.render.quotes import quote_for
 from src.render.theme import ComponentRegion, ThemeStyle
 
 # Layout constants
@@ -603,7 +603,7 @@ def _draw_footer(
         accent,
     )
 
-    quote = _quote_for_today(today, refresh=quote_refresh, now=now, quotes_path=quotes_path)
+    quote = quote_for(today, refresh=quote_refresh, now=now, path=quotes_path)
     quote_font = (style.font_quote or style.font_regular)(17)
     author_font = (style.font_quote_author or style.font_semibold)(13)
 

@@ -9,11 +9,8 @@ import pytest
 from PIL import Image
 
 from src.data.models import CalendarEvent, DayForecast
-from src.render.components.today_view import (
-    _events_for_today,
-    _fmt_time,
-    draw_today,
-)
+from src.render.components.today_view import draw_today
+from src.render.primitives import events_for_day, fmt_time
 from src.render.quantize import flatten_pixels
 from src.render.theme import ComponentRegion
 from tests.conftest import make_draw
@@ -44,7 +41,7 @@ TODAY = date(2026, 3, 22)
 
 
 # ---------------------------------------------------------------------------
-# _fmt_time
+# fmt_time
 # ---------------------------------------------------------------------------
 
 
@@ -69,72 +66,72 @@ class TestFmtTime:
         ],
     )
     def test_hour_and_meridian(self, dt, fragment, suffix):
-        result = _fmt_time(dt)
+        result = fmt_time(dt)
         assert fragment in result
         assert result.endswith(suffix)
 
     def test_no_am_pm_suffix_in_full_string(self):
         """Result should not contain 'am' or 'pm', only 'a' or 'p'."""
         dt = datetime(2026, 3, 22, 10, 30)
-        result = _fmt_time(dt)
+        result = fmt_time(dt)
         assert "am" not in result
         assert "pm" not in result
 
 
 # ---------------------------------------------------------------------------
-# _events_for_today
+# events_for_day
 # ---------------------------------------------------------------------------
 
 
 class TestEventsForToday:
     def test_empty_events(self):
-        result = _events_for_today([], TODAY)
+        result = events_for_day([], TODAY)
         assert result == []
 
     def test_timed_event_on_today(self):
         evt = _timed(TODAY, 9, 10)
-        result = _events_for_today([evt], TODAY)
+        result = events_for_day([evt], TODAY)
         assert len(result) == 1
         assert result[0] is evt
 
     @pytest.mark.parametrize("offset_days", [1, -1], ids=["tomorrow", "yesterday"])
     def test_timed_event_on_another_day_excluded(self, offset_days):
         evt = _timed(TODAY + timedelta(days=offset_days), 9, 10)
-        result = _events_for_today([evt], TODAY)
+        result = events_for_day([evt], TODAY)
         assert result == []
 
     def test_all_day_event_spanning_today(self):
         evt = _all_day(TODAY, TODAY + timedelta(days=1))
-        result = _events_for_today([evt], TODAY)
+        result = events_for_day([evt], TODAY)
         assert len(result) == 1
 
     def test_all_day_event_starting_tomorrow_excluded(self):
         evt = _all_day(TODAY + timedelta(days=1), TODAY + timedelta(days=2))
-        result = _events_for_today([evt], TODAY)
+        result = events_for_day([evt], TODAY)
         assert result == []
 
     def test_all_day_event_ended_before_today_excluded(self):
         # All-day: start ≤ today < end. If end == today, it's excluded.
         evt = _all_day(TODAY - timedelta(days=2), TODAY)
-        result = _events_for_today([evt], TODAY)
+        result = events_for_day([evt], TODAY)
         assert result == []
 
     def test_all_day_event_multi_day_spanning_today(self):
         evt = _all_day(TODAY - timedelta(days=1), TODAY + timedelta(days=2))
-        result = _events_for_today([evt], TODAY)
+        result = events_for_day([evt], TODAY)
         assert len(result) == 1
 
     def test_sort_all_day_before_timed(self):
         timed = _timed(TODAY, 8, 9, "Early Meeting")
         allday = _all_day(TODAY, TODAY + timedelta(days=1), "Conference Day")
-        result = _events_for_today([timed, allday], TODAY)
+        result = events_for_day([timed, allday], TODAY)
         assert result[0].is_all_day is True
         assert result[1].is_all_day is False
 
     def test_sort_timed_events_by_start_time(self):
         e1 = _timed(TODAY, 14, 15, "Afternoon")
         e2 = _timed(TODAY, 9, 10, "Morning")
-        result = _events_for_today([e1, e2], TODAY)
+        result = events_for_day([e1, e2], TODAY)
         assert result[0].summary == "Morning"
         assert result[1].summary == "Afternoon"
 
@@ -145,7 +142,7 @@ class TestEventsForToday:
             _timed(TODAY + timedelta(days=1), 9, 10, "Tomorrow - excluded"),
             _timed(TODAY, 8, 9, "Early"),
         ]
-        result = _events_for_today(events, TODAY)
+        result = events_for_day(events, TODAY)
         assert len(result) == 3
         assert result[0].is_all_day is True
 
@@ -157,7 +154,7 @@ class TestEventsForToday:
             end=datetime.combine(TODAY + timedelta(days=1), datetime.min.time()),
             is_all_day=True,
         )
-        result = _events_for_today([evt], TODAY)
+        result = events_for_day([evt], TODAY)
         assert len(result) == 1
 
 
