@@ -12,10 +12,11 @@ from __future__ import annotations
 import json
 import logging
 import threading
-from datetime import date, datetime, timezone
+from datetime import date, datetime
 from pathlib import Path
 
 from src._io import locked_update_json
+from src._time import to_aware
 from src.data.models import (
     AirQualityData,
     Birthday,
@@ -85,19 +86,6 @@ def load_cache_blob(cache_dir: str) -> dict | None:
     return _read_cache_file(cache_dir)
 
 
-def _normalise_fetched_at(value: datetime) -> datetime:
-    """Treat naive cache timestamps as UTC.
-
-    Older versions wrote naive ``fetched_at`` values when no tz was set
-    (dummy mode, tests, manual edits). DataPipeline now always uses an aware
-    ``self.fetched_at`` (``now_local(tz)``); subtracting a naive value would raise TypeError
-    and abort fetch() before the cache/breaker fallback could engage.
-    """
-    if value.tzinfo is None:
-        return value.replace(tzinfo=timezone.utc)
-    return value
-
-
 def _decode_v2_block(
     source: str, raw: dict
 ) -> tuple[list | WeatherData | AirQualityData | None, datetime, dict] | None:
@@ -119,7 +107,7 @@ def _decode_v2_block(
     if fetcher is None:
         return None
     try:
-        fetched_at = _normalise_fetched_at(datetime.fromisoformat(block["fetched_at"]))
+        fetched_at = to_aware(datetime.fromisoformat(block["fetched_at"]))
         data = fetcher.deserialize(block.get("data"))
         metadata = {k: v for k, v in block.items() if k not in {"fetched_at", "data"}}
         return data, fetched_at, metadata
@@ -138,7 +126,7 @@ def _decode_v1_legacy(
         legacy = _deserialise_v1(raw)
     except Exception:
         return None
-    fetched_at = _normalise_fetched_at(legacy.fetched_at)
+    fetched_at = to_aware(legacy.fetched_at)
     if source == "events":
         return legacy.events, fetched_at
     if source == "weather":

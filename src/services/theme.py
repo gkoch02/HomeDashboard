@@ -77,7 +77,7 @@ def resolve_theme_name(
         theme_name = pick_random_theme(
             include=cfg.random_theme.include,
             exclude=cfg.random_theme.exclude,
-            output_dir=cfg.state_dir,
+            state_dir=cfg.state_dir,
             persist=persist,
             # Rotate on the configured-timezone date, not the system clock's —
             # otherwise the "new theme after midnight" flip lands at the
@@ -94,7 +94,7 @@ def resolve_theme_name(
         theme_name = pick_random_theme_hourly(
             include=cfg.random_theme.include,
             exclude=cfg.random_theme.exclude,
-            output_dir=cfg.state_dir,
+            state_dir=cfg.state_dir,
             now=now,
             panel=(cfg.display.width, cfg.display.height),
             persist=persist,
