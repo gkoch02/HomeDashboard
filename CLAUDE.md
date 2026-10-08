@@ -178,9 +178,8 @@ The cooldown is `display.min_refresh_interval_seconds` (config), defaulting to 6
 | `PlayfairDisplay-*.ttf` | `playfair_regular/medium/semibold/bold` | `old_fashioned` (display sizes), `qotd`, `almanac` (body + quote), `wide_week` rail (masthead, temperature, NEXT time, quote mark) |
 | `Literata-SemiBold.ttf` / `Literata-Bold.ttf` (OFL; static instances at opsz 12 cut from the upstream variable font with `fonttools varLib.instancer`) | `literata_semibold`, `literata_bold` | `wide_week` rail — the quote (SemiBold ≥ 18 px, Bold below, via `wide_week_rail_panel.quote_font`); `old_fashioned` text below 17 px; `weatherglass` numerals |
 | `Figtree-ExtraBold.ttf` (OFL; static full-glyph Google Fonts build, via `@expo-google-fonts/figtree`) | `figtree_extrabold` | `wide_horizon` — event rows (21-px titles, 17-px times) |
-| `Cinzel.ttf` | `cinzel_semibold/bold/black` | `fantasy`, `old_fashioned` section labels, `moonphase`, `almanac` (section labels + small caps), `weatherglass` words |
-| `CormorantGaramond.ttf` / `CormorantGaramond-Italic.ttf` (OFL, variable) | `cormorant_regular/medium/semibold/italic` | `moonphase` — date, illumination, celestial + weather strips, quote body (italic) |
-| `Tangerine-Regular.ttf` (OFL) | `tangerine_regular` | `moonphase` — calligraphic script quote attribution |
+| `Cinzel.ttf` | `cinzel_semibold/bold/black` | `fantasy`, `old_fashioned` section labels, `moonphase` (dateline + quote attribution), `almanac` (section labels + small caps), `weatherglass` words |
+| `CormorantGaramond.ttf` / `CormorantGaramond-Italic.ttf` (OFL, variable) | `cormorant_semibold/bold/italic_semibold` | `moonphase` — illumination, day labels, celestial + weather strips, quote body (italic semibold); type is set with `fontmode = "1"` |
 | `ManufacturingConsent-Regular.ttf` (OFL) | `manufacturing_consent` | `moonphase` — Fraktur blackletter phase-name headline |
 | `SpaceGrotesk-Regular.ttf` | `sg_regular` | `air_quality`, `message` |
 | `SpaceGrotesk-Medium.ttf` | `sg_medium` | `air_quality`, `message` |

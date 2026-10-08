@@ -28,6 +28,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - `make web-enable` installs the web UI's packages through the snapshot, and
   `make pi-install` re-pins them when Flask is already in the venv; before,
   they stayed at whatever version was first installed.
+- `moonphase`, `moonphase_invert` and `moonphase_photo` set their type for
+  legibility on the panel: Cormorant moves from Regular/Medium to
+  SemiBold/Bold (the quote to SemiBold Italic), type is rasterised bilevel so
+  the 1-bit threshold no longer breaks hairlines or turns `°` into `"`, and
+  the quote attribution is set in Cinzel instead of the hairline Tangerine
+  script. On Inky the dark plates now use a yellow headline and white
+  dateline (navy on black was barely visible) and the parchment plate uses
+  navy for both accents (yellow on white was barely visible).
 - The Waveshare 10.85" (G) driver is installed by `make install-display-drivers`
   from the pinned commit's demo code, where it used to need copying and patching
   by hand. The display driver accepts the demo driver's `Init()` spelling.
@@ -57,6 +65,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Removed
 
+- The Tangerine font, no longer used by any theme.
 - Retired nine themes: `agenda`, `minimalist`, `today`, `timeline`,
   `year_pulse`, `sunrise`, `tides`, `scorecard` and `naturalist`. They are no
   longer registered, previewed or documented; their themes, panels, tests,

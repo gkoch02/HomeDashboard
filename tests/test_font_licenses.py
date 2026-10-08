@@ -83,10 +83,6 @@ def test_every_bundled_font_ships_its_license(font: Path):
 GRANT_VERIFIED_UPSTREAM = {
     # google/fonts ofl/astloch/METADATA.pb records `license: "OFL"`.
     "Astloch-Bold.ttf": "https://github.com/google/fonts/blob/main/ofl/astloch/METADATA.pb",
-    # google/fonts ofl/tangerine/METADATA.pb records `license: "OFL"`. The
-    # binary's copyright reads "All rights reserved", the pre-2012 Google Fonts
-    # convention — the grant is upstream, not in the file.
-    "Tangerine-Regular.ttf": "https://github.com/google/fonts/blob/main/ofl/tangerine/METADATA.pb",
 }
 
 

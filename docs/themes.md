@@ -348,7 +348,9 @@ lunar-data block: illumination, moon age, moonrise/moonset (when
 `weather.latitude`/`longitude` are set), sunrise/sunset, a compact weather
 summary, and a countdown to the next full or new moon. A **supermoon badge**
 appears when the full moon falls near perigee. Renders as smooth greyscale on
-Waveshare and a warm-yellow moon with cool earthshine on Inky. Moon position
+Waveshare and a warm-yellow moon with cool earthshine on Inky. Type is set in
+semibold-to-bold Cormorant and rasterised bilevel so the hairlines survive the
+threshold cut to 1-bit. Moon position
 and phase are pure math (no API) via `src/render/moon.py` and `src/astronomy.py`.
 
 [![Moonphase theme](../assets/previews/theme_moonphase.png)](../assets/previews/theme_moonphase.png)
@@ -558,9 +560,8 @@ Bundled font families used by the current built-in themes:
 | Plus Jakarta Sans | default and general fallback |
 | DM Sans | `weather`, `fuzzyclock`, `diags`, `monthly`, `countdown`, `astronomy`, `light_cycle`, `constellation_map` (margin), `trends`, `day_arc` (agenda rows), `halftone_agenda` (agenda rows) |
 | Playfair Display | `old_fashioned`, `qotd`, `almanac`, `postcard` |
-| Cinzel | `fantasy`, `old_fashioned`, `almanac` (section labels + small caps), `postcard` (section labels + author small caps) |
+| Cinzel | `fantasy`, `old_fashioned`, `almanac` (section labels + small caps), `postcard` (section labels + author small caps), `moonphase` (dateline + quote attribution) |
 | Cormorant Garamond | `moonphase` (body, illumination, strips, quote) |
-| Tangerine | `moonphase` (script quote attribution) |
 | Manufacturing Consent | `moonphase` (Fraktur phase-name headline) |
 | Righteous | `light_cycle` (centre date numeral), `halftone` (every typeset element), `day_arc` (chrome), `halftone_agenda` (weather pane + agenda chrome) |
 | Audiowide | `constellation_map` (cardinal letters, star + constellation labels) |

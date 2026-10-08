@@ -15,11 +15,9 @@ from typing import TYPE_CHECKING
 
 from src.render.fonts import (
     cinzel_bold,
-    cormorant_italic,
-    cormorant_medium,
-    cormorant_regular,
+    cormorant_bold,
+    cormorant_italic_semibold,
     cormorant_semibold,
-    tangerine_regular,
 )
 from src.render.theme import ComponentRegion, Theme, ThemeLayout, ThemeStyle
 
@@ -203,14 +201,14 @@ def moonphase_theme() -> Theme:
             invert_today_col=False,
             invert_allday_bars=False,
             show_borders=False,
-            font_regular=cormorant_regular,
-            font_medium=cormorant_medium,
-            font_semibold=cormorant_semibold,
+            font_regular=cormorant_semibold,
+            font_medium=cormorant_semibold,
+            font_semibold=cormorant_bold,
             font_bold=cinzel_bold,
             font_title=cinzel_bold,
             font_section_label=cinzel_bold,
-            font_quote=cormorant_italic,
-            font_quote_author=tangerine_regular,
+            font_quote=cormorant_italic_semibold,
+            font_quote_author=cinzel_bold,
             label_font_size=12,
             label_font_weight="bold",
         ),
@@ -218,10 +216,12 @@ def moonphase_theme() -> Theme:
 
 
 def _register() -> None:
-    from src.render.theme import INKY_BLUE, INKY_YELLOW
+    from src.render.theme import INKY_WHITE, INKY_YELLOW
     from src.render.themes.registry import register_theme
 
-    register_theme("moonphase", moonphase_theme, inky_palette=(INKY_BLUE, INKY_YELLOW))
+    # Yellow headline, white dateline: navy or red type on the black plate is
+    # too dim on Spectra 6.
+    register_theme("moonphase", moonphase_theme, inky_palette=(INKY_YELLOW, INKY_WHITE))
 
 
 _register()

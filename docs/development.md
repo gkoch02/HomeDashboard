@@ -313,9 +313,9 @@ project's MIT grant, however good it looks.
 
 Note the bar is a licence and not a copyright. `Copyright (c) 2025 Foo` with
 both licence fields empty states who owns the font, not what anyone may do with
-it, so it fails. Two bundled families legitimately land there — Astloch and
-Tangerine are OFL upstream but ship builds that predate the convention of
-filling nameID 13/14 — and each is listed in `GRANT_VERIFIED_UPSTREAM` in the
+it, so it fails. One bundled family legitimately lands there — Astloch is
+OFL upstream but ships a build that predates the convention of filling
+nameID 13/14 — and it is listed in `GRANT_VERIFIED_UPSTREAM` in the
 test module with the URL where the grant was read. Adding an entry means
 checking upstream yourself; it is not a way to quiet a font you have not
 verified.

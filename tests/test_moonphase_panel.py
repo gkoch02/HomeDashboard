@@ -236,6 +236,50 @@ def _assert_filmstrip(img, note: str = "") -> None:
     assert abs(midpoint - 400) < 30, f"filmstrip off-centre at {midpoint} {note}"
 
 
+class TestBilevelType:
+    """Type is rasterised bilevel so the threshold cut cannot erase hairlines."""
+
+    # The lunar-data block and quote: type only, below the separator.
+    _TYPE_BAND = (20, 310, 780, 470)
+
+    def _greys(self, img) -> int:
+        x0, y0, x1, y1 = self._TYPE_BAND
+        px = flatten_pixels(img)
+        return sum(
+            1 for y in range(y0, y1) for x in range(x0, x1) if 0 < px[y * img.width + x] < 255
+        )
+
+    def test_dark_plate_type_has_no_grey_edges(self):
+        img = _render_l()
+        assert _marks(img, self._TYPE_BAND) > 0
+        assert self._greys(img) == 0
+
+    def test_light_plate_type_has_no_grey_edges(self):
+        img = _render_l(style=_light_style(), background=255)
+        assert _marks(img, self._TYPE_BAND) > 0
+        assert self._greys(img) == 0
+
+    def test_restores_the_callers_fontmode(self):
+        img = Image.new("L", (800, 480), 0)
+        draw = ImageDraw.Draw(img)
+        draw.fontmode = "L"
+        draw_moonphase(draw, _make_data(), TODAY, image=img, style=_dark_style())
+        assert draw.fontmode == "L"
+
+
+class TestBareDiscs:
+    def test_no_disc_draws_a_limb_ring(self):
+        """The hero matches the flanking moons: lit shape only, no outline."""
+        from src.render.components import moonphase_panel
+
+        with patch.object(
+            moonphase_panel, "render_moon_disc", wraps=moonphase_panel.render_moon_disc
+        ) as spy:
+            _render_l()
+        assert spy.call_count == 7
+        assert all(call.kwargs.get("show_edge") is False for call in spy.call_args_list)
+
+
 class TestDrawMoonphaseSmoke:
     def test_renders_with_full_data(self):
         assert _marks(_render_l()) > 0
