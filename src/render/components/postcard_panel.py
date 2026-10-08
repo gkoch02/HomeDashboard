@@ -47,6 +47,7 @@ from src.render.primitives import (
     draw_text_wrapped,
     events_for_day,
     text_height,
+    truncate_to_width,
     wrap_lines,
 )
 from src.render.theme import ComponentRegion, ThemeStyle
@@ -1097,7 +1098,7 @@ def _draw_back(
         else style.font_semibold(12 * SS)
     )
     quote_text = f"“{quote['text']}”"
-    author_text = f"— {quote['author']}"
+    author_text = truncate_to_width(draw, f"— {quote['author']}", author_font, inner_w)
     quote_w = inner_w
     line_h = text_height(quote_font)
     lines = wrap_lines(quote_text, quote_font, quote_w)[:3]
@@ -1107,7 +1108,10 @@ def _draw_back(
     bottom_pad = 12 * SS
     block_h = line_h * len(lines) + line_spacing * max(0, len(lines) - 1)
     ay = y1 - bottom_pad - author_h - author_bb[1]
-    qy = y1 - bottom_pad - author_h - 4 * SS - block_h
+    # Text ink starts below its draw origin, so the block is lifted by that
+    # offset or its last line runs into the attribution.
+    quote_top = draw.textbbox((0, 0), "Ag", font=quote_font)[1]
+    qy = y1 - bottom_pad - author_h - 4 * SS - block_h - quote_top
     draw_text_wrapped(
         draw,
         (inner_x0, qy),

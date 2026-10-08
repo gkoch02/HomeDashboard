@@ -44,6 +44,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - `dashboard.service` has a run deadline (`TimeoutStartSec=260`,
   `TimeoutStopSec=20`; budget in `docs/setup.md`). Its SIGTERM sleeps the panel
   and writes `last_error.txt` (`RunTerminated`) before exiting.
+- Theme previews (the gallery and the web UI's live preview) render on a clock
+  in the configured zone. On a naive clock every sun and sky time drawn from
+  the coordinates came out in UTC: the published `astronomy` preview showed a
+  10:31a sunrise for New York, and `day_arc` never reached its night rollover.
+  `scripts/build_previews.py` pins `America/New_York` for a `local` config.
+- The `photo` theme crops a photo to fill the plate instead of stretching it,
+  and honours its EXIF orientation, so a portrait phone shot shows upright. The
+  gallery previews it with `assets/moon_full.png` when no `photo.path` is set,
+  where it used to publish a blank plate.
+- Long text stays inside its panel: `postcard`'s attribution no longer runs
+  into the scene or onto the last quote line; the `moonphase` themes cut a long
+  quote and weather line with an ellipsis and keep the attribution, descenders
+  included, off the frame; the info panel's attribution and the weather panel's
+  alert label mark a cut with an ellipsis instead of clipping mid-word.
+- `old_fashioned`'s "+N more" no longer prints over the last listed event.
+- `scorecard` shows "no data" for daylight when the weather is unavailable,
+  where it claimed 0% left "before sunrise" at any hour.
 
 - Cut the panoramic and dithered-art entries in `docs/themes.md` to what each
   theme shows, the data it needs and the config it reads; `make docs-check` now

@@ -30,13 +30,14 @@ import argparse
 import sys
 from dataclasses import replace
 from datetime import date as _date
-from datetime import datetime
+from datetime import datetime, tzinfo
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
-from src.config import CountdownEvent, load_config  # noqa: E402
+from src.config import CountdownEvent, load_config, resolve_tz  # noqa: E402
 from src.display.driver import get_display_spec  # noqa: E402
 from src.dummy_data import generate_dummy_data  # noqa: E402
 from src.render.canvas import render_dashboard  # noqa: E402
@@ -44,6 +45,10 @@ from src.render.theme import load_theme  # noqa: E402
 from src.render.themes.registry import all_theme_names  # noqa: E402
 
 PREVIEW_DIR = REPO_ROOT / "assets" / "previews"
+# Stands in for ``photo.path`` when the config sets none, so the photo theme's
+# preview shows a photo rather than a blank plate. Already in the repo, and
+# already licensed for it, as the moonphase_photo texture.
+PREVIEW_PHOTO = REPO_ROOT / "assets" / "moon_full.png"
 EXAMPLE_CONFIG = REPO_ROOT / "config" / "config.example.yaml"
 
 # Themes deliberately left out of the batch. Empty today — the old Makefile
@@ -62,6 +67,12 @@ EXTRA_NAMES: tuple[str, ...] = ("default",)
 # every committed PNG. Matches the theme pixel-snapshot fixture.
 DEFAULT_DATE = _date(2026, 4, 6)
 DEFAULT_TIME = (10, 30)
+
+# The zone the render clock is pinned to when the config says ``local``: the
+# example config's coordinates are New York's, and the host's own zone would
+# make the batch differ from machine to machine. A naive clock is not an
+# option — the sky themes would print the UTC sun times as local ones.
+LOCAL_PREVIEW_TZ = ZoneInfo("America/New_York")
 
 # The two themes that render an empty-state placeholder without extra input.
 # Everything else — coordinates included — comes from the config, so a preview
@@ -86,6 +97,11 @@ def _build_config(provider: str, config_path: str, model: str | None = None):
     # Native dimensions follow the model, whatever the config pinned.
     cfg.display.width, cfg.display.height = spec.width, spec.height
     return cfg
+
+
+def preview_tz(cfg) -> tzinfo:
+    """The zone the batch renders in: the config's own, or the pinned stand-in for 'local'."""
+    return LOCAL_PREVIEW_TZ if cfg.timezone == "local" else resolve_tz(cfg.timezone)
 
 
 def _theme_names(requested: list[str] | None) -> list[str]:
@@ -117,10 +133,10 @@ def _default_suffix(provider: str, model: str) -> str:
 
 def render_preview(theme_name: str, cfg, now: datetime, out_path: Path) -> None:
     """Render one theme against dummy data and write it to *out_path*."""
-    data = generate_dummy_data(now=now)
+    data = generate_dummy_data(tz=now.tzinfo, now=now)
     theme = load_theme(theme_name)
     if theme_name == "photo":
-        theme.style.photo_path = cfg.photo.path
+        theme.style.photo_path = cfg.photo.path or str(PREVIEW_PHOTO)
 
     # A preview shows a theme at its own canvas *shape*, not letterboxed onto
     # the panel: the panoramic themes declare 1360x480 and an 800x480 rendering
@@ -210,11 +226,10 @@ def main(argv: list[str] | None = None) -> int:
         render_date = _date.fromisoformat(args.date)
     except ValueError:
         raise SystemExit(f"Invalid --date {args.date!r}; expected YYYY-MM-DD") from None
-    now = datetime.combine(render_date, datetime.min.time()).replace(
-        hour=DEFAULT_TIME[0], minute=DEFAULT_TIME[1]
-    )
-
     cfg = _build_config(args.provider, args.config, args.model)
+    now = datetime.combine(render_date, datetime.min.time()).replace(
+        hour=DEFAULT_TIME[0], minute=DEFAULT_TIME[1], tzinfo=preview_tz(cfg)
+    )
     out_dir = Path(args.out_dir)
     suffix = (
         _default_suffix(args.provider, cfg.display.model) if args.suffix is None else args.suffix

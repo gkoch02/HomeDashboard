@@ -16,6 +16,7 @@ from src.render.components.today_view import (
 )
 from src.render.quantize import flatten_pixels
 from src.render.theme import ComponentRegion
+from tests.inkutils import record_text
 
 
 def _make_draw(w: int = 800, h: int = 480):
@@ -269,15 +270,17 @@ class TestDrawToday:
         """Beyond what fits, the list stops and shows a '+N more' indicator."""
 
         def with_events(n):
-            return _ink(
-                _render([_timed(TODAY, 6 + (i % 14), 7 + (i % 14), f"E{i}") for i in range(n)]),
-                EVENTS,
-            )
+            img, draw = _make_draw()
+            calls = record_text(draw)
+            events = [_timed(TODAY, 6 + (i % 14), 7 + (i % 14), f"E{i}") for i in range(n)]
+            draw_today(draw, events, TODAY)
+            texts = [t for t, _box in calls]
+            return sum(t.startswith("E") for t in texts), [t for t in texts if t.endswith("more")]
 
-        eight = with_events(8)
-        assert with_events(10) == eight, "more rows were drawn than fit"
+        rows, more = with_events(10)
+        assert more == [f"+{10 - rows} more"], "the overflow count is not being drawn"
         # The row count saturates but the "+N more" label still tracks N.
-        assert with_events(20) != eight, "the overflow count is not being drawn"
+        assert with_events(20) == (rows, [f"+{20 - rows} more"]), "more rows were drawn than fit"
 
     def test_smoke_all_day_event_non_inverted_bars(self):
         """invert_allday_bars=False outlines the bar instead of filling it."""
@@ -378,3 +381,31 @@ class TestDrawToday:
     def test_cross_noon_event(self):
         """An 11a–1p event keeps both suffixes."""
         assert _ink(_render([_timed(TODAY, 11, 13, "Lunch & Meeting")]), EVENTS) > 0
+
+
+class TestOverflowLine:
+    """The "+N more" count sits below the last drawn event, never on top of it."""
+
+    def _events(self) -> list[CalendarEvent]:
+        events = [
+            _all_day(TODAY, TODAY + timedelta(days=1), "Out of office"),
+            _all_day(TODAY, TODAY + timedelta(days=1), "School holiday"),
+        ]
+        events += [_timed(TODAY, h, h + 1, f"Event {h}", location="Room 4B") for h in range(7, 21)]
+        return events
+
+    # Around old_fashioned's broadsheet column (490 x 400), whose geometry put
+    # the count on a location line.
+    @pytest.mark.parametrize("height", range(380, 421, 4))
+    def test_more_line_clears_the_rows_above(self, height):
+        img, draw = _make_draw()
+        calls = record_text(draw)
+        region = ComponentRegion(0, 80, 490, height)
+        draw_today(draw, self._events(), TODAY, region=region)
+        listed = [(t, box) for t, box in calls if box[0] > region.w * 0.3]
+        more = [box for t, box in listed if t.endswith(" more")]
+        assert len(more) == 1, "the overflow count was not drawn"
+        above = [box[3] for t, box in listed if not t.endswith(" more")]
+        assert more[0][1] >= max(above), (
+            f"count at y={more[0][1]} overlaps a row ending {max(above)}"
+        )

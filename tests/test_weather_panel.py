@@ -15,6 +15,7 @@ from src.data.models import (
 )
 from src.render import layout as L
 from src.render.components.weather_panel import (
+    _draw_alert_column,
     _draw_aqi_column,
     _fmt_time,
     draw_weather,
@@ -22,7 +23,7 @@ from src.render.components.weather_panel import (
 from src.render.primitives import aqi_accent
 from src.render.quantize import flatten_pixels
 from src.render.theme import ComponentRegion, ThemeStyle
-from tests.inkutils import ink, ink_bbox
+from tests.inkutils import ink, ink_bbox, record_text
 
 
 def _make_weather_with_forecast(**kwargs) -> WeatherData:
@@ -707,3 +708,25 @@ class TestWeatherPanelMoon:
         without, draw2 = _make_draw()
         draw_weather(draw2, None, today=None)
         assert ink(with_today, WEATHER_BOX) > ink(without, WEATHER_BOX)
+
+
+class TestAlertColumn:
+    COL_W = 100
+
+    def _lines(self, event: str) -> list[str]:
+        _img, draw = _make_draw()
+        calls = record_text(draw)
+        _draw_alert_column(draw, event, 0, 0, self.COL_W, 60, ThemeStyle())
+        return [t for t, _box in calls]
+
+    def test_a_short_alert_is_set_whole(self):
+        assert self._lines("Wind Advisory") == ["! Wind Advisory"]
+
+    def test_a_long_alert_marks_the_cut(self):
+        """Words past the second line are not dropped silently."""
+        lines = self._lines("Winter Weather Advisory and Coastal Flood Warning")
+        assert len(lines) == 2
+        assert lines[-1].endswith("...")
+        _img, draw = _make_draw()
+        font = ThemeStyle().font_semibold(10)
+        assert all(draw.textlength(line, font=font) <= self.COL_W - L.PAD * 2 for line in lines)

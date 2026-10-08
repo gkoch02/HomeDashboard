@@ -198,9 +198,9 @@ logging:
 # title: "Home Dashboard"
 
 # Photo theme — set theme: photo and provide a path to a JPEG or PNG file.
-# The image is converted to grayscale, resized to fit the canvas, and dithered
-# to 1-bit using Floyd-Steinberg diffusion.  The photo fills the display edge to
-# edge — no header bar, title or timestamp is drawn.
+# The image is converted to grayscale, cropped to fill the canvas (never
+# stretched), and dithered to 1-bit using Floyd-Steinberg diffusion.  The photo
+# fills the display edge to edge — no header bar, title or timestamp is drawn.
 # photo:  # uncomment this line to enable section
 #   path: /home/pi/wallpaper.jpg
 

@@ -195,6 +195,13 @@ class TestHeight:
         top, bottom = _rows(img, (0, 0, 1360, label_top))
         assert abs((bottom - top) - 0.8 * 480) <= 3
 
+    def test_a_lone_moon_and_its_label_stay_on_the_plate(self):
+        """Weather and air quality offline leave the moon alone at the full band
+        height; disc and label must still clear both edges of the strip."""
+        for today in (FULL_MOON, CRESCENT, TODAY):
+            top, bottom = _rows(_plate(DashboardData(), today=today))
+            assert top >= 16 and bottom <= 480 - 16, f"{today}: ink spans rows {top}..{bottom}"
+
     def test_a_row_too_wide_for_80_percent_shrinks_to_fit(self):
         ms = wn.marks_for(_data(), TODAY)
         height = wn.fit_height(ms, MONO_STYLE, 1360, 384)

@@ -30,6 +30,7 @@ from src.render.primitives import load_and_dither_image
 from src.render.quantize import blend_inky_palette, flatten_pixels
 from src.render.theme import AVAILABLE_THEMES, ThemeLayout, ThemeStyle, load_theme
 from src.render.themes.photo import _draw_photo_background, photo_theme
+from tests.inkutils import ink
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -96,6 +97,30 @@ class TestLoadAndDitherImage:
         # 8×8 has no row-padding bits; every pixel should be white (1)
         assert result.tobytes() == bytes([0xFF] * len(result.tobytes()))
 
+    def test_a_photo_of_another_shape_is_cropped_not_squashed(self, tmp_path: Path):
+        """A square photo with a black top quarter, onto a 4:1 plate: cropping to fill
+        keeps the centre band, which is all white; stretching would squash the black
+        quarter into the plate's top rows."""
+        img = Image.new("L", (100, 100), 255)
+        img.paste(0, (0, 0, 100, 25))
+        p = tmp_path / "square.png"
+        img.save(p)
+        result = load_and_dither_image(str(p), (200, 50), fg=0, bg=1)
+        assert ink(result) == 0
+
+    def test_exif_orientation_is_honoured(self, tmp_path: Path):
+        """A landscape frame tagged "rotate 90° CW" (as a phone writes a portrait
+        shot) shows upright: its black left half becomes the top half."""
+        img = Image.new("L", (100, 50), 255)
+        img.paste(0, (0, 0, 50, 50))
+        exif = Image.Exif()
+        exif[0x0112] = 6
+        p = tmp_path / "portrait.jpg"
+        img.save(p, exif=exif, quality=95)
+        result = load_and_dither_image(str(p), (50, 100), fg=0, bg=1)
+        assert ink(result, (0, 0, 50, 45)) > 0.9 * 50 * 45
+        assert ink(result, (0, 55, 50, 100)) < 0.05 * 50 * 45
+
     def test_missing_file_raises(self):
         with pytest.raises((FileNotFoundError, OSError)):
             load_and_dither_image("/nonexistent/path/image.jpg", (100, 100), fg=0, bg=1)
@@ -125,6 +150,17 @@ class TestDrawPhotoBackground:
         original_bytes = canvas.tobytes()
         _draw_photo_background(canvas, self._make_layout(), self._make_style(path=""))
         assert canvas.tobytes() == original_bytes
+
+    def test_inky_path_crops_rather_than_stretches(self, tmp_path: Path):
+        """The RGB path crops to fill as the 1-bit one does: a square photo whose top
+        quarter is black leaves no black once its centre band fills a 5:3 plate."""
+        img = Image.new("RGB", (100, 100), (255, 255, 255))
+        img.paste((0, 0, 0), (0, 0, 100, 18))
+        p = tmp_path / "square.png"
+        img.save(p)
+        canvas = self._make_canvas("RGB")
+        _draw_photo_background(canvas, self._make_layout(), self._make_style(path=str(p)))
+        assert (0, 0, 0) not in set(flatten_pixels(canvas))
 
     def test_missing_file_logs_warning(self, caplog):
         canvas = self._make_canvas()

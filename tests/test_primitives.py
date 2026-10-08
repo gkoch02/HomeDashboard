@@ -17,6 +17,7 @@ from src.render.primitives import (
     next_birthday,
     text_height,
     text_width,
+    truncate_to_width,
     vline,
 )
 from tests.inkutils import ink, ink_x_extent
@@ -106,6 +107,22 @@ class TestDrawTextTruncated:
         # max_width=0 forces the while loop to strip all chars, leaving only the ellipsis
         w = draw_text_truncated(draw, (0, 0), "Hello World", font, max_width=0)
         assert isinstance(w, int)
+
+
+class TestTruncateToWidth:
+    def test_text_that_fits_is_returned_unchanged(self, canvas, font):
+        _img, draw = canvas
+        assert truncate_to_width(draw, "Hi", font, 200) == "Hi"
+
+    def test_long_text_is_cut_to_fit_with_an_ellipsis(self, canvas, font):
+        _img, draw = canvas
+        out = truncate_to_width(draw, "Rear Admiral Grace Brewster Murray Hopper", font, 80)
+        assert out.endswith("...") and out.startswith("Rear")
+        assert text_width(draw, out, font) <= 80
+
+    def test_nothing_fits_returns_a_bare_ellipsis(self, canvas, font):
+        _img, draw = canvas
+        assert truncate_to_width(draw, "Wolfeschlegelsteinhausen", font, 1) == "..."
 
 
 class TestDrawTextWrapped:

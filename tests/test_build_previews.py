@@ -9,11 +9,13 @@ from __future__ import annotations
 
 import importlib.util
 import sys
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 
 import pytest
 from PIL import Image
+
+from tests.inkutils import ink
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -105,6 +107,12 @@ class TestRendering:
         out = self._render(tmp_path, "weather", provider="inky")
         assert Image.open(out).size == (800, 480)
 
+    def test_photo_preview_shows_a_photo_without_a_configured_path(self, tmp_path):
+        """The example config sets no ``photo.path``; the preview must not be a blank plate."""
+        assert not bp._build_config("waveshare", str(bp.EXAMPLE_CONFIG)).photo.path
+        out = self._render(tmp_path, "photo")
+        assert ink(Image.open(out)) > 0
+
     def test_previews_persist_no_state(self, tmp_path, monkeypatch):
         """A dummy-data preview must not teach the weatherglass barometer."""
         import src.render.canvas as canvas
@@ -136,6 +144,34 @@ class TestConfigHandling:
         assert bp._default_suffix("waveshare", "epd7in5_V2") == ""
         # A four-ink Waveshare batch must never overwrite the monochrome set.
         assert bp._default_suffix("waveshare", "epd10in85g") == "_g"
+
+    def test_batch_clock_is_pinned_to_an_aware_zone(self, tmp_path, monkeypatch):
+        """A naive clock prints the sun times computed from the coordinates as UTC."""
+        seen = []
+        monkeypatch.setattr(bp, "render_preview", lambda name, cfg, now, out: seen.append(now))
+        assert bp.main(["--out-dir", str(tmp_path), "--theme", "agenda"]) == 0
+        assert seen[0].tzinfo is bp.LOCAL_PREVIEW_TZ
+        assert (seen[0].hour, seen[0].minute) == bp.DEFAULT_TIME
+
+    def test_an_explicit_config_zone_wins(self):
+        cfg = bp._build_config("waveshare", str(bp.EXAMPLE_CONFIG))
+        assert bp.preview_tz(cfg) is bp.LOCAL_PREVIEW_TZ  # the example says "local"
+        cfg.timezone = "Europe/London"
+        assert str(bp.preview_tz(cfg)) == "Europe/London"
+
+    def test_dummy_sun_times_share_the_clock_zone(self, tmp_path, monkeypatch):
+        captured = {}
+        real = bp.render_dashboard
+
+        def _spy(data, *args, **kwargs):
+            captured["data"] = data
+            return real(data, *args, **kwargs)
+
+        monkeypatch.setattr(bp, "render_dashboard", _spy)
+        cfg = bp._build_config("waveshare", str(bp.EXAMPLE_CONFIG))
+        now = datetime(2026, 4, 6, 10, 30, tzinfo=bp.LOCAL_PREVIEW_TZ)
+        bp.render_preview("astronomy", cfg, now, tmp_path / "theme_astronomy.png")
+        assert captured["data"].weather.sunrise.tzinfo is bp.LOCAL_PREVIEW_TZ
 
     def test_bad_date_is_rejected(self):
         with pytest.raises(SystemExit):

@@ -26,6 +26,7 @@ from src.render.theme import AVAILABLE_THEMES, load_theme
 from src.services.render_args import build_render_kwargs
 from src.services.theme import PSEUDO_THEMES
 from src.web.config_editor import build_patched_config
+from src.web.state_reader import config_tz
 
 logger = logging.getLogger(__name__)
 
@@ -92,7 +93,9 @@ def render_preview():
         return jsonify({"error": f"Could not load theme: {exc}"}), 500
 
     try:
-        data = generate_dummy_data(tz=None)
+        # The configured zone, as the real run uses (UTC if it does not
+        # resolve): a naive clock reads the sun times from the coordinates as UTC.
+        data = generate_dummy_data(tz=config_tz(cfg))
         image = render_dashboard(
             data,
             cfg.display,
