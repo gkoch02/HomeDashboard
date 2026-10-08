@@ -26,6 +26,8 @@ from typing import TYPE_CHECKING, Literal
 if TYPE_CHECKING:
     from PIL import Image, ImageDraw, ImageFont
 
+    from src.config import DisplayConfig
+
 FontCallable = Callable[[int], "ImageFont.FreeTypeFont"]
 QuantizationMode = Literal["threshold", "floyd_steinberg", "ordered"]
 
@@ -202,10 +204,17 @@ class ThemeLayout:
     )
     # Optional background function called BEFORE component rendering.
     # Receives the raw PIL Image so it can paste photo/grayscale content beneath UI elements.
-    # Signature: (image, layout, style) -> None.
-    background_fn: Callable[[Image.Image, ThemeLayout, ThemeStyle], None] | None = field(
-        default=None, repr=False
-    )
+    # Signature: (image, layout, style, config) -> art rects or None. ``config`` is
+    # the DisplayConfig, so the function can pick the panel's ink set; any
+    # (x0, y0, x1, y1) canvas rects it returns join RenderContext.dither_regions,
+    # which a colour backend Floyd-Steinbergs onto its own inks.
+    background_fn: (
+        Callable[
+            [Image.Image, ThemeLayout, ThemeStyle, DisplayConfig],
+            list[tuple[int, int, int, int]] | None,
+        ]
+        | None
+    ) = field(default=None, repr=False)
     # Allow an L-mode theme to render on RGB canvases for Inky while preserving
     # greyscale output on Waveshare.
     prefer_color_on_inky: bool = False

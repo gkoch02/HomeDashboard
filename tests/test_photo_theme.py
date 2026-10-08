@@ -7,6 +7,7 @@ Covers:
 - _draw_photo_background() with a missing path logs a warning without error
 - _draw_photo_background() with a valid image pastes onto the canvas
 - _draw_photo_background() on an RGB canvas (Inky) quantizes to palette colors via Bayer
+- on the four-ink Waveshare G the photo is left to the backend to dither onto its inks
 - photo_theme() factory returns a correctly configured Theme object
 - photo theme is registered in AVAILABLE_THEMES and loads correctly
 - photo theme is excluded from the random rotation pool
@@ -31,6 +32,9 @@ from src.render.quantize import blend_inky_palette, flatten_pixels
 from src.render.theme import AVAILABLE_THEMES, ThemeLayout, ThemeStyle, load_theme
 from src.render.themes.photo import _draw_photo_background, photo_theme
 from tests.inkutils import ink
+
+INKY = DisplayConfig(provider="inky", model="impression_7_3_2025")
+WAVESHARE_G = DisplayConfig(provider="waveshare", model="epd10in85g")
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -144,11 +148,17 @@ class TestDrawPhotoBackground:
         s.photo_path = path
         return s
 
+    @staticmethod
+    def _draw(canvas, layout, style):
+        """The photo background as the canvas would call it: Inky for RGB, mono otherwise."""
+        config = INKY if canvas.mode == "RGB" else DisplayConfig()
+        return _draw_photo_background(canvas, layout, style, config)
+
     def test_empty_path_is_noop(self):
         """With no path set the canvas should remain untouched."""
         canvas = self._make_canvas()
         original_bytes = canvas.tobytes()
-        _draw_photo_background(canvas, self._make_layout(), self._make_style(path=""))
+        self._draw(canvas, self._make_layout(), self._make_style(path=""))
         assert canvas.tobytes() == original_bytes
 
     def test_inky_path_crops_rather_than_stretches(self, tmp_path: Path):
@@ -159,7 +169,7 @@ class TestDrawPhotoBackground:
         p = tmp_path / "square.png"
         img.save(p)
         canvas = self._make_canvas("RGB")
-        _draw_photo_background(canvas, self._make_layout(), self._make_style(path=str(p)))
+        self._draw(canvas, self._make_layout(), self._make_style(path=str(p)))
         assert (0, 0, 0) not in set(flatten_pixels(canvas))
 
     def test_missing_file_logs_warning(self, caplog):
@@ -167,7 +177,7 @@ class TestDrawPhotoBackground:
         layout = self._make_layout()
         style = self._make_style(path="/nonexistent/does_not_exist.jpg")
         with caplog.at_level(logging.WARNING):
-            _draw_photo_background(canvas, layout, style)
+            self._draw(canvas, layout, style)
         assert any("not found" in record.message for record in caplog.records)
 
     def test_missing_file_leaves_the_canvas_untouched(self):
@@ -175,7 +185,7 @@ class TestDrawPhotoBackground:
         before = canvas.tobytes()
         layout = self._make_layout()
         style = self._make_style(path="/nonexistent/does_not_exist.jpg")
-        _draw_photo_background(canvas, layout, style)
+        self._draw(canvas, layout, style)
         assert canvas.tobytes() == before
 
     def test_valid_image_pastes_onto_canvas(self, grey_png: Path):
@@ -183,7 +193,7 @@ class TestDrawPhotoBackground:
         canvas = self._make_canvas()
         layout = self._make_layout()
         style = self._make_style(path=str(grey_png))
-        _draw_photo_background(canvas, layout, style)
+        self._draw(canvas, layout, style)
         # After dithering a mid-grey image onto a white canvas we expect some black pixels
         # A purely white canvas would have all bytes == 0xFF; mixed dithering produces others.
         assert canvas.tobytes() != bytes([0xFF] * len(canvas.tobytes()))
@@ -193,7 +203,7 @@ class TestDrawPhotoBackground:
         canvas = self._make_canvas(mode="RGB")
         layout = self._make_layout()
         style = self._make_style(path=str(grey_png))
-        _draw_photo_background(canvas, layout, style)
+        self._draw(canvas, layout, style)
         assert canvas.mode == "RGB"
         # The canvas should have been modified (no longer all-white)
         white_canvas = bytes([255] * len(canvas.tobytes()))
@@ -218,7 +228,7 @@ class TestDrawPhotoBackground:
             lambda self, **kw: bad_fs.convert("P"),
         ):
             with caplog.at_level(logging.DEBUG, logger="src.render.themes.photo"):
-                _draw_photo_background(canvas, layout, style)
+                self._draw(canvas, layout, style)
 
         # After the fallback, the canvas pixels must all be blended palette colours.
         palette_set = set(blend_inky_palette(0.25))
@@ -235,7 +245,7 @@ class TestDrawPhotoBackground:
             side_effect=RuntimeError("dither broke"),
         ):
             with caplog.at_level(logging.WARNING, logger="src.render.themes.photo"):
-                _draw_photo_background(canvas, layout, style)
+                self._draw(canvas, layout, style)
 
         assert any("failed to load image" in rec.message for rec in caplog.records)
 
@@ -251,7 +261,7 @@ class TestDrawPhotoBackground:
         canvas = self._make_canvas(mode="RGB")
         layout = self._make_layout()
         style = self._make_style(path=str(grey_png))
-        _draw_photo_background(canvas, layout, style)
+        self._draw(canvas, layout, style)
         palette_set = set(blend_inky_palette(0.25))
         pixels = set(flatten_pixels(canvas))
         assert pixels <= palette_set
@@ -352,3 +362,53 @@ class TestPhotoThemeRendering:
         # All pixels in the photo region (above the header bar) must be blended palette colors
         pixels = set(flatten_pixels(img.crop((0, 0, img.width, img.height - 50))))
         assert pixels <= palette_set
+
+
+class TestPhotoOnWaveshareG:
+    """The four-ink G panel has no blue or green; the photo must dither onto its own inks."""
+
+    @pytest.fixture
+    def sky_and_foliage(self, tmp_path: Path) -> Path:
+        """Mid-tone sky blue over mid-tone foliage green, light enough to need no black."""
+        img = Image.new("RGB", (800, 480))
+        img.paste((110, 160, 200), (0, 0, 800, 240))
+        img.paste((90, 150, 70), (0, 240, 800, 480))
+        p = tmp_path / "landscape.png"
+        img.save(p)
+        return p
+
+    def _render(self, path: Path) -> Image.Image:
+        from datetime import datetime
+
+        theme = load_theme("photo")
+        theme.style.photo_path = str(path)
+        data = generate_dummy_data(now=datetime(2026, 4, 5, 10, 30))
+        return render_dashboard(data, WAVESHARE_G, title="Test", theme=theme)
+
+    def test_uses_only_the_panel_inks(self, sky_and_foliage: Path):
+        from src.display.driver import WAVESHARE_G_PALETTE
+
+        img = self._render(sky_and_foliage).convert("RGB")
+        assert set(flatten_pixels(img)) <= set(WAVESHARE_G_PALETTE)
+
+    def test_blue_and_green_keep_their_tone(self, sky_and_foliage: Path):
+        """Each half keeps the source's lightness instead of collapsing toward black.
+
+        Dithering against the Spectra 6 blue and green first, then snapping them to
+        black, took the foliage band from a mean grey of ~120 to ~60.
+        """
+        from PIL import ImageStat
+
+        source = Image.open(sky_and_foliage).convert("L")
+        out = self._render(sky_and_foliage).convert("L")
+        for band in ((0, 0, 800, 240), (0, 240, 800, 480)):
+            want = ImageStat.Stat(source.crop(band)).mean[0]
+            got = ImageStat.Stat(out.crop(band)).mean[0]
+            assert abs(got - want) < 25, (band, want, got)
+
+    def test_returns_the_full_canvas_as_art(self, sky_and_foliage: Path):
+        canvas = Image.new("RGB", (800, 480), (255, 255, 255))
+        style = ThemeStyle(fg=0, bg=1)
+        style.photo_path = str(sky_and_foliage)
+        layout = ThemeLayout(canvas_w=800, canvas_h=480)
+        assert _draw_photo_background(canvas, layout, style, WAVESHARE_G) == [(0, 0, 800, 480)]

@@ -82,6 +82,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Fixed
 
+- The `photo` theme on the four-ink Waveshare 10.85" G dithered the picture
+  against the six Inky colours, then snapped the blue and green dots it had
+  placed to black, so skies came out flat grey and foliage dark brown. On that
+  panel the photo is now dithered onto its own inks. Inky output is unchanged.
 - A temperature between −0.5 and 0 (a metric reading near freezing) rendered as
   `-0°` on most themes; every panel now rounds through one helper and shows `0°`,
   as the halftone and day-arc themes already did.
