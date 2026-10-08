@@ -605,6 +605,18 @@ def test_restore_latest_backup_route(client, app):
     assert raw["title"] == "Backup"
 
 
+def test_config_page_keeps_a_retired_theme_selectable(app, tmp_path):
+    """The form submits every select, so a retired theme the config still uses
+    must be an option or an unrelated save would replace it."""
+    (tmp_path / "config.yaml").write_text(
+        "theme: minimalist\ntheme_schedule:\n  - time: '20:00'\n    theme: tides\n"
+    )
+    html = app.test_client().get("/config").get_data(as_text=True)
+    assert '<option value="minimalist" selected>minimalist (retired)</option>' in html
+    assert '<option value="tides" selected>tides (retired)</option>' in html
+    assert '"naturalist"' not in html
+
+
 def test_config_page_returns_html(client):
     resp = client.get("/config")
     assert resp.status_code == 200

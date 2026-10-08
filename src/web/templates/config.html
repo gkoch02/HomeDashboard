@@ -143,7 +143,7 @@
       <div class="field-input-wrap">
         <select id="cfg-theme" data-field="theme" onchange="syncThemeGrid(this.value)">
           {% for t in all_theme_options %}
-            <option value="{{ t }}" {{ "selected" if cfg.theme == t }}>{{ t }}</option>
+            <option value="{{ t }}" {{ "selected" if cfg.theme == t }}>{{ t }}{{ " (retired)" if t in retired_in_use }}</option>
           {% endfor %}
         </select>
       </div>
@@ -511,8 +511,8 @@
               <td data-label="Time"><input type="time" class="sched-time" value="{{ entry.time }}" required></td>
               <td data-label="Theme">
                 <select class="sched-theme">
-                  {% for t in concrete_themes %}
-                    <option value="{{ t }}" {{ "selected" if entry.theme == t }}>{{ t }}</option>
+                  {% for t in concrete_themes + retired_in_use %}
+                    <option value="{{ t }}" {{ "selected" if entry.theme == t }}>{{ t }}{{ " (retired)" if t in retired_in_use }}</option>
                   {% endfor %}
                 </select>
               </td>

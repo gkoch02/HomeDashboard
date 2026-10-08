@@ -38,8 +38,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   `year_pulse`, `sunrise`, `tides`, `scorecard` and `naturalist`. They are no
   longer registered, previewed or documented; their themes, panels, tests,
   previews and doc entries are kept under `retired/` with steps to restore
-  one. A config, schedule entry or rule still naming one renders `default`
-  and `--check-config` says the theme was retired.
+  one. A config, schedule entry or rule still naming one renders `default`,
+  `--check-config` says the theme was retired, and the web editor keeps it
+  selectable so an unrelated save does not overwrite it.
 
 ### Fixed
 
