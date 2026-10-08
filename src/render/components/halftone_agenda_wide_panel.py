@@ -53,6 +53,7 @@ from src.render.primitives import (
     content_time,
     draw_text_truncated,
     events_for_day,
+    fmt_deg,
     fmt_time,
     next_birthday,
     text_height,
@@ -757,7 +758,7 @@ def _draw_rail(
             draw.text(
                 (x0 + 48 - gb[0], y + 13 - (gb[1] + gb[3]) // 2), glyph, font=glyph_font, fill=ink
             )
-            temps = f"{fc.high:.0f}° / {fc.low:.0f}°"
+            temps = f"{fmt_deg(fc.high)} / {fmt_deg(fc.low)}"
             draw.text((x0 + 84, y + 3), temps, font=temp_font, fill=ink)
             if fc.precip_chance is not None:
                 pct = f"{max(0.0, min(1.0, fc.precip_chance)) * 100:.0f}%"

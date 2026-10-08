@@ -12,9 +12,11 @@ from src.render.primitives import (
     draw_text_truncated,
     draw_text_wrapped,
     filled_rect,
+    fmt_deg,
     hline,
     location_line,
     next_birthday,
+    round_temp,
     text_height,
     text_width,
     truncate_to_width,
@@ -294,3 +296,21 @@ class TestNextBirthday:
         assert next_birthday(date(1992, 2, 29), date(2028, 1, 1)) == date(2028, 2, 29)
         # Past Feb 28 in a non-leap year: next year, which is a leap year.
         assert next_birthday(date(1992, 2, 29), date(2027, 3, 1)) == date(2028, 2, 29)
+
+
+class TestTemperatureFormat:
+    @pytest.mark.parametrize(
+        "value, expected",
+        [(-0.4, "0°"), (-0.6, "-1°"), (0.5, "0°"), (-0.5, "0°"), (72.4, "72°"), (-12.7, "-13°")],
+    )
+    def test_fmt_deg_never_prints_minus_zero(self, value, expected):
+        assert fmt_deg(value) == expected
+
+    def test_round_temp_has_no_degree_sign(self):
+        assert round_temp(-0.3) == "0"
+
+    def test_art_themes_share_the_rounding(self):
+        from src.render.artkit import fmt_temp
+
+        assert fmt_temp(-0.3) == "0°"
+        assert fmt_temp(None) == "—"

@@ -16,8 +16,10 @@ from src.data.models import AirQualityData, DashboardData, HostData, StalenessLe
 from src.render.primitives import (
     deg_to_compass,
     draw_text_truncated,
+    fmt_deg,
     fmt_time,
     hline,
+    round_temp,
     text_height,
     text_width,
     vline,
@@ -190,10 +192,10 @@ def _weather_section(draw, x, y, w, weather, style) -> int:
         return _kv(draw, x, y, "", "unavailable", style, w)
 
     y = _kv(draw, x, y, "Condition", weather.current_description.title(), style, w)
-    hi_lo = f"(Hi {weather.high:.0f} / Lo {weather.low:.0f})"
-    y = _kv(draw, x, y, "Temp", f"{weather.current_temp:.0f}°  {hi_lo}", style, w)
+    hi_lo = f"(Hi {round_temp(weather.high)} / Lo {round_temp(weather.low)})"
+    y = _kv(draw, x, y, "Temp", f"{fmt_deg(weather.current_temp)}  {hi_lo}", style, w)
     if weather.feels_like is not None:
-        y = _kv(draw, x, y, "Feels like", f"{weather.feels_like:.0f}°", style, w)
+        y = _kv(draw, x, y, "Feels like", fmt_deg(weather.feels_like), style, w)
     y = _kv(draw, x, y, "Humidity", f"{weather.humidity}%", style, w)
     if weather.wind_speed is not None:
         wind = f"{weather.wind_speed:.0f} {wind_unit(weather)}"
@@ -267,7 +269,7 @@ def _forecast_section(draw, x, y, w, weather, style) -> int:
 
     for fc in weather.forecast[:_MAX_FORECAST]:
         draw.text((x, y), fc.date.strftime("%a"), font=f, fill=fg)
-        draw.text((x + DAY_W, y), f"{fc.high:.0f}/{fc.low:.0f}", font=f, fill=fg)
+        draw.text((x + DAY_W, y), f"{round_temp(fc.high)}/{round_temp(fc.low)}", font=f, fill=fg)
         draw_text_truncated(
             draw,
             (x + DAY_W + HILO_W, y),

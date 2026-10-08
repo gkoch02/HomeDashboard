@@ -36,6 +36,7 @@ from src.render.moon import moon_phase_glyph
 from src.render.primitives import (
     draw_text_truncated,
     events_for_day,
+    fmt_deg,
     fmt_time,
     text_height,
     text_width,
@@ -493,7 +494,7 @@ def _draw_weather_section(draw: ImageDraw.ImageDraw, y: int, weather, style: The
     draw.text((_COL_X0 - ib[0], y + 4 - ib[1]), icon, font=icon_font, fill=style.fg)
     temp_x = _COL_X0 + (ib[2] - ib[0]) + 14
     temp_font = style.font_bold(40)
-    temp = f"{weather.current_temp:.0f}°"
+    temp = fmt_deg(weather.current_temp)
     tb = draw.textbbox((0, 0), temp, font=temp_font)
     draw.text((temp_x - tb[0], y + 2 - tb[1]), temp, font=temp_font, fill=style.fg)
     text_x = temp_x + (tb[2] - tb[0]) + 16
@@ -504,7 +505,7 @@ def _draw_weather_section(draw: ImageDraw.ImageDraw, y: int, weather, style: The
     if weather.high is not None and weather.low is not None:
         draw.text(
             (text_x, y + 23),
-            f"H {weather.high:.0f}°   L {weather.low:.0f}°",
+            f"H {fmt_deg(weather.high)}   L {fmt_deg(weather.low)}",
             font=style.font_medium(14),
             fill=style.fg,
         )

@@ -44,7 +44,9 @@ from src.render.primitives import (
     aqi_accent,
     draw_text_truncated,
     filled_rect,
+    fmt_deg,
     hline,
+    round_temp,
     text_height,
     text_width,
     vline,
@@ -322,7 +324,11 @@ def _draw_ambient_cards(
     # Only show temperature if it's from native sensor, not from OWM fallback
     if aq.temperature is not None and "temperature" not in aq.fallback_fields:
         cards.append(
-            (_GLYPH_THERMOMETER, f"{aq.temperature:.0f}{aq.temperature_unit}", "Sensor Temp")
+            (
+                _GLYPH_THERMOMETER,
+                f"{round_temp(aq.temperature)}{aq.temperature_unit}",
+                "Sensor Temp",
+            )
         )
     if aq.humidity is not None:
         cards.append((_GLYPH_HUMIDITY, f"{aq.humidity:.0f}%", "Humidity"))
@@ -471,7 +477,7 @@ def _draw_current_conditions(
     icon_right = x0 + pad + (gbbox[2] - gbbox[0]) + 8
 
     # Temperature to the right of icon
-    temp_str = f"{wx.current_temp:.0f}°"
+    temp_str = fmt_deg(wx.current_temp)
     temp_font = style.font_bold(38)
     tbbox = draw.textbbox((0, 0), temp_str, font=temp_font)
     draw.text(
@@ -489,7 +495,7 @@ def _draw_current_conditions(
 
     # Hi / Lo
     hilo_font = style.font_regular(17)
-    hilo_str = f"H:{wx.high:.0f}°  L:{wx.low:.0f}°"
+    hilo_str = f"H:{fmt_deg(wx.high)}  L:{fmt_deg(wx.low)}"
     hilo_y = desc_y + text_height(desc_font) + 2
     if hilo_y + text_height(hilo_font) <= y0 + H - 2:
         draw.text((x0 + pad, hilo_y), hilo_str, font=hilo_font, fill=fg)
@@ -539,7 +545,7 @@ def _draw_forecast_columns(
         row_y += icon_size + 7
 
         # Hi / Lo
-        hilo_str = f"{fc.high:.0f}°/{fc.low:.0f}°"
+        hilo_str = f"{fmt_deg(fc.high)}/{fmt_deg(fc.low)}"
         hw = text_width(draw, hilo_str, hilo_font)
         draw.text((col_cx - hw // 2, row_y), hilo_str, font=hilo_font, fill=fg)
         row_y += text_height(hilo_font) + 5

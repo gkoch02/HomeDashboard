@@ -35,6 +35,7 @@ from src.data.models import DashboardData
 from src.render.fonts import weather_icon as weather_icon_font
 from src.render.icons import FALLBACK_ICON, OWM_ICON_MAP
 from src.render.moon import moon_phase_glyph
+from src.render.primitives import fmt_deg
 from src.render.theme import ComponentRegion, ThemeStyle
 
 # The share of the plate's height each mark spans when the row fits at it.
@@ -78,7 +79,7 @@ def marks_for(data: DashboardData, today: date) -> list[Mark]:
     out = [Mark("moon", moon_phase_glyph(today), "MOON")]
     weather = data.weather
     if weather is not None:
-        out.append(Mark("temperature", f"{weather.current_temp:.0f}°", "TEMP"))
+        out.append(Mark("temperature", fmt_deg(weather.current_temp), "TEMP"))
     if data.air_quality is not None:
         out.append(Mark("aqi", str(data.air_quality.aqi), "AQI"))
     if weather is not None:

@@ -56,6 +56,7 @@ from src.render.moon import (
 from src.render.primitives import (
     draw_text_truncated,
     events_for_day,
+    fmt_deg,
     fmt_duration,
     hline,
     next_birthday,
@@ -462,7 +463,7 @@ def _draw_sky(
     if desc:
         parts.append(desc.capitalize())
     if weather.current_temp is not None:
-        parts.append(f"and {weather.current_temp:.0f}°")
+        parts.append(f"and {fmt_deg(weather.current_temp)}")
     sentence = " ".join(parts).strip()
     if sentence:
         sentence += " at the time of going to press."
@@ -482,7 +483,7 @@ def _draw_sky(
         sentence += f" {wind_phrase}."
 
     if weather.high is not None and weather.low is not None:
-        sentence += f" High near {weather.high:.0f}°, low near {weather.low:.0f}°."
+        sentence += f" High near {fmt_deg(weather.high)}, low near {fmt_deg(weather.low)}."
 
     if weather.alerts:
         first = weather.alerts[0].event

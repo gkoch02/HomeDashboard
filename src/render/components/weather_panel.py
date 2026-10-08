@@ -15,6 +15,7 @@ from src.render.primitives import (
     draw_staleness_glyph,
     draw_text_truncated,
     filled_rect,
+    fmt_deg,
     hline,
     text_width,
     truncate_to_width,
@@ -133,7 +134,7 @@ def draw_weather(
 
     # Temperature (big) — right of icon
     temp_font = style.font_bold(36)
-    temp_str = f"{weather.current_temp:.0f}°"
+    temp_str = fmt_deg(weather.current_temp)
     draw.text((x0 + temp_x_offset, icon_y - 2), temp_str, font=temp_font, fill=style.fg)
 
     # Right-column detail rows
@@ -153,7 +154,7 @@ def draw_weather(
 
     # Row 2: hi/lo + UV index when available
     hilo_font = style.font_medium(12)
-    hilo_str = f"H:{weather.high:.0f}°  L:{weather.low:.0f}°"
+    hilo_str = f"H:{fmt_deg(weather.high)}  L:{fmt_deg(weather.low)}"
     if weather.uv_index is not None:
         uv_suffix = f"  UV:{weather.uv_index:.0f}"
         if text_width(draw, hilo_str + uv_suffix, hilo_font) <= max_detail_w:
@@ -171,7 +172,7 @@ def draw_weather(
     detail3_font = style.font_regular(11)
     detail3_parts: list[str] = []
     if weather.feels_like is not None:
-        detail3_parts.append(f"Feels {weather.feels_like:.0f}°")
+        detail3_parts.append(f"Feels {fmt_deg(weather.feels_like)}")
     if weather.wind_speed is not None:
         wind_str = f"Wind {weather.wind_speed:.0f}{wind_unit(weather)}"
         if weather.wind_deg is not None:
@@ -293,7 +294,7 @@ def draw_weather(
                 )
                 draw.text(
                     (text_x, forecast_top + 14),
-                    f"{fc.high:.0f}°/{fc.low:.0f}°",
+                    f"{fmt_deg(fc.high)}/{fmt_deg(fc.low)}",
                     font=hilo_sm_font,
                     fill=style.fg,
                 )

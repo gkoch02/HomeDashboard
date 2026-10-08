@@ -51,6 +51,7 @@ from src.render.primitives import (
     draw_text_truncated,
     events_for_day,
     filled_rect,
+    fmt_deg,
     fmt_time,
     hline,
     next_birthday,
@@ -269,7 +270,7 @@ def _draw_left_block(
 
     draw_weather_icon(draw, (lx, wy + 2), weather.current_icon, size=56, fill=style.fg)
     temp_font = style.font_bold(52)
-    draw.text((lx + 76, wy - 6), f"{weather.current_temp:.0f}°", font=temp_font, fill=style.fg)
+    draw.text((lx + 76, wy - 6), fmt_deg(weather.current_temp), font=temp_font, fill=style.fg)
 
     desc_font = style.font_medium(16)
     desc_y = wy + 66
@@ -284,9 +285,9 @@ def _draw_left_block(
 
     row_font = style.font_regular(15)
     row_y = desc_y + text_height(desc_font) + 8
-    parts = [f"H {weather.high:.0f}°", f"L {weather.low:.0f}°"]
+    parts = [f"H {fmt_deg(weather.high)}", f"L {fmt_deg(weather.low)}"]
     if weather.feels_like is not None:
-        parts.append(f"Feels {weather.feels_like:.0f}°")
+        parts.append(f"Feels {fmt_deg(weather.feels_like)}")
     draw_text_truncated(draw, (lx, row_y), "   ".join(parts), row_font, w - 2 * PAD, fill=style.fg)
 
     row2_y = row_y + text_height(row_font) + 6

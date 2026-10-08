@@ -82,6 +82,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Fixed
 
+- A temperature between −0.5 and 0 (a metric reading near freezing) rendered as
+  `-0°` on most themes; every panel now rounds through one helper and shows `0°`,
+  as the halftone and day-arc themes already did.
 - `weatherglass` prints the sun strip's times in the configured zone. Without
   OWM weather it fell back to the computed sunrise, which is UTC, and printed
   that zone's clock (New York sunrise as 12:16p).
