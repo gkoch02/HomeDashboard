@@ -267,6 +267,19 @@ class TestBilevelType:
         assert draw.fontmode == "L"
 
 
+class TestBareDiscs:
+    def test_no_disc_draws_a_limb_ring(self):
+        """The hero matches the flanking moons: lit shape only, no outline."""
+        from src.render.components import moonphase_panel
+
+        with patch.object(
+            moonphase_panel, "render_moon_disc", wraps=moonphase_panel.render_moon_disc
+        ) as spy:
+            _render_l()
+        assert spy.call_count == 7
+        assert all(call.kwargs.get("show_edge") is False for call in spy.call_args_list)
+
+
 class TestDrawMoonphaseSmoke:
     def test_renders_with_full_data(self):
         assert _marks(_render_l()) > 0
