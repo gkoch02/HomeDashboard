@@ -128,19 +128,19 @@ Accents: **yellow** primary, **blue** secondary · [description in Themes ↗](t
 
 #### moonphase
 
-Accents: **blue** primary, **yellow** secondary · [description in Themes ↗](themes.md#moonphase)
+Accents: **yellow** primary, **white** secondary · [description in Themes ↗](themes.md#moonphase)
 
 [![Moonphase theme on Inky](../assets/previews/theme_moonphase_inky.png)](../assets/previews/theme_moonphase_inky.png)
 
 #### moonphase_invert
 
-Accents: **yellow** primary, **blue** secondary · [description in Themes ↗](themes.md#moonphase_invert)
+Accents: **blue** primary, **blue** secondary · [description in Themes ↗](themes.md#moonphase_invert)
 
 [![Moonphase Invert theme on Inky](../assets/previews/theme_moonphase_invert_inky.png)](../assets/previews/theme_moonphase_invert_inky.png)
 
 #### moonphase_photo
 
-Accents: **blue** primary, **yellow** secondary · [description in Themes ↗](themes.md#moonphase_photo)
+Accents: **yellow** primary, **white** secondary · [description in Themes ↗](themes.md#moonphase_photo)
 
 [![Moonphase Photo theme on Inky](../assets/previews/theme_moonphase_photo_inky.png)](../assets/previews/theme_moonphase_photo_inky.png)
 

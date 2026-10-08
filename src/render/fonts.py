@@ -252,27 +252,16 @@ def _get_cormorant(size: int, wght: int, italic: bool) -> ImageFont.FreeTypeFont
     return font
 
 
-def cormorant_regular(size: int) -> ImageFont.FreeTypeFont:
-    return _get_cormorant(size, 400, italic=False)
-
-
-def cormorant_medium(size: int) -> ImageFont.FreeTypeFont:
-    return _get_cormorant(size, 500, italic=False)
-
-
 def cormorant_semibold(size: int) -> ImageFont.FreeTypeFont:
     return _get_cormorant(size, 600, italic=False)
 
 
-def cormorant_italic(size: int) -> ImageFont.FreeTypeFont:
-    return _get_cormorant(size, 400, italic=True)
+def cormorant_bold(size: int) -> ImageFont.FreeTypeFont:
+    return _get_cormorant(size, 700, italic=False)
 
 
-# Tangerine — calligraphic script display face (OFL).  Single-weight regular
-# (a bold variant also exists upstream; bring in if needed later).  Used by
-# the moonphase theme for the quote attribution to give a poetic, handwritten feel.
-def tangerine_regular(size: int) -> ImageFont.FreeTypeFont:
-    return get_font("Tangerine-Regular.ttf", size)
+def cormorant_italic_semibold(size: int) -> ImageFont.FreeTypeFont:
+    return _get_cormorant(size, 600, italic=True)
 
 
 # Manufacturing Consent — Fraktur blackletter modernised with contemporary

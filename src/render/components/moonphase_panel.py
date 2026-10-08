@@ -24,11 +24,10 @@ from typing import TYPE_CHECKING
 from src.astronomy import moon_distance_earth_radii, moon_times
 from src.render.fonts import (
     cinzel_bold,
-    cormorant_italic,
-    cormorant_medium,
-    cormorant_regular,
+    cormorant_bold,
+    cormorant_italic_semibold,
+    cormorant_semibold,
     manufacturing_consent,
-    tangerine_regular,
 )
 from src.render.moon import (
     moon_illumination,
@@ -69,7 +68,8 @@ _HERO_R = 95
 # block height before drawing and distribute the spacing down to the border).
 _DATA_FONT_PT = 26
 _QUOTE_FONT_PT = 23
-_ATTR_FONT_PT = 32
+_ATTR_FONT_PT = 17
+_LABEL_FONT_PT = 18
 # Space kept clear at the plate's bottom edge: the themes' vine border is drawn
 # 8 px in, and nothing set here may touch it.
 _FRAME_CLEARANCE = 10
@@ -178,7 +178,7 @@ def _draw_phase_name(
     else:
         sub = f"{pct:.0f}% illuminated"
         sub_fill = style.fg
-    return _draw_centered(draw, sub, cx, y + 2, cormorant_medium(22), sub_fill, gap=8)
+    return _draw_centered(draw, sub, cx, y + 2, cormorant_bold(22), sub_fill, gap=8)
 
 
 def _draw_moon_row(
@@ -217,7 +217,7 @@ def _draw_moon_row(
         (2, 29, 250),
         (3, 24, 315),
     ]
-    label_font = cormorant_regular(17)
+    label_font = cormorant_bold(_LABEL_FONT_PT)
     for delta, r, x_off in flanks:
         d = today + timedelta(days=delta)
         gx = cx + x_off
@@ -273,7 +273,7 @@ def _draw_lunar_line(
     gap: int = 6,
 ) -> int:
     """Draw moonrise/moonset (when located) + moon age."""
-    font = cormorant_regular(_DATA_FONT_PT)
+    font = cormorant_semibold(_DATA_FONT_PT)
     parts: list[str] = []
     coords = usable_coords(latitude, longitude)
     if coords is not None:
@@ -300,7 +300,7 @@ def _draw_sun_weather_line(
     """Draw sunrise/sunset and a compact current-weather summary within *max_w*."""
     if weather is None:
         return y
-    font = cormorant_regular(_DATA_FONT_PT)
+    font = cormorant_semibold(_DATA_FONT_PT)
     parts: list[str] = []
     if weather.sunrise:
         parts.append(f"sunrise {fmt_time(weather.sunrise)}")
@@ -333,7 +333,7 @@ def _draw_next_phase_line(
     when_str = f"{when.strftime('%b')} {when.day}"
     text = f"Next {label} in {days} {day_word}  ~  {when_str}"
     return _draw_centered(
-        draw, text, cx, y, cormorant_medium(_DATA_FONT_PT), style.secondary_accent_fill(), gap=gap
+        draw, text, cx, y, cormorant_bold(_DATA_FONT_PT), style.secondary_accent_fill(), gap=gap
     )
 
 
@@ -358,7 +358,7 @@ def _draw_quote(
     """
     quote = quote_for(today, refresh=quote_refresh, prefix="moonphase-", path=quotes_path)
     text = f'"{quote["text"]}"'
-    quote_font = cormorant_italic(_QUOTE_FONT_PT)
+    quote_font = cormorant_italic_semibold(_QUOTE_FONT_PT)
     lines_h = text_height(quote_font)
     lines = wrap_lines(text, quote_font, max_w)
     if len(lines) > 2:
@@ -371,7 +371,7 @@ def _draw_quote(
         # Spacing goes between lines only, as _quote_body_height measures it.
         cur_y += lines_h + (4 if i < len(lines) - 1 else 0)
 
-    attr_font = tangerine_regular(_ATTR_FONT_PT)
+    attr_font = cinzel_bold(_ATTR_FONT_PT)
     attr = truncate_to_width(draw, f"— {quote['author']}", attr_font, max_w)
     attr_w = text_width(draw, attr, attr_font)
     attr_y = min(cur_y + gap, y + max_h - _line_box(attr_font))
@@ -382,8 +382,8 @@ def _draw_quote(
 def _line_box(font) -> int:
     """Ascent plus descent: the depth any line in *font* can reach below its origin.
 
-    The script attribution face hangs its descenders well below an "Ag" box,
-    so a name with a "g" or "y" sits lower than one without.
+    Measured from the font's metrics rather than an "Ag" box so the
+    attribution's clearance does not depend on which letters the name holds.
     """
     ascent, descent = font.getmetrics()
     return ascent + descent
@@ -394,7 +394,7 @@ def _quote_body_height(
 ) -> int:
     """Measure the wrapped quote body height (no attribution) for layout."""
     quote = quote_for(today, refresh=quote_refresh, prefix="moonphase-", path=quotes_path)
-    quote_font = cormorant_italic(_QUOTE_FONT_PT)
+    quote_font = cormorant_italic_semibold(_QUOTE_FONT_PT)
     n_lines = len(wrap_lines(f'"{quote["text"]}"', quote_font, max_w)[:2])
     return n_lines * text_height(quote_font) + max(0, n_lines - 1) * 4
 
@@ -413,7 +413,47 @@ def draw_moonphase(
     longitude: float | None = None,
     now: datetime | None = None,
 ) -> None:
-    """Draw the full-canvas moonphase display."""
+    """Draw the full-canvas moonphase display.
+
+    Type is rasterised bilevel (``fontmode = "1"``): antialiased Cormorant cut
+    at mid-grey by the ``threshold`` quantizer, or snapped to the Inky palette,
+    loses its hairlines and breaks the degree sign into a quote mark.
+    """
+    saved_fontmode = draw.fontmode
+    draw.fontmode = "1"
+    try:
+        _draw_plate(
+            draw,
+            data,
+            today,
+            region=region,
+            style=style,
+            quote_refresh=quote_refresh,
+            quotes_path=quotes_path,
+            image=image,
+            latitude=latitude,
+            longitude=longitude,
+            now=now,
+        )
+    finally:
+        draw.fontmode = saved_fontmode
+
+
+def _draw_plate(
+    draw: ImageDraw.ImageDraw,
+    data: DashboardData,
+    today: date,
+    *,
+    region: ComponentRegion | None = None,
+    style: ThemeStyle | None = None,
+    quote_refresh: str = "daily",
+    quotes_path: str | None = None,
+    image: Image.Image | None = None,
+    latitude: float | None = None,
+    longitude: float | None = None,
+    now: datetime | None = None,
+) -> None:
+    """Draw the plate; see :func:`draw_moonphase`."""
     from src.render.theme import ComponentRegion as CR
     from src.render.theme import ThemeStyle as TS
 
@@ -467,9 +507,9 @@ def draw_moonphase(
     # Distribute the data lines + quote evenly across the remaining height so the
     # block reaches down to the bottom border instead of clustering up top.
     quote_w = w - 60
-    data_line_h = text_height(cormorant_regular(_DATA_FONT_PT))
+    data_line_h = text_height(cormorant_semibold(_DATA_FONT_PT))
     quote_body_h = _quote_body_height(today, quote_w, quote_refresh, quotes_path)
-    attr_h = _line_box(tangerine_regular(_ATTR_FONT_PT))
+    attr_h = _line_box(cinzel_bold(_ATTR_FONT_PT))
 
     sun_draws = weather is not None and (
         bool(weather.sunrise) or bool(weather.sunset) or weather.current_temp is not None
