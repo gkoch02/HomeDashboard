@@ -6,6 +6,7 @@ import json
 from datetime import date, datetime, timezone
 from pathlib import Path
 from unittest.mock import patch
+from zoneinfo import ZoneInfo
 
 import pytest
 from PIL import Image, ImageDraw
@@ -566,6 +567,23 @@ class TestDrawMoonphaseProcedural:
         img, draw = self._l_canvas()
         draw_moonphase(draw, _make_data(), TODAY, image=img, style=self._style())
         assert marks(img) > 0, "the no-coordinates plate rendered blank"
+
+
+class TestNextPhaseCountdown:
+    def _countdown(self, now: datetime | None) -> list[str]:
+        img = Image.new("L", (800, 480), 0)
+        draw = ImageDraw.Draw(img)
+        calls = record_text(draw)
+        draw_moonphase(
+            draw, _make_data(), date(2026, 10, 30), image=img, style=_dark_style(), now=now
+        )
+        return [text for text, _ in calls if text.startswith("Next ")]
+
+    def test_event_date_is_the_display_timezones(self):
+        # The new moon of 2026-11-09 07:02 UTC is the evening of Nov 8 in Los Angeles.
+        la = datetime(2026, 10, 30, 12, tzinfo=ZoneInfo("America/Los_Angeles"))
+        assert self._countdown(la) == ["Next New Moon in 9 days  ~  Nov 8"]
+        assert self._countdown(None) == ["Next New Moon in 10 days  ~  Nov 9"]
 
 
 class TestMoonphaseHelpers:

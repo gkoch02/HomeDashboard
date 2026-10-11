@@ -2,9 +2,8 @@
 
 The phase, age and illumination come from the Moon's true elongation from the
 Sun (Meeus, *Astronomical Algorithms*, ch. 47-48, principal terms); the dates
-of new and full moons come from Meeus ch. 49, accurate to a few minutes.  A
-mean-lunation count from a reference new moon drifts by up to a day against
-the real sky, which put the new moon of 2026-10-10 on Oct 11.
+of new and full moons come from Meeus ch. 49, accurate to a few minutes.  Both
+follow the real sky, which a count of mean lunations drifts from by up to a day.
 """
 
 import math
@@ -64,6 +63,12 @@ _PHASE_NAMES = [
 ]
 
 
+# Meeus table 49.A: the first seven periodic-term coefficients, the only ones
+# in which new and full moons differ.
+_NEW_MOON_TERMS = (-0.40720, 0.17241, 0.01608, 0.01039, 0.00739, -0.00514, 0.00208)
+_FULL_MOON_TERMS = (-0.40614, 0.17302, 0.01614, 0.01043, 0.00734, -0.00515, 0.00209)
+
+
 def _sin(deg: float) -> float:
     return math.sin(math.radians(deg))
 
@@ -118,19 +123,7 @@ def _principal_phase(k: float) -> datetime:
     mp = 201.5643 + 385.81693528 * k + 0.0107582 * t * t + 0.00001238 * t**3
     f = 160.7108 + 390.67050284 * k - 0.0016118 * t * t - 0.00000227 * t**3
     om = 124.7746 - 1.56375588 * k + 0.0020672 * t * t
-    # The two phases differ only in the first terms' coefficients.
-    new = k == math.floor(k)
-    c1, c2, c3, c4 = (
-        (-0.40720, 0.17241, 0.01608, 0.01039)
-        if new
-        else (
-            -0.40614,
-            0.17302,
-            0.01614,
-            0.01043,
-        )
-    )
-    c5, c6, c7 = (0.00739, -0.00514, 0.00208) if new else (0.00734, -0.00515, 0.00209)
+    c1, c2, c3, c4, c5, c6, c7 = _NEW_MOON_TERMS if k == math.floor(k) else _FULL_MOON_TERMS
     jde += (
         c1 * _sin(mp)
         + c2 * e * _sin(m)

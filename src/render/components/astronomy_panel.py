@@ -224,8 +224,8 @@ def draw_astronomy(
 
     my = _draw_key_value_row(draw, mx, my, "Phase", moon_phase_name(today), style)
     my = _draw_key_value_row(draw, mx, my, "Illum.", f"{moon_illumination(today):.0f}%", style)
-    next_full = next_phase_date(today, 0.5)
-    next_new = next_phase_date(today, 0.0)
+    next_full = next_phase_date(today, 0.5, tz)
+    next_new = next_phase_date(today, 0.0, tz)
     my = _draw_key_value_row(draw, mx, my, "Next full", next_full.strftime("%b %-d"), style)
     my = _draw_key_value_row(draw, mx, my, "Next new", next_new.strftime("%b %-d"), style)
 

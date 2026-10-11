@@ -9,6 +9,7 @@ at the themes' native size, so nothing here depends on a resize.
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 from PIL import Image, ImageDraw
 
@@ -27,7 +28,7 @@ from src.render.canvas import render_dashboard
 from src.render.components import wide_day_panel as wd
 from src.render.components import wide_forecast_panel as wf
 from src.render.theme import ComponentRegion, ThemeStyle, load_theme
-from tests.inkutils import ink
+from tests.inkutils import ink, record_text
 
 FIXED_NOW = datetime(2026, 4, 6, 10, 30)  # a Monday
 TODAY = FIXED_NOW.date()
@@ -415,6 +416,14 @@ class TestWideForecastRender:
         img, d = _plate()
         wf.draw_wide_forecast(d, _forecast_data(), TODAY, FIXED_NOW)
         assert ink(img, self.BAND_MOON) > 400
+
+    def test_full_moon_night_reads_tonight(self):
+        # 2026-10-26 04:12 UTC is the evening of Oct 25 in Los Angeles.
+        now = datetime(2026, 10, 25, 12, tzinfo=ZoneInfo("America/Los_Angeles"))
+        _, d = _plate()
+        calls = record_text(d)
+        wf.draw_wide_forecast(d, _forecast_data(), now.date(), now)
+        assert "Full moon tonight" in [text for text, _ in calls]
 
     def test_forecast_cards_one_per_day(self):
         one_day = _weather(

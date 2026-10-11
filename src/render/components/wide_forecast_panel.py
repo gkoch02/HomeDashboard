@@ -26,7 +26,7 @@ so an idle tick renders byte-identically and costs no panel write.
 
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, tzinfo
 
 from PIL import ImageDraw
 
@@ -34,7 +34,7 @@ from src.data.models import AirQualityData, DashboardData, WeatherData
 from src.render.artkit import to_local_naive
 from src.render.fonts import weather_icon as weather_icon_font
 from src.render.icons import draw_weather_icon
-from src.render.moon import moon_illumination, moon_phase_glyph, moon_phase_name, next_full_moon
+from src.render.moon import moon_illumination, moon_phase_glyph, moon_phase_name, next_phase_date
 from src.render.primitives import (
     alert_fill,
     content_time,
@@ -105,7 +105,13 @@ def draw_wide_forecast(
     hline(draw, y0 + row_h, rx0, x0 + w, fill=style.fg)
     hline(draw, y0 + row_h + 1, rx0, x0 + w, fill=style.fg)
     _draw_band(
-        draw, weather, data.air_quality, today, (rx0, y0 + row_h + 2, rw, h - row_h - 2), style
+        draw,
+        weather,
+        data.air_quality,
+        today,
+        getattr(now, "tzinfo", None),
+        (rx0, y0 + row_h + 2, rw, h - row_h - 2),
+        style,
     )
 
     stamp = content_time(data, now)
@@ -315,6 +321,7 @@ def _draw_band(
     weather: WeatherData | None,
     air: AirQualityData | None,
     today: date,
+    tz: tzinfo | None,
     rect: tuple[int, int, int, int],
     style: ThemeStyle,
 ) -> None:
@@ -404,7 +411,8 @@ def _draw_band(
         font=detail_font,
         fill=style.fg,
     )
-    _, days_to_full = next_full_moon(today)
+    # On or after today, so the night of the full moon reads "tonight".
+    days_to_full = (next_phase_date(today, 0.5, tz) - today).days
     when = (
         "tonight"
         if days_to_full == 0
