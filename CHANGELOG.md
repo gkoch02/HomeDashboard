@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Fixed
+
+- Moon phases now follow the real sky. `src/render/moon.py` counted average
+  29.53-day lunations from a 2000 reference, which drifts by up to a day: it
+  put the new moon of 2026-10-10 on Oct 11. Phase, age and illumination now
+  come from the Moon's true elongation, and new/full moon dates from Meeus's
+  algorithm (accurate to minutes). The `moonphase` countdown takes the event's
+  date in the display timezone, so an evening new moon is not shown a day late.
+
 ## [6.1.0] - 2026-10-08
 
 ### Added

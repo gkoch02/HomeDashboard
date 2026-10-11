@@ -433,7 +433,7 @@ def _draw_heavens(
     )
     y = moon_y + line_h + 4
 
-    full = next_phase_date(today + timedelta(days=1), 0.5)
+    full = next_phase_date(today + timedelta(days=1), 0.5, tz)
     y = _draw_kv_row(draw, x, y, "Next Full", full.strftime("%b %-d"), key_w, style)
 
 
