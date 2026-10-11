@@ -312,11 +312,12 @@ def _draw_next_phase_line(
     cx: int,
     y: int,
     style: ThemeStyle,
+    tz: tzinfo | None,
     gap: int = 10,
 ) -> int:
     """Draw the countdown to whichever principal phase comes first."""
-    full_date, full_days = next_full_moon(today)
-    new_date, new_days = next_new_moon(today)
+    full_date, full_days = next_full_moon(today, tz)
+    new_date, new_days = next_new_moon(today, tz)
     if full_days <= new_days:
         label, when, days = "Full Moon", full_date, full_days
     else:
@@ -515,7 +516,7 @@ def _draw_plate(
 
     y = _draw_lunar_line(draw, today, cx, y, style, latitude, longitude, tz, gap=gap)
     y = _draw_sun_weather_line(draw, weather, cx, y, style, quote_w, gap=gap)
-    y = _draw_next_phase_line(draw, today, cx, y, style, gap=gap)
+    y = _draw_next_phase_line(draw, today, cx, y, style, tz, gap=gap)
     _draw_quote(
         draw,
         today,

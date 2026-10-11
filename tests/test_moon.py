@@ -1,6 +1,7 @@
 """Tests for src/render/moon.py — moon phase calculation (pure math)."""
 
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -8,11 +9,14 @@ from src.render.moon import (
     _MOON_GLYPHS,
     _PHASE_NAMES,
     _SYNODIC_MONTH,
+    _principal_phase,
+    moon_illumination,
     moon_phase_age,
     moon_phase_glyph,
     moon_phase_name,
     next_full_moon,
     next_new_moon,
+    next_phase_date,
 )
 
 
@@ -199,9 +203,9 @@ class TestMoonPhase:
         assert 0 <= age < 29.54
 
     def test_known_new_moon(self):
-        """2024-01-11 was a known new moon."""
+        """2024-01-11 11:57 UTC was a new moon, so noon that day is either side of it."""
         age = moon_phase_age(date(2024, 1, 11))
-        assert age < 2.0  # within ~2 days of new moon
+        assert age < 0.1 or age > _SYNODIC_MONTH - 0.1
 
     def test_known_full_moon(self):
         """2024-01-25 was a known full moon."""
@@ -230,3 +234,42 @@ class TestMoonPhase:
         d = date(2024, 6, 15)
         assert moon_phase_glyph(d) == moon_phase_glyph(d)
         assert moon_phase_name(d) == moon_phase_name(d)
+
+
+class TestAgainstPublishedEphemeris:
+    """Dates and instants from published tables; a mean-lunation count misses these."""
+
+    def test_new_moon_of_2026_10_10_is_not_put_on_the_11th(self):
+        when, days = next_new_moon(date(2026, 10, 9))
+        assert (when, days) == (date(2026, 10, 10), 1)
+        assert moon_phase_name(date(2026, 10, 10)) == "New Moon"
+
+    @pytest.mark.parametrize(
+        ("k", "expected"),
+        [
+            (298, datetime(2024, 2, 9, 22, 59, tzinfo=timezone.utc)),
+            (298.5, datetime(2024, 2, 24, 12, 30, tzinfo=timezone.utc)),
+            (331, datetime(2026, 10, 10, 15, 50, tzinfo=timezone.utc)),
+            (331.5, datetime(2026, 10, 26, 4, 12, tzinfo=timezone.utc)),
+        ],
+    )
+    def test_principal_phase_instants(self, k, expected):
+        assert abs((_principal_phase(k) - expected).total_seconds()) < 5 * 60
+
+    def test_event_date_is_taken_in_the_display_timezone(self):
+        # The 2026-11-09 07:02 UTC new moon is the evening of Nov 8 in Los Angeles.
+        la = ZoneInfo("America/Los_Angeles")
+        assert next_new_moon(date(2026, 10, 20))[0] == date(2026, 11, 9)
+        assert next_new_moon(date(2026, 10, 20), la)[0] == date(2026, 11, 8)
+
+    def test_full_moon_is_half_a_mean_month_old_and_fully_lit(self):
+        assert abs(moon_phase_age(date(2026, 10, 26)) - _SYNODIC_MONTH / 2) < 0.5
+        assert moon_illumination(date(2026, 10, 26)) > 99.5
+
+    def test_next_phase_date_includes_today(self):
+        assert next_phase_date(date(2026, 10, 10), 0.0) == date(2026, 10, 10)
+        assert next_phase_date(date(2026, 10, 11), 0.0) == date(2026, 11, 9)
+
+    def test_next_phase_date_rejects_other_fractions(self):
+        with pytest.raises(ValueError):
+            next_phase_date(date(2026, 10, 10), 0.25)

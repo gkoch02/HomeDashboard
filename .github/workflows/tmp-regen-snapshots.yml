@@ -1,0 +1,24 @@
+# Temporary: regenerates the pixel-hash baseline on the CI runner. Deleted before merge.
+name: tmp-regen-snapshots
+on:
+  push:
+    branches: [fix/true-moon-phases]
+jobs:
+  regen:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: "pip"
+      - run: pip install -e ".[dev]"
+      - run: |
+          PV=$(python -c "import json; print(json.load(open('tests/snapshots/theme_pixel_hashes.json'))['reference_env']['pillow_version'])")
+          pip install "Pillow==${PV}"
+      - run: UPDATE_SNAPSHOTS=1 python -m pytest tests/test_theme_pixel_snapshots.py --no-cov -q
+      - uses: actions/upload-artifact@v4
+        with:
+          name: snapshots
+          path: tests/snapshots/theme_pixel_hashes.json
