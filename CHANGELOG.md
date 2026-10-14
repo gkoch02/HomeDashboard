@@ -22,6 +22,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Fixed
 
+- `timezone: "local"` now resolves to the host's named zone (`TZ`,
+  `/etc/timezone` or the `/etc/localtime` link) instead of the offset in force
+  at startup, so the renderer keeps DST rules: the moonphase panel's moonrise
+  and moonset on a changeover day, calendar days and quiet hours no longer
+  shift by an hour. A host whose zone cannot be named keeps the old behaviour.
 - Moon phases now follow the real sky. `src/render/moon.py` counted average
   29.53-day lunations from a 2000 reference, which drifts by up to a day: it
   put the new moon of 2026-10-10 on Oct 11. Phase, age and illumination now

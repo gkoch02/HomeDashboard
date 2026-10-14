@@ -298,9 +298,10 @@ class Config:
 def host_zone() -> zoneinfo.ZoneInfo | None:
     """The host's own IANA zone, which keeps its DST rules, or None if it cannot be named.
 
-    ``resolve_tz("local")`` is the offset in force when it is called, which is the wrong
-    offset for any instant across a DST change. Read, in order: ``TZ``, ``/etc/timezone``
-    (Debian and Raspberry Pi OS), and the ``/etc/localtime`` link's zoneinfo path.
+    The offset in force now is the wrong offset for any instant across a DST change, which
+    is why :func:`resolve_tz` prefers this for 'local'. Read, in order: ``TZ``,
+    ``/etc/timezone`` (Debian and Raspberry Pi OS), and the ``/etc/localtime`` link's
+    zoneinfo path.
     """
     candidates = [os.environ.get("TZ", "").lstrip(":")]
     try:
@@ -321,8 +322,16 @@ def host_zone() -> zoneinfo.ZoneInfo | None:
 
 
 def resolve_tz(tz_name: str) -> tzinfo:
-    """Return a tzinfo for the given IANA name, or the system local timezone for 'local'."""
+    """Return a tzinfo for the given IANA name, or the host's zone for 'local'.
+
+    'local' is the host's named zone (:func:`host_zone`), so its DST rules hold for every
+    instant: a fixed offset taken now put moonrise, calendar days and quiet hours an hour out
+    across a changeover. Only a host whose zone cannot be named gets that fixed offset.
+    """
     if tz_name == "local":
+        named = host_zone()
+        if named is not None:
+            return named
         tz = datetime.now().astimezone().tzinfo  # allow-naive-datetime — extracting local tzinfo
         if tz is None:
             logger.warning("Could not determine local timezone; falling back to UTC")
