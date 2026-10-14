@@ -165,8 +165,9 @@ def test_units_fall_back_to_config_without_weather(client):
 def test_moon_block_matches_the_panel_math(client):
     from src.render.moon import moon_illumination, moon_phase_fraction, moon_phase_name
 
-    moon = client.get("/api/dashboard").get_json()["moon"]
-    today = datetime.now(ZoneInfo(ZONE)).date()
+    body = client.get("/api/dashboard").get_json()
+    moon = body["moon"]
+    today = datetime.fromisoformat(body["generated_at"]).date()  # the request's own day
     assert moon["phase_name"] == moon_phase_name(today)
     assert [d["date"] for d in moon["days"]] == [
         (today + timedelta(days=n)).isoformat() for n in range(-3, 4)

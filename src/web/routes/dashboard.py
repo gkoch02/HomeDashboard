@@ -33,8 +33,8 @@ from src.data.models import StalenessLevel
 from src.fetchers.cache import check_staleness, load_cache_blob, load_cached_source_from_blob
 from src.fetchers.registry import get_fetcher
 from src.filters import filter_events
-from src.render.components.moonphase_panel import is_supermoon
 from src.render.moon import (
+    is_supermoon,
     moon_illumination,
     moon_phase_age,
     moon_phase_fraction,
