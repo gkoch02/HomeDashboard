@@ -233,3 +233,68 @@ def test_local_zone_moon_times_take_the_offset_of_their_own_date(tmp_path, monke
     finally:
         monkeypatch.undo()
         time.tzset()
+
+
+def _located_app(tmp_path, zone=ZONE):
+    web_yaml = tmp_path / "web-located.yaml"
+    web_yaml.write_text("port: 8080\n")
+    cfg_yaml = tmp_path / "config-located.yaml"
+    cfg_yaml.write_text(f'timezone: "{zone}"\nweather:\n  latitude: 40.71\n  longitude: -74.0\n')
+    located = create_app(web_config_path=str(web_yaml), app_config_path=str(cfg_yaml))
+    located.config["STATE_DIR"] = str(tmp_path / "state")
+    return located
+
+
+def test_sun_needs_coordinates(client):
+    assert client.get("/api/dashboard").get_json()["sun"] is None  # (0, 0): unset
+
+
+def test_sun_block_samples_the_panel_altitude(tmp_path):
+    from src.astronomy import solar_altitude
+    from src.web.routes.dashboard import SUN_DAYS, SUN_STEP_MINUTES
+
+    sun = _located_app(tmp_path).test_client().get("/api/dashboard").get_json()["sun"]
+    start = datetime.fromisoformat(sun["start"])
+    now = datetime.now(ZoneInfo(ZONE))
+    assert start == datetime.combine(now.date(), datetime.min.time(), tzinfo=ZoneInfo(ZONE))
+    assert sun["step_minutes"] == SUN_STEP_MINUTES
+    assert len(sun["altitudes"]) == SUN_DAYS * 24 * 60 // SUN_STEP_MINUTES + 1
+    for k in (0, 50, 200, len(sun["altitudes"]) - 1):
+        at = start + timedelta(minutes=k * SUN_STEP_MINUTES)
+        assert sun["altitudes"][k] == round(solar_altitude(at, 40.71, -74.0), 1)
+
+    assert len(sun["noons"]) == SUN_DAYS
+    for noon in sun["noons"]:
+        t = datetime.fromisoformat(noon["time"])
+        assert 11 <= t.astimezone(ZoneInfo(ZONE)).hour <= 13
+        k = round((t - start).total_seconds() / 60 / SUN_STEP_MINUTES)
+        # Within a sample's swing of the peak the series reaches at that hour.
+        assert abs(noon["altitude"] - sun["altitudes"][k]) < 1.0
+        assert noon["altitude"] >= max(sun["altitudes"][max(0, k - 8) : k + 9]) - 0.1
+
+
+def test_sun_steps_in_real_time_across_dst(tmp_path, monkeypatch):
+    from src.astronomy import solar_altitude
+
+    spring = datetime(2026, 3, 8, 9, 0, tzinfo=ZoneInfo(ZONE))
+    monkeypatch.setattr("src.web.routes.dashboard.now_local", lambda tz=None: spring.astimezone(tz))
+    sun = _located_app(tmp_path).test_client().get("/api/dashboard").get_json()["sun"]
+    start = datetime.fromisoformat(sun["start"])
+    assert start.utcoffset() == timedelta(hours=-5)
+    # Twelve 15-minute steps past midnight EST is 03:00 real time, 04:00 on the clock.
+    assert sun["altitudes"][12] == round(
+        solar_altitude(start + timedelta(hours=3), 40.71, -74.0), 1
+    )
+    assert datetime.fromisoformat(sun["noons"][0]["time"]).utcoffset() == timedelta(hours=-4)
+    # Four local days, one of them 23 hours long: 92 + 3 * 96 samples, then the fourth midnight.
+    assert len(sun["altitudes"]) == 92 + 3 * 96 + 1
+
+
+def test_sun_ends_at_the_fourth_local_midnight_after_fall_back(tmp_path, monkeypatch):
+    fall = datetime(2026, 11, 1, 9, 0, tzinfo=ZoneInfo(ZONE))
+    monkeypatch.setattr("src.web.routes.dashboard.now_local", lambda tz=None: fall.astimezone(tz))
+    sun = _located_app(tmp_path).test_client().get("/api/dashboard").get_json()["sun"]
+    start = datetime.fromisoformat(sun["start"])
+    last = start + timedelta(minutes=(len(sun["altitudes"]) - 1) * sun["step_minutes"])
+    assert len(sun["altitudes"]) == 100 + 3 * 96 + 1
+    assert last == datetime(2026, 11, 5, 0, 0, tzinfo=ZoneInfo(ZONE))
