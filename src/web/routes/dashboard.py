@@ -162,7 +162,8 @@ def _sun(cfg, tz, now: datetime) -> dict | None:
     days, and each of those days' solar noon, or None without coordinates.
 
     ``altitudes`` are degrees (negative below the horizon) at ``start`` plus *k* steps of
-    real time, so a DST day has 92 or 100 samples rather than 96. Without coordinates there
+    real time, up to the fourth local midnight, so a DST day has 92 or 100 samples rather
+    than 96. Without coordinates there
     is no sun to place; a client falls back to an arc between the weather's sunrise and
     sunset, as ``wide_horizon_panel.altitude_fn`` does.
     """
@@ -172,7 +173,8 @@ def _sun(cfg, tz, now: datetime) -> dict | None:
     lat, lon = coords
     today = now.date()
     start = day_start_utc(today, tz)
-    steps = SUN_DAYS * 24 * 60 // SUN_STEP_MINUTES
+    end = day_start_utc(today + timedelta(days=SUN_DAYS), tz)
+    steps = int((end - start).total_seconds()) // (SUN_STEP_MINUTES * 60)
     altitudes = [
         round(solar_altitude(start + timedelta(minutes=k * SUN_STEP_MINUTES), lat, lon), 1)
         for k in range(steps + 1)

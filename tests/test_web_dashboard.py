@@ -286,3 +286,15 @@ def test_sun_steps_in_real_time_across_dst(tmp_path, monkeypatch):
         solar_altitude(start + timedelta(hours=3), 40.71, -74.0), 1
     )
     assert datetime.fromisoformat(sun["noons"][0]["time"]).utcoffset() == timedelta(hours=-4)
+    # Four local days, one of them 23 hours long: 92 + 3 * 96 samples, then the fourth midnight.
+    assert len(sun["altitudes"]) == 92 + 3 * 96 + 1
+
+
+def test_sun_ends_at_the_fourth_local_midnight_after_fall_back(tmp_path, monkeypatch):
+    fall = datetime(2026, 11, 1, 9, 0, tzinfo=ZoneInfo(ZONE))
+    monkeypatch.setattr("src.web.routes.dashboard.now_local", lambda tz=None: fall.astimezone(tz))
+    sun = _located_app(tmp_path).test_client().get("/api/dashboard").get_json()["sun"]
+    start = datetime.fromisoformat(sun["start"])
+    last = start + timedelta(minutes=(len(sun["altitudes"]) - 1) * sun["step_minutes"])
+    assert len(sun["altitudes"]) == 100 + 3 * 96 + 1
+    assert last == datetime(2026, 11, 5, 0, 0, tzinfo=ZoneInfo(ZONE))
