@@ -419,7 +419,8 @@ def check_example_config_themes(theme_names: set[str]) -> list[str]:
     return errors
 
 
-README_THEME_COUNT_RE = re.compile(r"\b\d+\s+(?:built-in\s+)?themes\b", re.IGNORECASE)
+# Markdown link and emphasis delimiters may sit between the number and the words.
+README_THEME_COUNT_RE = re.compile(r"\b\d+[\s*_\[]+(?:built-in[\s*_]+)?themes\b", re.IGNORECASE)
 
 
 def check_readme_theme_count(text: str | None = None) -> list[str]:

@@ -136,6 +136,11 @@ class TestReadmeThemeCount:
         assert check_docs.check_readme_theme_count("- 35 built-in themes plus rotation\n")
         assert check_docs.check_readme_theme_count("Ships 36 Themes.\n")
 
+    def test_a_count_before_markdown_is_rejected(self):
+        assert check_docs.check_readme_theme_count("- 35 [built-in themes](docs/themes.md)\n")
+        assert check_docs.check_readme_theme_count("- 35 **built-in themes**\n")
+        assert check_docs.check_readme_theme_count("- 35 _built-in_ themes\n")
+
     def test_prose_without_a_count_passes(self):
         assert check_docs.check_readme_theme_count("- A catalog of built-in themes\n") == []
 
