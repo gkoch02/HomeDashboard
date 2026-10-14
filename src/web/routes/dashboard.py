@@ -86,6 +86,16 @@ def _source_block(name: str, blob: dict | None, cfg, tz, now: datetime) -> dict 
     }
 
 
+def _units(sources: dict[str, dict], cfg) -> str:
+    """The units the weather on screen is in: the cached entry's own, falling back to config.
+
+    After ``weather.units`` changes, a still-fresh cache holds values in the old units until
+    the next fetch, so reading the config would label 68 °F as 68 °C.
+    """
+    weather = (sources.get("weather") or {}).get("data") or {}
+    return weather.get("units") or cfg.weather.units
+
+
 @dashboard_bp.route("/api/dashboard")
 def api_dashboard():
     cfg = current_app.config["DASH_CFG"]
@@ -112,7 +122,7 @@ def api_dashboard():
             "generated_at": now.isoformat(),
             "timezone": _zone_name(tz),
             "utc_offset_seconds": int((now.utcoffset() or timedelta(0)).total_seconds()),
-            "units": cfg.weather.units,
+            "units": _units(sources, cfg),
             "quote": {"text": quote["text"], "author": quote["author"]},
             "sources": sources,
         }

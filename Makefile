@@ -273,8 +273,11 @@ web-enable:
 	sudo systemctl restart dashboard-web.service; \
 	sudo systemctl start dashboard-trigger.path
 	@# Bonjour advertisement for native clients; skipped where avahi-daemon is absent.
-	@# A web UI bound to loopback is not reachable from the LAN, so it is not advertised.
-	@if [ -d /etc/avahi/services ] && ! grep -Eq '^host:[[:space:]]*["'"'"']?(127\.0\.0\.1|localhost)' config/web.yaml 2>/dev/null; then \
+	@# Advertised only when web.yaml names a non-loopback host: src.web binds 127.0.0.1
+	@# when host is absent, and a loopback server is unreachable from the LAN.
+	@HOST="$$(sed -n 's/^host:[[:space:]]*["'"'"']\{0,1\}\([^"'"'"' #]*\).*/\1/p' config/web.yaml 2>/dev/null)"; \
+	case "$$HOST" in ""|127.*|localhost|::1) ADVERTISE=0 ;; *) ADVERTISE=1 ;; esac; \
+	if [ -d /etc/avahi/services ] && [ "$$ADVERTISE" = 1 ]; then \
 	  PORT="$$(sed -n 's/^port:[[:space:]]*["'"'"']\{0,1\}\([0-9][0-9]*\).*/\1/p' config/web.yaml 2>/dev/null)"; \
 	  sed -e "s|__PORT__|$${PORT:-8080}|g" deploy/dashboard-web.avahi.service \
 	    | sudo tee /etc/avahi/services/home-dashboard.service > /dev/null; \

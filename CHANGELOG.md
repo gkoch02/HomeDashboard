@@ -12,7 +12,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   `fetched_at` and staleness, plus today's quote) so a native client can draw
   the dashboard at its own resolution. It reads the cache only and never
   fetches. `make web-enable` also advertises the web UI over Bonjour as
-  `_homedash._tcp` when `avahi-daemon` is present.
+  `_homedash._tcp` when `avahi-daemon` is present and `web.yaml` sets a
+  non-loopback `host`.
 
 ### Fixed
 

@@ -149,3 +149,14 @@ def test_local_zone_events_take_the_offset_of_their_own_date(tmp_path, monkeypat
     finally:
         monkeypatch.undo()
         time.tzset()
+
+
+def test_units_follow_the_cached_weather_not_the_config(app, client):
+    weather = _weather()
+    weather.units = "metric"  # fetched before config switched to imperial
+    save_source("weather", weather, _now(), app.config["STATE_DIR"])
+    assert client.get("/api/dashboard").get_json()["units"] == "metric"
+
+
+def test_units_fall_back_to_config_without_weather(client):
+    assert client.get("/api/dashboard").get_json()["units"] == "imperial"
