@@ -298,31 +298,46 @@ class Config:
 def host_zone() -> zoneinfo.ZoneInfo | None:
     """The host's own IANA zone, which keeps its DST rules, or None if it cannot be named.
 
-    ``resolve_tz("local")`` is the offset in force when it is called, which is the wrong
-    offset for any instant across a DST change. Read, in order: ``TZ``, ``/etc/timezone``
-    (Debian and Raspberry Pi OS), and the ``/etc/localtime`` link's zoneinfo path.
+    The offset in force now is the wrong offset for any instant across a DST change, which
+    is why :func:`resolve_tz` prefers this for 'local'. ``TZ``, when set, is what the process
+    runs in and is final: a zone name or a zoneinfo file path resolves, and anything else (a
+    POSIX rule such as ``EST5EDT,M3.2.0,M11.1.0``) gives None rather than a zone from the
+    files below, which may name another. Unset, read ``/etc/timezone`` (Debian and
+    Raspberry Pi OS), then the ``/etc/localtime`` link's zoneinfo path.
     """
-    candidates = [os.environ.get("TZ", "").lstrip(":")]
+    tz_env = os.environ.get("TZ")
+    if tz_env:
+        return _zone_named(tz_env.lstrip(":"))
     try:
-        candidates.append(Path("/etc/timezone").read_text().strip())
+        named = _zone_named(Path("/etc/timezone").read_text().strip())
     except OSError:
-        pass
-    target = os.path.realpath("/etc/localtime")
-    if "zoneinfo/" in target:
-        candidates.append(target.split("zoneinfo/", 1)[1])
-    for name in candidates:
-        if not name:
-            continue
-        try:
-            return zoneinfo.ZoneInfo(name)
-        except (zoneinfo.ZoneInfoNotFoundError, ValueError):
-            continue
-    return None
+        named = None
+    return named or _zone_named(os.path.realpath("/etc/localtime"))
+
+
+def _zone_named(name: str) -> zoneinfo.ZoneInfo | None:
+    """*name* as a zone: an IANA key, or a path under a zoneinfo directory."""
+    if "zoneinfo/" in name:
+        name = name.split("zoneinfo/", 1)[1]
+    if not name or name.startswith("/"):
+        return None
+    try:
+        return zoneinfo.ZoneInfo(name)
+    except (zoneinfo.ZoneInfoNotFoundError, ValueError):
+        return None
 
 
 def resolve_tz(tz_name: str) -> tzinfo:
-    """Return a tzinfo for the given IANA name, or the system local timezone for 'local'."""
+    """Return a tzinfo for the given IANA name, or the host's zone for 'local'.
+
+    'local' is the host's named zone (:func:`host_zone`), so its DST rules hold for every
+    instant: a fixed offset taken now put moonrise, calendar days and quiet hours an hour out
+    across a changeover. Only a host whose zone cannot be named gets that fixed offset.
+    """
     if tz_name == "local":
+        named = host_zone()
+        if named is not None:
+            return named
         tz = datetime.now().astimezone().tzinfo  # allow-naive-datetime — extracting local tzinfo
         if tz is None:
             logger.warning("Could not determine local timezone; falling back to UTC")

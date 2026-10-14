@@ -393,6 +393,42 @@ class TestResolveTz:
         # System tz should always resolve on CI/Linux (UTC at worst).
         assert tz is not None
 
+    def test_local_is_the_named_host_zone(self, monkeypatch):
+        """'local' keeps DST rules: the spring-forward day has both offsets."""
+        import time
+        import zoneinfo
+        from datetime import datetime as real_datetime
+
+        from src.config import resolve_tz
+
+        monkeypatch.setenv("TZ", "America/New_York")
+        time.tzset()
+        try:
+            tz = resolve_tz("local")
+            assert tz == zoneinfo.ZoneInfo("America/New_York")
+            before = real_datetime(2026, 3, 8, 1, 0, tzinfo=tz).utcoffset()
+            after = real_datetime(2026, 3, 8, 9, 0, tzinfo=tz).utcoffset()
+            assert (before.total_seconds(), after.total_seconds()) == (-5 * 3600, -4 * 3600)
+        finally:
+            monkeypatch.undo()
+            time.tzset()
+
+    def test_unreadable_tz_does_not_fall_through_to_the_files(self, monkeypatch, tmp_path):
+        """An explicit TZ is final: a POSIX rule gives no named zone, not /etc/timezone's."""
+        from src import config
+        from src.config import host_zone
+
+        etc = tmp_path / "timezone"
+        etc.write_text("Europe/Paris\n")
+        real_path = config.Path
+        monkeypatch.setattr(config, "Path", lambda p: etc if p == "/etc/timezone" else real_path(p))
+        monkeypatch.setenv("TZ", "EST5EDT,M3.2.0,M11.1.0")
+        assert host_zone() is None
+        monkeypatch.setenv("TZ", "/usr/share/zoneinfo/America/Chicago")
+        assert str(host_zone()) == "America/Chicago"
+        monkeypatch.delenv("TZ")
+        assert str(host_zone()) == "Europe/Paris"
+
     def test_local_falls_back_to_utc_when_system_tz_missing(self, caplog):
         """When datetime.now().astimezone().tzinfo is None, fall back to UTC."""
         import logging
@@ -403,7 +439,10 @@ class TestResolveTz:
 
         fake_now = MagicMock()
         fake_now.astimezone.return_value = MagicMock(tzinfo=None)
-        with patch("src.config.datetime") as mock_dt:
+        with (
+            patch("src.config.host_zone", return_value=None),
+            patch("src.config.datetime") as mock_dt,
+        ):
             mock_dt.now.return_value = fake_now
             # Keep other datetime attributes intact for any collateral callers
             mock_dt.side_effect = real_datetime

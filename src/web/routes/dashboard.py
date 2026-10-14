@@ -29,7 +29,6 @@ from flask import Blueprint, current_app, jsonify
 
 from src._time import now_local, to_aware
 from src.astronomy import moon_times
-from src.config import host_zone
 from src.data.models import StalenessLevel
 from src.fetchers.cache import check_staleness, load_cache_blob, load_cached_source_from_blob
 from src.fetchers.registry import get_fetcher
@@ -163,11 +162,7 @@ def _units(sources: dict[str, dict], cfg) -> str:
 @dashboard_bp.route("/api/dashboard")
 def api_dashboard():
     cfg = current_app.config["DASH_CFG"]
-    tz = config_tz(cfg)
-    if getattr(cfg, "timezone", "local") == "local":
-        # The host's named zone, not the offset in force now: moonrise on the far side of a
-        # DST change needs that day's offset, and a client counts days in a named zone.
-        tz = host_zone() or tz
+    tz = config_tz(cfg)  # 'local' is the host's named zone, so clients get it by name
     now = now_local(tz)
     blob = load_cache_blob(current_app.config["STATE_DIR"])
 
