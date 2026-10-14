@@ -192,3 +192,44 @@ def test_moon_rise_and_set_need_coordinates(tmp_path, client):
     times = [datetime.fromisoformat(t) for t in (moon["rise"], moon["set"]) if t]
     assert times, "a located dashboard has a moonrise or a moonset on most days"
     assert all(t.utcoffset() is not None for t in times)
+
+
+def test_local_zone_moon_times_take_the_offset_of_their_own_date(tmp_path, monkeypatch):
+    # On the spring-forward day a fixed offset taken at 01:00 EST would stamp every later
+    # moonrise or moonset -05:00; New York's rules give -04:00 from 03:00.
+    import time
+    from zoneinfo import ZoneInfo as Zone
+
+    from src.astronomy import moon_times
+
+    monkeypatch.setenv("TZ", ZONE)
+    time.tzset()
+    try:
+        web_yaml = tmp_path / "web.yaml"
+        web_yaml.write_text("port: 8080\n")
+        cfg_yaml = tmp_path / "config.yaml"
+        cfg_yaml.write_text('timezone: "local"\nweather:\n  latitude: 40.71\n  longitude: -74.0\n')
+        app = create_app(web_config_path=str(web_yaml), app_config_path=str(cfg_yaml))
+        app.config["STATE_DIR"] = str(tmp_path / "state")
+        spring = datetime(2026, 3, 8, 1, 0, tzinfo=Zone(ZONE))
+        monkeypatch.setattr(
+            "src.web.routes.dashboard.now_local", lambda tz=None: spring.astimezone(tz)
+        )
+
+        body = app.test_client().get("/api/dashboard").get_json()
+        assert body["timezone"] == ZONE
+
+        expected = moon_times(spring.date(), 40.71, -74.0, tz=Zone(ZONE))
+        for key, value in (("rise", expected.rise), ("set", expected.set)):
+            sent = body["moon"][key]
+            if value is None:
+                assert sent is None
+            else:
+                assert datetime.fromisoformat(sent) == value
+                assert (
+                    datetime.fromisoformat(sent).utcoffset()
+                    == value.astimezone(Zone(ZONE)).utcoffset()
+                )
+    finally:
+        monkeypatch.undo()
+        time.tzset()

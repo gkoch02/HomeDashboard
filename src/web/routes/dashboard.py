@@ -29,6 +29,7 @@ from flask import Blueprint, current_app, jsonify
 
 from src._time import now_local, to_aware
 from src.astronomy import moon_times
+from src.config import host_zone
 from src.data.models import StalenessLevel
 from src.fetchers.cache import check_staleness, load_cache_blob, load_cached_source_from_blob
 from src.fetchers.registry import get_fetcher
@@ -53,7 +54,8 @@ SCHEMA_VERSION = 1
 
 
 def _zone_name(tz) -> str | None:
-    """The IANA name of *tz* when it has one; a fixed-offset ``local`` zone has none."""
+    """The IANA name of *tz* when it has one; ``local`` on a host whose zone cannot be named
+    is a fixed offset and has none."""
     return getattr(tz, "key", None)
 
 
@@ -162,6 +164,10 @@ def _units(sources: dict[str, dict], cfg) -> str:
 def api_dashboard():
     cfg = current_app.config["DASH_CFG"]
     tz = config_tz(cfg)
+    if getattr(cfg, "timezone", "local") == "local":
+        # The host's named zone, not the offset in force now: moonrise on the far side of a
+        # DST change needs that day's offset, and a client counts days in a named zone.
+        tz = host_zone() or tz
     now = now_local(tz)
     blob = load_cache_blob(current_app.config["STATE_DIR"])
 
