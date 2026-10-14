@@ -76,6 +76,14 @@ _LABEL_FONT_PT = 18
 _FRAME_CLEARANCE = 10
 
 
+def is_supermoon(today: date) -> bool:
+    """True when *today*'s moon is (near) full and close to perigee."""
+    distance = moon_distance_earth_radii(
+        datetime(today.year, today.month, today.day, 12, tzinfo=timezone.utc)
+    )
+    return moon_illumination(today) >= 97.0 and distance < _SUPERMOON_DISTANCE_ER
+
+
 # Tone + geometry helpers
 
 
@@ -466,10 +474,7 @@ def _draw_plate(
     tones = _moon_tones(style, mode, dark_canvas)
 
     # Supermoon = a (near-)full moon close to perigee.
-    distance = moon_distance_earth_radii(
-        datetime(today.year, today.month, today.day, 12, tzinfo=timezone.utc)
-    )
-    supermoon = moon_illumination(today) >= 97.0 and distance < _SUPERMOON_DISTANCE_ER
+    supermoon = is_supermoon(today)
 
     # Top block: date + phase name + illumination.
     y = _draw_date_line(draw, today, cx, y0 + 10, style)

@@ -160,3 +160,34 @@ def test_units_follow_the_cached_weather_not_the_config(app, client):
 
 def test_units_fall_back_to_config_without_weather(client):
     assert client.get("/api/dashboard").get_json()["units"] == "imperial"
+
+
+def test_moon_block_matches_the_panel_math(client):
+    from src.render.moon import moon_illumination, moon_phase_fraction, moon_phase_name
+
+    moon = client.get("/api/dashboard").get_json()["moon"]
+    today = datetime.now(ZoneInfo(ZONE)).date()
+    assert moon["phase_name"] == moon_phase_name(today)
+    assert [d["date"] for d in moon["days"]] == [
+        (today + timedelta(days=n)).isoformat() for n in range(-3, 4)
+    ]
+    centre = moon["days"][3]
+    assert centre["fraction"] == round(moon_phase_fraction(today), 4)
+    assert centre["illumination"] == round(moon_illumination(today), 1)
+    assert moon["next"]["kind"] in {"full", "new"}
+    assert moon["quote"]["text"]
+
+
+def test_moon_rise_and_set_need_coordinates(tmp_path, client):
+    assert client.get("/api/dashboard").get_json()["moon"]["rise"] is None  # (0, 0): unset
+
+    web_yaml = tmp_path / "web2.yaml"
+    web_yaml.write_text("port: 8080\n")
+    cfg_yaml = tmp_path / "config2.yaml"
+    cfg_yaml.write_text(f'timezone: "{ZONE}"\nweather:\n  latitude: 40.71\n  longitude: -74.0\n')
+    located = create_app(web_config_path=str(web_yaml), app_config_path=str(cfg_yaml))
+    located.config["STATE_DIR"] = str(tmp_path / "state")
+    moon = located.test_client().get("/api/dashboard").get_json()["moon"]
+    times = [datetime.fromisoformat(t) for t in (moon["rise"], moon["set"]) if t]
+    assert times, "a located dashboard has a moonrise or a moonset on most days"
+    assert all(t.utcoffset() is not None for t in times)

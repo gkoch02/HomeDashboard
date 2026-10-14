@@ -193,6 +193,11 @@ def moon_phase_age(d: date) -> float:
     return _phase_fraction(d) * _SYNODIC_MONTH
 
 
+def moon_phase_fraction(d: date) -> float:
+    """Return how far through the lunation the moon is at noon UTC on *d*: 0 new, 0.5 full."""
+    return _phase_fraction(d)
+
+
 def is_waxing(d: date) -> bool:
     """Return True if the moon is in the waxing half of its synodic cycle.
 
