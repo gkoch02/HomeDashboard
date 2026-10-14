@@ -1,7 +1,8 @@
 """Dashboard data blueprint — the cached snapshot as JSON, for clients that draw it themselves.
 
 Routes:
-    GET /api/dashboard    Every enabled source from the cache, today's quote and the moon
+    GET /api/dashboard    Every enabled source from the cache, today's quote, the moon and
+                          the sun
 
 The payload is read from ``dashboard_cache.json`` and never triggers a fetch:
 the systemd timer stays the only caller of the upstream APIs, so a client
@@ -17,7 +18,9 @@ changes meaning; new optional fields do not bump it.
 
 ``moon`` is computed per request, like the moonphase panel's data block: it is pure
 math (``src/render/moon.py``, ``src/astronomy.py``), so a client draws the phase without
-porting the astronomy, and both agree on it.
+porting the astronomy, and both agree on it. ``sun`` is the same kind of block: the sun's
+altitude through the next days, which ``wide_horizon_panel`` shades its sky by, so a client
+draws the same sky without the solar position maths.
 """
 
 from __future__ import annotations
@@ -27,8 +30,8 @@ from pathlib import Path
 
 from flask import Blueprint, current_app, jsonify
 
-from src._time import now_local, to_aware
-from src.astronomy import moon_times
+from src._time import day_start_utc, now_local, to_aware
+from src.astronomy import moon_times, solar_altitude, sun_times
 from src.data.models import StalenessLevel
 from src.fetchers.cache import check_staleness, load_cache_blob, load_cached_source_from_blob
 from src.fetchers.registry import get_fetcher
@@ -50,6 +53,11 @@ from src.web.state_reader import config_tz
 dashboard_bp = Blueprint("dashboard", __name__)
 
 SCHEMA_VERSION = 1
+
+# The sun block's sampling: every 15 minutes is finer than any sky needs at TV width, and
+# four days from midnight cover a 72-hour window starting at any hour today.
+SUN_STEP_MINUTES = 15
+SUN_DAYS = 4
 
 
 def _zone_name(tz) -> str | None:
@@ -149,6 +157,44 @@ def _moon(cfg, tz, now: datetime) -> dict:
     }
 
 
+def _sun(cfg, tz, now: datetime) -> dict | None:
+    """The sun's altitude every ``SUN_STEP_MINUTES`` from midnight today for ``SUN_DAYS``
+    days, and each of those days' solar noon, or None without coordinates.
+
+    ``altitudes`` are degrees (negative below the horizon) at ``start`` plus *k* steps of
+    real time, so a DST day has 92 or 100 samples rather than 96. Without coordinates there
+    is no sun to place; a client falls back to an arc between the weather's sunrise and
+    sunset, as ``wide_horizon_panel.altitude_fn`` does.
+    """
+    coords = usable_coords(cfg.weather.latitude, cfg.weather.longitude)
+    if coords is None:
+        return None
+    lat, lon = coords
+    today = now.date()
+    start = day_start_utc(today, tz)
+    steps = SUN_DAYS * 24 * 60 // SUN_STEP_MINUTES
+    altitudes = [
+        round(solar_altitude(start + timedelta(minutes=k * SUN_STEP_MINUTES), lat, lon), 1)
+        for k in range(steps + 1)
+    ]
+    noons = []
+    for delta in range(SUN_DAYS):
+        noon = sun_times(today + timedelta(days=delta), lat, lon).solar_noon
+        if noon is not None:
+            noons.append(
+                {
+                    "time": noon.astimezone(tz).isoformat(),
+                    "altitude": round(solar_altitude(noon, lat, lon), 1),
+                }
+            )
+    return {
+        "start": start.astimezone(tz).isoformat(),
+        "step_minutes": SUN_STEP_MINUTES,
+        "altitudes": altitudes,
+        "noons": noons,
+    }
+
+
 def _units(sources: dict[str, dict], cfg) -> str:
     """The units the weather on screen is in: the cached entry's own, falling back to config.
 
@@ -188,6 +234,7 @@ def api_dashboard():
             "units": _units(sources, cfg),
             "quote": {"text": quote["text"], "author": quote["author"]},
             "moon": _moon(cfg, tz, now),
+            "sun": _sun(cfg, tz, now),
             "sources": sources,
         }
     )
