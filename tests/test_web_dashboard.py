@@ -120,3 +120,32 @@ def test_route_requires_auth_when_configured(tmp_path):
     web_yaml.write_text(f'auth:\n  username: "admin"\n  password_hash: "{hash_password("pw")}"\n')
     app = create_app(web_config_path=str(web_yaml), app_config_path=None)
     assert app.test_client().get("/api/dashboard").status_code == 401
+
+
+def test_local_zone_events_take_the_offset_of_their_own_date(tmp_path, monkeypatch):
+    # A fixed-offset "local" zone taken in October would stamp -04:00 on a November event.
+    import time
+
+    monkeypatch.setenv("TZ", ZONE)
+    time.tzset()
+    try:
+        web_yaml = tmp_path / "web.yaml"
+        web_yaml.write_text("port: 8080\n")
+        cfg_yaml = tmp_path / "config.yaml"
+        cfg_yaml.write_text('timezone: "local"\n')
+        app = create_app(web_config_path=str(web_yaml), app_config_path=str(cfg_yaml))
+        app.config["STATE_DIR"] = str(tmp_path / "state")
+        october = datetime(2026, 10, 14, 9, 0)
+        november = datetime(2026, 11, 2, 9, 0)
+        events = [
+            CalendarEvent("Before", october, october + timedelta(hours=1)),
+            CalendarEvent("After", november, november + timedelta(hours=1)),
+        ]
+        save_source("events", events, _now(), app.config["STATE_DIR"])
+
+        sent = app.test_client().get("/api/dashboard").get_json()["sources"]["events"]["data"]
+        offsets = {e["summary"]: datetime.fromisoformat(e["start"]).utcoffset() for e in sent}
+        assert offsets == {"Before": timedelta(hours=-4), "After": timedelta(hours=-5)}
+    finally:
+        monkeypatch.undo()
+        time.tzset()

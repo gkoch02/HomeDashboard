@@ -42,6 +42,20 @@ def _zone_name(tz) -> str | None:
     return getattr(tz, "key", None)
 
 
+def _attach_zone(naive: datetime, cfg, tz) -> datetime:
+    """*naive* local wall-clock with the offset it has on its own date.
+
+    ``local`` resolves to a fixed offset taken from the current moment, which would put
+    an event on the far side of a DST change an hour out; the host's local rules apply
+    the offset in force on the event's date instead.
+    """
+    if naive.tzinfo is not None:
+        return naive
+    if getattr(cfg, "timezone", "local") == "local":
+        return naive.astimezone()
+    return to_aware(naive, tz)
+
+
 def _source_block(name: str, blob: dict | None, cfg, tz, now: datetime) -> dict | None:
     """One source's entry, or None when the source is disabled in config."""
     fetcher = get_fetcher(name)
@@ -62,7 +76,7 @@ def _source_block(name: str, blob: dict | None, cfg, tz, now: datetime) -> dict 
         payload = fetcher.serialize(filter_events(data, cfg.filters))
         for event in payload:
             for key in ("start", "end"):
-                event[key] = to_aware(datetime.fromisoformat(event[key]), tz).isoformat()
+                event[key] = _attach_zone(datetime.fromisoformat(event[key]), cfg, tz).isoformat()
     else:
         payload = fetcher.serialize(data)
     return {
@@ -85,10 +99,11 @@ def api_dashboard():
         if block is not None:
             sources[name] = block
 
+    # Called as qotd_panel and info_panel call it, so a sub-daily cadence buckets on the
+    # same clock and the TV shows the panel's quote.
     quote = quote_for(
         now.date(),
         refresh=cfg.cache.quote_refresh,
-        now=now.replace(tzinfo=None),
         path=Path(cfg.quotes.path) if cfg.quotes.path else None,
     )
     return jsonify(
