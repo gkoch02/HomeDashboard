@@ -61,3 +61,12 @@ def _timer_interval() -> int:
     gaps = {(b - a) % 60 for a, b in zip(minutes, minutes[1:] + minutes[:1])}
     (gap,) = gaps
     return gap * 60
+
+
+def test_web_enable_advertises_the_dashboard_over_bonjour():
+    avahi = (ROOT / "deploy" / "dashboard-web.avahi.service").read_text()
+    assert "<type>_homedash._tcp</type>" in avahi
+    assert "<port>__PORT__</port>" in avahi
+    makefile = (ROOT / "Makefile").read_text()
+    recipe = re.search(r"^web-enable:.*?(?=^\S)", makefile, re.M | re.S)
+    assert recipe and "deploy/dashboard-web.avahi.service" in recipe.group(0)
