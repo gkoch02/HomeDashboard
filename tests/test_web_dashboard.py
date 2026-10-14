@@ -1,0 +1,122 @@
+"""Tests for GET /api/dashboard — the cached snapshot served to native clients."""
+
+from datetime import date, datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
+
+import pytest
+
+from src.data.models import Birthday, CalendarEvent, WeatherData
+from src.fetchers.cache import save_source
+from src.web.app import create_app
+from src.web.routes.dashboard import SCHEMA_VERSION
+
+ZONE = "America/New_York"
+
+
+@pytest.fixture()
+def app(tmp_path):
+    web_yaml = tmp_path / "web.yaml"
+    web_yaml.write_text("port: 8080\n")
+    cfg_yaml = tmp_path / "config.yaml"
+    cfg_yaml.write_text(
+        f'timezone: "{ZONE}"\n'
+        "filters:\n"
+        '  exclude_keywords: ["secret"]\n'
+        "birthdays:\n"
+        '  source: "file"\n'
+    )
+    application = create_app(web_config_path=str(web_yaml), app_config_path=str(cfg_yaml))
+    application.config["TESTING"] = True
+    application.config["STATE_DIR"] = str(tmp_path / "state")
+    return application
+
+
+@pytest.fixture()
+def client(app):
+    return app.test_client()
+
+
+def _now():
+    return datetime.now(timezone.utc)
+
+
+def _weather():
+    return WeatherData(
+        current_temp=61.0,
+        current_icon="02d",
+        current_description="few clouds",
+        high=66.0,
+        low=50.0,
+        humidity=48,
+    )
+
+
+def test_empty_cache_reports_every_enabled_source_as_unknown(client):
+    body = client.get("/api/dashboard").get_json()
+    assert body["schema_version"] == SCHEMA_VERSION
+    assert body["timezone"] == ZONE
+    assert body["sources"]["events"] == {"fetched_at": None, "staleness": "unknown", "data": None}
+    assert body["sources"]["weather"]["data"] is None
+
+
+def test_disabled_source_is_omitted(client):
+    # PurpleAir is on only with an api_key and sensor_id; the fixture sets neither.
+    assert "air_quality" not in client.get("/api/dashboard").get_json()["sources"]
+
+
+def test_fresh_sources_carry_their_data(app, client):
+    state = app.config["STATE_DIR"]
+    save_source("weather", _weather(), _now(), state)
+    save_source("birthdays", [Birthday("Ada", date(1990, 12, 10), 36)], _now(), state)
+
+    sources = client.get("/api/dashboard").get_json()["sources"]
+    assert sources["weather"]["staleness"] == "fresh"
+    assert sources["weather"]["data"]["current_temp"] == 61.0
+    assert sources["birthdays"]["data"] == [{"name": "Ada", "date": "1990-12-10", "age": 36}]
+
+
+def test_event_times_carry_the_configured_offset(app, client):
+    start = datetime(2026, 10, 14, 9, 30)  # naive local, as fetchers store it
+    event = CalendarEvent("Dentist", start, start + timedelta(hours=1))
+    save_source("events", [event], _now(), app.config["STATE_DIR"])
+
+    (sent,) = client.get("/api/dashboard").get_json()["sources"]["events"]["data"]
+    sent_start = datetime.fromisoformat(sent["start"])
+    assert sent_start.utcoffset() is not None
+    assert sent_start == start.replace(tzinfo=ZoneInfo(ZONE))
+
+
+def test_events_pass_through_the_configured_filters(app, client):
+    start = datetime(2026, 10, 14, 9, 30)
+    events = [
+        CalendarEvent("Dentist", start, start + timedelta(hours=1)),
+        CalendarEvent("Secret party", start, start + timedelta(hours=2)),
+    ]
+    save_source("events", events, _now(), app.config["STATE_DIR"])
+
+    sent = client.get("/api/dashboard").get_json()["sources"]["events"]["data"]
+    assert [e["summary"] for e in sent] == ["Dentist"]
+
+
+def test_expired_source_sends_no_data(app, client):
+    long_ago = _now() - timedelta(days=30)
+    save_source("weather", _weather(), long_ago, app.config["STATE_DIR"])
+
+    weather = client.get("/api/dashboard").get_json()["sources"]["weather"]
+    assert weather["staleness"] == "expired"
+    assert weather["data"] is None
+    assert weather["fetched_at"] is not None
+
+
+def test_quote_is_included(client):
+    quote = client.get("/api/dashboard").get_json()["quote"]
+    assert quote["text"] and quote["author"]
+
+
+def test_route_requires_auth_when_configured(tmp_path):
+    from src.web.auth import hash_password
+
+    web_yaml = tmp_path / "web.yaml"
+    web_yaml.write_text(f'auth:\n  username: "admin"\n  password_hash: "{hash_password("pw")}"\n')
+    app = create_app(web_config_path=str(web_yaml), app_config_path=None)
+    assert app.test_client().get("/api/dashboard").status_code == 401

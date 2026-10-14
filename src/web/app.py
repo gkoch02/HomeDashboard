@@ -12,6 +12,7 @@ P1 blueprints (read-only status):
     status_bp   — GET /  and  GET /api/status
     image_bp    — GET /image/latest  and  GET /image/theme/<name>
     logs_bp     — GET /api/logs
+    dashboard_bp — GET /api/dashboard  (cached data as JSON, for native clients)
 
 P2 blueprints (config controls):
     config_bp   — GET /config  GET/POST /api/config
@@ -153,6 +154,7 @@ def create_app(
     app.jinja_env.globals["csrf_token"] = get_csrf_token
 
     # --- Register P1 blueprints ---
+    from src.web.routes.dashboard import dashboard_bp
     from src.web.routes.image import image_bp
     from src.web.routes.logs import logs_bp
     from src.web.routes.status import status_bp
@@ -160,6 +162,7 @@ def create_app(
     app.register_blueprint(status_bp)
     app.register_blueprint(image_bp)
     app.register_blueprint(logs_bp)
+    app.register_blueprint(dashboard_bp)
 
     # P2 blueprints
     from src.web.routes.actions import actions_bp

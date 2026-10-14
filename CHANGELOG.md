@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added
+
+- `GET /api/dashboard` serves the cached data as JSON (per-source data,
+  `fetched_at` and staleness, plus today's quote) so a native client can draw
+  the dashboard at its own resolution. It reads the cache only and never
+  fetches. `make web-enable` also advertises the web UI over Bonjour as
+  `_homedash._tcp` when `avahi-daemon` is present.
+
 ### Fixed
 
 - Moon phases now follow the real sky. `src/render/moon.py` counted average
