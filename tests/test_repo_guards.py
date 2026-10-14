@@ -128,6 +128,18 @@ class TestClaudeMdBudget:
         assert any(e.startswith("CLAUDE.md:") for e in errors), errors
 
 
+class TestReadmeThemeCount:
+    def test_repo_readme_states_no_theme_count(self):
+        assert check_docs.check_readme_theme_count() == []
+
+    def test_a_stated_count_is_rejected(self):
+        assert check_docs.check_readme_theme_count("- 35 built-in themes plus rotation\n")
+        assert check_docs.check_readme_theme_count("Ships 36 Themes.\n")
+
+    def test_prose_without_a_count_passes(self):
+        assert check_docs.check_readme_theme_count("- A catalog of built-in themes\n") == []
+
+
 class TestThemeEntryBudget:
     def test_repo_themes_md_is_within_budget(self):
         assert check_docs.check_theme_entry_budget() == []
