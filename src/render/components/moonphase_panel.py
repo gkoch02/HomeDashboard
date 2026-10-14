@@ -18,10 +18,10 @@ Used by the ``moonphase`` and ``moonphase_invert`` themes.
 
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timedelta
 from typing import TYPE_CHECKING
 
-from src.astronomy import moon_distance_earth_radii, moon_times
+from src.astronomy import moon_times
 from src.render.fonts import (
     cinzel_bold,
     cormorant_bold,
@@ -30,6 +30,7 @@ from src.render.fonts import (
     manufacturing_consent,
 )
 from src.render.moon import (
+    is_supermoon,
     moon_illumination,
     moon_phase_age,
     moon_phase_name,
@@ -56,11 +57,6 @@ if TYPE_CHECKING:
 from src.render.primitives import usable_coords
 from src.render.quotes import quote_for
 from src.render.theme import ComponentRegion, ThemeStyle
-
-# A full moon nearer than this (Earth radii) counts as a supermoon.  ~57.4 ER
-# ≈ 365,700 km, matching the common "within ~90% of perigee distance"
-# definition closely enough for a celebratory badge.
-_SUPERMOON_DISTANCE_ER = 57.4
 
 # Hero lunar-disc radius (px); the flanking filmstrip moons are smaller.
 _HERO_R = 95
@@ -466,10 +462,7 @@ def _draw_plate(
     tones = _moon_tones(style, mode, dark_canvas)
 
     # Supermoon = a (near-)full moon close to perigee.
-    distance = moon_distance_earth_radii(
-        datetime(today.year, today.month, today.day, 12, tzinfo=timezone.utc)
-    )
-    supermoon = moon_illumination(today) >= 97.0 and distance < _SUPERMOON_DISTANCE_ER
+    supermoon = is_supermoon(today)
 
     # Top block: date + phase name + illumination.
     y = _draw_date_line(draw, today, cx, y0 + 10, style)

@@ -1,7 +1,7 @@
 """Dashboard data blueprint — the cached snapshot as JSON, for clients that draw it themselves.
 
 Routes:
-    GET /api/dashboard    Every enabled source from the cache, plus today's quote
+    GET /api/dashboard    Every enabled source from the cache, today's quote and the moon
 
 The payload is read from ``dashboard_cache.json`` and never triggers a fetch:
 the systemd timer stays the only caller of the upstream APIs, so a client
@@ -14,6 +14,10 @@ Event times are stored as naive local wall-clock; they are sent with the
 configured zone's offset attached, so a client in another zone still places
 them correctly. ``schema_version`` changes whenever a field is removed or
 changes meaning; new optional fields do not bump it.
+
+``moon`` is computed per request, like the moonphase panel's data block: it is pure
+math (``src/render/moon.py``, ``src/astronomy.py``), so a client draws the phase without
+porting the astronomy, and both agree on it.
 """
 
 from __future__ import annotations
@@ -24,10 +28,22 @@ from pathlib import Path
 from flask import Blueprint, current_app, jsonify
 
 from src._time import now_local, to_aware
+from src.astronomy import moon_times
+from src.config import host_zone
 from src.data.models import StalenessLevel
 from src.fetchers.cache import check_staleness, load_cache_blob, load_cached_source_from_blob
 from src.fetchers.registry import get_fetcher
 from src.filters import filter_events
+from src.render.moon import (
+    is_supermoon,
+    moon_illumination,
+    moon_phase_age,
+    moon_phase_fraction,
+    moon_phase_name,
+    next_full_moon,
+    next_new_moon,
+)
+from src.render.primitives import usable_coords
 from src.render.quotes import quote_for
 from src.web.sources import source_names
 from src.web.state_reader import config_tz
@@ -38,7 +54,8 @@ SCHEMA_VERSION = 1
 
 
 def _zone_name(tz) -> str | None:
-    """The IANA name of *tz* when it has one; a fixed-offset ``local`` zone has none."""
+    """The IANA name of *tz* when it has one; ``local`` on a host whose zone cannot be named
+    is a fixed offset and has none."""
     return getattr(tz, "key", None)
 
 
@@ -86,6 +103,53 @@ def _source_block(name: str, blob: dict | None, cfg, tz, now: datetime) -> dict 
     }
 
 
+def _moon(cfg, tz, now: datetime) -> dict:
+    """Today's moon and the six days around it, as the moonphase panel computes them.
+
+    ``fraction`` is the point in the lunation at noon UTC on the day (0 new, 0.5 full;
+    waxing below 0.5), which is what a client needs to draw the terminator. ``rise`` and
+    ``set`` are present only when the dashboard has coordinates, as on the panel.
+    """
+    today = now.date()
+    full_date, full_days = next_full_moon(today, tz)
+    new_date, new_days = next_new_moon(today, tz)
+    if full_days <= new_days:
+        upcoming = {"kind": "full", "date": full_date.isoformat(), "days": full_days}
+    else:
+        upcoming = {"kind": "new", "date": new_date.isoformat(), "days": new_days}
+
+    rise = moonset = None
+    coords = usable_coords(cfg.weather.latitude, cfg.weather.longitude)
+    if coords is not None:
+        times = moon_times(today, *coords, tz=tz)
+        rise = times.rise.astimezone(tz).isoformat() if times.rise else None
+        moonset = times.set.astimezone(tz).isoformat() if times.set else None
+
+    def day(d) -> dict:
+        return {
+            "date": d.isoformat(),
+            "age_days": round(moon_phase_age(d), 2),
+            "fraction": round(moon_phase_fraction(d), 4),
+            "illumination": round(moon_illumination(d), 1),
+        }
+
+    quote = quote_for(
+        today,
+        refresh=cfg.cache.quote_refresh,
+        prefix="moonphase-",
+        path=Path(cfg.quotes.path) if cfg.quotes.path else None,
+    )
+    return {
+        "phase_name": moon_phase_name(today),
+        "supermoon": is_supermoon(today),
+        "rise": rise,
+        "set": moonset,
+        "next": upcoming,
+        "days": [day(today + timedelta(days=delta)) for delta in range(-3, 4)],
+        "quote": {"text": quote["text"], "author": quote["author"]},
+    }
+
+
 def _units(sources: dict[str, dict], cfg) -> str:
     """The units the weather on screen is in: the cached entry's own, falling back to config.
 
@@ -100,6 +164,10 @@ def _units(sources: dict[str, dict], cfg) -> str:
 def api_dashboard():
     cfg = current_app.config["DASH_CFG"]
     tz = config_tz(cfg)
+    if getattr(cfg, "timezone", "local") == "local":
+        # The host's named zone, not the offset in force now: moonrise on the far side of a
+        # DST change needs that day's offset, and a client counts days in a named zone.
+        tz = host_zone() or tz
     now = now_local(tz)
     blob = load_cache_blob(current_app.config["STATE_DIR"])
 
@@ -124,6 +192,7 @@ def api_dashboard():
             "utc_offset_seconds": int((now.utcoffset() or timedelta(0)).total_seconds()),
             "units": _units(sources, cfg),
             "quote": {"text": quote["text"], "author": quote["author"]},
+            "moon": _moon(cfg, tz, now),
             "sources": sources,
         }
     )

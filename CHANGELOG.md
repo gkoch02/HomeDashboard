@@ -8,6 +8,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
+- `GET /api/dashboard` also returns `moon`: the moonphase panel's data, with a
+  seven-day filmstrip of lunation fractions, so a native client draws the
+  phase without porting the astronomy. With `timezone: local` the route uses
+  the host's named zone (`config.host_zone()`), so moonrise and moonset keep
+  their own date's DST offset and `timezone` is sent by name.
 - `GET /api/dashboard` serves the cached data as JSON (per-source data,
   `fetched_at` and staleness, plus today's quote) so a native client can draw
   the dashboard at its own resolution. It reads the cache only and never

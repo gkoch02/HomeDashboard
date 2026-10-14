@@ -193,6 +193,11 @@ def moon_phase_age(d: date) -> float:
     return _phase_fraction(d) * _SYNODIC_MONTH
 
 
+def moon_phase_fraction(d: date) -> float:
+    """Return how far through the lunation the moon is at noon UTC on *d*: 0 new, 0.5 full."""
+    return _phase_fraction(d)
+
+
 def is_waxing(d: date) -> bool:
     """Return True if the moon is in the waxing half of its synodic cycle.
 
@@ -247,3 +252,17 @@ def next_phase_date(today: date, target_fraction: float, tz: tzinfo | None = Non
     if target_fraction not in (0.0, 0.5):
         raise ValueError(f"only new (0.0) and full (0.5) moons are supported: {target_fraction}")
     return _next_principal_date(today - timedelta(days=1), target_fraction, tz)
+
+
+# A full moon nearer than this (Earth radii) counts as a supermoon.  ~57.4 ER
+# ≈ 365,700 km, matching the common "within ~90% of perigee distance"
+# definition closely enough for a celebratory badge.
+_SUPERMOON_DISTANCE_ER = 57.4
+
+
+def is_supermoon(d: date) -> bool:
+    """True when the moon at noon UTC on *d* is (near) full and close to perigee."""
+    from src.astronomy import moon_distance_earth_radii
+
+    distance = moon_distance_earth_radii(_noon_utc(d))
+    return moon_illumination(d) >= 97.0 and distance < _SUPERMOON_DISTANCE_ER

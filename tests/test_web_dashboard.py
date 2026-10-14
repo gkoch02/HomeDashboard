@@ -160,3 +160,76 @@ def test_units_follow_the_cached_weather_not_the_config(app, client):
 
 def test_units_fall_back_to_config_without_weather(client):
     assert client.get("/api/dashboard").get_json()["units"] == "imperial"
+
+
+def test_moon_block_matches_the_panel_math(client):
+    from src.render.moon import moon_illumination, moon_phase_fraction, moon_phase_name
+
+    body = client.get("/api/dashboard").get_json()
+    moon = body["moon"]
+    today = datetime.fromisoformat(body["generated_at"]).date()  # the request's own day
+    assert moon["phase_name"] == moon_phase_name(today)
+    assert [d["date"] for d in moon["days"]] == [
+        (today + timedelta(days=n)).isoformat() for n in range(-3, 4)
+    ]
+    centre = moon["days"][3]
+    assert centre["fraction"] == round(moon_phase_fraction(today), 4)
+    assert centre["illumination"] == round(moon_illumination(today), 1)
+    assert moon["next"]["kind"] in {"full", "new"}
+    assert moon["quote"]["text"]
+
+
+def test_moon_rise_and_set_need_coordinates(tmp_path, client):
+    assert client.get("/api/dashboard").get_json()["moon"]["rise"] is None  # (0, 0): unset
+
+    web_yaml = tmp_path / "web2.yaml"
+    web_yaml.write_text("port: 8080\n")
+    cfg_yaml = tmp_path / "config2.yaml"
+    cfg_yaml.write_text(f'timezone: "{ZONE}"\nweather:\n  latitude: 40.71\n  longitude: -74.0\n')
+    located = create_app(web_config_path=str(web_yaml), app_config_path=str(cfg_yaml))
+    located.config["STATE_DIR"] = str(tmp_path / "state")
+    moon = located.test_client().get("/api/dashboard").get_json()["moon"]
+    times = [datetime.fromisoformat(t) for t in (moon["rise"], moon["set"]) if t]
+    assert times, "a located dashboard has a moonrise or a moonset on most days"
+    assert all(t.utcoffset() is not None for t in times)
+
+
+def test_local_zone_moon_times_take_the_offset_of_their_own_date(tmp_path, monkeypatch):
+    # On the spring-forward day a fixed offset taken at 01:00 EST would stamp every later
+    # moonrise or moonset -05:00; New York's rules give -04:00 from 03:00.
+    import time
+    from zoneinfo import ZoneInfo as Zone
+
+    from src.astronomy import moon_times
+
+    monkeypatch.setenv("TZ", ZONE)
+    time.tzset()
+    try:
+        web_yaml = tmp_path / "web.yaml"
+        web_yaml.write_text("port: 8080\n")
+        cfg_yaml = tmp_path / "config.yaml"
+        cfg_yaml.write_text('timezone: "local"\nweather:\n  latitude: 40.71\n  longitude: -74.0\n')
+        app = create_app(web_config_path=str(web_yaml), app_config_path=str(cfg_yaml))
+        app.config["STATE_DIR"] = str(tmp_path / "state")
+        spring = datetime(2026, 3, 8, 1, 0, tzinfo=Zone(ZONE))
+        monkeypatch.setattr(
+            "src.web.routes.dashboard.now_local", lambda tz=None: spring.astimezone(tz)
+        )
+
+        body = app.test_client().get("/api/dashboard").get_json()
+        assert body["timezone"] == ZONE
+
+        expected = moon_times(spring.date(), 40.71, -74.0, tz=Zone(ZONE))
+        for key, value in (("rise", expected.rise), ("set", expected.set)):
+            sent = body["moon"][key]
+            if value is None:
+                assert sent is None
+            else:
+                assert datetime.fromisoformat(sent) == value
+                assert (
+                    datetime.fromisoformat(sent).utcoffset()
+                    == value.astimezone(Zone(ZONE)).utcoffset()
+                )
+    finally:
+        monkeypatch.undo()
+        time.tzset()

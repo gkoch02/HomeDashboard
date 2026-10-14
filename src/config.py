@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import zoneinfo
 from dataclasses import dataclass, field
 from datetime import datetime, tzinfo
@@ -292,6 +293,31 @@ class Config:
         # a YAML key, and everything that walks ``dataclasses.fields(Config)``
         # (the web schema, the example-config check) must not see it as one.
         self.unreadable: list[tuple[str, str]] = []
+
+
+def host_zone() -> zoneinfo.ZoneInfo | None:
+    """The host's own IANA zone, which keeps its DST rules, or None if it cannot be named.
+
+    ``resolve_tz("local")`` is the offset in force when it is called, which is the wrong
+    offset for any instant across a DST change. Read, in order: ``TZ``, ``/etc/timezone``
+    (Debian and Raspberry Pi OS), and the ``/etc/localtime`` link's zoneinfo path.
+    """
+    candidates = [os.environ.get("TZ", "").lstrip(":")]
+    try:
+        candidates.append(Path("/etc/timezone").read_text().strip())
+    except OSError:
+        pass
+    target = os.path.realpath("/etc/localtime")
+    if "zoneinfo/" in target:
+        candidates.append(target.split("zoneinfo/", 1)[1])
+    for name in candidates:
+        if not name:
+            continue
+        try:
+            return zoneinfo.ZoneInfo(name)
+        except (zoneinfo.ZoneInfoNotFoundError, ValueError):
+            continue
+    return None
 
 
 def resolve_tz(tz_name: str) -> tzinfo:
