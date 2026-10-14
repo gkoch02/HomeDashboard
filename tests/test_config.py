@@ -413,6 +413,22 @@ class TestResolveTz:
             monkeypatch.undo()
             time.tzset()
 
+    def test_unreadable_tz_does_not_fall_through_to_the_files(self, monkeypatch, tmp_path):
+        """An explicit TZ is final: a POSIX rule gives no named zone, not /etc/timezone's."""
+        from src import config
+        from src.config import host_zone
+
+        etc = tmp_path / "timezone"
+        etc.write_text("Europe/Paris\n")
+        real_path = config.Path
+        monkeypatch.setattr(config, "Path", lambda p: etc if p == "/etc/timezone" else real_path(p))
+        monkeypatch.setenv("TZ", "EST5EDT,M3.2.0,M11.1.0")
+        assert host_zone() is None
+        monkeypatch.setenv("TZ", "/usr/share/zoneinfo/America/Chicago")
+        assert str(host_zone()) == "America/Chicago"
+        monkeypatch.delenv("TZ")
+        assert str(host_zone()) == "Europe/Paris"
+
     def test_local_falls_back_to_utc_when_system_tz_missing(self, caplog):
         """When datetime.now().astimezone().tzinfo is None, fall back to UTC."""
         import logging
