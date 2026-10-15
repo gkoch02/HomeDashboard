@@ -151,7 +151,6 @@ jobs:
 
   locked-install:
     needs: changes
-    if: needs.changes.outputs.docs_only != 'true'
     # Installs the tested dependency snapshot (constraints/py<X.Y>.txt) through
     # the same Makefile targets `make pi-install` uses, on aarch64 so the pinned
     # wheels are the ones a 64-bit Pi gets. The GPIO packages from
@@ -165,13 +164,22 @@ jobs:
       matrix:
         python-version: ["3.11", "3.13"]
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-python@v7
+      # Keep both required `locked-install (3.x)` contexts on Markdown-only PRs,
+      # as in `test`: skipping the matrix job reports a single `locked-install`.
+      - if: needs.changes.outputs.docs_only == 'true'
+        run: echo "Markdown-only change; locked install not needed."
+      - if: needs.changes.outputs.docs_only != 'true'
+        uses: actions/checkout@v7
+      - if: needs.changes.outputs.docs_only != 'true'
+        uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
-      - run: python -m venv venv
-      - run: make _pip-locked REQS="-r requirements.txt -r requirements-web.txt"
-      - name: Every installed package is the pinned version
+      - if: needs.changes.outputs.docs_only != 'true'
+        run: python -m venv venv
+      - if: needs.changes.outputs.docs_only != 'true'
+        run: make _pip-locked REQS="-r requirements.txt -r requirements-web.txt"
+      - if: needs.changes.outputs.docs_only != 'true'
+        name: Every installed package is the pinned version
         run: |
           venv/bin/python - <<'PY'
           import sys
@@ -194,11 +202,16 @@ jobs:
           assert not wrong, wrong
           print(f"{lock}: every installed package matches")
           PY
-      - run: venv/bin/pip install --no-deps -e . && venv/bin/pip install pytest pytest-cov
-      - run: venv/bin/python -m pytest tests/ --tb=short --no-cov -q
-      - run: venv/bin/python -m src.main --config config/config.example.yaml --dry-run --dummy
-      - run: make install-waveshare-driver
-      - name: Pinned driver carries every Waveshare model module
+      - if: needs.changes.outputs.docs_only != 'true'
+        run: venv/bin/pip install --no-deps -e . && venv/bin/pip install pytest pytest-cov
+      - if: needs.changes.outputs.docs_only != 'true'
+        run: venv/bin/python -m pytest tests/ --tb=short --no-cov -q
+      - if: needs.changes.outputs.docs_only != 'true'
+        run: venv/bin/python -m src.main --config config/config.example.yaml --dry-run --dummy
+      - if: needs.changes.outputs.docs_only != 'true'
+        run: make install-waveshare-driver
+      - if: needs.changes.outputs.docs_only != 'true'
+        name: Pinned driver carries every Waveshare model module
         working-directory: /tmp
         run: |
           "$GITHUB_WORKSPACE/venv/bin/python" - <<'PY'
