@@ -8,6 +8,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
+- `GET /api/dashboard` also returns `sun`: the sun's altitude every 15
+  minutes for four days from local midnight, with each day's solar noon, so a
+  native client shades its sky as `wide_horizon` does. It is `null` without
+  coordinates.
 - `GET /api/dashboard` also returns `moon`: the moonphase panel's data, with a
   seven-day filmstrip of lunation fractions, so a native client draws the
   phase without porting the astronomy. With `timezone: local` the route uses
