@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [6.2.0] - 2026-10-14
+
 ### Added
 
 - `GET /api/dashboard` also returns `sun`: the sun's altitude every 15
