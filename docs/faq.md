@@ -61,6 +61,16 @@ air quality 30 min. All configurable in `config.yaml` under `cache:`.
 - **Systemd journal**: `journalctl -u dashboard.service` (if using systemd)
 - **Quick tail**: `make pi-logs` from the project directory
 
+### Can I show the dashboard on a TV?
+
+On an Apple TV, yes: [HomeDashboardTV](https://github.com/gkoch02/HomeDashboardTV) is a
+companion app that draws the Pi's data natively at TV resolution, with layouts based on the
+`moonphase_photo`, `halftone_agenda` and `wide_horizon` themes. The Pi still does all the
+fetching; the app reads its cached data from the [Web UI](web-ui.md)'s `/api/dashboard`
+route, so it needs the Web UI running (`make web-enable`), and your calendar and weather
+credentials stay on the Pi. It is not on the App Store: you build it onto your Apple TV
+yourself with Xcode, as its README describes.
+
 ## Calendar
 
 ### ICS feed vs Google Calendar API -- which should I use?

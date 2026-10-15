@@ -69,6 +69,7 @@ sudo reboot
 - Birthdays from a file, calendar events, or Google Contacts
 - A [catalog of built-in themes](docs/themes.md) plus scheduled and random rotation modes
 - Optional Web UI for status, config editing, and manual refresh
+- An [Apple TV companion](https://github.com/gkoch02/HomeDashboardTV) that reads the Web UI and draws the same data natively on a TV
 - Per-source caching, circuit breakers, stale-data indicators, and quiet hours
 
 ## Documentation Map
