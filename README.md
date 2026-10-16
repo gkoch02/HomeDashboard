@@ -2,9 +2,13 @@
   <img src="assets/banner.png" alt="Home Dashboard" width="800">
 </p>
 
-
+<p align="center">
   <a href="https://github.com/gkoch02/HomeDashboard/actions/workflows/ci.yml"><img src="https://github.com/gkoch02/HomeDashboard/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-
+  <a href="https://github.com/gkoch02/HomeDashboard/actions/workflows/github-code-scanning/codeql"><img src="https://github.com/gkoch02/HomeDashboard/actions/workflows/github-code-scanning/codeql/badge.svg" alt="CodeQL"></a>
+  <a href="pyproject.toml"><img src="https://img.shields.io/badge/python-3.10%2B-3776AB?logo=python&logoColor=white" alt="Python 3.10+"></a>
+  <a href="https://www.raspberrypi.com"><img src="https://img.shields.io/badge/Raspberry%20Pi-C51A4A?logo=raspberrypi&logoColor=white" alt="Raspberry Pi"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="License: MIT"></a>
+</p>
 
 Home Dashboard is a low-maintenance eInk wall display for family logistics on a Raspberry Pi. It shows calendar events, weather, birthdays, quotes, and optional diagnostics on supported Waveshare and Inky displays, with graceful fallback behavior for unattended use.
 
