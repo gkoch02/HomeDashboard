@@ -435,8 +435,8 @@ def check_readme_theme_count(text: str | None = None) -> list[str]:
 
 # CLAUDE.md is read at the start of every agent session and its register gets
 # copied into new code, so its size is held here rather than left to review.
-CLAUDE_MD_MAX_WORDS = 5000
-GOTCHAS_MAX_WORDS = 3500
+CLAUDE_MD_MAX_WORDS = 3200
+GOTCHAS_MAX_WORDS = 2400
 GOTCHA_BULLET_MAX_WORDS = 100
 
 
