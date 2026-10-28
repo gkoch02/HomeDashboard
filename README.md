@@ -1,20 +1,18 @@
-<p align="center">
-  <img src="assets/banner.png" alt="Home Dashboard" width="800">
-</p>
+![Home Dashboard](assets/banner.png)
 
-<p align="center">
-  <a href="https://github.com/gkoch02/HomeDashboard/actions/workflows/ci.yml"><img src="https://github.com/gkoch02/HomeDashboard/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <a href="https://github.com/gkoch02/HomeDashboard/actions/workflows/github-code-scanning/codeql"><img src="https://github.com/gkoch02/HomeDashboard/actions/workflows/github-code-scanning/codeql/badge.svg" alt="CodeQL"></a>
-  <a href="pyproject.toml"><img src="https://img.shields.io/badge/python-3.10%2B-3776AB?logo=python&logoColor=white" alt="Python 3.10+"></a>
-  <a href="https://www.raspberrypi.com"><img src="https://img.shields.io/badge/Raspberry%20Pi-C51A4A?logo=raspberrypi&logoColor=white" alt="Raspberry Pi"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="License: MIT"></a>
-</p>
+[![CI](https://github.com/gkoch02/HomeDashboard/actions/workflows/ci.yml/badge.svg)](https://github.com/gkoch02/HomeDashboard/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/gkoch02/HomeDashboard/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/gkoch02/HomeDashboard/actions/workflows/github-code-scanning/codeql)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-3776AB?logo=python&logoColor=white)](pyproject.toml)
+[![Raspberry Pi](https://img.shields.io/badge/Raspberry%20Pi-C51A4A?logo=raspberrypi&logoColor=white)](https://www.raspberrypi.com)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
 Home Dashboard is a low-maintenance eInk wall display for family logistics on a Raspberry Pi. It shows calendar events, weather, birthdays, quotes, and optional diagnostics on supported Waveshare and Inky displays, with graceful fallback behavior for unattended use.
 
 ![Default theme preview](assets/previews/theme_default.png)
 
-## Try Without Hardware
+The week's calendar comes from the Google Calendar API or a private ICS feed; the weather, forecast and optional PurpleAir air quality from their APIs; birthdays from a file, calendar events, or Google Contacts. A [catalog of built-in themes](docs/themes.md) can be fixed, scheduled or rotated at random, including a set for the 1360 × 480 panoramic panel. Each source is cached behind a circuit breaker, so an outage shows the last good data marked stale rather than a blank panel, and quiet hours stop refreshes overnight. An optional Web UI gives status, config editing and a manual refresh in the browser, and an [Apple TV companion](https://github.com/gkoch02/HomeDashboardTV) reads it to draw the same data natively on a TV.
+
+## Running without hardware
 
 With Python 3.10+ and `make`, run from a clone:
 
@@ -30,7 +28,7 @@ make docs-check
 `make dry` writes `output/latest.png` using dummy data, without API credentials
 or display hardware. Physical display behavior still requires testing on a Pi.
 
-## Start Here
+## Installing on a Pi
 
 For a first install on a Raspberry Pi:
 
@@ -50,7 +48,18 @@ If SPI was enabled for the first time during `make pi-install`, reboot once befo
 sudo reboot
 ```
 
-## Choose Your Path
+After setup, these are the main operator commands:
+
+```bash
+make check      # validate config/config.yaml
+make dry        # render output/latest.png with dummy data
+make pi-status  # inspect timer/service status on the Pi
+make pi-logs    # tail renderer logs
+```
+
+If something looks off, go to [docs/setup.md](docs/setup.md#troubleshooting-and-recovery) and [docs/faq.md](docs/faq.md).
+
+## Documentation
 
 | If you want to... | Read this |
 |---|---|
@@ -62,38 +71,11 @@ sudo reboot
 | Run the 1360 × 480 panoramic panel (Waveshare 10.85" G) | [Panoramic Themes](docs/wide-themes.md) |
 | See the full `config.yaml` reference | [Configuration Reference](docs/configuration.md) |
 | Regenerate the per-theme preview images | [Theme Previews](docs/previews.md) |
+| Find an answer to a common operational question | [FAQ](docs/faq.md) |
 | Upgrade from an older install | [Upgrading from v4](docs/upgrading-from-v4.md) · [from v3](docs/upgrading-from-v3.md) |
 | Develop locally without hardware | [Development](docs/development.md) |
+| Understand the internals and design decisions | [Architecture](docs/architecture.md) |
 | Contribute code or docs | [Contributing](CONTRIBUTING.md) |
-
-## What You Get
-
-- Weekly calendar via Google Calendar API or private ICS feed
-- Current weather, forecast, and optional PurpleAir air quality
-- Birthdays from a file, calendar events, or Google Contacts
-- A [catalog of built-in themes](docs/themes.md) plus scheduled and random rotation modes
-- Optional Web UI for status, config editing, and manual refresh
-- An [Apple TV companion](https://github.com/gkoch02/HomeDashboardTV) that reads the Web UI and draws the same data natively on a TV
-- Per-source caching, circuit breakers, stale-data indicators, and quiet hours
-
-## Documentation Map
-
-### Operator docs
-
-- [Setup Guide](docs/setup.md) for install, Pi setup, calendar setup, and recovery
-- [Web UI](docs/web-ui.md) for browser access, auth, and service setup
-- [Configuration Reference](docs/configuration.md) for every `config.yaml` field
-- [Themes](docs/themes.md) for the live theme catalog and scheduling behavior
-- [Panoramic Themes](docs/wide-themes.md) for the 1360 × 480 strip panel and the five themes built for it
-- [FAQ](docs/faq.md) for common operational questions
-
-### Contributor docs
-
-- [Development](docs/development.md) for commands, local workflow, and repo layout
-- [Architecture](docs/architecture.md) for internals and design decisions
-- [Contributing](CONTRIBUTING.md) for contribution-specific guidance
-
-### Elsewhere
 
 There's also a project landing page at
 [plumpbug.dev/homedashboard](https://plumpbug.dev/homedashboard/home.html), maintained in
@@ -101,19 +83,6 @@ the separate [`gkoch02/plumpbug-site`](https://github.com/gkoch02/plumpbug-site)
 alongside the other Plumpbug-family projects. This repo stays the source of truth for the
 theme preview PNGs that page embeds (`assets/previews/theme_<name>.png`); re-copy them
 there if the themes are re-rendered.
-
-## Quick Checks
-
-After setup, these are the main operator commands:
-
-```bash
-make check      # validate config/config.yaml
-make dry        # render output/latest.png with dummy data
-make pi-status  # inspect timer/service status on the Pi
-make pi-logs    # tail renderer logs
-```
-
-If something looks off, go to [docs/setup.md](docs/setup.md#troubleshooting-and-recovery) and [docs/faq.md](docs/faq.md).
 
 ## License
 
