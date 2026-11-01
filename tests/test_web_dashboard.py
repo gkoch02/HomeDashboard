@@ -249,13 +249,16 @@ def test_sun_needs_coordinates(client):
     assert client.get("/api/dashboard").get_json()["sun"] is None  # (0, 0): unset
 
 
-def test_sun_block_samples_the_panel_altitude(tmp_path):
+def test_sun_block_samples_the_panel_altitude(tmp_path, monkeypatch):
     from src.astronomy import solar_altitude
     from src.web.routes.dashboard import SUN_DAYS, SUN_STEP_MINUTES
 
+    # Pinned clear of any DST transition, so the four days are 96 hours; the
+    # transition days have their own test below.
+    now = datetime(2026, 4, 15, 9, 0, tzinfo=ZoneInfo(ZONE))
+    monkeypatch.setattr("src.web.routes.dashboard.now_local", lambda tz=None: now.astimezone(tz))
     sun = _located_app(tmp_path).test_client().get("/api/dashboard").get_json()["sun"]
     start = datetime.fromisoformat(sun["start"])
-    now = datetime.now(ZoneInfo(ZONE))
     assert start == datetime.combine(now.date(), datetime.min.time(), tzinfo=ZoneInfo(ZONE))
     assert sun["step_minutes"] == SUN_STEP_MINUTES
     assert len(sun["altitudes"]) == SUN_DAYS * 24 * 60 // SUN_STEP_MINUTES + 1
