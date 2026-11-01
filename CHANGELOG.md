@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added
+
+- `halftone_agenda` shows birthdays: one that falls on the agenda's day sets
+  as an all-day row ahead of the calendar's ("Mom turns 70"), and follows
+  the TOMORROW rollover.
+
 ## [6.2.0] - 2026-10-14
 
 ### Added
