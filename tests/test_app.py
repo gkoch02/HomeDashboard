@@ -1,7 +1,7 @@
 """Tests for src/app.py — DashboardApp and _migrate_state_files."""
 
 from argparse import Namespace
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, time, timedelta
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -719,7 +719,21 @@ class TestRun:
         assert mock_resolve.call_args_list[0].kwargs.get("data") is None
         assert mock_resolve.call_args_list[1].kwargs.get("data") is not None
 
-    def test_monthly_rule_widens_event_window_pre_fetch(self, tmp_path):
+    @pytest.mark.parametrize(
+        ("today", "expected_start", "expected_days"),
+        [
+            # A Wednesday: April's Sunday-first grid opens on Mar 29, ahead of
+            # the Monday anchor (Apr 13), so the window starts at the grid.
+            (date(2026, 4, 15), date(2026, 3, 29), 35),
+            # A month whose 1st is a Sunday, on that day: the grid opens on Nov 1,
+            # after the Monday anchor (Oct 26), so the union keeps the default
+            # anchor (None) and stretches to the grid's end (Dec 6).
+            (date(2026, 11, 1), None, 41),
+        ],
+    )
+    def test_monthly_rule_widens_event_window_pre_fetch(
+        self, tmp_path, today, expected_start, expected_days
+    ):
         """If a rule can flip to `monthly`, the pre-fetch event window is sized for monthly.
 
         Without this, a weather-dependent rule that resolves to `monthly` would
@@ -743,6 +757,10 @@ class TestRun:
             patch("src.app.should_force_full_refresh", return_value=False),
             patch("src.app.generate_dummy_data", return_value=fake_data) as mock_gen,
             patch("src.app.render_dashboard", return_value=fake_image),
+            patch(
+                "src.app.now_local",
+                return_value=datetime.combine(today, time(10, 0), tzinfo=app.tz),
+            ),
             # Pre-fetch resolves to "default"; post-fetch flips to "monthly".
             patch(
                 "src.app.resolve_theme_name",
@@ -753,11 +771,10 @@ class TestRun:
         ):
             app.run()
 
-        # Dummy data must have been generated with a month-sized window
-        # (event_window_days is typically 35 for a six-week grid).
+        # Dummy data must have been generated with a month-sized window.
         kwargs = mock_gen.call_args.kwargs
-        assert kwargs["event_window_days"] > 7
-        assert kwargs["event_window_start"] is not None
+        assert kwargs["event_window_start"] == expected_start
+        assert kwargs["event_window_days"] == expected_days
 
     def test_no_monthly_rule_keeps_default_week_window(self, tmp_path):
         """Default path with no monthly rule uses the 7-day window."""
