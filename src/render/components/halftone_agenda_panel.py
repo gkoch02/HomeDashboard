@@ -14,7 +14,7 @@ Three parts:
   * **Divider** (6 px) — a full-height vertical Bayer rule.
   * **Right pane** (422 px) — a TODAY header over as many event rows as the
     pane can set at a legible size, with an "updated" caption in the bottom
-    corner.
+    corner. A birthday on the shown day joins as an all-day row.
 
 The agenda encodes each event's state in its rendering, as ``day_arc`` does:
 elapsed rows are perforated on a Bayer lattice, the event in progress inverts
@@ -33,11 +33,11 @@ tomorrow. No external assets — every illustration is PIL primitives.
 
 from __future__ import annotations
 
-from datetime import date, datetime, tzinfo
+from datetime import date, datetime, timedelta, tzinfo
 
 from PIL import Image, ImageDraw, ImageFont
 
-from src.data.models import CalendarEvent, DashboardData, WeatherData
+from src.data.models import Birthday, CalendarEvent, DashboardData, WeatherData
 from src.render.artkit import accent_red as _accent_red
 from src.render.artkit import fmt_temp, to_local_naive
 from src.render.artkit import ink as _ink
@@ -53,6 +53,7 @@ from src.render.primitives import (
     events_for_day,
     fmt_time,
     location_line,
+    next_birthday,
     text_height,
     text_width,
     wrap_lines,
@@ -235,7 +236,7 @@ def draw_halftone_agenda(
     _draw_agenda_pane(
         image,
         draw,
-        data.events,
+        birthday_events(data.birthdays, day) + data.events,
         day,
         is_tomorrow,
         now_naive,
@@ -469,6 +470,31 @@ def _draw_hairline(image: Image.Image, x0: int, y: int, w: int, mode: str) -> No
 
 
 # Right pane — agenda
+
+
+def birthday_events(birthdays: list[Birthday], day: date) -> list[CalendarEvent]:
+    """All-day agenda rows for the birthdays that fall on *day*.
+
+    A birthday shows only on its own day, as an all-day row ahead of the
+    calendar's: the pane has no room to spare for a look-ahead list, and a row
+    goes through the same density tiers and "+N more" as any event. The time
+    cell keeps "ALL DAY" because "BIRTHDAY" overruns the time column in two
+    tiers, so the title says whose birthday it is and, when known, the age.
+    """
+    start = datetime.combine(day, datetime.min.time())
+    rows = []
+    for b in sorted(birthdays, key=lambda b: b.name):
+        if next_birthday(b.date, day) != day:
+            continue
+        # Name first, so a long name loses the tail of the phrase to the
+        # ellipsis rather than the name itself.
+        summary = f"{b.name} turns {b.age}" if b.age is not None else f"{b.name}'s birthday"
+        rows.append(
+            CalendarEvent(
+                summary=summary, start=start, end=start + timedelta(days=1), is_all_day=True
+            )
+        )
+    return rows
 
 
 def event_times(event: CalendarEvent) -> tuple[str, str | None]:
