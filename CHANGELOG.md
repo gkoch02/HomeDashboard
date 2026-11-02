@@ -10,7 +10,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 - `halftone_agenda` shows birthdays: one that falls on the agenda's day sets
   as an all-day row ahead of the calendar's ("Mom turns 70"), and follows
-  the TOMORROW rollover.
+  the TOMORROW rollover. A long title with no location wraps onto the row's
+  second line instead of ellipsizing mid-name.
 
 ## [6.2.0] - 2026-10-14
 
