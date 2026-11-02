@@ -523,6 +523,51 @@ def _location_text(event: CalendarEvent) -> str:
     return location_line(event.location)
 
 
+def title_block(
+    event: CalendarEvent,
+    title_font: ImageFont.FreeTypeFont,
+    title_w: int,
+    show_location: bool,
+) -> tuple[list[str], str]:
+    """Return ``(title_lines, location)`` for one row's title column.
+
+    A tier that shows locations sizes its rows for two lines, so an event with
+    no location gives that second line to its title: a long title ("Chloe Taylor
+    Koch turns 13") wraps rather than ellipsizing at the name. An event with a
+    location, or a tier without the room, keeps one truncated line. The second
+    title line is still ellipsized by the caller when the rest overruns it.
+    """
+    location = _location_text(event) if show_location else ""
+    if not show_location or location:
+        return ([event.summary], location)
+    lines = wrap_lines(event.summary, title_font, title_w)
+    if len(lines) <= 1:
+        return ([event.summary], "")
+    return ([lines[0], " ".join(lines[1:])], "")
+
+
+def _draw_title_block(
+    draw: ImageDraw.ImageDraw,
+    event: CalendarEvent,
+    *,
+    x: int,
+    y: int,
+    title_font: ImageFont.FreeTypeFont,
+    loc_font: ImageFont.FreeTypeFont,
+    title_w: int,
+    loc_dy: int,
+    show_location: bool,
+    fill: int | tuple[int, int, int],
+) -> None:
+    """Set the title (one or two lines) and, beneath it, any location."""
+    lines, location = title_block(event, title_font, title_w, show_location)
+    line_h = text_height(title_font) + 2
+    for i, line in enumerate(lines):
+        draw_text_truncated(draw, (x, y + i * line_h), line, title_font, title_w, fill=fill)
+    if location:
+        draw_text_truncated(draw, (x, y - 2 + loc_dy), location, loc_font, title_w, fill=fill)
+
+
 def inline_range(start: str, end: str | None) -> str | None:
     """Return ``start–end`` on one line when both labels fall on the hour.
 
@@ -671,7 +716,24 @@ def _draw_event_row(
         show_location=show_location,
         two_line_time=two_line_time,
     )
+    if len(title_block(event, title_font, title_w, show_location)[0]) > 1:
+        title_h = 2 * (text_height(title_font) + 2)
     content_h = max(title_h + 4, time_h)
+
+    def _title(d: ImageDraw.ImageDraw, x: int, ty: int, fill: int | tuple[int, int, int]) -> None:
+        _draw_title_block(
+            d,
+            event,
+            x=x,
+            y=ty,
+            title_font=title_font,
+            loc_font=loc_font,
+            title_w=title_w,
+            loc_dy=loc_y,
+            show_location=show_location,
+            fill=fill,
+        )
+
     bar_top = y + 2
     bar_bot = min(y + row_h - 3, bar_top + content_h)
 
@@ -693,15 +755,7 @@ def _draw_event_row(
             row_h=row_h,
             fill=paper,
         )
-        used = draw_text_truncated(
-            draw, (title_x, y + 2), event.summary, title_font, title_w, fill=paper
-        )
-        if show_location and used:
-            location = _location_text(event)
-            if location:
-                draw_text_truncated(
-                    draw, (title_x, y + loc_y), location, loc_font, title_w, fill=paper
-                )
+        _title(draw, title_x, y + 2, paper)
         return
 
     if state == "past":
@@ -722,15 +776,7 @@ def _draw_event_row(
                 row_h=row_h,
                 fill=0,
             )
-            used_ = draw_text_truncated(
-                d, (time_w + 12, 2), event.summary, title_font, title_w, fill=0
-            )
-            if show_location and used_:
-                location = _location_text(event)
-                if location:
-                    draw_text_truncated(
-                        d, (time_w + 12, loc_y), location, loc_font, title_w, fill=0
-                    )
+            _title(d, time_w + 12, 2, 0)
 
         screened_paste(
             image, (x0, y, w, max(1, row_h - 2)), _render, threshold=past_screen(title_pt)
@@ -757,18 +803,7 @@ def _draw_event_row(
         draw.rectangle(tick, outline=mark)
     else:
         draw.rectangle(tick, fill=mark)
-    used = draw_text_truncated(draw, (title_x, y + 2), event.summary, title_font, title_w, fill=ink)
-    if show_location and used:
-        location = _location_text(event)
-        if location:
-            draw_text_truncated(
-                draw,
-                (title_x, y + loc_y),
-                location,
-                loc_font,
-                title_w,
-                fill=ink,
-            )
+    _title(draw, title_x, y + 2, ink)
 
 
 def _draw_agenda_pane(
