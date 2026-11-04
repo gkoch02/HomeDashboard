@@ -1,3 +1,13 @@
+"""The ``Config`` dataclass tree and its loader, mirroring ``config/config.yaml``.
+
+Every field is optional with a default; ``config/config.example.yaml``
+documents what each one means. ``load_config()`` is lenient by design: it
+never raises on a value it cannot read (only on a file that is not YAML), but
+keeps the default and records the problem in ``cfg.unreadable`` for
+``validate_config()`` (in ``src/config_validation.py``) to report. ``resolve_tz()`` and
+``resolve_log_level()`` turn the string settings into usable objects.
+"""
+
 from __future__ import annotations
 
 import logging
@@ -513,6 +523,15 @@ def _normalise_one_call_version(value: object) -> str:
 
 
 def load_config(path: str = "config/config.yaml") -> Config:
+    """Read *path* into a ``Config``, keeping the default for anything absent or unreadable.
+
+    A missing file logs a warning and returns ``Config()``; a file that is not
+    valid YAML raises ``yaml.YAMLError``. A value of the wrong shape is never
+    an exception: it keeps the field's default and is appended to
+    ``cfg.unreadable`` as ``(field_path, message)``, which
+    ``validate_config()`` reports. Run ``validate_config()`` on the result
+    before trusting it; this function only parses.
+    """
     config_path = Path(path)
     if not config_path.exists():
         logger.warning(
