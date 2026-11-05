@@ -1,3 +1,13 @@
+"""Fetch every enabled source concurrently, each with its own cache, breaker and staleness.
+
+``DataPipeline.fetch()`` reads the cache file once, skips sources whose cache
+is still fresh or whose circuit breaker is open, fetches the rest in a thread
+pool under one shared deadline (``FETCH_DEADLINE_SECONDS``), and falls back to
+the cached copy of any source that fails. A failure in one source never blocks
+another. ``retry_fetch()`` is the retry policy fetchers use for likely
+transient errors.
+"""
+
 from __future__ import annotations
 
 import logging

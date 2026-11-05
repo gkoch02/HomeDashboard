@@ -1,3 +1,13 @@
+"""Hardware drivers for the supported panels, plus the refresh-suppression hash.
+
+``WAVESHARE_MODELS`` and ``INKY_MODELS`` are the supported-model registry;
+``DISPLAY_SPECS`` derives each panel's size, render mode and partial-refresh
+support from them. ``build_display_driver()`` returns the ``DisplayDriver``
+for a provider; ``DryRunDisplay`` writes PNGs instead of touching hardware.
+The image is already resized and quantized by ``src/display/backend.py``
+before it reaches a driver.
+"""
+
 from __future__ import annotations
 
 import hashlib
