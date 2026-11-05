@@ -13,6 +13,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   the TOMORROW rollover. A long title with no location wraps onto the row's
   second line instead of ellipsizing mid-name.
 
+### Fixed
+
+- A `config.yaml` whose top level is a list or a bare value instead of
+  `section: value` pairs no longer crashes the renderer, `--check-config` and
+  the web UI; it loads as defaults and `--check-config` names the problem.
+
 ## [6.2.0] - 2026-10-14
 
 ### Added
