@@ -547,6 +547,19 @@ def load_config(path: str = "config/config.yaml") -> Config:
     cfg = Config()
     bad = cfg.unreadable
 
+    # A top-level list or scalar would reach the section parsers below, which
+    # call .get() on it; parse it as an empty file so the error is reported
+    # instead of escaping load_config().
+    if not isinstance(raw, dict):
+        bad.append(
+            (
+                config_path.name,
+                f"must be a mapping of sections (google:, weather:, ...), "
+                f"got {type(raw).__name__}; using defaults",
+            )
+        )
+        raw = {}
+
     if "google" in raw:
         g = _section(raw, "google")
         cfg.google = GoogleConfig(

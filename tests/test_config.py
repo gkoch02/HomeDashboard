@@ -496,6 +496,17 @@ class TestEmptySections:
         cfg = load_config(str(p))
         assert cfg == Config()
 
+    @pytest.mark.parametrize(
+        "text", ["- google\n- weather\n", "google\n", "42\n"], ids=["list", "string", "int"]
+    )
+    def test_non_mapping_top_level_falls_back_to_defaults(self, text, tmp_path):
+        """A top level that is not a mapping parses as defaults and is reported."""
+        p = tmp_path / "config.yaml"
+        p.write_text(text)
+        cfg = load_config(str(p))
+        assert cfg == Config()
+        assert [path for path, _ in cfg.unreadable] == ["config.yaml"]
+
     def test_empty_display_still_derives_model_dimensions(self, tmp_path):
         p = tmp_path / "config.yaml"
         p.write_text("display:\n")
