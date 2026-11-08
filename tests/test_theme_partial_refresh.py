@@ -56,6 +56,7 @@ DECLINES_PARTIAL = {
     "terminal",
     "trends",
     "wide_diags",
+    "wide_ephemeris",
     "wide_horizon",
     "wide_night",
     "wide_night_invert",

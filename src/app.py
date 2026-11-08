@@ -59,6 +59,10 @@ EXTRA_EVENT_DAYS: dict[str, int] = {
     # A 72-hour window starting at the current 3-hour slot reaches three days
     # past today, so on a Sunday it runs Mon–Wed of the next week.
     "wide_horizon": 3,
+    # The strip runs 23 hours past the current hour and the agenda names
+    # tomorrow, so on a Sunday evening both reach Monday.
+    "wide_ephemeris": 1,
+    "wide_ephemeris_light": 1,
 }
 
 # State files that belong in state_dir (not output_dir)

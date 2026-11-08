@@ -179,6 +179,11 @@ class ThemeLayout:
     wide_horizon: ComponentRegion = field(
         default_factory=lambda: ComponentRegion(0, 0, 1360, 480, visible=False)
     )
+    # Used by the ``wide_ephemeris`` theme: HomeDashboardTV's Ephemeris plate
+    # (the day ahead as a strip, agenda, conditions, outlook) at 1360x480.
+    wide_ephemeris: ComponentRegion = field(
+        default_factory=lambda: ComponentRegion(0, 0, 1360, 480, visible=False)
+    )
     # Used by the ``wide_night`` theme: moon, temperature, AQI and weather
     # glyph spaced across an otherwise empty 1360x480 plate.
     wide_night: ComponentRegion = field(

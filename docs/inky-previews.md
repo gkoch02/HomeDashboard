@@ -258,6 +258,18 @@ Accents: **red** primary, **yellow** secondary · [description in Themes ↗](th
 
 [![Wide forecast theme on Inky](../assets/previews/theme_wide_forecast_inky.png)](../assets/previews/theme_wide_forecast_inky.png)
 
+#### wide_ephemeris
+
+Accents: **yellow** primary, **red** secondary · [description in Themes ↗](themes.md#wide_ephemeris)
+
+[![Wide ephemeris theme on Inky](../assets/previews/theme_wide_ephemeris_inky.png)](../assets/previews/theme_wide_ephemeris_inky.png)
+
+#### wide_ephemeris_light
+
+Accents: **yellow** primary, **red** secondary · [description in Themes ↗](themes.md#wide_ephemeris_light)
+
+[![Wide ephemeris light theme on Inky](../assets/previews/theme_wide_ephemeris_light_inky.png)](../assets/previews/theme_wide_ephemeris_light_inky.png)
+
 #### wide_horizon
 
 Accents: **red** primary, **yellow** secondary · [description in Themes ↗](themes.md#wide_horizon)
