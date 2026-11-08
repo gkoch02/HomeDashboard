@@ -113,26 +113,37 @@ SOLAR_HORIZON_DEG = -0.833
 
 @dataclass(frozen=True)
 class Inks:
-    """The plate's inks in the canvas's mode; on monochrome every accent is white."""
+    """The plate's inks in the canvas's mode.
+
+    Gold plays two parts: ``gold`` fills (the lit slab, the rule, the hour's
+    band) and ``gold_ink`` sets type and thin marks. They differ on the light
+    plate, where yellow type on paper does not read: there the gold is only
+    ever a fill, and ``now_column`` is the yellow column standing behind the
+    strip at the current hour in place of the gold line.
+    """
 
     ground: Fill
     text: Fill
     gold: Fill
+    gold_ink: Fill
+    on_gold: Fill  # type set on a gold fill
     red: Fill
     colour: bool
+    now_column: Fill | None = None
 
 
-def inks_for(mode: str) -> Inks:
+def inks_for(mode: str, light: bool = False) -> Inks:
+    """The inks for *mode*: on monochrome every accent is ``text``."""
     if mode == "RGB":
-        return Inks(
-            ground=(0, 0, 0),
-            text=(255, 255, 255),
-            gold=INKY_SPECTRA6_PALETTE[INKY_YELLOW],
-            red=INKY_SPECTRA6_PALETTE[INKY_RED],
-            colour=True,
-        )
-    white = 1 if mode == "1" else 255
-    return Inks(ground=0, text=white, gold=white, red=white, colour=False)
+        black, white = (0, 0, 0), (255, 255, 255)
+        yellow = INKY_SPECTRA6_PALETTE[INKY_YELLOW]
+        red = INKY_SPECTRA6_PALETTE[INKY_RED]
+        if light:
+            return Inks(white, black, yellow, black, black, red, True, now_column=yellow)
+        return Inks(black, white, yellow, yellow, black, red, True)
+    paper = 1 if mode == "1" else 255
+    ground, text = (paper, 0) if light else (0, paper)
+    return Inks(ground, text, text, text, ground, text, False)
 
 
 # Type
@@ -229,8 +240,9 @@ def draw_slab(
     x0, y0, x1, y1 = box
     poly = slab_polygon(x0, y0, x1, y1)
     if tone == "lit":
-        draw.polygon(poly, fill=ink.gold)
-        return ink.ground
+        # Outlined where the column at now is the same yellow, or the slab merges with it.
+        draw.polygon(poly, fill=ink.gold, outline=ink.text if ink.now_column else None)
+        return ink.on_gold
     # Every other slab is filled with ground, so the gold line at now passes behind it.
     draw.polygon(poly, fill=ink.ground)
     if tone == "alert":
@@ -298,7 +310,7 @@ def _weather_glyph(
 ) -> None:
     """A weather-icons glyph centred on (*cx*, *cy*); the clear-day sun is gold."""
     glyph = OWM_ICON_MAP.get(icon, FALLBACK_ICON)
-    fill = ink.gold if icon == "01d" else ink.text
+    fill = ink.gold_ink if icon == "01d" else ink.text
     draw.text((cx, cy), glyph, font=fonts.weather_icon(size), fill=fill, anchor="mm")
 
 
@@ -435,11 +447,12 @@ def draw_wide_ephemeris(
     style: ThemeStyle | None = None,
     latitude: float | None = None,
     longitude: float | None = None,
+    light: bool = False,
 ) -> None:
-    """Draw the full ``wide_ephemeris`` plate into *region*."""
+    """Draw the full ``wide_ephemeris`` plate into *region*; *light* on a paper ground."""
     region = region or ComponentRegion(0, 0, 1360, 480)
     image = getattr(draw, "_image", None)
-    ink = inks_for(image.mode if image is not None else "L")
+    ink = inks_for(image.mode if image is not None else "L", light)
     tz = getattr(now, "tzinfo", None)
     now_local = to_local_naive(now, tz) if isinstance(now, datetime) else None
     if now_local is None:
@@ -482,7 +495,7 @@ def _draw_header(
     rx, ry, rw = region.x, region.y, region.w
     wordmark = fonts.michroma(26)
     x = rx + MARGIN
-    draw.text((x, ry + 37), "EPHEMERIS", font=wordmark, fill=ink.gold, anchor="ls")
+    draw.text((x, ry + 37), "EPHEMERIS", font=wordmark, fill=ink.gold_ink, anchor="ls")
     mark_end = x + draw.textlength("EPHEMERIS", font=wordmark)
 
     # The bridge rule: dim across the plate, gold off the left edge under the wordmark.
@@ -538,28 +551,38 @@ def _draw_strip(
 
     # The axis: a dim hairline, the daylight lit along it, a tick each hour.
     axis_y = ry + AXIS_Y
+    now_x = window.x(hour)
+    if ink.now_column is not None:
+        draw.rectangle(
+            (now_x, ry + TRACE_TOP - 22, now_x + window.px_per_hour, ry + STRIP_BOTTOM),
+            fill=ink.now_column,
+        )
     dotted_hline(draw, axis_y, x0, x1, ink.text)
     altitude = altitude_fn(weather, latitude, longitude, sun_zone(tz, latitude, longitude))
     for a, b in daylight(window, altitude):
         draw.rectangle((a, axis_y - 1, b, axis_y + 1), fill=ink.text)
-    now_x = window.x(hour)
     draw.rectangle((now_x, axis_y - 2, now_x + window.px_per_hour, axis_y + 2), fill=ink.gold)
     for k in range(window.hours + 1):
         hx = round(x0 + k * window.px_per_hour)
         draw.line((hx, axis_y + 3, hx, axis_y + 5), fill=ink.text)
 
     # The gold line at the current hour, from the trace to the last lane; the
-    # readings and labels it crosses are knocked out of it.
-    draw.rectangle((now_x - 1, ry + TRACE_TOP - 22, now_x, ry + STRIP_BOTTOM), fill=ink.gold)
+    # readings and labels it crosses are knocked out of it. Where the hour is a
+    # column instead, NOW is set inside it.
     now_font = _caps(13)
-    half = tracked_width(draw, "NOW", now_font) / 2
-    draw.rectangle(
-        (now_x - half - 3, ry + HOUR_LABEL_Y - 12, now_x + half + 3, ry + HOUR_LABEL_Y + 3),
-        fill=ink.ground,
-    )
-    draw_tracked(draw, now_x, ry + HOUR_LABEL_Y, "NOW", now_font, ink.gold, align="center")
+    if ink.now_column is None:
+        draw.rectangle((now_x - 1, ry + TRACE_TOP - 22, now_x, ry + STRIP_BOTTOM), fill=ink.gold)
+        half = tracked_width(draw, "NOW", now_font) / 2
+        draw.rectangle(
+            (now_x - half - 3, ry + HOUR_LABEL_Y - 12, now_x + half + 3, ry + HOUR_LABEL_Y + 3),
+            fill=ink.ground,
+        )
+        label_x = now_x
+    else:
+        label_x = now_x + window.px_per_hour / 2
+    draw_tracked(draw, label_x, ry + HOUR_LABEL_Y, "NOW", now_font, ink.gold_ink, align="center")
 
-    _draw_hour_labels(draw, window, now_x, ry, ink)
+    _draw_hour_labels(draw, window, label_x, ry, ink)
 
     if weather is not None:
         _draw_trace(draw, weather, hour, window, tz, ry, ink)
@@ -625,12 +648,13 @@ def _draw_trace(
     font = _caps(13)
     for i, ((px, py), (_, temp, _c)) in enumerate(zip(xy, points, strict=True)):
         is_now = i == 0
-        fill = ink.gold if is_now else ink.text
+        fill = ink.gold_ink if is_now else ink.text
         draw.rectangle((px - 2, py - 2, px + 2, py + 2), fill=fill)
         label = f"{round_temp(temp)}°"
         half = tracked_width(draw, label, font, 0.05) / 2
         lx = min(px, window.x1 - half)
-        draw.rectangle((lx - half - 2, py - 20, lx + half + 2, py - 6), fill=ink.ground)
+        if ink.now_column is None:
+            draw.rectangle((lx - half - 2, py - 20, lx + half + 2, py - 6), fill=ink.ground)
         draw_tracked(draw, lx, py - 8, label, font, fill, tracking=0.05, align="center")
 
 
@@ -909,5 +933,5 @@ def _draw_outlook(
         draw.text((hx + hw + 6, top + 134), low, font=lf, fill=ink.text, anchor="ls")
         chance = day.precip_chance
         rain = f"{round(chance * 100)}% RAIN" if chance and chance >= RAIN_MIN_CHANCE else "DRY"
-        fill = ink.gold if rain != "DRY" else ink.text
+        fill = ink.gold_ink if rain != "DRY" else ink.text
         draw_tracked(draw, mid, top + 160, rain, _caps(12), fill, align="center")

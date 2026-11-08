@@ -474,6 +474,21 @@ def _wide_ephemeris(ctx: RenderContext) -> None:
     )
 
 
+@register_component("wide_ephemeris_light")
+def _wide_ephemeris_light(ctx: RenderContext) -> None:
+    wide_ephemeris_panel.draw_wide_ephemeris(
+        ctx.draw,
+        ctx.data,
+        ctx.today,
+        ctx.now,
+        region=ctx.layout.wide_ephemeris,
+        style=ctx.style,
+        latitude=ctx.latitude,
+        longitude=ctx.longitude,
+        light=True,
+    )
+
+
 @register_component("wide_diags")
 def _wide_diags(ctx: RenderContext) -> None:
     # The DIFFUSED row is left continuous for a colour backend to diffuse; the

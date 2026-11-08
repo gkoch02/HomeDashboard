@@ -62,6 +62,7 @@ EXTRA_EVENT_DAYS: dict[str, int] = {
     # The strip runs 23 hours past the current hour and the agenda names
     # tomorrow, so on a Sunday evening both reach Monday.
     "wide_ephemeris": 1,
+    "wide_ephemeris_light": 1,
 }
 
 # State files that belong in state_dir (not output_dir)

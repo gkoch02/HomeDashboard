@@ -13,6 +13,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   lanes, a gold line at the current hour) over an agenda, the conditions now
   and a multi-day outlook, gold on black on the four-ink panel. Bundles the
   Michroma and Saira typefaces (OFL). Repaints at most once an hour.
+  `wide_ephemeris_light` is the same plate in black on white, with the gold
+  as yellow fills only: the event under way, and the current hour as a
+  column behind the strip.
 - `halftone_agenda` shows birthdays: one that falls on the agenda's day sets
   as an all-day row ahead of the calendar's ("Mom turns 70"), and follows
   the TOMORROW rollover. A long title with no location wraps onto the row's

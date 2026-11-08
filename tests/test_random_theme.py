@@ -25,6 +25,7 @@ WIDE = {
     "wide_week",
     "wide_day",
     "wide_ephemeris",
+    "wide_ephemeris_light",
     "wide_forecast",
     "wide_horizon",
     "halftone_agenda_wide",

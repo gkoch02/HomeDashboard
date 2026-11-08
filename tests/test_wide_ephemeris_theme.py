@@ -8,6 +8,7 @@ and that the plate only moves on the clock hour.
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import date, datetime, timedelta
 
 from PIL import Image, ImageDraw
@@ -269,3 +270,46 @@ class TestClock:
         b.content_at = a.content_at
         b.events = a.events
         assert image_hash(_render(a)) != image_hash(_render(b))
+
+
+def _render_light(data: DashboardData, config: DisplayConfig = G_PANEL):
+    return render_dashboard(data, config, theme=load_theme("wide_ephemeris_light"))
+
+
+class TestLight:
+    # The strip's band above the axis, inside the current hour's column.
+    COLUMN = (ep.MARGIN + 60, ep.TRACE_TOP - 20, ep.MARGIN + 100, ep.AXIS_Y - 4)
+    WORDMARK = (ep.MARGIN, 8, ep.MARGIN + 220, 42)
+
+    def test_paper_ground_derives_into_partial_refresh(self):
+        theme = load_theme("wide_ephemeris_light")
+        assert theme.layout.draw_order == ["wide_ephemeris_light"]
+        assert theme.layout == replace(
+            load_theme("wide_ephemeris").layout, draw_order=theme.layout.draw_order
+        )
+        assert theme.allows_partial_refresh is True
+
+    def test_renders_in_the_four_inks_on_a_white_ground(self):
+        img = _render_light(_data())
+        assert set(flatten_pixels(img)) <= {(0, 0, 0), (255, 255, 255), YELLOW, RED}
+        assert img.getpixel((2, 2)) == (255, 255, 255)
+
+    def test_the_current_hour_is_a_yellow_column_only_on_paper(self):
+        light = _count(_render_light(_data()), YELLOW, self.COLUMN)
+        dark = _count(_render(_data()), YELLOW, self.COLUMN)
+        assert light > 3000
+        assert dark < 200
+
+    def test_gold_is_never_type_on_paper(self):
+        assert _count(_render(_data()), YELLOW, self.WORDMARK) > 500
+        assert _count(_render_light(_data()), YELLOW, self.WORDMARK) == 0
+
+    def test_lit_slab_is_yellow_on_colour_and_solid_black_on_mono(self):
+        between = NOW.replace(hour=11, minute=0) - timedelta(minutes=1)
+        idle = _data(now=between)
+        idle.events = [e for e in idle.events if e.summary != "Dentist Appointment"]
+        assert _count(_render_light(_data()), YELLOW, FIRST_ROW) > 5000
+        assert _count(_render_light(idle), YELLOW, FIRST_ROW) < 400
+        lit_black = _count(_render_light(_data(), MONO), 0, FIRST_ROW)
+        idle_black = _count(_render_light(idle, MONO), 0, FIRST_ROW)
+        assert lit_black - idle_black > 5000
