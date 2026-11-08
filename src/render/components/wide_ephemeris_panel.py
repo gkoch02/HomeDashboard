@@ -45,12 +45,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, tzinfo
 
-from PIL import ImageDraw, ImageFont
+import numpy as np
+from PIL import Image, ImageDraw, ImageFont
 
 from src.data.models import Birthday, CalendarEvent, DashboardData, StalenessLevel, WeatherData
 from src.render import fonts
 from src.render.artkit import to_local_naive
-from src.render.components.wide_horizon_panel import altitude_fn, sun_zone
+from src.render.components.wide_horizon_panel import altitude_fn, bayer_field, sun_zone
 from src.render.icons import FALLBACK_ICON, OWM_ICON_MAP
 from src.render.moon import moon_illumination, moon_phase_name
 from src.render.primitives import (
@@ -126,6 +127,7 @@ TYPE_WIDTH = 85
 # The tracking of the small caps, as a fraction of their size.
 TRACK = 0.08
 SOLAR_HORIZON_DEG = -0.833
+GOLD_MIX_ON_PAPER = 0.5
 
 
 @dataclass(frozen=True)
@@ -135,8 +137,9 @@ class Inks:
     Gold plays two parts: ``gold`` fills (the lit slab, the rule, the hour's
     band) and ``gold_ink`` sets type and thin marks. They differ on the light
     plate, where yellow type on paper does not read: there the gold is only
-    ever a fill, and ``now_column`` is the yellow column standing behind the
-    strip at the current hour in place of the gold line.
+    ever a fill, ``now_column`` stands a gold column behind the strip at the
+    current hour in place of the gold line, and ``gold_mix`` screens red into
+    the column and the lit slab so they read as orange.
     """
 
     ground: Fill
@@ -146,10 +149,13 @@ class Inks:
     on_gold: Fill  # type set on a gold fill
     red: Fill
     colour: bool
-    now_column: Fill | None = None
+    now_column: bool = False
     # Saira's weight on this ground: black ink spreads into white strokes on a
     # reflective panel, so type knocked out of the dark plate is set heavier.
     weight: int = 800
+    # The share of red ordered into a gold fill. Yellow alone is faint on paper;
+    # half red reads as orange, still pure inks pixel by pixel.
+    gold_mix: float = 0.0
 
 
 def inks_for(mode: str, light: bool = False) -> Inks:
@@ -160,7 +166,16 @@ def inks_for(mode: str, light: bool = False) -> Inks:
         red = INKY_SPECTRA6_PALETTE[INKY_RED]
         if light:
             return Inks(
-                white, black, yellow, black, black, red, True, now_column=yellow, weight=800
+                white,
+                black,
+                yellow,
+                black,
+                black,
+                red,
+                True,
+                now_column=True,
+                weight=800,
+                gold_mix=GOLD_MIX_ON_PAPER,
             )
         return Inks(black, white, yellow, yellow, black, red, True, weight=900)
     paper = 1 if mode == "1" else 255
@@ -227,6 +242,29 @@ def dotted_hline(draw: ImageDraw.ImageDraw, y: int, x0: int, x1: int, fill: Fill
         draw.point((x, y), fill=fill)
 
 
+def fill_gold(draw: ImageDraw.ImageDraw, poly: Poly, ink: Inks) -> None:
+    """Fill *poly* with gold, screened with ``ink.gold_mix`` of red where it is set.
+
+    The screen is a Bayer field phased to the canvas, so two gold areas side by
+    side read as one continuous fill.
+    """
+    draw.polygon(poly, fill=ink.gold)
+    image = getattr(draw, "_image", None)
+    if not ink.gold_mix or image is None or image.mode != "RGB":
+        return
+    xs, ys = [p[0] for p in poly], [p[1] for p in poly]
+    x0, y0 = max(int(min(xs)), 0), max(int(min(ys)), 0)
+    x1, y1 = min(int(max(xs)) + 1, image.width), min(int(max(ys)) + 1, image.height)
+    if x1 <= x0 or y1 <= y0:
+        return
+    shape = Image.new("1", image.size, 0)
+    ImageDraw.Draw(shape).polygon(poly, fill=1)
+    inside = np.array(shape.crop((x0, y0, x1, y1)), dtype=bool)
+    screen = bayer_field(x1 - x0, y1 - y0, x0, y0) < ink.gold_mix
+    mask = Image.fromarray(((inside & screen) * 255).astype(np.uint8), "L")
+    image.paste(ink.red, (x0, y0, x1, y1), mask)
+
+
 def slab_polygon(x0: float, y0: float, x1: float, y1: float, bevel: int = BEVEL) -> Poly:
     """A slab's outline with its bottom-right corner cut."""
     b = min(bevel, (x1 - x0) / 2, (y1 - y0) / 2)
@@ -260,7 +298,9 @@ def draw_slab(
     poly = slab_polygon(x0, y0, x1, y1)
     if tone == "lit":
         # Outlined where the column at now is the same yellow, or the slab merges with it.
-        draw.polygon(poly, fill=ink.gold, outline=ink.text if ink.now_column else None)
+        fill_gold(draw, poly, ink)
+        if ink.now_column:
+            draw.polygon(poly, outline=ink.text)
         return ink.on_gold
     # Every other slab is filled with ground, so the gold line at now passes behind it.
     draw.polygon(poly, fill=ink.ground)
@@ -587,11 +627,9 @@ def _draw_strip(
     # The axis: a dim hairline, the daylight lit along it, a tick each hour.
     axis_y = ry + AXIS_Y
     now_x = window.x(hour)
-    if ink.now_column is not None:
-        draw.rectangle(
-            (now_x, ry + TRACE_TOP - 22, now_x + window.px_per_hour, ry + STRIP_BOTTOM),
-            fill=ink.now_column,
-        )
+    if ink.now_column:
+        column = (now_x, ry + TRACE_TOP - 22, now_x + window.px_per_hour, ry + STRIP_BOTTOM)
+        fill_gold(draw, slab_polygon(*column, bevel=0), ink)
     dotted_hline(draw, axis_y, x0, x1, ink.text)
     altitude = altitude_fn(weather, latitude, longitude, sun_zone(tz, latitude, longitude))
     for a, b in daylight(window, altitude):
@@ -605,7 +643,7 @@ def _draw_strip(
     # readings and labels it crosses are knocked out of it. Where the hour is a
     # column instead, NOW is set inside it.
     now_font = _face(16, ink)
-    if ink.now_column is None:
+    if not ink.now_column:
         draw.rectangle((now_x - 1, ry + TRACE_TOP - 22, now_x, ry + STRIP_BOTTOM), fill=ink.gold)
         half = tracked_width(draw, "NOW", now_font) / 2
         draw.rectangle(
@@ -688,7 +726,7 @@ def _draw_trace(
         label = f"{round_temp(temp)}°"
         half = tracked_width(draw, label, font, 0.05) / 2
         lx = min(px, window.x1 - half)
-        if ink.now_column is None:
+        if not ink.now_column:
             draw.rectangle((lx - half - 2, py - 20, lx + half + 2, py - 6), fill=ink.ground)
         draw_tracked(draw, lx, py - 8, label, font, fill, tracking=0.05, align="center")
 

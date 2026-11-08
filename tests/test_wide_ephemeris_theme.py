@@ -296,15 +296,23 @@ class TestLight:
         assert set(flatten_pixels(img)) <= {(0, 0, 0), (255, 255, 255), YELLOW, RED}
         assert img.getpixel((2, 2)) == (255, 255, 255)
 
-    def test_the_current_hour_is_a_yellow_column_only_on_paper(self):
-        light = _count(_render_light(_data()), YELLOW, self.COLUMN)
-        dark = _count(_render(_data()), YELLOW, self.COLUMN)
-        assert light > 3000
-        assert dark < 200
+    def test_the_current_hour_is_an_orange_column_only_on_paper(self):
+        light = _render_light(_data())
+        yellow, red = _count(light, YELLOW, self.COLUMN), _count(light, RED, self.COLUMN)
+        assert yellow > 1200 and red > 1200  # screened half and half: orange
+        assert abs(yellow - red) < 0.25 * (yellow + red)
+        assert _count(_render(_data()), YELLOW, self.COLUMN) < 200
 
     def test_gold_is_never_type_on_paper(self):
         assert _count(_render(_data()), YELLOW, self.WORDMARK) > 500
         assert _count(_render_light(_data()), YELLOW, self.WORDMARK) == 0
+
+    def test_lit_slab_is_screened_orange_on_paper_and_solid_yellow_on_dark(self):
+        light, dark = _render_light(_data()), _render(_data())
+        assert _count(light, RED, FIRST_ROW) > 4000
+        assert _count(light, YELLOW, FIRST_ROW) > 4000
+        assert _count(dark, RED, FIRST_ROW) == 0  # the dark plate's gold is pure yellow
+        assert _count(dark, YELLOW, FIRST_ROW) > 9000
 
     def test_lit_slab_is_yellow_on_colour_and_solid_black_on_mono(self):
         between = NOW.replace(hour=11, minute=0) - timedelta(minutes=1)

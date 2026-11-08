@@ -2,9 +2,11 @@
 
 The same strip, agenda, conditions and outlook as ``wide_ephemeris``, set in
 black on white. Yellow type does not read on paper, so the gold is only ever a
-fill here: the slab under way is yellow with black type, the current hour is a
-yellow column standing behind the strip in place of the gold line, and the
-wordmark goes black over a yellow rule. Alerts stay red. On monochrome the
+fill here, and yellow alone is faint on white, so the two large fills are an
+ordered half-and-half of yellow and red that reads as orange: the slab under
+way, with black type, and the current hour as a column standing behind the
+strip in place of the gold line. Thin marks stay solid yellow, where a screen
+reads as noise; the wordmark goes black over a yellow rule. Alerts stay red. On monochrome the
 under-way slab is solid black with white type and the hour is a black line.
 
 The layout is ``wide_ephemeris``'s with a different component in

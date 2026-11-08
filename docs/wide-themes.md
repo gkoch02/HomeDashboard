@@ -165,9 +165,11 @@ panel exactly as rendered.
 ### wide_ephemeris_light
 
 `wide_ephemeris` on a white ground. Yellow lettering does not read on white
-paper, so here the yellow is only ever a filled area: the event under way is a
-yellow slab with black type, and the current hour is a yellow column standing
-behind the strip where the dark plate has a gold line. The wordmark is black
+paper, so here the yellow is only ever a filled area, and the two large ones are
+half yellow, half red in an ordered pattern that reads as orange: the event
+under way is an orange slab with black type, and the current hour is an orange
+column standing behind the strip where the dark plate has a gold line. Every
+pixel is still one of the four inks. The wordmark is black
 over a yellow rule; alerts stay red.
 [Full description ↗](themes.md#wide_ephemeris_light)
 
