@@ -120,7 +120,7 @@ Example full batch for all concrete themes:
 for theme in air_quality almanac astronomy constellation_map countdown day_arc default diags fantasy fuzzyclock \
              fuzzyclock_invert halftone halftone_agenda halftone_agenda_wide light_cycle message monthly moonphase moonphase_invert moonphase_photo \
              old_fashioned photo postcard qotd qotd_invert terminal trends \
-             weather weatherglass wide_day wide_diags wide_forecast wide_horizon wide_night wide_night_invert wide_week; do
+             weather weatherglass wide_day wide_diags wide_ephemeris wide_forecast wide_horizon wide_night wide_night_invert wide_week; do
   if [ "$theme" = "message" ]; then
     python3 -m src.main --config /path/to/inky-config.yaml --dry-run --dummy \
       --theme "$theme" --message "Preview Message"

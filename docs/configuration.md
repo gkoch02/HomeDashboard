@@ -429,7 +429,7 @@ white, yellow and red. Themes are rendered in colour for it the way they are for
 with the two Spectra 6 inks it lacks (blue and green) folded onto black, and the
 final image snapped to its four inks. It has no partial refresh, so
 `enable_partial_refresh` is ignored, and a full refresh takes about twenty seconds.
-The panoramic `wide_week`, `wide_day`, `wide_forecast`, `wide_horizon`,
+The panoramic `wide_week`, `wide_day`, `wide_forecast`, `wide_horizon`, `wide_ephemeris`,
 `wide_night`, `wide_night_invert`, `wide_diags` and `halftone_agenda_wide` themes draw at its native size; every other theme reaches it per [`display.scaling`](#scaling). The driver
 module is `waveshare_epd.epd10in85g`. Waveshare ships it as demo code rather than in
 the library, so `make install-display-drivers` copies it from the same pinned commit

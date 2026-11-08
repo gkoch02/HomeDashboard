@@ -213,7 +213,8 @@ logging:
 #                   day_arc | trends | weatherglass
 #   DITHERED ART    postcard
 #   PANORAMIC       wide_week | wide_day | wide_forecast | wide_horizon |
-#                   wide_night | wide_night_invert | halftone_agenda_wide
+#                   wide_ephemeris | wide_night | wide_night_invert |
+#                   halftone_agenda_wide
 #   PHOTO OVERLAY   photo
 #   UTILITY         countdown | message | diags | wide_diags
 #   ROTATION        random_daily | random_hourly

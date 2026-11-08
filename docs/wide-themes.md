@@ -1,9 +1,9 @@
 # Panoramic Themes
 
-Eight themes are drawn for a panel shaped like a strip rather than a page: the
+Nine themes are drawn for a panel shaped like a strip rather than a page: the
 Waveshare 10.85" e-Paper (G), 1360 × 480 pixels, nearly three times as wide as it
 is tall, with four inks (black, white, yellow and red). This page covers what is
-specific to that panel and to the eight themes built for it: how to set it up, how
+specific to that panel and to the nine themes built for it: how to set it up, how
 to choose between them, how often each one repaints, and what they look like in
 the panel's own four inks.
 
@@ -26,6 +26,7 @@ the four-ink renders the 10.85" panel actually shows.
 | Theme | Shows | Time span | Moves on the clock during the day | Extra calendar days |
 |---|---|---|---|---|
 | [`wide_horizon`](#wide_horizon) | Sky, weather, temperature, rain and events on one time axis | Next 72 hours | At most once an hour, data changes included (window steps every 3 hours) | 3 |
+| [`wide_ephemeris`](#wide_ephemeris) | The day ahead as a strip (temperature, rain, daylight, events), over agenda, conditions and outlook, in the Apple TV app's Ephemeris dress | Next 24 hours | At most once an hour, data changes included (strip steps every hour) | 1 |
 | [`wide_day`](#wide_day) | Today as an hour-by-hour timeline, with an up-next rail | Today | Every tick (NOW marker, event states) | 1 |
 | [`halftone_agenda_wide`](#halftone_agenda_wide) | Weather engraving, today's agenda, and a rail for tomorrow, forecast, birthdays, air and moon | Today and tomorrow | Once (the after-dark rollover) | 2 |
 | [`wide_forecast`](#wide_forecast) | Current conditions and a five-day forecast | Five days | No | 0 |
@@ -89,6 +90,10 @@ pool further.
   what happens after dark): `wide_horizon`. It is the only theme that puts more
   than one day on a single time axis, which only a strip this wide can do at a
   readable scale.
+- **You want the flagship, or the Apple TV app's look on the wall**:
+  `wide_ephemeris`. The next 24 hours as a strip with the day's events laid
+  along it, and beneath it everything else a glance wants: what is next, the
+  weather now, the days ahead. Gold on black on this panel.
 - **Your days are meeting-heavy and today is what matters**: `wide_day`. It shows
   the day's shape at a glance and marks the event in progress. That marker is why
   it repaints on every tick.
@@ -136,6 +141,22 @@ the image reaches the panel exactly as rendered.
 [Full description ↗](themes.md#wide_horizon)
 
 [![Wide horizon theme on the four-ink panel](../assets/previews/theme_wide_horizon_g.png)](../assets/previews/theme_wide_horizon_g.png)
+
+### wide_ephemeris
+
+HomeDashboardTV's Ephemeris, re-cut for the strip: the TV lays the day-ahead
+strip over a full-height row of panels, and at 480 px tall the row is shortened
+to the agenda, the conditions and up to four days of outlook, with the quote
+dropped. The live clock is gone too; the check line reads the time the data was
+synced, and the gold line stands at the clock hour holding now rather than the
+minute, so the plate steps once an hour instead of every tick.
+
+On this panel the gold is the yellow ink, the TV's blue accents are white, and
+an alert is red. Every pixel is one of the four inks, so the image reaches the
+panel exactly as rendered.
+[Full description ↗](themes.md#wide_ephemeris)
+
+[![Wide ephemeris theme on the four-ink panel](../assets/previews/theme_wide_ephemeris_g.png)](../assets/previews/theme_wide_ephemeris_g.png)
 
 ### wide_day
 
@@ -241,6 +262,9 @@ whose content hasn't changed repaints once a day. Beyond that:
   how old. A switch *to*
   `wide_horizon` from another theme paints immediately, and
   `--force-full-refresh` and the morning refresh skip the limit.
+- `wide_ephemeris` also writes the panel at most once per clock hour: its
+  strip steps on the hour, and a weather reading or calendar edit inside the
+  hour waits for the next one. Its `SYNCED` time says how old the plate is.
 - `wide_night` (and `wide_night_invert`) changes only when its data or the date does, and like
   `wide_horizon` writes the panel at most once per clock hour, so a new
   temperature or AQI waits for the next hour rather than flashing the panel
@@ -272,8 +296,11 @@ that shape.
   With `weather.latitude` / `longitude` set, the sky follows the sun's real
   altitude for your location; without them, the day's reported sunrise and sunset
   stand in for every day in the window.
-- **`wide_week` and `wide_day`, `halftone_agenda_wide` and `wide_horizon`** fetch
-  1, 1, 2 and 3 days of calendar events past the standard week, so their views of
+- **`wide_ephemeris`** draws its trace and rain from `WeatherData.hourly`, as
+  `wide_horizon` does, and its daylight band from `weather.latitude` /
+  `longitude` when set.
+- **`wide_week`, `wide_day` and `wide_ephemeris`, `halftone_agenda_wide` and
+  `wide_horizon`** fetch 1, 1, 1, 2 and 3 days of calendar events past the standard week, so their views of
   tomorrow and beyond are never empty on a Sunday. Nothing needs configuring; the event window
   widens automatically for the theme in use.
 - **`wide_night`** shows its AQI mark only when a PurpleAir sensor is
@@ -292,7 +319,7 @@ pinned date as the other preview sets:
 python3 scripts/build_previews.py --model epd10in85g \
   --theme wide_horizon --theme wide_day --theme halftone_agenda_wide \
   --theme wide_forecast --theme wide_night --theme wide_night_invert --theme wide_week \
-  --theme wide_diags
+  --theme wide_diags --theme wide_ephemeris
 ```
 
 This writes `assets/previews/theme_<name>_g.png`. See [Previews](previews.md) for

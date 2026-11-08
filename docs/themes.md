@@ -214,7 +214,7 @@ letterboxed instead (see [`display.scaling`](configuration.md#scaling)). On an
 800 × 480 panel the panoramic themes letterbox the other way, as a band.
 
 **[Panoramic Themes](wide-themes.md)** is the guide to this set: setting up the
-10.85" panel, choosing between the eight, how often each repaints, and previews in
+10.85" panel, choosing between the nine, how often each repaints, and previews in
 the panel's own four inks.
 
 | Theme | Best for | Notes |
@@ -225,6 +225,7 @@ the panel's own four inks.
 | `wide_forecast` | weather station on a strip | Current conditions as a hero block with a detail grid, five forecast cards in a row with precipitation bars, and a band beneath for alerts, air quality and the moon. |
 | `wide_night` | a night mode for the strip | Almost all negative space: the moon's phase, the temperature, the air-quality index and the weather glyph at one shared height, evenly spaced across the middle with small letter-spaced labels beneath, in black on a solid red ground. Jura numerals, Oxanium ExtraBold labels. Not in the random rotation — schedule it for after dark. |
 | `wide_night_invert` | the night mode, red on black | `wide_night` with ground and ink swapped: red marks and labels on a black ground (black on white on monochrome). |
+| `wide_ephemeris` | the day ahead, HUD style | The Ephemeris plate from the Apple TV app: gold on a dark ground, the next 24 hours as a strip (temperature, rain, daylight, events in lanes, a gold line at the current hour) over an agenda, the conditions now and a multi-day outlook. Michroma and Saira type. |
 | `wide_horizon` | the next three days at a glance | One 72-hour time axis shared by everything: a sky coloured by the sun's real altitude (day, dithered twilights, night with stars and the moon), clouds and rain drawn per forecast slot, the temperature as one line across it, rain chance hanging beneath, and the calendar beneath: a strip marking each event on the same hours, over a one-line-per-event list for each day. Conditions now and a three-line outlook in a hero block at the left. |
 
 ### Utility themes
@@ -470,6 +471,14 @@ A weather strip. The conditions now sit in a hero block at the left (location, i
 Needs weather; air quality needs PurpleAir and reads "No sensor" without it. Nothing reads the clock, so an idle tick costs no panel write. On a colour panel red marks labels, today's chip, alerts and an unhealthy AQI, and yellow fills the precipitation bars. See [Panoramic Themes](wide-themes.md#wide_forecast).
 
 [![Wide forecast theme](../assets/previews/theme_wide_forecast.png)](../assets/previews/theme_wide_forecast.png)
+
+#### wide_ephemeris
+
+The Ephemeris plate from [HomeDashboardTV](https://github.com/gkoch02/HomeDashboardTV), re-cut for the strip in its HUD dress: gold on a dark ground, condensed tracked caps, slab panels with one bevelled corner. The header carries the wordmark, a check line (all sources current, or which are stale) and the date. Beneath it **the day ahead** runs an hour back and 23 ahead: the temperature as a trace with its readings, each slot's chance of rain as a hatched bar, daylight as a lit band along the axis, and every timed event as a slab in one of two lanes. Below, three columns: the **agenda** (the event under way lit gold, the next edged gold, birthdays in the fortnight among them), the **conditions** (the reading now, any alert, a grid of readings) and the **outlook**.
+
+Needs weather and calendar. The strip steps on the clock hour and the plate repaints at most once an hour. On monochrome the gold becomes white and the lit slabs solid white. See [Panoramic Themes](wide-themes.md#wide_ephemeris).
+
+[![Wide ephemeris theme](../assets/previews/theme_wide_ephemeris.png)](../assets/previews/theme_wide_ephemeris.png)
 
 #### wide_horizon
 

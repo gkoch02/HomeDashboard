@@ -21,7 +21,14 @@ PANORAMIC = (1360, 480)
 LANDSCAPE = (800, 480)
 
 
-WIDE = {"wide_week", "wide_day", "wide_forecast", "wide_horizon", "halftone_agenda_wide"}
+WIDE = {
+    "wide_week",
+    "wide_day",
+    "wide_ephemeris",
+    "wide_forecast",
+    "wide_horizon",
+    "halftone_agenda_wide",
+}
 
 
 # Themes that can actually appear in a pool (everything except hard-excluded themes)

@@ -8,6 +8,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
+- `wide_ephemeris`, a panoramic theme after the Apple TV app's Ephemeris: the
+  next 24 hours as a strip (temperature trace, rain, daylight, events in two
+  lanes, a gold line at the current hour) over an agenda, the conditions now
+  and a multi-day outlook, gold on black on the four-ink panel. Bundles the
+  Michroma and Saira typefaces (OFL). Repaints at most once an hour.
 - `halftone_agenda` shows birthdays: one that falls on the agenda's day sets
   as an all-day row ahead of the calendar's ("Mom turns 70"), and follows
   the TOMORROW rollover. A long title with no location wraps onto the row's

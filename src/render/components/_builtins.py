@@ -39,6 +39,7 @@ from src.render.components import (
     week_view,
     wide_day_panel,
     wide_diags_panel,
+    wide_ephemeris_panel,
     wide_forecast_panel,
     wide_horizon_panel,
     wide_night_panel,
@@ -452,6 +453,21 @@ def _wide_horizon(ctx: RenderContext) -> None:
         ctx.now,
         image=ctx.image,
         region=region,
+        style=ctx.style,
+        latitude=ctx.latitude,
+        longitude=ctx.longitude,
+    )
+
+
+@register_component("wide_ephemeris")
+def _wide_ephemeris(ctx: RenderContext) -> None:
+    # No art region: the plate is exact inks (see the panel docstring).
+    wide_ephemeris_panel.draw_wide_ephemeris(
+        ctx.draw,
+        ctx.data,
+        ctx.today,
+        ctx.now,
+        region=ctx.layout.wide_ephemeris,
         style=ctx.style,
         latitude=ctx.latitude,
         longitude=ctx.longitude,
