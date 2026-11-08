@@ -297,8 +297,8 @@ def big_shoulders_black(size: int) -> ImageFont.FreeTypeFont:
 # Michroma — wide square-shouldered display sans (Vernon Adams, OFL), and
 # Saira — a grotesque with weight (100–900) and width (50–125) axes (Omnibus-
 # Type, OFL). The pair is HomeDashboardTV's Ephemeris type: Michroma for the
-# wordmark and the large readings, Saira condensed for tracked caps and
-# titles. Michroma's degree sign is a full-size ring, so readings set it in
+# wordmark and the large readings, Saira for everything else (the panel sets
+# it at weight 800–900, width 85, through ``saira``). Michroma's degree sign is a full-size ring, so readings set it in
 # Saira. Michroma covers Latin only.
 def michroma(size: int) -> ImageFont.FreeTypeFont:
     return get_font("Michroma-Regular.ttf", size)

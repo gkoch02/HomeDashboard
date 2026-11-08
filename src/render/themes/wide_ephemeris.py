@@ -5,8 +5,9 @@ rain, daylight and the calendar's events in lanes, a gold line at the current
 hour), then the agenda, the conditions now and the outlook, on a dark ground.
 See ``src/render/components/wide_ephemeris_panel.py``.
 
-Type is the TV's: **Michroma** for the wordmark and the reading now, **Saira**
-condensed for titles and tracked caps. The registered Inky pair is yellow (the
+Type is the TV's faces, set heavier for the panel: **Michroma** for the
+wordmark and the reading now, **Saira** at weight 900 (800 on the light plate)
+for everything else. The registered Inky pair is yellow (the
 gold) and red (alerts); on the four-ink 10.85" panel the same inks are native.
 
 The plate is drawn in pure inks with no dithered tones, so it declares

@@ -148,8 +148,10 @@ the image reaches the panel exactly as rendered.
 
 HomeDashboardTV's Ephemeris, re-cut for the strip: the TV lays the day-ahead
 strip over a full-height row of panels, and at 480 px tall the row is shortened
-to the agenda, the conditions and up to four days of outlook, with the quote
-dropped. The live clock is gone too; the check line reads the time the data was
+to the agenda, the conditions and three days of outlook, with the quote
+dropped. The type is the TV's faces set much heavier and no smaller than
+`wide_horizon`'s, so the plate reads from about a metre; it shows fewer things
+than the TV to pay for that. The live clock is gone too; the check line reads the time the data was
 synced, and the gold line stands at the clock hour holding now rather than the
 minute, so the plate steps once an hour instead of every tick.
 

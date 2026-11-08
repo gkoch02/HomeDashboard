@@ -12,8 +12,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   next 24 hours as a strip (temperature trace, rain, daylight, events in two
   lanes, a gold line at the current hour) over an agenda, the conditions now
   and a multi-day outlook, gold on black on the four-ink panel. Bundles the
-  Michroma and Saira typefaces (OFL). Repaints at most once an hour.
-  `wide_ephemeris_light` is the same plate in black on white, with the gold
+  Michroma and Saira typefaces (OFL), set heavy and no smaller than
+  `wide_horizon`'s type so the plate reads from about a metre. Repaints at
+  most once an hour. `wide_ephemeris_light` is the same plate in black on white, with the gold
   as yellow fills only: the event under way, and the current hour as a
   column behind the strip.
 - `halftone_agenda` shows birthdays: one that falls on the agenda's day sets

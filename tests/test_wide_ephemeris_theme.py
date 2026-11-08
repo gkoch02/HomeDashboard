@@ -40,7 +40,7 @@ RED = (255, 0, 0)
 FIRST_ROW = (ep.MARGIN, ep.COLUMN_TOP, ep.MARGIN + ep.AGENDA_W, ep.COLUMN_TOP + ep.ROW_H)
 CONDITIONS_X = ep.MARGIN + ep.AGENDA_W + ep.COLUMN_GAP
 # Where the alert slab sits under the reading now.
-ALERT_BOX = (CONDITIONS_X, ep.COLUMN_TOP + 68, CONDITIONS_X + ep.CONDITIONS_W, ep.COLUMN_TOP + 92)
+ALERT_BOX = (CONDITIONS_X, ep.COLUMN_TOP + 70, CONDITIONS_X + ep.CONDITIONS_W, ep.COLUMN_TOP + 96)
 
 
 def _at(hour: int) -> datetime:
@@ -235,14 +235,16 @@ class TestConditions:
         assert "WIND" not in labels and "PRESSURE" not in labels
         assert len(labels) == 2  # humidity and the moon, which is always known
 
-    def test_readings_stop_at_six(self):
+    def test_readings_stop_at_four(self):
         weather = self._weather(wind_speed=12, wind_deg=315, uv_index=5, pressure=1013)
         air = AirQualityData(aqi=42, category="Good", pm25=8.0)
         cells = ep.readings(DashboardData(weather=weather, air_quality=air), NOW.date())
-        assert len(cells) == 6
-        assert ("WIND", "12 NW mph") in cells
-        assert ("AIR · GOOD", "42 AQI") in cells
-        assert ("UV · MODERATE", "5") in cells
+        assert cells == [
+            ("HUMIDITY", "65%"),
+            ("WIND", "12 NW mph"),
+            ("AIR · GOOD", "42 AQI"),
+            ("UV · MODERATE", "5"),
+        ]
 
     def test_alert_is_red_on_colour_and_a_solid_slab_on_mono(self):
         quiet = _data()
@@ -313,3 +315,36 @@ class TestLight:
         lit_black = _count(_render_light(_data(), MONO), 0, FIRST_ROW)
         idle_black = _count(_render_light(idle, MONO), 0, FIRST_ROW)
         assert lit_black - idle_black > 5000
+
+
+class TestLegibility:
+    """The plate is read from about a metre: no Saira under the floor, none light."""
+
+    def _faces(self, monkeypatch, theme: str) -> list[tuple[int, int]]:
+        calls: list[tuple[int, int]] = []
+        real = ep.fonts.saira
+
+        def spy(size, wght=500, wdth=100):
+            calls.append((size, wght))
+            return real(size, wght, wdth)
+
+        monkeypatch.setattr(ep.fonts, "saira", spy)
+        data = _data()
+        data.weather.alerts = [WeatherAlert(event="Wind Advisory")]
+        render_dashboard(data, G_PANEL, theme=load_theme(theme))
+        return calls
+
+    def test_no_type_below_the_floor_or_under_800(self, monkeypatch):
+        for theme in ("wide_ephemeris", "wide_ephemeris_light"):
+            faces = self._faces(monkeypatch, theme)
+            assert faces, theme
+            assert min(size for size, _ in faces) >= ep.MIN_TYPE, theme
+            # The degree sign beside the Michroma reading is the one lighter cut.
+            text_weights = {w for size, w in faces if size < 52}
+            assert min(text_weights) >= 800, theme
+
+    def test_the_dark_plate_sets_heavier_than_the_light(self, monkeypatch):
+        dark = {w for s, w in self._faces(monkeypatch, "wide_ephemeris") if s < 52}
+        light = {w for s, w in self._faces(monkeypatch, "wide_ephemeris_light") if s < 52}
+        assert dark == {900}
+        assert light == {800}

@@ -1,7 +1,7 @@
 """wide_ephemeris_panel.py — HomeDashboardTV's Ephemeris, set for the 1360x480 strip.
 
 Ephemeris is the TV app's "what is ahead" plate in Seneschal's HUD dress: gold on
-a dark ground, condensed tracked caps, slab panels with one bevelled corner, and
+a dark ground, tracked caps, slab panels with one bevelled corner, and
 the lit colour meaning one thing — what is under way now. This is that plate
 re-cut for a strip three times as wide as it is tall, top to bottom:
 
@@ -15,7 +15,14 @@ re-cut for a strip three times as wide as it is tall, top to bottom:
     the gold segment of the band stand at the current hour.
   * **Agenda / Conditions / Outlook** — what is on next as a column of slabs
     (birthdays in the fortnight among them), the weather now with any alert and
-    a grid of readings, and as many days of outlook as the column holds.
+    four readings, and three days of outlook.
+
+Type is sized for the panel, not the TV: the TV is read from across a room at
+1080p, this plate from about a metre at 133 ppi, where the TV's 600-weight
+condensed Saira sets 2-px stems and its small caps 1-px ones. So no type is
+set below ``MIN_TYPE``, every face is Saira at 800 (900 on the dark plate,
+whose white strokes the panel's black ink spreads into) and width 85, and the
+plate shows fewer things larger: five agenda rows, four readings, three days.
 
 Inks: on a colour panel the gold is yellow and the TV's blue becomes white; any
 alert is red. On monochrome every accent is white, and the two lit states —
@@ -68,27 +75,27 @@ HEADER_H = 52  # the bridge rule sits on this line
 BEVEL = 6  # the cut corner on every slab
 
 STRIP_LABEL_Y = 72  # baseline of "THE DAY AHEAD"
-TRACE_TOP = 100  # the warmest reading's point; its label sits above
+TRACE_TOP = 106  # the warmest reading's point; its label sits above
 TRACE_BOTTOM = 146
 RAIN_BOTTOM = 164  # rain bars stand on this line, under the trace
 RAIN_MAX_H = 16
 AXIS_Y = 168  # the daylight band is centred on this line
-HOUR_LABEL_Y = 186  # baseline
-LANE_TOP = 196
-LANE_H = 27
+HOUR_LABEL_Y = 190  # baseline
+LANE_TOP = 198
+LANE_H = 30
 LANE_GAP = 4
 LANES = 2
 STRIP_BOTTOM = LANE_TOP + LANES * LANE_H + (LANES - 1) * LANE_GAP
 
-SECTION_Y = 278  # baseline of the three column labels
-COLUMN_TOP = 290
-COLUMN_BOTTOM = 470
+SECTION_Y = 288  # baseline of the three column labels
+COLUMN_TOP = 300
+COLUMN_BOTTOM = 472
 
 AGENDA_W = 452
 CONDITIONS_W = 412
 COLUMN_GAP = 24
-ROW_H = 26
-ROW_PITCH = 30
+ROW_H = 30
+ROW_PITCH = 35
 
 WINDOW_LEAD_HOURS = 1  # the strip keeps this much behind the current hour
 WINDOW_HOURS = 24
@@ -97,17 +104,27 @@ RAIN_MIN_CHANCE = 0.1
 # The smallest temperature span the trace's band represents: a flat day stays flat.
 MIN_TEMP_SPAN = 12.0
 # The fewest pixels between hour labels.
-MIN_HOUR_LABEL_SPACING = 90
+MIN_HOUR_LABEL_SPACING = 100
 # Birthdays this many days out join the agenda.
 BIRTHDAY_HORIZON_DAYS = 14
 # The outlook's cards: as many as fit at this width, at most this many.
-MIN_CARD_W = 92
-MAX_CARDS = 4
+MIN_CARD_W = 120
+MAX_CARDS = 3
 CARD_GAP = 8
-TILE_GAP = 8
+TILE_GAP = 6
+TILE_H = 30
+# The conditions grid: two readings to a row, two rows.
+MAX_READINGS = 4
 
+# Read from about a metre on a 133-ppi panel, so no type is set below
+# ``MIN_TYPE`` px (Saira caps about 2.3 mm tall, ``wide_horizon``'s floor) and
+# every face is Saira at weight 800 or 900 and width 85: a 3-px stem from 18 px,
+# 4 px from 22. The TV's 600-weight condensed faces set 2-px stems, and the
+# small caps a 1-px stem, which do not read at that distance.
+MIN_TYPE = 15
+TYPE_WIDTH = 85
 # The tracking of the small caps, as a fraction of their size.
-TRACK = 0.18
+TRACK = 0.08
 SOLAR_HORIZON_DEG = -0.833
 
 
@@ -130,6 +147,9 @@ class Inks:
     red: Fill
     colour: bool
     now_column: Fill | None = None
+    # Saira's weight on this ground: black ink spreads into white strokes on a
+    # reflective panel, so type knocked out of the dark plate is set heavier.
+    weight: int = 800
 
 
 def inks_for(mode: str, light: bool = False) -> Inks:
@@ -139,22 +159,21 @@ def inks_for(mode: str, light: bool = False) -> Inks:
         yellow = INKY_SPECTRA6_PALETTE[INKY_YELLOW]
         red = INKY_SPECTRA6_PALETTE[INKY_RED]
         if light:
-            return Inks(white, black, yellow, black, black, red, True, now_column=yellow)
-        return Inks(black, white, yellow, yellow, black, red, True)
+            return Inks(
+                white, black, yellow, black, black, red, True, now_column=yellow, weight=800
+            )
+        return Inks(black, white, yellow, yellow, black, red, True, weight=900)
     paper = 1 if mode == "1" else 255
     ground, text = (paper, 0) if light else (0, paper)
-    return Inks(ground, text, text, text, ground, text, False)
+    return Inks(ground, text, text, text, ground, text, False, weight=800 if light else 900)
 
 
 # Type
 
 
-def _caps(size: int) -> ImageFont.FreeTypeFont:
-    return fonts.saira_condensed_bold(size)
-
-
-def _title(size: int) -> ImageFont.FreeTypeFont:
-    return fonts.saira_condensed(size)
+def _face(size: int, ink: Inks) -> ImageFont.FreeTypeFont:
+    """Saira at *size* in the plate's weight; never below ``MIN_TYPE``."""
+    return fonts.saira(max(size, MIN_TYPE), ink.weight, TYPE_WIDTH)
 
 
 def tracked_width(draw: ImageDraw.ImageDraw, text: str, font, tracking: float = TRACK) -> float:
@@ -264,11 +283,11 @@ def draw_section_label(
     draw: ImageDraw.ImageDraw, x: float, x1: float, label: str, note: str, ink: Inks
 ) -> None:
     """A column head: a short run, the label in tracked caps, and a note at the right."""
-    font = _caps(14)
-    draw.line((x, SECTION_Y - 5, x + 12, SECTION_Y - 5), fill=ink.text, width=2)
-    draw_tracked(draw, x + 22, SECTION_Y, label, font, ink.text, tracking=0.28)
+    font = _face(17, ink)
+    draw.line((x, SECTION_Y - 6, x + 12, SECTION_Y - 6), fill=ink.text, width=3)
+    draw_tracked(draw, x + 22, SECTION_Y, label, font, ink.text, tracking=0.18)
     if note:
-        draw_tracked(draw, x1, SECTION_Y, note, _caps(12), ink.text, align="right")
+        draw_tracked(draw, x1, SECTION_Y, note, _face(16, ink), ink.text, align="right")
 
 
 # Small marks, drawn rather than set: the icon fonts have no HUD-weight versions.
@@ -311,7 +330,16 @@ def _weather_glyph(
     """A weather-icons glyph centred on (*cx*, *cy*); the clear-day sun is gold."""
     glyph = OWM_ICON_MAP.get(icon, FALLBACK_ICON)
     fill = ink.gold_ink if icon == "01d" else ink.text
-    draw.text((cx, cy), glyph, font=fonts.weather_icon(size), fill=fill, anchor="mm")
+    # The glyphs are hairline drawings; a 1-px stroke gives them the type's weight.
+    draw.text(
+        (cx, cy),
+        glyph,
+        font=fonts.weather_icon(size),
+        fill=fill,
+        anchor="mm",
+        stroke_width=1,
+        stroke_fill=fill,
+    )
 
 
 # The strip's model
@@ -504,7 +532,7 @@ def _draw_header(
 
     stale = stale_sources(data)
     cx = mark_end + 46
-    caps = _caps(14)
+    caps = _face(16, ink)
     synced_text = "SYNCED " + _clock(to_local_naive(synced, tz))
     if stale:
         alert = ink.red if ink.colour else ink.text
@@ -517,7 +545,14 @@ def _draw_header(
 
     dateline = today.strftime("%a, %b %-d").upper()
     draw_tracked(
-        draw, rx + rw - MARGIN, ry + 37, dateline, _caps(20), ink.text, tracking=0.2, align="right"
+        draw,
+        rx + rw - MARGIN,
+        ry + 37,
+        dateline,
+        _face(22, ink),
+        ink.text,
+        tracking=0.14,
+        align="right",
     )
 
 
@@ -540,14 +575,14 @@ def _draw_strip(
     # The head.
     draw.line((x0, ry + STRIP_LABEL_Y - 5, x0 + 12, ry + STRIP_LABEL_Y - 5), fill=ink.text, width=2)
     draw_tracked(
-        draw, x0 + 22, ry + STRIP_LABEL_Y, "THE DAY AHEAD", _caps(14), ink.text, tracking=0.28
+        draw, x0 + 22, ry + STRIP_LABEL_Y, "THE DAY AHEAD", _face(17, ink), ink.text, tracking=0.18
     )
     note = "NEXT 24 H"
     if weather and weather.sunrise and weather.sunset:
         rise = to_local_naive(weather.sunrise, tz)
         down = to_local_naive(weather.sunset, tz)
         note += f" · RISE {_clock(rise)} · SET {_clock(down)}"
-    draw_tracked(draw, x1, ry + STRIP_LABEL_Y, note, _caps(12), ink.text, align="right")
+    draw_tracked(draw, x1, ry + STRIP_LABEL_Y, note, _face(16, ink), ink.text, align="right")
 
     # The axis: a dim hairline, the daylight lit along it, a tick each hour.
     axis_y = ry + AXIS_Y
@@ -569,7 +604,7 @@ def _draw_strip(
     # The gold line at the current hour, from the trace to the last lane; the
     # readings and labels it crosses are knocked out of it. Where the hour is a
     # column instead, NOW is set inside it.
-    now_font = _caps(13)
+    now_font = _face(16, ink)
     if ink.now_column is None:
         draw.rectangle((now_x - 1, ry + TRACE_TOP - 22, now_x, ry + STRIP_BOTTOM), fill=ink.gold)
         half = tracked_width(draw, "NOW", now_font) / 2
@@ -594,7 +629,7 @@ def _draw_hour_labels(
     draw: ImageDraw.ImageDraw, window: Window, now_x: float, ry: int, ink: Inks
 ) -> None:
     step = label_step(window.px_per_hour)
-    font = _caps(12)
+    font = _face(15, ink)
     for k in range(window.hours + 1):
         t = window.start + timedelta(hours=k)
         if t.hour % step:
@@ -645,7 +680,7 @@ def _draw_trace(
     xy = [(window.x(t), y_of(temp)) for t, temp, _ in points]
     if len(xy) > 1:
         draw.line(xy, fill=ink.text, width=2)
-    font = _caps(13)
+    font = _face(16, ink)
     for i, ((px, py), (_, temp, _c)) in enumerate(zip(xy, points, strict=True)):
         is_now = i == 0
         fill = ink.gold_ink if is_now else ink.text
@@ -667,7 +702,7 @@ def _draw_lanes(
     ink: Inks,
 ) -> None:
     items = spans(data.events, now, window)
-    title_font, time_font = _title(17), _caps(11)
+    title_font, time_font = _face(20, ink), _face(15, ink)
     extents: list[tuple[float, float]] = []
     labels: list[tuple[str, str]] = []
     for span in items:
@@ -781,21 +816,21 @@ def _draw_agenda(
     ahead = sum(1 for r in rows if r.key[0] <= tomorrow)
     rows = rows[:limit]
     draw_section_label(draw, x0, x1, "AGENDA", f"{ahead} AHEAD", ink)
-    title_font, detail_font = _title(19), _caps(12)
+    title_font, detail_font = _face(22, ink), _face(16, ink)
     if not rows:
-        draw_tracked(draw, x0, ry + COLUMN_TOP + 22, "NOTHING AHEAD", _caps(14), ink.text)
+        draw_tracked(draw, x0, ry + COLUMN_TOP + 22, "NOTHING AHEAD", _face(16, ink), ink.text)
         return
     for i, row in enumerate(rows):
         y0 = ry + COLUMN_TOP + i * ROW_PITCH
         type_ink = draw_slab(draw, (x0, y0, x1, y0 + ROW_H), ink, row.tone)
         mark = _gift_mark if row.kind == "birthday" else _calendar_mark
-        mark(draw, x0 + 12, y0 + 6, type_ink)
+        mark(draw, x0 + 12, y0 + 8, type_ink)
         detail_w = draw_tracked(
-            draw, x1 - 14, y0 + 18, row.detail, detail_font, type_ink, align="right"
+            draw, x1 - 14, y0 + 21, row.detail, detail_font, type_ink, align="right"
         )
         room = int(x1 - 14 - detail_w - 14 - (x0 + 36))
         title = truncate_to_width(draw, row.title, title_font, room)
-        draw.text((x0 + 36, y0 + 20), title, font=title_font, fill=type_ink, anchor="ls")
+        draw.text((x0 + 36, y0 + 23), title, font=title_font, fill=type_ink, anchor="ls")
 
 
 # Conditions
@@ -818,7 +853,7 @@ def readings(data: DashboardData, today: date) -> list[tuple[str, str]]:
     if w is not None and w.pressure is not None:
         out.append(("PRESSURE", f"{round(w.pressure)} hPa"))
     out.append((moon_phase_name(today).upper(), f"{round(moon_illumination(today))}% lit"))
-    return out[:6]
+    return out[:MAX_READINGS]
 
 
 def _uv_word(uv: float) -> str:
@@ -842,50 +877,63 @@ def _draw_conditions(
     draw_section_label(draw, x0, x1, "CONDITIONS", place, ink)
     top = ry + COLUMN_TOP
     if w is None:
-        draw_tracked(draw, x0, top + 22, "NO WEATHER", _caps(14), ink.text)
+        draw_tracked(draw, x0, top + 22, "NO WEATHER", _face(16, ink), ink.text)
         y = top
     else:
-        _weather_glyph(draw, x0 + 34, top + 34, w.current_icon, 46, ink)
-        numeral = fonts.michroma(48)
-        tx = x0 + 78
+        _weather_glyph(draw, x0 + 34, top + 32, w.current_icon, 48, ink)
+        numeral = fonts.michroma(52)
+        tx = x0 + 80
         reading = round_temp(w.current_temp)
-        draw.text((tx, top + 58), reading, font=numeral, fill=ink.text, anchor="ls")
-        tx += draw.textlength(reading, font=numeral) + 2
-        draw.text((tx, top + 58), "°", font=fonts.saira(48, 400), fill=ink.text, anchor="ls")
+        # Michroma has one weight, thin for its size at a metre; a 1-px stroke thickens it.
+        draw.text(
+            (tx, top + 60),
+            reading,
+            font=numeral,
+            fill=ink.text,
+            anchor="ls",
+            stroke_width=1,
+            stroke_fill=ink.text,
+        )
+        tx += draw.textlength(reading, font=numeral) + 4
+        draw.text(
+            (tx, top + 60), "°", font=fonts.saira(52, ink.weight - 100), fill=ink.text, anchor="ls"
+        )
         dx = tx + 30
         room = int(x1 - dx)
-        sky = truncate_to_width(draw, w.current_description.upper(), _caps(18), room)
-        draw_tracked(draw, dx, top + 30, sky, _caps(18), ink.text, tracking=0.12)
+        sky_font = _face(20, ink)
+        sky = truncate_to_width(draw, w.current_description.upper(), sky_font, room)
+        draw_tracked(draw, dx, top + 28, sky, sky_font, ink.text)
         parts = [f"H {round_temp(w.high)}°", f"L {round_temp(w.low)}°"]
         if w.feels_like is not None:
             parts.append(f"FEELS {round_temp(w.feels_like)}°")
-        draw_tracked(draw, dx, top + 54, "  ".join(parts), _caps(13), ink.text)
-        y = top + 68
+        draw_tracked(draw, dx, top + 56, "  ".join(parts), _face(17, ink), ink.text)
+        y = top + 70
         if w.alerts:
-            box = (x0, y, x1, y + 24)
+            box = (x0, y, x1, y + 26)
             type_ink = draw_slab(draw, box, ink, "alert")
-            _warning_mark(draw, x0 + 18, y + 12, type_ink)
-            text = truncate_to_width(draw, w.alerts[0].event.upper(), _caps(14), int(x1 - x0 - 60))
-            draw_tracked(draw, x0 + 36, y + 18, text, _caps(14), type_ink)
-            y += 24 + TILE_GAP
+            _warning_mark(draw, x0 + 18, y + 13, type_ink)
+            alert_font = _face(17, ink)
+            text = truncate_to_width(draw, w.alerts[0].event.upper(), alert_font, int(x1 - x0 - 60))
+            draw_tracked(draw, x0 + 36, y + 20, text, alert_font, type_ink)
+            y += 26 + TILE_GAP
         else:
-            y += 6
+            y += 10
 
+    # The readings, two to a row: the label at the left, the value at the right.
     cells = readings(data, today)
-    if not cells:
-        return
-    cols = 3
-    rows = (len(cells) + cols - 1) // cols
-    tile_w = (x1 - x0 - (cols - 1) * TILE_GAP) / cols
-    tile_h = min(44, (ry + COLUMN_BOTTOM - y - (rows - 1) * TILE_GAP) / rows)
+    tile_w = (x1 - x0 - TILE_GAP) / 2
+    label_font, value_font = _face(15, ink), _face(22, ink)
     for i, (label, value) in enumerate(cells):
-        tx0 = x0 + (i % cols) * (tile_w + TILE_GAP)
-        ty0 = y + (i // cols) * (tile_h + TILE_GAP)
-        draw_slab(draw, (tx0, ty0, tx0 + tile_w, ty0 + tile_h), ink, "dim")
-        label = truncate_to_width(draw, label, _caps(10), int(tile_w - 16))
-        draw_tracked(draw, tx0 + 8, ty0 + 13, label, _caps(10), ink.text)
-        value = truncate_to_width(draw, value, _title(20), int(tile_w - 16))
-        draw.text((tx0 + 8, ty0 + tile_h - 7), value, font=_title(20), fill=ink.text, anchor="ls")
+        tx0 = x0 + (i % 2) * (tile_w + TILE_GAP)
+        ty0 = y + (i // 2) * (TILE_H + TILE_GAP)
+        if ty0 + TILE_H > ry + COLUMN_BOTTOM:
+            break
+        draw_slab(draw, (tx0, ty0, tx0 + tile_w, ty0 + TILE_H), ink, "dim")
+        value = truncate_to_width(draw, value, value_font, int(tile_w / 2))
+        value_w = draw.textlength(value, font=value_font)
+        draw.text((tx0 + tile_w - 12, ty0 + 23), value, font=value_font, fill=ink.text, anchor="rs")
+        label = truncate_to_width(draw, label, label_font, int(tile_w - value_w - 30))
+        draw_tracked(draw, tx0 + 10, ty0 + 21, label, label_font, ink.text)
 
 
 # Outlook
@@ -905,7 +953,7 @@ def _draw_outlook(
     days = days[: min(fit, MAX_CARDS)]
     draw_section_label(draw, x0, x1, "OUTLOOK", f"{len(days)} DAYS" if days else "", ink)
     if not days:
-        draw_tracked(draw, x0, ry + COLUMN_TOP + 22, "NO FORECAST", _caps(14), ink.text)
+        draw_tracked(draw, x0, ry + COLUMN_TOP + 22, "NO FORECAST", _face(16, ink), ink.text)
         return
     n = len(days)
     card_w = (x1 - x0 - (n - 1) * CARD_GAP) / n
@@ -914,24 +962,19 @@ def _draw_outlook(
         cx0 = x0 + i * (card_w + CARD_GAP)
         mid = cx0 + card_w / 2
         draw_slab(draw, (cx0, top, cx0 + card_w, bottom), ink, "dim")
+        day_name = day.date.strftime("%a").upper()
+        day_font = _face(19, ink)
         draw_tracked(
-            draw,
-            mid,
-            top + 28,
-            day.date.strftime("%a").upper(),
-            _caps(15),
-            ink.text,
-            tracking=0.3,
-            align="center",
+            draw, mid, top + 30, day_name, day_font, ink.text, tracking=0.2, align="center"
         )
-        _weather_glyph(draw, mid, top + 72, day.icon, 40, ink)
+        _weather_glyph(draw, mid, top + 72, day.icon, 46, ink)
         high, low = f"{round_temp(day.high)}°", f"{round_temp(day.low)}°"
-        hf, lf = _title(30), fonts.saira(21, 500, 72)
+        hf, lf = _face(36, ink), _face(26, ink)
         hw, lw = draw.textlength(high, font=hf), draw.textlength(low, font=lf)
-        hx = mid - (hw + 6 + lw) / 2
+        hx = mid - (hw + 8 + lw) / 2
         draw.text((hx, top + 134), high, font=hf, fill=ink.text, anchor="ls")
-        draw.text((hx + hw + 6, top + 134), low, font=lf, fill=ink.text, anchor="ls")
+        draw.text((hx + hw + 8, top + 134), low, font=lf, fill=ink.text, anchor="ls")
         chance = day.precip_chance
         rain = f"{round(chance * 100)}% RAIN" if chance and chance >= RAIN_MIN_CHANCE else "DRY"
         fill = ink.gold_ink if rain != "DRY" else ink.text
-        draw_tracked(draw, mid, top + 160, rain, _caps(12), fill, align="center")
+        draw_tracked(draw, mid, top + 162, rain, _face(17, ink), fill, align="center")
