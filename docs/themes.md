@@ -226,7 +226,7 @@ the panel's own four inks.
 | `wide_night` | a night mode for the strip | Almost all negative space: the moon's phase, the temperature, the air-quality index and the weather glyph at one shared height, evenly spaced across the middle with small letter-spaced labels beneath, in black on a solid red ground. Jura numerals, Oxanium ExtraBold labels. Not in the random rotation — schedule it for after dark. |
 | `wide_night_invert` | the night mode, red on black | `wide_night` with ground and ink swapped: red marks and labels on a black ground (black on white on monochrome). |
 | `wide_ephemeris` | the day ahead, HUD style | The Ephemeris plate from the Apple TV app: gold on a dark ground, the next 24 hours as a strip (temperature, rain, daylight, events in lanes, a gold line at the current hour) over an agenda, the conditions now and a multi-day outlook. Michroma and Saira type. |
-| `wide_ephemeris_light` | the day ahead, on paper | `wide_ephemeris` in black on white: the gold becomes yellow fills only (the event under way, the current hour as a column behind the strip), never type. Partial refresh on monochrome. |
+| `wide_ephemeris_light` | the day ahead, on paper | `wide_ephemeris` in black on white: the gold becomes fills only, never type, with the event under way and the current hour (a column behind the strip) screened orange from yellow and red. Partial refresh on monochrome. |
 | `wide_horizon` | the next three days at a glance | One 72-hour time axis shared by everything: a sky coloured by the sun's real altitude (day, dithered twilights, night with stars and the moon), clouds and rain drawn per forecast slot, the temperature as one line across it, rain chance hanging beneath, and the calendar beneath: a strip marking each event on the same hours, over a one-line-per-event list for each day. Conditions now and a three-line outlook in a hero block at the left. |
 
 ### Utility themes
@@ -475,7 +475,7 @@ Needs weather; air quality needs PurpleAir and reads "No sensor" without it. Not
 
 #### wide_ephemeris
 
-The Ephemeris plate from [HomeDashboardTV](https://github.com/gkoch02/HomeDashboardTV), re-cut for the strip in its HUD dress: gold on a dark ground, condensed tracked caps, slab panels with one bevelled corner. The header carries the wordmark, a check line (all sources current, or which are stale) and the date. Beneath it **the day ahead** runs an hour back and 23 ahead: the temperature as a trace with its readings, each slot's chance of rain as a hatched bar, daylight as a lit band along the axis, and every timed event as a slab in one of two lanes. Below, three columns: the **agenda** (the event under way lit gold, the next edged gold, birthdays in the fortnight among them), the **conditions** (the reading now, any alert, a grid of readings) and the **outlook**.
+The Ephemeris plate from [HomeDashboardTV](https://github.com/gkoch02/HomeDashboardTV), re-cut for the strip in its HUD dress: gold on a dark ground, heavy tracked caps sized to read from about a metre, slab panels with one bevelled corner. The header carries the wordmark, a check line (all sources current, or which are stale) and the date. Beneath it **the day ahead** runs an hour back and 23 ahead: the temperature as a trace with its readings, each slot's chance of rain as a hatched bar, daylight as a lit band along the axis, and every timed event as a slab in one of two lanes. Below, three columns: the **agenda** (the event under way lit gold, the next edged gold, birthdays in the fortnight among them), the **conditions** (the reading now, any alert, a grid of readings) and the **outlook**.
 
 Needs weather and calendar. The strip steps on the clock hour and the plate repaints at most once an hour. On monochrome the gold becomes white and the lit slabs solid white. See [Panoramic Themes](wide-themes.md#wide_ephemeris).
 
@@ -483,7 +483,7 @@ Needs weather and calendar. The strip steps on the clock hour and the plate repa
 
 #### wide_ephemeris_light
 
-`wide_ephemeris` on a paper ground: the same strip, agenda, conditions and outlook in black on white. Yellow type does not read on paper, so the gold is only ever a fill: the event under way is a yellow slab, the current hour a yellow column standing behind the strip, the wordmark black over a yellow rule. Alerts stay red. On monochrome the event under way is a solid black slab and the hour a black line; the paper ground keeps partial refresh there. See [Panoramic Themes](wide-themes.md#wide_ephemeris_light).
+`wide_ephemeris` on a paper ground: the same strip, agenda, conditions and outlook in black on white. Yellow type does not read on paper, so the gold is only ever a fill, and the large fills are screened half yellow, half red so they read as orange: the event under way is an orange slab, the current hour an orange column standing behind the strip, the wordmark black over a yellow rule. Alerts stay red. On monochrome the event under way is a solid black slab and the hour a black line; the paper ground keeps partial refresh there. See [Panoramic Themes](wide-themes.md#wide_ephemeris_light).
 
 [![Wide ephemeris light theme](../assets/previews/theme_wide_ephemeris_light.png)](../assets/previews/theme_wide_ephemeris_light.png)
 
