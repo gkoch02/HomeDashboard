@@ -4,6 +4,7 @@
 # Verified: 2026-10-05 two Pi Zero 2 W, Pi OS Trixie 64-bit, Python 3.13.5: pi-install, check, dry, live full refresh on epd10in85g and Inky impression_7_3_2025 (#352). Web extras not reinstalled.
 blinker==1.9.0
 caldav==3.6.0
+calendaring-config==0.5.0
 certifi==2026.10.23
 cffi==2.1.1
 charset-normalizer==3.5.2
