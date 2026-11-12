@@ -191,7 +191,7 @@ Rules that reference weather or calendar data silently skip on the first boot (n
 | `almanac` | editorial daily reference | Old-Farmer's-Almanac front page: ornamental masthead with Roman-numeral volume, big editorial dateline, four bordered sections in a 2×2 grid (Heavens, From the Sky, Week Ahead, Next in the Garden), and a footer aphorism with author in small caps. Combines weather, astronomy, moon, calendar, birthdays, and quote — no new fetcher. |
 | `day_arc` | today's calendar, front and centre | Calendar-forward sibling of `halftone`. A dithered ribbon draws today as a left-to-right arc keyed to real sunrise/sunset, with the sun (or moon, after dark) at the current time's true position; the ribbon's baseline is a time axis carrying hour ticks, a NOW caret and one pip per event. Below it, a full-height agenda where dithering means something — elapsed events are Bayer-screened, the event in progress is inverted, upcoming ones are crisp — plus a rail with temperature, conditions and birthdays. Adapts after dark and rolls over to tomorrow once the day is spent. Pure-Python — no external assets. |
 | `halftone` | contemplative weather plate | Procedurally-drawn dithered weather illustration (sun, clouds, rain stipple, thunderstorm, snow, fog, or moon-at-current-phase) as a hero engraving; below it a typeset margin band with the temperature numeral + feels-like caption, a NOW row (condition + H/L), a TODAY row (sunrise/sunset + date), and a NEXT row (soonest upcoming timed event). Floyd-Steinberg quantization turns the procedural greyscale gradients into engraving-style halftone. Pure-Python — no external assets. |
-| `halftone_agenda` | weather art beside the day's list | Split-plate variant of `halftone`: the engraving and the weather read-out take the left 372 px, a full-height ordered-Bayer rule divides the plate, and the right pane is given entirely to today's events. The agenda encodes each event's state in its rendering — elapsed rows perforated, the event in progress inverted, the next one up accented — and rolls over to tomorrow after dark once the day is spent. Pure-Python — no external assets. |
+| `halftone_agenda` | weather art beside the day's list | Split-plate variant of `halftone`: the engraving and the weather read-out take the left 372 px, a full-height ordered-Bayer rule divides the plate, and the right pane is given entirely to today's events. The agenda encodes each event's state in its rendering — elapsed rows perforated, the event in progress inverted, the next one up accented — and rolls over to tomorrow after dark once the day is spent. A birthday on the shown day sets as an all-day row. Pure-Python — no external assets. |
 | `trends` | long-context dashboard | Five stacked sparkline rows: 24h temp, AQI scale, 7-day daylight, 14-day event density, 30-day moon. Bayer-filled area under each curve gives a clean halftone density read on eInk. First chart/graph theme; ordered-Bayer quantization preserves the regular dot pattern. |
 | `astronomy` | sky-tonight dashboard | Sunrise/sunset, civil/nautical/astronomical twilight, moon phase + next full/new, next meteor shower, dark-sky window. Uses `weather.latitude` / `weather.longitude` for twilight math (falls back gracefully without them). Pure-Python — no API calls. |
 | `constellation_map` | tonight's actual sky | Dark-canvas star chart projected for the user's location and the current moment. Renders ~45 named bright stars, seven recognisable northern constellations connected by lines, and the moon at its current alt/az. During daylight the chart auto-projects for tonight's solar midnight so it stays informative. Requires `weather.latitude` / `weather.longitude`; pure-Python sky math (no API). |
@@ -214,7 +214,7 @@ letterboxed instead (see [`display.scaling`](configuration.md#scaling)). On an
 800 × 480 panel the panoramic themes letterbox the other way, as a band.
 
 **[Panoramic Themes](wide-themes.md)** is the guide to this set: setting up the
-10.85" panel, choosing between the eight, how often each repaints, and previews in
+10.85" panel, choosing between the ten, how often each repaints, and previews in
 the panel's own four inks.
 
 | Theme | Best for | Notes |
@@ -225,6 +225,8 @@ the panel's own four inks.
 | `wide_forecast` | weather station on a strip | Current conditions as a hero block with a detail grid, five forecast cards in a row with precipitation bars, and a band beneath for alerts, air quality and the moon. |
 | `wide_night` | a night mode for the strip | Almost all negative space: the moon's phase, the temperature, the air-quality index and the weather glyph at one shared height, evenly spaced across the middle with small letter-spaced labels beneath, in black on a solid red ground. Jura numerals, Oxanium ExtraBold labels. Not in the random rotation — schedule it for after dark. |
 | `wide_night_invert` | the night mode, red on black | `wide_night` with ground and ink swapped: red marks and labels on a black ground (black on white on monochrome). |
+| `wide_ephemeris` | the day ahead, HUD style | The Ephemeris plate from the Apple TV app: gold on a dark ground, the next 24 hours as a strip (temperature, rain, daylight, events in lanes, a gold line at the current hour) over an agenda, the conditions now and a multi-day outlook. Michroma and Saira type. |
+| `wide_ephemeris_light` | the day ahead, on paper | `wide_ephemeris` in black on white: the gold becomes fills only, never type, with the event under way and the current hour (a column behind the strip) screened orange from yellow and red. Partial refresh on monochrome. |
 | `wide_horizon` | the next three days at a glance | One 72-hour time axis shared by everything: a sky coloured by the sun's real altitude (day, dithered twilights, night with stars and the moon), clouds and rain drawn per forecast slot, the temperature as one line across it, rain chance hanging beneath, and the calendar beneath: a strip marking each event on the same hours, over a one-line-per-event list for each day. Conditions now and a three-line outlook in a hero block at the left. |
 
 ### Utility themes
@@ -470,6 +472,20 @@ A weather strip. The conditions now sit in a hero block at the left (location, i
 Needs weather; air quality needs PurpleAir and reads "No sensor" without it. Nothing reads the clock, so an idle tick costs no panel write. On a colour panel red marks labels, today's chip, alerts and an unhealthy AQI, and yellow fills the precipitation bars. See [Panoramic Themes](wide-themes.md#wide_forecast).
 
 [![Wide forecast theme](../assets/previews/theme_wide_forecast.png)](../assets/previews/theme_wide_forecast.png)
+
+#### wide_ephemeris
+
+The Ephemeris plate from [HomeDashboardTV](https://github.com/gkoch02/HomeDashboardTV), re-cut for the strip in its HUD dress: gold on a dark ground, heavy tracked caps sized to read from about a metre, slab panels with one bevelled corner. The header carries the wordmark, a check line (all sources current, or which are stale) and the date. Beneath it **the day ahead** runs an hour back and 23 ahead: the temperature as a trace with its readings, each slot's chance of rain as a hatched bar, daylight as a lit band along the axis, and every timed event as a slab in one of two lanes. Below, three columns: the **agenda** (the event under way lit gold, the next edged gold, birthdays in the fortnight among them), the **conditions** (the reading now, any alert, a grid of readings) and the **outlook**.
+
+Needs weather and calendar. The strip steps on the clock hour and the plate repaints at most once an hour. On monochrome the gold becomes white and the lit slabs solid white. See [Panoramic Themes](wide-themes.md#wide_ephemeris).
+
+[![Wide ephemeris theme](../assets/previews/theme_wide_ephemeris.png)](../assets/previews/theme_wide_ephemeris.png)
+
+#### wide_ephemeris_light
+
+`wide_ephemeris` on a paper ground: the same strip, agenda, conditions and outlook in black on white. Yellow type does not read on paper, so the gold is only ever a fill, and the large fills are screened half yellow, half red so they read as orange: the event under way is an orange slab, the current hour an orange column standing behind the strip, the wordmark black over a yellow rule. Alerts stay red. On monochrome the event under way is a solid black slab and the hour a black line; the paper ground keeps partial refresh there. See [Panoramic Themes](wide-themes.md#wide_ephemeris_light).
+
+[![Wide ephemeris light theme](../assets/previews/theme_wide_ephemeris_light.png)](../assets/previews/theme_wide_ephemeris_light.png)
 
 #### wide_horizon
 

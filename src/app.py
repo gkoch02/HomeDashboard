@@ -1,3 +1,14 @@
+"""One dashboard run, from timezone resolution to the published image.
+
+``main.py`` parses arguments and validates config, then hands both to
+``DashboardApp``, which owns the order of a run: quiet hours, the
+once-a-morning full refresh, a theme pick sized to the calendar window,
+``DataPipeline.fetch()``, event filters, a second theme pick when
+``theme_rules`` exist, render, ``OutputService.publish()`` and the success
+marker. Everything a step needs beyond that order lives in the module it
+calls; this one only sequences them and records the outcome.
+"""
+
 from __future__ import annotations
 
 import logging
@@ -48,6 +59,10 @@ EXTRA_EVENT_DAYS: dict[str, int] = {
     # A 72-hour window starting at the current 3-hour slot reaches three days
     # past today, so on a Sunday it runs Mon–Wed of the next week.
     "wide_horizon": 3,
+    # The strip runs 23 hours past the current hour and the agenda names
+    # tomorrow, so on a Sunday evening both reach Monday.
+    "wide_ephemeris": 1,
+    "wide_ephemeris_light": 1,
 }
 
 # State files that belong in state_dir (not output_dir)
@@ -77,6 +92,12 @@ def _migrate_state_files(output_dir: str, state_dir: str) -> None:
 
 
 class DashboardApp:
+    """One run of the dashboard for a loaded ``Config`` and parsed CLI ``args``.
+
+    Construction creates ``state_dir`` and migrates legacy state files out of
+    ``output_dir``; ``run()`` does the rest.
+    """
+
     def __init__(self, cfg, args):
         self.cfg = cfg
         self.args = args
@@ -91,6 +112,14 @@ class DashboardApp:
         _migrate_state_files(cfg.output_dir, cfg.state_dir)
 
     def run(self):
+        """Render and publish one frame, or return early during quiet hours.
+
+        Any exception, including ``RunTerminated`` from SIGTERM, writes
+        ``output/last_error.txt`` and a ``run_failed`` web event before it is
+        re-raised. A completed render records ``run_completed``; a quiet-hours
+        skip records nothing. Fetch failures do not reach here: the pipeline
+        falls back to cached data per source.
+        """
         started = time.monotonic()
         self._run_outcome = None
         try:

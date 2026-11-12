@@ -14,7 +14,7 @@ Three parts:
   * **Divider** (6 px) — a full-height vertical Bayer rule.
   * **Right pane** (422 px) — a TODAY header over as many event rows as the
     pane can set at a legible size, with an "updated" caption in the bottom
-    corner.
+    corner. A birthday on the shown day joins as an all-day row.
 
 The agenda encodes each event's state in its rendering, as ``day_arc`` does:
 elapsed rows are perforated on a Bayer lattice, the event in progress inverts
@@ -33,11 +33,11 @@ tomorrow. No external assets — every illustration is PIL primitives.
 
 from __future__ import annotations
 
-from datetime import date, datetime, tzinfo
+from datetime import date, datetime, timedelta, tzinfo
 
 from PIL import Image, ImageDraw, ImageFont
 
-from src.data.models import CalendarEvent, DashboardData, WeatherData
+from src.data.models import Birthday, CalendarEvent, DashboardData, WeatherData
 from src.render.artkit import accent_red as _accent_red
 from src.render.artkit import fmt_temp, to_local_naive
 from src.render.artkit import ink as _ink
@@ -53,6 +53,7 @@ from src.render.primitives import (
     events_for_day,
     fmt_time,
     location_line,
+    next_birthday,
     text_height,
     text_width,
     wrap_lines,
@@ -235,7 +236,7 @@ def draw_halftone_agenda(
     _draw_agenda_pane(
         image,
         draw,
-        data.events,
+        birthday_events(data.birthdays, day) + data.events,
         day,
         is_tomorrow,
         now_naive,
@@ -471,6 +472,31 @@ def _draw_hairline(image: Image.Image, x0: int, y: int, w: int, mode: str) -> No
 # Right pane — agenda
 
 
+def birthday_events(birthdays: list[Birthday], day: date) -> list[CalendarEvent]:
+    """All-day agenda rows for the birthdays that fall on *day*.
+
+    A birthday shows only on its own day, as an all-day row ahead of the
+    calendar's: the pane has no room to spare for a look-ahead list, and a row
+    goes through the same density tiers and "+N more" as any event. The time
+    cell keeps "ALL DAY" because "BIRTHDAY" overruns the time column in two
+    tiers, so the title says whose birthday it is and, when known, the age.
+    """
+    start = datetime.combine(day, datetime.min.time())
+    rows = []
+    for b in sorted(birthdays, key=lambda b: b.name):
+        if next_birthday(b.date, day) != day:
+            continue
+        # Name first, so a long name loses the tail of the phrase to the
+        # ellipsis rather than the name itself.
+        summary = f"{b.name} turns {b.age}" if b.age is not None else f"{b.name}'s birthday"
+        rows.append(
+            CalendarEvent(
+                summary=summary, start=start, end=start + timedelta(days=1), is_all_day=True
+            )
+        )
+    return rows
+
+
 def event_times(event: CalendarEvent) -> tuple[str, str | None]:
     """Return ``(start, end)`` labels for *event*; *end* is None when unusable.
 
@@ -495,6 +521,51 @@ def _strip_tz(dt: datetime) -> datetime:
 def _location_text(event: CalendarEvent) -> str:
     """The event's location cut to its first line; see ``primitives.location_line``."""
     return location_line(event.location)
+
+
+def title_block(
+    event: CalendarEvent,
+    title_font: ImageFont.FreeTypeFont,
+    title_w: int,
+    show_location: bool,
+) -> tuple[list[str], str]:
+    """Return ``(title_lines, location)`` for one row's title column.
+
+    A tier that shows locations sizes its rows for two lines, so an event with
+    no location gives that second line to its title: a long title ("Chloe Taylor
+    Koch turns 13") wraps rather than ellipsizing at the name. An event with a
+    location, or a tier without the room, keeps one truncated line. The second
+    title line is still ellipsized by the caller when the rest overruns it.
+    """
+    location = _location_text(event) if show_location else ""
+    if not show_location or location:
+        return ([event.summary], location)
+    lines = wrap_lines(event.summary, title_font, title_w)
+    if len(lines) <= 1:
+        return ([event.summary], "")
+    return ([lines[0], " ".join(lines[1:])], "")
+
+
+def _draw_title_block(
+    draw: ImageDraw.ImageDraw,
+    event: CalendarEvent,
+    *,
+    x: int,
+    y: int,
+    title_font: ImageFont.FreeTypeFont,
+    loc_font: ImageFont.FreeTypeFont,
+    title_w: int,
+    loc_dy: int,
+    show_location: bool,
+    fill: int | tuple[int, int, int],
+) -> None:
+    """Set the title (one or two lines) and, beneath it, any location."""
+    lines, location = title_block(event, title_font, title_w, show_location)
+    line_h = text_height(title_font) + 2
+    for i, line in enumerate(lines):
+        draw_text_truncated(draw, (x, y + i * line_h), line, title_font, title_w, fill=fill)
+    if location:
+        draw_text_truncated(draw, (x, y - 2 + loc_dy), location, loc_font, title_w, fill=fill)
 
 
 def inline_range(start: str, end: str | None) -> str | None:
@@ -645,7 +716,24 @@ def _draw_event_row(
         show_location=show_location,
         two_line_time=two_line_time,
     )
+    if len(title_block(event, title_font, title_w, show_location)[0]) > 1:
+        title_h = 2 * (text_height(title_font) + 2)
     content_h = max(title_h + 4, time_h)
+
+    def _title(d: ImageDraw.ImageDraw, x: int, ty: int, fill: int | tuple[int, int, int]) -> None:
+        _draw_title_block(
+            d,
+            event,
+            x=x,
+            y=ty,
+            title_font=title_font,
+            loc_font=loc_font,
+            title_w=title_w,
+            loc_dy=loc_y,
+            show_location=show_location,
+            fill=fill,
+        )
+
     bar_top = y + 2
     bar_bot = min(y + row_h - 3, bar_top + content_h)
 
@@ -667,15 +755,7 @@ def _draw_event_row(
             row_h=row_h,
             fill=paper,
         )
-        used = draw_text_truncated(
-            draw, (title_x, y + 2), event.summary, title_font, title_w, fill=paper
-        )
-        if show_location and used:
-            location = _location_text(event)
-            if location:
-                draw_text_truncated(
-                    draw, (title_x, y + loc_y), location, loc_font, title_w, fill=paper
-                )
+        _title(draw, title_x, y + 2, paper)
         return
 
     if state == "past":
@@ -696,15 +776,7 @@ def _draw_event_row(
                 row_h=row_h,
                 fill=0,
             )
-            used_ = draw_text_truncated(
-                d, (time_w + 12, 2), event.summary, title_font, title_w, fill=0
-            )
-            if show_location and used_:
-                location = _location_text(event)
-                if location:
-                    draw_text_truncated(
-                        d, (time_w + 12, loc_y), location, loc_font, title_w, fill=0
-                    )
+            _title(d, time_w + 12, 2, 0)
 
         screened_paste(
             image, (x0, y, w, max(1, row_h - 2)), _render, threshold=past_screen(title_pt)
@@ -731,18 +803,7 @@ def _draw_event_row(
         draw.rectangle(tick, outline=mark)
     else:
         draw.rectangle(tick, fill=mark)
-    used = draw_text_truncated(draw, (title_x, y + 2), event.summary, title_font, title_w, fill=ink)
-    if show_location and used:
-        location = _location_text(event)
-        if location:
-            draw_text_truncated(
-                draw,
-                (title_x, y + loc_y),
-                location,
-                loc_font,
-                title_w,
-                fill=ink,
-            )
+    _title(draw, title_x, y + 2, ink)
 
 
 def _draw_agenda_pane(

@@ -1,3 +1,11 @@
+"""Counts Waveshare partial refreshes so a full refresh clears ghosting in time.
+
+``WaveshareDisplay.show()`` loads the tracker, forces a full refresh after
+``max_partials`` partial ones (or when no full refresh is on record), and
+saves it whatever the outcome. Every write records into it; the count only
+changes what is drawn when partial refresh is enabled.
+"""
+
 from __future__ import annotations
 
 import json

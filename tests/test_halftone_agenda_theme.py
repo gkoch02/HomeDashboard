@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+import dataclasses
+from datetime import date, datetime, timedelta, timezone
 
 import pytest
 from PIL import Image
 
 from src.config import DisplayConfig
-from src.data.models import CalendarEvent, DashboardData
+from src.data.models import Birthday, CalendarEvent, DashboardData
 from src.dummy_data import generate_dummy_data
 from src.render.artkit import fmt_temp
 from src.render.canvas import render_dashboard
@@ -31,13 +32,16 @@ from src.render.components.halftone_agenda_panel import (
     _draw_time_cell,
     _location_text,
     _sun_times,
+    birthday_events,
     draw_halftone_agenda,
     event_times,
     inline_range,
     past_screen,
     stacks_time,
+    title_block,
     two_line_time_fits,
 )
+from src.render.primitives import text_height
 from src.render.quantize import INKY_SPECTRA6_PALETTE, flatten_pixels
 from src.render.skyart import (
     TYPESET_CUT,
@@ -54,7 +58,7 @@ from src.render.theme import (
     load_theme,
 )
 from tests.conftest import agenda_data, agenda_event
-from tests.inkutils import ink
+from tests.inkutils import ink, ink_bbox, record_text
 
 AGENDA_X = ART_W + DIVIDER_W  # the right pane's left edge
 
@@ -979,3 +983,111 @@ def test_draw_halftone_agenda_into_a_sub_region():
     # Nothing drawn outside the region it was handed.
     assert all(px[x, 470] == 255 for x in range(800))
     assert all(px[790, y] == 255 for y in range(480))
+
+
+class TestBirthdays:
+    """A birthday on the agenda's day sets as an all-day row ahead of the calendar."""
+
+    def _drawn_text(self, data, now=FIXED_NOW):
+        from PIL import ImageDraw
+
+        img = Image.new("L", (800, 480), 255)
+        draw = ImageDraw.Draw(img)
+        calls = record_text(draw)
+        draw_halftone_agenda(draw, data, now.date(), now, image=img)
+        return [text for text, _ in calls]
+
+    def test_todays_birthday_is_a_row(self):
+        data = agenda_data(events=[agenda_event(14, name="Dentist")])
+        data.birthdays = [Birthday(name="Mom", date=TODAY, age=70)]
+        texts = self._drawn_text(data)
+        assert "Mom turns 70" in texts
+        assert "2 EVENTS" in texts
+        # Ahead of the timed event.
+        assert texts.index("Mom turns 70") < texts.index("Dentist")
+
+    def test_other_days_birthday_is_not_shown(self):
+        data = agenda_data(events=[])
+        data.birthdays = [Birthday(name="Mom", date=TODAY + timedelta(days=3), age=70)]
+        texts = self._drawn_text(data)
+        assert not any("Mom" in t for t in texts)
+        assert "Nothing scheduled" in texts
+
+    def test_birthday_follows_the_tomorrow_rollover(self):
+        late = datetime.combine(TODAY, datetime.min.time()) + timedelta(hours=22)
+        data = agenda_data(events=[], now=late)
+        data.birthdays = [Birthday(name="Jake", date=TODAY + timedelta(days=1))]
+        texts = self._drawn_text(data, now=late)
+        assert "TOMORROW" in texts
+        assert "Jake's birthday" in texts
+
+    def test_birthday_row_puts_ink_on_the_agenda_pane(self):
+        without = agenda_data(events=[])
+        with_bday = agenda_data(events=[])
+        with_bday.birthdays = [Birthday(name="Mom", date=TODAY)]
+        box = (AGENDA_X, 0, 800, 480 - FOOTER_H)
+        assert ink(_render(data=with_bday).crop(box)) > ink(_render(data=without).crop(box))
+
+
+class TestTitleWrap:
+    """A long title takes the location line when it has no location to show."""
+
+    LONG = "Chloe Taylor Koch turns 13"
+
+    def _drawn_text(self, data):
+        from PIL import ImageDraw
+
+        img = Image.new("L", (800, 480), 255)
+        draw = ImageDraw.Draw(img)
+        calls = record_text(draw)
+        draw_halftone_agenda(draw, data, FIXED_NOW.date(), FIXED_NOW, image=img)
+        return [text for text, _ in calls]
+
+    def test_long_birthday_wraps_rather_than_cutting_the_name(self):
+        data = agenda_data(events=[])
+        data.birthdays = [Birthday(name="Chloe Taylor Koch", date=TODAY, age=13)]
+        texts = self._drawn_text(data)
+        assert not any(t.endswith("…") or t.endswith("...") for t in texts if "Chloe" in t)
+        joined = " ".join(t for t in texts if t in self.LONG)
+        assert "Koch" in joined and "13" in joined
+
+    def test_title_with_a_location_keeps_one_line(self):
+        style = load_theme("halftone_agenda").style
+        font = style.font_bold(30)
+        event = dataclasses.replace(agenda_event(14, name=self.LONG * 2), location="Room 4")
+        lines, location = title_block(event, font, 270, True)
+        assert lines == [event.summary]
+        assert location == "Room 4"
+
+    def test_dense_tier_keeps_one_line(self):
+        style = load_theme("halftone_agenda").style
+        event = agenda_event(14, name=self.LONG * 2)
+        assert title_block(event, style.font_bold(19), 270, False) == ([event.summary], "")
+
+    def test_wrapped_title_inks_a_second_line(self):
+        short = agenda_data(events=[])
+        short.birthdays = [Birthday(name="Al", date=TODAY, age=13)]
+        long = agenda_data(events=[])
+        long.birthdays = [Birthday(name="Chloe Taylor Koch", date=TODAY, age=13)]
+        # The title column (right of the time cell and tick), under the header
+        # rule and above the "updated" caption.
+        box = (AGENDA_X + 130, 80, 790, 480 - FOOTER_H - 40)
+        short_box = ink_bbox(_render(data=short).convert("L"), box)
+        long_box = ink_bbox(_render(data=long).convert("L"), box)
+        assert short_box is not None and long_box is not None
+        line_h = text_height(load_theme("halftone_agenda").style.font_bold(30))
+        assert long_box[3] > short_box[3] + line_h
+
+
+class TestBirthdayEvents:
+    def test_feb_29_lands_on_feb_28_in_a_common_year(self):
+        bday = Birthday(name="Leap", date=date(2024, 2, 29))
+        assert [e.summary for e in birthday_events([bday], date(2027, 2, 28))] == [
+            "Leap's birthday"
+        ]
+
+    def test_rows_are_all_day_on_that_day(self):
+        (row,) = birthday_events([Birthday(name="A", date=TODAY)], TODAY)
+        assert row.is_all_day
+        assert row.start == MIDNIGHT
+        assert row.end == MIDNIGHT + timedelta(days=1)

@@ -1,3 +1,12 @@
+"""Plain data models passed from the fetchers to the renderer.
+
+No I/O and no behaviour beyond construction: fetchers build these, the cache
+serialises them, and components read them. Datetime conventions differ by
+field and matter: ``CalendarEvent.start`` / ``end`` are naive local time,
+while sunrise, sunset, forecast slots and ``DashboardData.content_at`` are
+timezone-aware.
+"""
+
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from enum import Enum
