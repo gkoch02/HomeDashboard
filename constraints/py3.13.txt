@@ -3,23 +3,23 @@
 # Installed by `make pi-install`; refresh procedure in docs/setup.md.
 # Verified: 2026-10-05 two Pi Zero 2 W, Pi OS Trixie 64-bit, Python 3.13.5: pi-install, check, dry, live full refresh on epd10in85g and Inky impression_7_3_2025 (#352). Web extras not reinstalled.
 blinker==1.9.0
-caldav==3.6.0
+caldav==3.7.0
 calendaring-config==0.5.0
 certifi==2026.10.23
 cffi==2.1.1
 charset-normalizer==3.5.2
-click==8.5.0
+click==8.5.1
 colorzero==2.0
 cryptography==50.0.2
 dnspython==2.8.0
 flask==3.1.3
-google-api-core==2.43.1
+google-api-core==2.44.0
 google-api-python-client==2.201.0
-google-auth==2.62.0
+google-auth==2.62.1
 google-auth-httplib2==0.4.4
 google-auth-oauthlib==1.5.0
 googleapis-common-protos==1.76.0
-gpiod==2.5.0
+gpiod==2.6.0
 gpiodevice==0.1.0
 gpiozero==2.0.1.post3
 h11==0.16.0
@@ -34,10 +34,10 @@ jinja2==3.1.6
 lgpio==0.2.2.0
 lxml==6.1.3
 markupsafe==3.0.4
-niquests==3.21.2
+niquests==3.21.3
 numpy==2.5.3
-oauthlib==4.0.0
-opentelemetry-api==1.45.1
+oauthlib==4.0.1
+opentelemetry-api==1.45.2
 pillow==12.3.0
 proto-plus==1.29.0
 protobuf==7.36.2
@@ -60,7 +60,7 @@ typing-extensions==4.16.0
 tzdata==2026.6
 uritemplate==4.2.0
 urllib3==2.8.0
-urllib3-future==2.25.905
+urllib3-future==2.25.906
 waitress==3.0.2
 wassima==2.1.5
 werkzeug==3.1.9
