@@ -510,6 +510,15 @@ class TestThemeConfigField:
         warning_fields = [w.field for w in warnings]
         assert "theme" in warning_fields
 
+    def test_unknown_theme_warning_says_default_is_shown(self):
+        from src.config import Config, validate_config
+
+        cfg = Config()
+        cfg.theme = "nonexistent_xyz"
+        _, warnings = validate_config(cfg)
+        [warning] = [w for w in warnings if w.field == "theme"]
+        assert "'default' is shown instead" in warning.message
+
     def test_retired_theme_warning_says_it_was_retired(self):
         from src.config import Config, validate_config
 

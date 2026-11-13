@@ -782,11 +782,18 @@ def validate_config(
 
 
 def _unknown_theme_message(name: str, unknown: str) -> str:
-    """*unknown*, or the retirement notice when *name* is a retired theme."""
+    """*unknown*, or the retirement notice when *name* is a retired theme.
+
+    Both kinds of name render ``default`` (``resolve_theme_name()``), so the
+    message says so; a pseudo name in the wrong place gets *unknown* alone.
+    """
+    from src.render.theme import AVAILABLE_THEMES
     from src.render.themes.registry import RETIRED_THEME_NAMES
 
     if name in RETIRED_THEME_NAMES:
         return f"Theme '{name}' has been retired; 'default' is shown instead"
+    if name not in AVAILABLE_THEMES:
+        return f"{unknown}; 'default' is shown instead"
     return unknown
 
 

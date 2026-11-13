@@ -138,7 +138,7 @@ A log line is often the quickest way in: every line in `output/dashboard.log` na
 
 ## Reading a crash
 
-When something goes wrong, Python prints a **traceback**: the chain of function calls that led to the error. On the Pi it's in `output/dashboard.log`, and the last error is also in `output/last_error.txt`. This one is real, from a config with `theme: nosuchtheme`, shortened:
+When something goes wrong, Python prints a **traceback**: the chain of function calls that led to the error. On the Pi it's in `output/dashboard.log`, and the last error is also in `output/last_error.txt`. This one is real, from a config with `theme: nosuchtheme` before an unknown name fell back to `default`, shortened:
 
 ```
 Traceback (most recent call last):

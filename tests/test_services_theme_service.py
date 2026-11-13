@@ -137,6 +137,37 @@ class TestResolveThemeName:
             assert resolve_theme_name(cfg, override_theme=None, now=_now(12)) == "default"
         assert "retired" in caplog.text
 
+    @pytest.mark.parametrize(
+        ("cfg_theme", "pairs"),
+        [("wether", ()), ("default", (("00:00", "wether"),))],
+        ids=["cfg-theme", "schedule-entry"],
+    )
+    def test_unknown_theme_falls_back_to_default(self, cfg_theme, pairs, caplog):
+        """A misspelled theme passes --check-config as a warning, so it must
+        render ``default`` rather than raising in ``load_theme()`` on every run."""
+        cfg = _make_cfg(theme=cfg_theme, entries=_entries(*pairs))
+        with caplog.at_level("WARNING", logger="src.services.theme"):
+            assert resolve_theme_name(cfg, override_theme=None, now=_now(12)) == "default"
+        assert "Unknown theme 'wether'" in caplog.text
+
+    def test_unknown_rule_theme_falls_back_to_default(self, caplog):
+        """A theme_rules match naming a misspelled theme also renders ``default``."""
+        cfg = _make_cfg(theme="terminal")
+        cfg.theme_rules.rules = [object()]
+        with (
+            patch("src.services.theme_rules.resolve_rule_theme", return_value="wether"),
+            caplog.at_level("WARNING", logger="src.services.theme"),
+        ):
+            assert resolve_theme_name(cfg, override_theme=None, now=_now(12)) == "default"
+
+    def test_unresolved_pseudo_name_is_not_replaced(self):
+        """A read-only resolve with no stored pick reports the pseudo name, which
+        the status page relies on; it is not an unknown theme."""
+        cfg = _make_cfg(theme="random_daily")
+        with patch("src.render.random_theme.pick_random_theme", return_value=None):
+            result = resolve_theme_name(cfg, override_theme=None, now=_now(12), persist=False)
+        assert result == "random_daily"
+
     def test_random_hourly_resolves_via_pick_random_theme_hourly(self):
         """'random_hourly' routes through pick_random_theme_hourly with the current time."""
         cfg = _make_cfg(theme="random_hourly", entries=[])

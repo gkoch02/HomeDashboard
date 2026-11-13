@@ -101,9 +101,15 @@ def resolve_theme_name(
         )
         theme_name = theme_name or pseudo_name
 
+    from src.render.theme import AVAILABLE_THEMES
     from src.render.themes.registry import RETIRED_THEME_NAMES
 
+    # A retired or misspelled name renders ``default`` rather than raising in
+    # ``load_theme()`` on every run; validate_config() reports both as warnings.
     if theme_name in RETIRED_THEME_NAMES:
         logger.warning("Theme %r has been retired; showing 'default' instead", theme_name)
+        theme_name = "default"
+    elif theme_name not in AVAILABLE_THEMES:
+        logger.warning("Unknown theme %r; showing 'default' instead", theme_name)
         theme_name = "default"
     return theme_name
