@@ -128,8 +128,19 @@ The renderer starts fresh every five minutes, so it picks up new code by itself;
 cd ~/home-dashboard
 git fetch --tags origin
 git checkout v6.1.0
-sudo systemctl start dashboard.service
+git diff --stat HEAD@{1} HEAD -- requirements*.txt constraints/
 ```
+
+As with an update, if the `git diff` line lists any files, run `make pi-install`. Then run it and restart the web UI, which otherwise keeps running the newer code it already loaded:
+
+```bash
+make check
+sudo systemctl start dashboard.service
+make pi-status
+sudo systemctl restart dashboard-web.service    # only if you use the web UI
+```
+
+If the version you left changed a file in `deploy/`, also run `make pi-enable` (and `make web-enable`) so the service definitions match the older code.
 
 The `fetch --tags` matters: the Pi's copy only follows `main`, so it doesn't have the newest tags until you ask for them. `git checkout main` and `git pull` put you back on the latest.
 
