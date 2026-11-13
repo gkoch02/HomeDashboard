@@ -58,7 +58,7 @@ sudo systemctl start dashboard.service                          # 4. run it now 
 make pi-status                                                  # 5. check it ran
 ```
 
-Step 3 prints `Config OK — no issues found.`, or a list of errors and warnings, each naming the setting at fault. Fix any **ERRORS** before going on. Read the **WARNINGS** too: one of them is `Unknown theme`, and a misspelled theme name gets past `make check` as a warning but makes every run fail. An unreadable value (a word where a number belongs) is also a warning: that one setting falls back to its default and the rest still work.
+Step 3 prints `Config OK — no issues found.`, or a list of errors and warnings, each naming the setting at fault. Fix any **ERRORS** before going on. Read the **WARNINGS** too: a misspelled theme name is the warning `Unknown theme`, and until you fix it the panel shows the `default` theme instead. An unreadable value (a word where a number belongs) is also a warning: that one setting falls back to its default and the rest still work.
 
 A file that isn't valid YAML at all (a missing closing quote, bad indentation) makes `make check` say `Could not read config file … line N`, and every run will fail the same way until it's fixed. Restore your backup if you can't see the problem.
 

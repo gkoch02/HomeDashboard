@@ -28,6 +28,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - A `config.yaml` whose top level is a list or a bare value instead of
   `section: value` pairs no longer crashes the renderer, `--check-config` and
   the web UI; it loads as defaults and `--check-config` names the problem.
+- A misspelled theme name (in `theme`, `theme_schedule` or `theme_rules`)
+  renders `default` with a warning, as a retired name already did, instead of
+  failing every run in `load_theme()` and leaving the panel on its last
+  picture. `--check-config` still warns and now says `default` is shown.
 
 ## [6.2.0] - 2026-10-14
 
