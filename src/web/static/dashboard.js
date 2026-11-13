@@ -964,20 +964,44 @@ function selectTheme(name) {
 }
 
 // Theme schedule — add/remove rows
+// Built with DOM calls, never innerHTML: time and theme come from the saved
+// config, so a quote or "<" in either must stay text (#404).
 function addScheduleRow(time = "", theme = "") {
   const tbody = $("sched-tbody");
   if (!tbody) return;
   const allThemes = JSON.parse($("all-themes-json")?.textContent || "[]");
-  const opts = allThemes.map(t =>
-    `<option value="${t}" ${t === theme ? "selected" : ""}>${t}</option>`
-  ).join("");
   const tr = document.createElement("tr");
   tr.className = "schedule-row";
-  tr.innerHTML = `
-    <td data-label="Time"><input type="time" class="sched-time" value="${time}" required></td>
-    <td data-label="Theme"><select class="sched-theme">${opts}</select></td>
-    <td data-label=""><button type="button" class="btn btn-xs btn-danger" onclick="this.closest('tr').remove()">✕</button></td>
-  `;
+  const cell = (label, child) => {
+    const td = document.createElement("td");
+    td.dataset.label = label;
+    td.appendChild(child);
+    return td;
+  };
+
+  const timeInput = document.createElement("input");
+  timeInput.type = "time";
+  timeInput.className = "sched-time";
+  timeInput.required = true;
+  timeInput.value = time;
+
+  const select = document.createElement("select");
+  select.className = "sched-theme";
+  for (const t of allThemes) {
+    const opt = document.createElement("option");
+    opt.value = t;
+    opt.textContent = t;
+    opt.selected = t === theme;
+    select.appendChild(opt);
+  }
+
+  const remove = document.createElement("button");
+  remove.type = "button";
+  remove.className = "btn btn-xs btn-danger";
+  remove.textContent = "✕";
+  remove.addEventListener("click", () => tr.remove());
+
+  tr.append(cell("Time", timeInput), cell("Theme", select), cell("", remove));
   tbody.appendChild(tr);
 }
 

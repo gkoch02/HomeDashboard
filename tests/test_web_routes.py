@@ -865,6 +865,17 @@ def test_config_js_escapes_validation_messages_and_resets_one_call():
     assert "esc_html(e.message)" in save
 
 
+def test_schedule_row_is_built_without_innerhtml():
+    """Static guard for #404: saved time/theme values must stay text."""
+    from pathlib import Path
+
+    js = (Path(__file__).resolve().parents[1] / "src/web/static/dashboard.js").read_text()
+    start = js.index("function addScheduleRow")
+    body = js[start : js.index("\n}\n", start)]
+    assert "innerHTML" not in body and "${" not in body and "onclick" not in body
+    assert "opt.textContent = t" in body and "timeInput.value = time" in body
+
+
 def test_image_theme_uses_bundled_assets_by_default(client, app, tmp_path, monkeypatch):
     app.config.pop("PREVIEW_DIR", None)
     bundled = tmp_path / "installed_assets"
