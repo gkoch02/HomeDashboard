@@ -71,9 +71,11 @@ If something looks off, go to [docs/setup.md](docs/setup.md#troubleshooting-and-
 | Run the 1360 × 480 panoramic panel (Waveshare 10.85" G) | [Panoramic Themes](docs/wide-themes.md) |
 | See the full `config.yaml` reference | [Configuration Reference](docs/configuration.md) |
 | Regenerate the per-theme preview images | [Theme Previews](docs/previews.md) |
+| Look after a running panel: health, settings, updates, backups, rebuilds | [Maintaining](MAINTAINING.md) |
 | Find an answer to a common operational question | [FAQ](docs/faq.md) |
 | Upgrade from an older install | [Upgrading from v4](docs/upgrading-from-v4.md) · [from v3](docs/upgrading-from-v3.md) |
 | Develop locally without hardware | [Development](docs/development.md) |
+| Get a first look inside the code: one run, followed file by file | [Code Tour](docs/CODE_TOUR.md) |
 | Understand the internals and design decisions | [Architecture](docs/architecture.md) |
 | Contribute code or docs | [Contributing](CONTRIBUTING.md) |
 

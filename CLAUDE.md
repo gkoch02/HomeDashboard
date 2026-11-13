@@ -4,7 +4,7 @@
 
 Python eInk dashboard for Raspberry Pi: weekly calendar (Google Calendar / ICS / CalDAV), weather (OpenWeatherMap), birthdays and a daily quote, rendered to a Waveshare or Pimoroni Inky panel or a PNG preview, with an optional Flask web UI.
 
-Each fact has one home. Facts the code states live in the code: field comments in `src/render/theme.py`, font accessors in `src/render/fonts.py`, an "Editing notes" paragraph in each theme module's docstring, and a header comment or docstring beside any other single-task detail. Narrative architecture is [docs/architecture.md](docs/architecture.md); the full command and flag tables, dependencies and the recipes for a new fetcher, theme, component, web field or endpoint are [docs/development.md](docs/development.md).
+Each fact has one home. Facts the code states live in the code: field comments in `src/render/theme.py`, font accessors in `src/render/fonts.py`, an "Editing notes" paragraph in each theme module's docstring, and a header comment or docstring beside any other single-task detail. Narrative architecture is [docs/architecture.md](docs/architecture.md); the full command and flag tables, dependencies and the recipes for a new fetcher, theme, component, web field or endpoint are [docs/development.md](docs/development.md). [docs/CODE_TOUR.md](docs/CODE_TOUR.md) walks one run through the code and names functions, so update it when you rename or move one; [MAINTAINING.md](MAINTAINING.md) is the Pi operator's guide.
 
 ## Everyday Commands
 
