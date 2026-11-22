@@ -41,7 +41,9 @@
           { "context": "test-core-install" },
           { "context": "snapshot-tests" },
           { "context": "typecheck" },
-          { "context": "smoke" }
+          { "context": "smoke" },
+          { "context": "locked-install (3.11)" },
+          { "context": "locked-install (3.13)" }
         ]
       }
     }
